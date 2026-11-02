@@ -63,6 +63,12 @@ const WISCH_DAUER_MS = 560;    // Dauer eines Zuges
 const WISCH_ANSETZEN_MS = 460; // Weg zum Aufsetzpunkt (abgehobener Finger)
 const WISCH_ABHEBEN_MS = 200;  // kurz verharren, bevor der Finger abhebt
 const WISCH_RAND_PX = 90;      // Abstand des Fingers zum oberen/unteren Rand
+// Weite Wege (lange Listen): ein schneller Wischer mit Schwung wie am echten
+// Telefon, die Liste gleitet den Grossteil nach. Erst das letzte Stueck wischt
+// der Finger Zug um Zug. Ab dieser Strecke gibt es Schwung:
+const SCHWUNG_AB_PX = 1400;
+const SCHWUNG_FINGER_MS = 220; // kurzer, schneller Wischer
+const SCHWUNG_GLEITEN_MS = 1100;
 
 const schlafen = (ms) => new Promise((r) => setTimeout(r, ms));
 // Weich anfahren und ausrollen (ease-in-out), damit die Geste natuerlich wirkt.
@@ -228,6 +234,47 @@ const wischenZu = async (el, setCursor, abgebrochen, startPos, zielRect = null) 
     await schlafen(dauer + 60);
     hier = { x, y };
   };
+
+  // Schwung: weit entfernte Ziele mit einem Wischer anfahren, bis auf ein
+  // gewoehnliches Stueck vor dem Ziel.
+  {
+    const offen = scrollStrecke(el, behaelter, zielRect);
+    if (Math.abs(offen) > SCHWUNG_AB_PX) {
+      const richtung = Math.sign(offen);
+      const gleiten = offen - richtung * Math.min(WISCH_MAX_PX, maxZugImFeld) * 0.8;
+      const zug = Math.min(maxZugImFeld, WISCH_MAX_PX) * 0.6;
+      const start = richtung > 0 ? Math.min(feld.unten - rand, feldMitte + zug / 2) : Math.max(feld.oben + rand, feldMitte - zug / 2);
+      const ende = start - richtung * zug;
+      await fahrenZu(start, WISCH_ANSETZEN_MS);
+      if (abgebrochen()) return hier;
+      setCursor({ x, y: start, gedrueckt: true, sichtbar: true, gezogen: true });
+      await schlafen(90);
+      const beginnTop = behaelter.scrollTop;
+      await new Promise((fertig) => {
+        const t0 = performance.now();
+        let losgelassen = false;
+        const takt = () => {
+          if (abgebrochen()) { fertig(); return; }
+          const vergangen = performance.now() - t0;
+          // Der Finger zieht kurz und hebt ab, der Inhalt gleitet weiter und bremst.
+          const tf = Math.min(1, vergangen / SCHWUNG_FINGER_MS);
+          if (!losgelassen) {
+            setCursor({ x, y: start + (ende - start) * tf, gedrueckt: tf < 1, sichtbar: true, gezogen: true });
+            if (tf >= 1) losgelassen = true;
+          }
+          const tg = Math.min(1, vergangen / SCHWUNG_GLEITEN_MS);
+          behaelter.scrollTop = beginnTop + gleiten * (1 - (1 - tg) ** 3);
+          if (tg >= 1) { fertig(); return; }
+          requestAnimationFrame(takt);
+        };
+        requestAnimationFrame(takt);
+      });
+      if (abgebrochen()) return hier;
+      hier = { x, y: ende };
+      setCursor({ x, y: ende, gedrueckt: false, sichtbar: true, gezogen: true });
+      await schlafen(WISCH_ABHEBEN_MS);
+    }
+  }
 
   for (let zug = 0; zug < WISCH_MAX_ZUEGE; zug += 1) {
     if (abgebrochen()) return hier;

@@ -179,6 +179,8 @@ export default function KiAssistentView({ setView, onCreateRide, onOpenRideEdito
   // Demo: Ist ein Tag mit vorgerechneter Störung angenommen, meldet der
   // Assistent die Störung und verlinkt auf die Neuplanung im Planer.
   useEffect(() => {
+    // Nur in der Demo: die Stoerung ist vorgerechnet, im Live-Betrieb gibt es sie nicht.
+    if (!DEMO_MODE) return undefined;
     let aktiv = true;
     stoerungenNachAnnahme().then((liste) => {
       if (!aktiv || !liste.length) return;
