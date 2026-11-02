@@ -137,6 +137,69 @@ const DEMO_KOLONNE_ZEIT_VERSCHIEBEN = false;
   });
 })();
 
+// --- Flugfahrt ins Zeitfenster legen ---------------------------------------
+// Wie in der Fahrer-App (fahrer/src/demo/demoClient.js): Der Flug der VIP-Fahrt
+// landet 1,5 Stunden nach dem Laden, die Anschlussfahrt folgt mit festem
+// Abstand. So liegen die beiden Tutorial-Fahrten zu jeder Uhrzeit vor uns und
+// beide Apps zeigen nebeneinander dieselben Zeiten.
+const DEMO_FLUG_FAHRT = '19f25ddb-af39-519c-961b-3902848a0671';
+const DEMO_ANSCHLUSS_FAHRT = '011ac7d9-f03d-5677-a76d-ae2bda3d7bdb';
+const DEMO_FLUG_VORLAUF_MIN = 90;
+const DEMO_FLUG_NUMMER = 'LH 411';
+const DEMO_FLUG_HERKUNFT = 'New York (JFK)';
+const DEMO_FLUG_VERSPAETUNG_MIN = 20;
+const DEMO_ANSCHLUSS_ABSTAND_MIN = 114;
+(() => {
+  const p2 = (n) => String(n).padStart(2, '0');
+  const setzen = (job, zeitpunkt, planMin = 0) => {
+    const zeit = (d) => `${p2(d.getHours())}:${p2(d.getMinutes())}:00`;
+    job.ride_date = `${zeitpunkt.getFullYear()}-${p2(zeitpunkt.getMonth() + 1)}-${p2(zeitpunkt.getDate())}`;
+    job.etd = zeit(zeitpunkt);
+    if ('original_etd' in job) job.original_etd = zeit(new Date(zeitpunkt.getTime() - planMin * 60000));
+  };
+  const flug = store.jobs.find((eintrag) => eintrag.id === DEMO_FLUG_FAHRT);
+  if (!flug) return;
+  flug.flight_number = DEMO_FLUG_NUMMER;
+  flug.flight_origin = DEMO_FLUG_HERKUNFT;
+  const ankunft = new Date(Date.now() + DEMO_FLUG_VORLAUF_MIN * 60000);
+  ankunft.setMinutes(Math.ceil(ankunft.getMinutes() / 5) * 5, 0, 0);
+  setzen(flug, ankunft, DEMO_FLUG_VERSPAETUNG_MIN);
+  const anschluss = store.jobs.find((eintrag) => eintrag.id === DEMO_ANSCHLUSS_FAHRT);
+  if (anschluss) setzen(anschluss, new Date(ankunft.getTime() + DEMO_ANSCHLUSS_ABSTAND_MIN * 60000));
+})();
+
+// --- Fahrten nach der Uhr ---------------------------------------------------
+// Die Demo zeigt den Tag so, wie er gerade läuft: Fahrten von heute, deren
+// Ende vorbei ist, sind beendet, laufende sind unterwegs, spätere bleiben, wie
+// sie sind. Gerechnet wird bei jeder Abfrage der Fahrten, damit der Stand mit
+// der Uhr weiterläuft. Was jemand in der Demo selbst geändert hat, bleibt.
+const FAHRTDAUER_ERSATZ_MIN = 30;
+const simulierterStatus = new Map();   // id -> zuletzt von hier gesetzter Status
+const ausgangsStatus = new Map(store.jobs.map((job) => [job.id, job.status]));
+const fahrtenNachUhr = () => {
+  const jetzt = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  const heute = `${jetzt.getFullYear()}-${p2(jetzt.getMonth() + 1)}-${p2(jetzt.getDate())}`;
+  const jetztMin = jetzt.getHours() * 60 + jetzt.getMinutes();
+  store.jobs.forEach((job) => {
+    if (job.ride_date !== heute) return;
+    const status = job.status;
+    const unberuehrt = status === ausgangsStatus.get(job.id) || status === simulierterStatus.get(job.id);
+    if (!unberuehrt || !['pending', 'assigned', 'in_progress'].includes(status)) return;
+    const [h, m] = String(job.etd || '').split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return;
+    const start = h * 60 + m;
+    const dauer = Number(job.ext_route_duration_in_traffic_mins) || Number(job.ext_route_duration_mins) || FAHRTDAUER_ERSATZ_MIN;
+    let neu = status;
+    if (jetztMin >= start + dauer) neu = 'done';
+    else if (jetztMin >= start) neu = 'in_progress';
+    if (neu === status) return;
+    job.status = neu;
+    job.driver_response_status = 'accepted';
+    simulierterStatus.set(job.id, neu);
+  });
+};
+
 const uuid = () =>
   (globalThis.crypto?.randomUUID
     ? globalThis.crypto.randomUUID()
@@ -248,6 +311,7 @@ class DemoQuery {
 
   _rows() {
     if (!store[this.table]) store[this.table] = [];
+    if (this.table === 'jobs') fahrtenNachUhr();
     return store[this.table];
   }
 
