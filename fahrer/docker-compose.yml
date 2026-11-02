@@ -1,0 +1,232 @@
+services:
+  fahrer:
+    image: node:22
+    restart: unless-stopped
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - >
+        install_deps() {
+          [ -f /app/package.json ] || { echo "Missing synced source in /app. Run: npm run docker:sync"; exit 1; };
+          if [ -x node_modules/.bin/vite ]; then
+            return 0;
+          fi
+          npm install --no-audit --no-fund;
+        };
+        cd /app;
+        i=0;
+        until install_deps; do
+          i=$$((i+1));
+          [ "$$i" -ge 5 ] && exit 1;
+          echo "Dependency install failed (attempt $$i). Retrying in 2s...";
+          sleep 2;
+        done;
+        npm run dev -- --host 0.0.0.0 --port 5173 --configLoader runner
+    volumes:
+      - ./.docker-sync/fahrer:/app
+      - fahrer_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_SUPABASE_URL=/supabase
+    env_file:
+      - ./.env.local
+
+  koordinator:
+    image: node:22
+    restart: unless-stopped
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - >
+        install_deps() {
+          [ -f /app/package.json ] || { echo "Missing synced source in /app. Run: npm run docker:sync"; exit 1; };
+          if [ -x node_modules/.bin/vite ]; then
+            return 0;
+          fi
+          npm install --no-audit --no-fund;
+        };
+        cd /app;
+        i=0;
+        until install_deps; do
+          i=$$((i+1));
+          [ "$$i" -ge 5 ] && exit 1;
+          echo "Dependency install failed (attempt $$i). Retrying in 2s...";
+          sleep 2;
+        done;
+        npm run dev -- --host 0.0.0.0 --port 5175 --configLoader runner
+    volumes:
+      - ./.docker-sync/koordinaten:/app
+      - koordinaten_node_modules:/app/node_modules
+    ports:
+      - "5175:5175"
+    environment:
+      - VITE_SUPABASE_URL=/supabase
+    env_file:
+      - ../koordinaten-app-lokal/.env.local
+
+  admin:
+    image: node:22
+    restart: unless-stopped
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - >
+        install_deps() {
+          [ -f /app/package.json ] || { echo "Missing synced source in /app. Run: npm run docker:sync"; exit 1; };
+          if [ -x node_modules/.bin/vite ]; then
+            return 0;
+          fi
+          npm install --no-audit --no-fund;
+        };
+        cd /app;
+        i=0;
+        until install_deps; do
+          i=$$((i+1));
+          [ "$$i" -ge 5 ] && exit 1;
+          echo "Dependency install failed (attempt $$i). Retrying in 2s...";
+          sleep 2;
+        done;
+        npm run dev -- --host 0.0.0.0 --port 5177 --configLoader runner
+    volumes:
+      - ./.docker-sync/admin:/app
+      - admin_node_modules:/app/node_modules
+    ports:
+      - "5177:5177"
+    environment:
+      - VITE_SUPABASE_URL=/supabase
+    env_file:
+      - ../admin-app-lokal/.env.local
+
+  planner:
+    build:
+      context: ..
+      dockerfile: admin-app-lokal/optimizer/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8790:8790"
+    environment:
+      - TRISAR_OSM_NOMINATIM_URL=http://osm-nominatim:8080
+      - TRISAR_OSM_OSRM_URL=http://osm-osrm:5000
+
+  teltonika-gateway:
+    image: node:22
+    restart: unless-stopped
+    working_dir: /app
+    command:
+      - sh
+      - -lc
+      - >
+        install_deps() {
+          [ -f /app/package.json ] || { echo "Missing synced source in /app. Run: npm run docker:sync"; exit 1; };
+          if [ -x node_modules/.bin/vite ]; then
+            return 0;
+          fi
+          npm install --no-audit --no-fund;
+        };
+        cd /app;
+        i=0;
+        until install_deps; do
+          i=$$((i+1));
+          [ "$$i" -ge 5 ] && exit 1;
+          echo "Dependency install failed (attempt $$i). Retrying in 2s...";
+          sleep 2;
+        done;
+        npm run teltonika:gateway
+    volumes:
+      - ./.docker-sync/koordinaten:/app
+      - koordinaten_node_modules:/app/node_modules
+    ports:
+      - "5027:5027"
+      - "8788:8788"
+    env_file:
+      - ../koordinaten-app-lokal/.env.local
+    environment:
+      - TELTONIKA_TCP_HOST=0.0.0.0
+      - TELTONIKA_TCP_PORT=5027
+      - TELTONIKA_HEALTH_PORT=8788
+      - TELTONIKA_SOURCE=teltonika_fmb010
+      - LOG_LEVEL=info
+
+  osm-osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v6.0.0
+    profiles: ["osm"]
+    restart: unless-stopped
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./.docker-osm/osrm:/data
+    env_file:
+      - ./.env.osm
+    command:
+      - sh
+      - -lc
+      - >
+        test -f "/data/$${OSRM_BASE_NAME}.osrm.mldgr"
+        || { echo "OSRM graph missing. Run: npm run docker:osm:prepare"; exit 1; };
+        osrm-routed --algorithm mld "/data/$${OSRM_BASE_NAME}.osrm"
+
+  osm-nominatim:
+    image: mediagis/nominatim:5.3
+    profiles: ["osm"]
+    restart: unless-stopped
+    shm_size: "2gb"
+    ports:
+      - "8088:8080"
+    env_file:
+      - ./.env.osm
+    environment:
+      - PBF_PATH=/nominatim/pbf/oberbayern-latest.osm.pbf
+      - FREEZE=true
+      - THREADS=4
+      - NOMINATIM_PASSWORD=nominatim
+    volumes:
+      - ./.docker-osm/pbf:/nominatim/pbf
+      - osm_nominatim_data:/var/lib/postgresql
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["share"]
+    restart: unless-stopped
+    depends_on:
+      - fahrer
+      - koordinator
+      - admin
+    command: tunnel --no-autoupdate --protocol http2 run --token eyJhIjoiZDg5YTUwMWFjYmNmN2NlZDU2NjRhMTJlZTczNGUyYTMiLCJ0IjoiYmEwODA1NWEtMWJmMy00OTk5LTkyNTctY2QwYWIxMDQyM2RiIiwicyI6Ik1tSmxZakZoWTJJdFlqVTRaaTAwTXpFNUxXSTFNREV0TnpBek9UVTRPV1kyT0RGaSJ9
+
+  cloudflare-ddns:
+    image: favonia/cloudflare-ddns:latest
+    profiles: ["ddns"]
+    restart: unless-stopped
+    env_file:
+      - ./.env.cloudflare-ddns
+    environment:
+      - PROXIED=false
+      - UPDATE_CRON=@every 5m
+      - IP6_PROVIDER=none
+
+  api-usage-grafana:
+    image: grafana/grafana:11.5.2
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/api-token-usage.json
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  fahrer_node_modules:
+  koordinaten_node_modules:
+  admin_node_modules:
+  grafana_data:
+  osm_nominatim_data:

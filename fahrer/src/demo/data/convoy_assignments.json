@@ -1,0 +1,108 @@
+[
+  {
+    "id": "99b08935-f4de-42f8-82e9-c7080735380f",
+    "job_id": "880ddb6b-934f-5c37-b3aa-e1887fa637d8",
+    "driver_id": "85a2e0a8-5fa0-5c56-8c2f-210878bc4d9a",
+    "guest_ids": [],
+    "guest_names": [
+      "James Whitfield"
+    ],
+    "response_status": "accepted",
+    "responded_at": "2026-08-14T08:15:00+00:00",
+    "refusal_reason": null,
+    "created_at": "2026-08-13T09:05:00+00:00"
+  },
+  {
+    "id": "1595ffe5-61d8-4ae5-a399-8fd501d4f288",
+    "job_id": "880ddb6b-934f-5c37-b3aa-e1887fa637d8",
+    "driver_id": "f404c813-f9e5-5f1f-80e6-725c517754ae",
+    "guest_ids": [],
+    "guest_names": [
+      "Yuki Tanaka"
+    ],
+    "response_status": "accepted",
+    "responded_at": "2026-08-14T08:15:00+00:00",
+    "refusal_reason": null,
+    "created_at": "2026-08-13T09:05:00+00:00"
+  },
+  {
+    "id": "2ca90316-a33f-4559-a149-aca0196c8750",
+    "job_id": "880ddb6b-934f-5c37-b3aa-e1887fa637d8",
+    "driver_id": "fe193c9e-4f9f-5547-ad38-bc3cf466c492",
+    "guest_ids": [],
+    "guest_names": [
+      "Stephan Krieger"
+    ],
+    "response_status": "pending",
+    "responded_at": null,
+    "refusal_reason": null,
+    "created_at": "2026-08-13T09:05:00+00:00"
+  },
+  {
+    "id": "3a63ab0b-8496-49ec-941b-a690ae0b3dc5",
+    "job_id": "657031e7-52b1-5b05-b780-1e4289483ed1",
+    "driver_id": "97378583-4db4-5604-a29f-fa1f11a740db",
+    "guest_ids": [],
+    "guest_names": [],
+    "response_status": "pending",
+    "responded_at": null,
+    "refusal_reason": null,
+    "created_at": "2026-08-16T11:06:34.636527+00:00"
+  },
+  {
+    "id": "f0bc5fd9-c3d1-47c5-9c08-1eb1c17d03c4",
+    "job_id": "011ac7d9-f03d-5677-a76d-ae2bda3d7bdb",
+    "driver_id": "0012ce3e-dc52-423a-824d-39ab4ce592c7",
+    "guest_ids": [],
+    "guest_names": [],
+    "response_status": "pending",
+    "responded_at": null,
+    "refusal_reason": null,
+    "created_at": "2026-08-16T11:07:14.731226+00:00"
+  },
+  {
+    "id": "d4a1b2c3-1111-4e2f-9a3b-000000000001",
+    "job_id": "4ce042be-fe4e-5551-af45-60feb881d279",
+    "driver_id": "0012ce3e-dc52-423a-824d-39ab4ce592c7",
+    "guest_ids": [
+      "6a208955-2a32-5b1b-9f3b-cd6c436497be"
+    ],
+    "guest_names": [
+      "Katharina Vogel"
+    ],
+    "response_status": "accepted",
+    "responded_at": "2026-08-15T17:02:00+00:00",
+    "refusal_reason": null,
+    "created_at": "2026-08-15T16:48:31.761078+00:00"
+  },
+  {
+    "id": "d4a1b2c3-1111-4e2f-9a3b-000000000002",
+    "job_id": "4ce042be-fe4e-5551-af45-60feb881d279",
+    "driver_id": "40849666-dcd1-5e11-9de1-e90a85a98062",
+    "guest_ids": [
+      "d0212f49-45f6-5826-ad33-8d9dca538b02"
+    ],
+    "guest_names": [
+      "Jonas Weißhaupt"
+    ],
+    "response_status": "accepted",
+    "responded_at": "2026-08-15T17:02:00+00:00",
+    "refusal_reason": null,
+    "created_at": "2026-08-15T16:48:31.761078+00:00"
+  },
+  {
+    "id": "d4a1b2c3-1111-4e2f-9a3b-000000000003",
+    "job_id": "4ce042be-fe4e-5551-af45-60feb881d279",
+    "driver_id": "0c8aa21c-1730-505e-b03b-06607611672e",
+    "guest_ids": [
+      "a526deb1-6998-5339-b08c-9233b216fcd5"
+    ],
+    "guest_names": [
+      "Miriam Steinbach"
+    ],
+    "response_status": "accepted",
+    "responded_at": "2026-08-15T17:02:00+00:00",
+    "refusal_reason": null,
+    "created_at": "2026-08-15T16:48:31.761078+00:00"
+  }
+]

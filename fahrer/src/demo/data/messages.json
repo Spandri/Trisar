@@ -1,0 +1,20 @@
+[
+  {
+    "id": "b1e2d3c4-0001-4a5b-8c9d-000000000001",
+    "sender_id": "40849666-dcd1-5e11-9de1-e90a85a98062",
+    "target_type": "group",
+    "target_id": "c0e5a1d2-7b3f-4e4a-9c8d-1f2a3b4c5d6e",
+    "content": "Ich übernehme Herrn Weißhaupt. Treffpunkt wie besprochen am Haupteingang.",
+    "created_at": "2026-08-16T15:52:00+00:00",
+    "minuten_vorher": 9
+  },
+  {
+    "id": "b1e2d3c4-0001-4a5b-8c9d-000000000002",
+    "sender_id": "0c8aa21c-1730-505e-b03b-06607611672e",
+    "target_type": "group",
+    "target_id": "c0e5a1d2-7b3f-4e4a-9c8d-1f2a3b4c5d6e",
+    "content": "Alles klar, ich nehme Frau Steinbach.",
+    "created_at": "2026-08-16T15:55:00+00:00",
+    "minuten_vorher": 6
+  }
+]

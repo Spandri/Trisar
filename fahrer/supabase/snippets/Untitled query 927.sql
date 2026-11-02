@@ -1,0 +1,2 @@
+supabase secrets set LH_CLIENT_ID=e4jjejhf33uxbrwe9gsegwtaq
+supabase secrets set LH_CLIENT_SECRET=NPWtwPUXnx

@@ -1,0 +1,34 @@
+# Abhaengigkeiten und Builds
+node_modules/
+dist/
+dist-ssr/
+.venv/
+__pycache__/
+*.pyc
+.wrangler/
+.temp/
+
+# Gebaute Apps im Demo-Deployment (entstehen durch deploy.sh --build)
+demo/deploy/admin/
+demo/deploy/fahrer/
+demo/deploy/fahrer 2/
+
+# Geheimnisse: nur die .example-Vorlagen gehoeren ins Repo
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+
+# Laufprotokolle
+*.log
+
+# System und Editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.sw?
+
+# DB-Sicherungen koennen echte Personendaten enthalten
+**/db/backups/

@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup Risiko je Fahrt</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --lime:#e3f654; --lime-halb:rgba(227,246,84,.5); --gruen:#59be80; --rot:#ff6f63; --dunkel:#1c1c1d; --blau:#2f5cff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#151516; font-family:'Space Grotesk',sans-serif; color:#fff; padding:28px 24px 60px; }
+  .leiste { display:flex; gap:40px; align-items:flex-start; justify-content:center; flex-wrap:wrap; }
+  .spalte { width:402px; }
+  .spalte h2 { font-size:14px; font-weight:500; color:#9a9a9a; margin-bottom:10px; letter-spacing:.3px; }
+  .spalte h2 b { color:#fff; }
+  .screen { width:402px; position:relative; overflow:hidden; background:#000; border-radius:28px; outline:1px solid #333; padding:40px 20px 40px; }
+  .bg-planer { background:#000 url("data:image/svg+xml;utf8,<svg viewBox='0 0 402 873' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect width='100%' height='100%' fill='url(%23g)'/><defs><radialGradient id='g' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(43.25 96.3 -44.344 19.869 0 0)'><stop stop-color='rgba(49,55,1,1)' offset='0'/><stop stop-color='rgba(25,28,0,1)' offset='0.2283'/><stop stop-color='rgba(12,14,0,1)' offset='0.34244'/><stop stop-color='rgba(0,0,0,1)' offset='0.45659'/><stop stop-color='rgba(0,0,0,1)' offset='0.6782'/><stop stop-color='rgba(0,22,64,1)' offset='0.75865'/><stop stop-color='rgba(0,45,128,1)' offset='0.8391'/><stop stop-color='rgba(0,89,255,1)' offset='1'/></radialGradient></defs></svg>") top left/100% 100% no-repeat; }
+  .bg-blau { background:#000 radial-gradient(520px 520px at -40px -40px,#0b46ff 0%,#06216e 35%,#000 70%) no-repeat; }
+  .neu { position:relative; }
+  .neu::before { content:''; position:absolute; inset:-6px; border:2px dashed var(--rot); pointer-events:none; }
+  .neu-tag { position:absolute; top:-15px; right:-2px; background:var(--rot); color:#000; font-size:10px; font-weight:700; padding:1px 6px; letter-spacing:.5px; }
+  .zurueck { width:50px; height:50px; border:1px solid #747474; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .zurueck img { width:27px; height:16px; transform:rotate(180deg) scale(1.2); }
+  .datum { display:flex; align-items:center; justify-content:space-between; height:32px; }
+  .datum span.s { width:44px; height:2px; background:#e3f754; }
+  .datum span.t { font-size:26px; font-weight:700; letter-spacing:-.5px; color:#e3f754; }
+  .legende { display:flex; justify-content:space-between; font-size:12px; font-weight:500; color:var(--lime); margin-top:40px; }
+  .titel { font-size:40px; font-weight:700; color:var(--lime); letter-spacing:-.5px; line-height:1.1; }
+  .kasten { border:1px solid var(--lime); color:var(--lime); padding:12px 14px; font-size:12px; line-height:17px; }
+  .kasten .k { font-weight:700; font-size:13px; }
+  .klein { font-size:10px; line-height:14px; opacity:.6; }
+  .karte { background:#fefffe; color:var(--dunkel); padding:16px 18px; }
+  .feld { border:2px solid var(--lime); height:56px; display:flex; align-items:center; gap:12px; padding:0 18px; margin-top:12px; font-size:16px; }
+  .feld .l { color:#8f9a3a; }
+  .chip { display:inline-block; font-size:11px; font-weight:700; padding:2px 6px; color:var(--dunkel); }
+  .chip.r { background:var(--rot); } .chip.m { background:var(--lime); } .chip.g { background:var(--gruen); }
+  .zeile { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:9px 0; border-top:1px solid #d9d9d9; font-size:13px; line-height:17px; }
+  .blase-ich { width:314px; margin-left:auto; padding:12px 12px 8px; background:var(--lime); color:#000; border-radius:16px 16px 6px 16px; font-size:16px; font-weight:500; line-height:20px; }
+  .blase-ich .zeit { font-size:10px; color:rgba(0,0,0,.6); margin-top:10px; font-weight:400; }
+  .blase-tri { width:314px; padding:12px 12px 10px; background:#242525; border:1px solid #3a3a3a; border-radius:16px 16px 16px 6px; font-size:14px; line-height:19px; }
+  .knopf { height:48px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:500; }
+  .knopf.lime { background:var(--lime); color:#000; }
+  .knopf.rand { border:2px solid var(--rot); color:var(--rot); }
+  .hinweis { font-size:13px; color:#9a9a9a; max-width:900px; margin:0 auto 22px; text-align:center; line-height:1.5; }
+</style>
+</head>
+<body>
+<p class="hinweis">Rot gestrichelt = neu. Alles andere ist der heutige Stand der Demo. Zahlen, Namen und Ereignisse sind Platzhalter.</p>
+<div class="leiste">
+
+<!-- 1  Bedarf prüfen, vor der Planung -->
+<div class="spalte">
+<h2><b>1 · Bedarf prüfen</b> · vor der Planung</h2>
+<div class="screen bg-planer">
+  <div class="zurueck"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9IiNCNUI0QjUiLz4KPC9zdmc+Cg==" alt=""></div>
+  <div class="datum" style="margin-top:28px"><span class="s"></span><span class="t">Donnerstag 29.10.</span><span class="s"></span></div>
+  <div class="legende" style="margin-top:44px"><span>Fahrer <span style="display:inline-block;width:12px;height:12px;background:var(--gruen);vertical-align:-1px"></span></span><span>Bedarf Fahrer <span style="color:var(--lime)">●</span> <span style="color:var(--rot)">●</span></span><span>Gebuchte Fahrten <span style="color:var(--blau)">—</span></span></div>
+  <svg id="bedarf" width="362" height="222" style="display:block;margin-top:14px"></svg>
+
+  <div class="neu" style="margin-top:34px">
+    <span class="neu-tag">NEU</span>
+    <p style="font-size:20px;font-weight:700;color:var(--lime);letter-spacing:-.3px">Was die Engine für diesen Tag kennt</p>
+    <p style="font-size:12px;line-height:16px;color:var(--lime-halb);margin-top:4px">Automatisch gesammelt aus offenen Quellen. Ergänze, was fehlt, die Engine rechnet es vor der Planung ein.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+      <div class="kasten"><p class="k">Messe München: bauma, Tag 4</p><p>06:30–10:00 Zufahrt Riem und A94 belastet, Abreise ab 17:00.</p><p class="klein" style="margin-top:4px">Quelle: Messekalender München</p></div>
+      <div class="kasten"><p class="k">Heimspiel FC Bayern, Allianz Arena (Anstoß 20:30)</p><p>A9 Fröttmaning und Kreuz Nord 18:00–20:15 und 22:15–23:45.</p><p class="klein" style="margin-top:4px">Quelle: Spielplan DFL, Planungsannahme nach Polizei München</p></div>
+      <div class="kasten"><p class="k">Baustelle A99, Ausfahrt Aschheim</p><p>Ganztägig eine Spur gesperrt.</p><p class="klein" style="margin-top:4px">Quelle: Autobahn GmbH</p></div>
+      <div class="kasten" style="border-color:#fff;color:#fff"><div style="display:flex;justify-content:space-between"><p class="k">Sperrung Ludwigstraße</p><span class="chip m">von dir</span></div><p>14:00–18:00 Demonstration, Umfahrung über Altstadtring. Betrifft 9 Fahrten.</p></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:22px">
+      <div class="blase-ich">Ludwigstraße ist am Donnerstag von 14 bis 18 Uhr wegen einer Demo gesperrt<div class="zeit">09:42</div></div>
+      <div class="blase-tri">
+        <p style="color:var(--lime);font-size:10px;font-weight:700;margin-bottom:8px">TRISAR</p>
+        <p>Verstanden. Ich habe eingetragen:</p>
+        <div class="karte" style="margin-top:10px;padding:12px 14px">
+          <p style="font-weight:700;font-size:14px">Sperrung Ludwigstraße</p>
+          <p style="font-size:12px;line-height:16px;margin-top:2px">Do. 29.10., 14:00–18:00 · Umfahrung Altstadtring, bis +12 min</p>
+          <p style="font-size:12px;line-height:16px;margin-top:4px">Betrifft 9 Fahrten, davon 3 mit engem Anschluss.</p>
+        </div>
+        <p style="margin-top:10px">Wird bei der Planung eingerechnet.</p>
+      </div>
+      <div class="feld" style="margin-top:4px;justify-content:space-between"><span class="l">Ereignis ergänzen …</span><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDUiIGhlaWdodD0iMjgiIHZpZXdCb3g9IjAgMCA0NSAyOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggaWQ9IlZlY3RvciIgZD0iTTUuNDA5NTcgMTEuMjU0VjEwLjI2MzdMMTguMTQzNiA1LjE3Njg1VjBMMCA3Ljc0Mjc3VjEyLjk2NDZWMTMuOTFWMjAuMjU3MkwxOC4xNDM2IDI4VjIyLjgyMzJMNS40MDk1NyAxNy43MzYzVjE2Ljc0Nkg0NVYxMy45MVYxMi45NjQ2VjExLjI1NEg1LjQwOTU3WiIgZmlsbD0iI0UzRjY1NCIvPgo8L3N2Zz4K" alt="" style="width:34px;height:21px;transform:rotate(180deg)"></div>
+    </div>
+  </div>
+
+  <p style="text-align:center;font-size:12px;font-weight:500;color:var(--lime-halb);margin-top:40px;line-height:16px;letter-spacing:.5px">Bedarf per Hand anpassen: Punkte im Diagramm nach oben oder unten ziehen.</p>
+  <div style="position:relative;height:48px;margin-top:22px"><span style="position:absolute;left:50%;top:12px;transform:translateX(-50%);font-size:14px;font-weight:500;color:var(--lime-halb)">Zurücksetzen</span><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDUiIGhlaWdodD0iMjgiIHZpZXdCb3g9IjAgMCA0NSAyOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggaWQ9IlZlY3RvciIgZD0iTTUuNDA5NTcgMTEuMjU0VjEwLjI2MzdMMTguMTQzNiA1LjE3Njg1VjBMMCA3Ljc0Mjc3VjEyLjk2NDZWMTMuOTFWMjAuMjU3MkwxOC4xNDM2IDI4VjIyLjgyMzJMNS40MDk1NyAxNy43MzYzVjE2Ljc0Nkg0NVYxMy45MVYxMi45NjQ2VjExLjI1NEg1LjQwOTU3WiIgZmlsbD0iI0UzRjY1NCIvPgo8L3N2Zz4K" alt="" style="position:absolute;right:8px;top:10px;width:45px;height:28px;transform:rotate(180deg)"></div>
+</div>
+</div>
+
+<!-- 2  KI Planer Tag -->
+<div class="spalte">
+<h2><b>2 · KI Planer, Tag</b> · nach der Planung</h2>
+<div class="screen bg-planer">
+  <div class="zurueck"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9IiNCNUI0QjUiLz4KPC9zdmc+Cg==" alt=""></div>
+  <p style="text-align:center;font-size:26px;font-weight:700;color:var(--lime);margin-top:24px">Do., 29. Okt.</p>
+  <div style="display:flex;justify-content:space-around;margin-top:26px;font-size:17px;font-weight:500"><span style="color:var(--lime);border-left:2px solid var(--lime);border-right:2px solid var(--lime);padding:0 12px">CO₂-arm</span><span style="color:var(--lime-halb)">Günstig</span><span style="color:var(--lime-halb)">Reserve</span></div>
+  <div class="karte" style="margin-top:22px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><p style="font-size:20px;font-weight:700;letter-spacing:-.3px">CO₂-arm</p><span class="chip m">Standard</span></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px;margin-top:10px">
+      <div><p style="font-size:11px;opacity:.6">Fahrer/Fahrzeuge</p><p style="font-size:16px;font-weight:700">45</p></div>
+      <div><p style="font-size:11px;opacity:.6">km gesamt</p><p style="font-size:16px;font-weight:700">5.484</p></div>
+      <div><p style="font-size:11px;opacity:.6">CO₂</p><p style="font-size:16px;font-weight:700">496 kg</p></div>
+    </div>
+    <p style="font-size:12px;line-height:16px;color:var(--gruen);margin-top:10px"><b>Pünktlich 100,0 %</b> der Abholungen in 300 neuen Tagesverläufen …</p>
+  </div>
+  <div class="kasten" style="margin-top:12px"><p class="k">Vorhersage: Heimspiel FC Bayern, Allianz Arena (Anstoß 20:30)</p><p>A9 im Münchner Norden belastet 18:00–20:15 und nach Abpfiff 22:15–23:45 …</p></div>
+
+  <div class="neu" style="margin-top:22px">
+    <span class="neu-tag">NEU</span>
+    <div class="kasten">
+      <p class="k" style="font-size:16px">Puffer je Fahrt</p>
+      <p style="margin-top:2px">Jeder Punkt ist eine Fahrt. Wie viel Luft sie bekommt, hängt von Strecke, Startort, Ziel, Uhrzeit und den Ereignissen des Tages ab.</p>
+      <svg id="streu" width="332" height="190" style="display:block;margin-top:10px"></svg>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:11px">
+        <span><span style="color:var(--gruen)">●</span> niedrig</span><span><span style="color:var(--lime)">●</span> mittel</span><span><span style="color:var(--rot)">●</span> hoch</span><span style="color:#fff">- - bisher 20 min für jede Fahrt</span>
+      </div>
+      <p style="margin-top:10px;font-size:13px;color:#fff"><b>98 Fahrten</b> brauchen weniger als 20 min, <b>14</b> mehr. Die meisten davon im Heimspiel-Fenster.</p>
+      <p class="klein" style="margin-top:8px">500 Verläufe des Tages. Flugverspätung angelehnt an Eurocontrol 2025, Spieltagsfaktoren angenommen. Kein Messwert.</p>
+    </div>
+    <div class="karte" style="margin-top:12px;padding-bottom:8px">
+      <p style="font-size:16px;font-weight:700">14 Fahrten mit hohem Risiko</p>
+      <div class="zeile" style="margin-top:8px"><div><b>21:50</b> – Messe München – Flughafen München<p style="font-size:11px;opacity:.6">Heimspiel-Stau A9 · Puffer 31 min</p></div><span class="chip r">hoch</span></div>
+      <div class="zeile"><div><b>07:40</b> – Flughafen München – Messe München<p style="font-size:11px;opacity:.6">LH 2031, oft verspätet · Puffer 26 min</p></div><span class="chip r">hoch</span></div>
+      <div class="zeile"><div><b>15:10</b> – Bayerischer Hof – Messe München<p style="font-size:11px;opacity:.6">Sperrung Ludwigstraße · Puffer 24 min</p></div><span class="chip r">hoch</span></div>
+      <p style="font-size:13px;padding:8px 0 4px;text-decoration:underline">Alle 14 ansehen</p>
+    </div>
+  </div>
+
+  <div class="kasten" style="margin-top:22px"><p class="k">Rad &amp; U-Bahn: 30 Gästen vorab angeboten, 13 zugesagt</p><p>Fahrzeug bleibt zur Sicherheit reserviert …</p></div>
+</div>
+</div>
+
+<!-- 3  Alle Fahrten -->
+<div class="spalte">
+<h2><b>3 · Alle Fahrten</b></h2>
+<div class="screen bg-blau">
+  <div class="zurueck"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9IiNCNUI0QjUiLz4KPC9zdmc+Cg==" alt=""></div>
+  <p class="titel" style="margin-top:34px">Alle Fahrten</p>
+  <div class="feld" style="margin-top:24px"><span class="l" style="color:#a3ad48;font-weight:500">Mein Standort</span><span style="color:#8f9a3a">Ort eingeben</span></div>
+  <div style="display:flex;gap:12px;margin-top:12px"><div class="feld" style="flex:1;margin:0;background:var(--lime);color:#000;justify-content:space-between">Filter <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9IkZpbHRlcl9NYXBfSWNvbiI+CjxnIGlkPSJHcm91cCAzMyI+CjxwYXRoIGlkPSJWZWN0b3IiIGQ9Ik0xNS42NDE5IDIzLjQzOThWMjIuODc3MUwyMy4wMzggMTkuOTg2OFYxNy4wNDU1TDEyLjUgMjEuNDQ0OFYyNC40MTE3VjI0Ljk0ODhWMjguNTU1MkwyMy4wMzggMzIuOTU0NVYzMC4wMTMyTDE1LjY0MTkgMjcuMTIyOVYyNi41NjAySDM4LjYzNjRWMjQuOTQ4OFYyNC40MTE3VjIzLjQzOThIMTUuNjQxOVoiIGZpbGw9IiM4ODg5ODkiLz4KPGNpcmNsZSBpZD0iRWxsaXBzZSA4IiBjeD0iMjUiIGN5PSIyNSIgcj0iMjQiIGZpbGw9IiNFM0Y2NTQiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMiIvPgo8L2c+CjxwYXRoIGlkPSJWZWN0b3IgNTQiIGQ9Ik0xMyAxNkgzNiIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxwYXRoIGlkPSJWZWN0b3IgNTUiIGQ9Ik0xMyAyNUgzNiIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxwYXRoIGlkPSJWZWN0b3IgNTYiIGQ9Ik0xMyAzNEgzNiIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxjaXJjbGUgaWQ9IkVsbGlwc2UgOSIgY3g9IjI5IiBjeT0iMTYiIHI9IjIuNSIgZmlsbD0iI0UzRjY1NCIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxjaXJjbGUgaWQ9IkVsbGlwc2UgMTAiIGN4PSIyMCIgY3k9IjI1IiByPSIyLjUiIGZpbGw9IiNFM0Y2NTQiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMyIvPgo8Y2lyY2xlIGlkPSJFbGxpcHNlIDExIiBjeD0iMzAiIGN5PSIzNCIgcj0iMi41IiBmaWxsPSIjRTNGNjU0IiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjMiLz4KPC9nPgo8L3N2Zz4K" alt="" style="width:22px"></div><div class="feld" style="width:90px;margin:0"></div></div>
+  <div class="feld"><span style="color:#a3ad48">Kunden/Fahrer Suchen</span></div>
+
+  <div class="karte" style="margin-top:24px;padding:18px">
+    <div style="display:flex;justify-content:space-between"><p style="font-size:24px;line-height:30px;font-weight:700">M. Keller,<br>A. Brandt</p><div style="text-align:right;font-weight:700;font-size:16px;line-height:20px">21:50<p style="font-weight:400">29.10.</p></div></div>
+    <p style="font-size:12px;font-weight:500;opacity:.8;margin-top:6px">Messe München - Flughafen München, Terminal 2</p>
+    <div class="neu" style="margin-top:12px"><span class="neu-tag">NEU</span><div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500"><span class="chip r">Risiko hoch</span>Heimspiel-Stau A9 · Puffer 31 min</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><p style="font-size:16px;font-weight:700">S. Spandri (12)</p><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9ImJsYWNrIi8+Cjwvc3ZnPgo=" alt="" style="width:30px" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'→',style:'font-size:28px'}))"></div>
+  </div>
+  <div class="karte" style="margin-top:14px;padding:18px">
+    <div style="display:flex;justify-content:space-between"><p style="font-size:24px;line-height:30px;font-weight:700">K. Wagner</p><div style="text-align:right;font-weight:700;font-size:16px;line-height:20px">11:15<p style="font-weight:400">29.10.</p></div></div>
+    <p style="font-size:12px;font-weight:500;opacity:.8;margin-top:6px">Andaz Schwabinger Tor - Hauptbahnhof</p>
+    <div class="neu" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500"><span class="chip g">Risiko niedrig</span>Puffer 6 min</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><p style="font-size:16px;font-weight:700">L. Meyer (4)</p><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9ImJsYWNrIi8+Cjwvc3ZnPgo=" alt="" style="width:30px"></div>
+  </div>
+</div>
+</div>
+
+<!-- 4  Fahrt bearbeiten -->
+<div class="spalte">
+<h2><b>4 · Fahrt bearbeiten</b></h2>
+<div class="screen bg-blau">
+  <div class="zurueck"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9IiNCNUI0QjUiLz4KPC9zdmc+Cg==" alt=""></div>
+  <p class="titel" style="margin-top:34px">Fahrt bearbeiten</p>
+  <div class="feld" style="margin-top:20px"><span class="l">Datum</span>29.10.2026</div>
+  <div class="feld"><span class="l">Start Zeit</span>21:50</div>
+  <div class="feld"><span class="l">Start</span>Messe München, Eingang West</div>
+  <div class="feld"><span class="l">Ziel</span>Flughafen München, Terminal 2</div>
+  <div class="feld"><span class="l">Fahrer</span>Stefano Spandri (12)</div>
+  <div class="feld"><span class="l">aktueller Status</span>offen</div>
+
+  <div class="neu" style="margin:30px -20px 0;background:var(--dunkel);padding:20px">
+    <span class="neu-tag" style="right:18px">NEU</span>
+    <div class="karte">
+      <div style="display:flex;justify-content:space-between;align-items:center"><p style="font-size:16px;font-weight:700">Was dieser Fahrt passieren kann</p><span class="chip r">hoch</span></div>
+      <p style="font-size:11px;opacity:.6;margin-top:12px">Fahrzeit in 500 Verläufen</p>
+      <svg id="vert" width="326" height="70" style="display:block;margin-top:4px"></svg>
+      <p style="font-size:13px;line-height:18px;margin-top:6px">Normal <b>34 min</b>, in 9 von 10 Verläufen höchstens <b>58 min</b>.</p>
+      <div style="margin-top:12px">
+        <div class="zeile"><div>Heimspiel-Stau A9<p style="font-size:11px;opacity:.6">Abpfiff 22:20 · Planungsannahme</p></div><div style="text-align:right;white-space:nowrap"><b>7 von 10</b><p style="font-size:11px;opacity:.6">bis +22 min</p></div></div>
+        <div class="zeile"><div>Gast verspätet<p style="font-size:11px;opacity:.6">Messeende</p></div><div style="text-align:right;white-space:nowrap"><b>2 von 10</b><p style="font-size:11px;opacity:.6">bis +10 min</p></div></div>
+      </div>
+      <div style="border-top:1px solid #d9d9d9;padding-top:10px;font-size:13px;line-height:22px">
+        <div style="display:flex;justify-content:space-between"><span>Eingeplanter Puffer</span><b>31 min</b></div>
+        <div style="display:flex;justify-content:space-between;opacity:.5"><span>Bisher pauschal</span><span>20 min</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Route</span><span>Flughafentangente Ost</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Folgefahrt 23:40</span><b style="color:var(--gruen)">in allen Verläufen pünktlich</b></div>
+      </div>
+      <p style="font-size:10px;opacity:.5;margin-top:10px">Planungsannahmen, keine Messwerte.</p>
+    </div>
+  </div>
+
+  <div class="feld" style="margin-top:30px;justify-content:space-between">Bearbeitung speichern <span style="font-size:24px">→</span></div>
+  <div class="knopf rand" style="margin-top:12px">Fahrt stornieren</div>
+</div>
+</div>
+
+</div>
+<script>
+const NS='http://www.w3.org/2000/svg';
+const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e;};
+let s=7;const zufall=()=>(s=(s*16807)%2147483647)/2147483647;
+
+// Bedarfsdiagramm wie in der App
+(()=>{const g=document.getElementById('bedarf'),W=362,H=210,x0=30,y0=192,max=20;
+[0,5,10,15,20].forEach(v=>{const y=y0-v/max*170;el('line',{x1:0,x2:W,y1:y,y2:y,stroke:'#e3f654','stroke-width':1},g);const t=el('text',{x:0,y:y-6,fill:'#e3f654','font-size':16,'font-family':'Space Grotesk'},g);t.textContent=v;});
+const bed=[2,7,12,8,9,13,9,9,11,10,11,14,11,8,9,15,13,11,0,0],geb=[1,6,12,6,9,12,6,9,10,8,10,13,9,8,6,15,12,11,0,0];
+const px=i=>x0+i*17;
+el('polyline',{points:geb.map((v,i)=>`${px(i)},${y0-v/max*170}`).join(' '),fill:'none',stroke:'#2f5cff','stroke-width':2},g);
+el('polyline',{points:bed.map((v,i)=>`${px(i)},${y0-v/max*170}`).join(' '),fill:'none',stroke:'#fff','stroke-width':1.5},g);
+bed.forEach((v,i)=>el('circle',{cx:px(i),cy:y0-v/max*170,r:5,fill:v?'#ff6f63':'#e3f654'},g));
+['06:00','09:00','12:00','15:00','18:00','21:00','00:00'].forEach((t,i)=>{const e=el('text',{x:px(i*3),y:y0+22,fill:'#e3f654','font-size':12,'font-weight':500,'text-anchor':'middle','font-family':'Space Grotesk'},g);e.textContent=t;});})();
+
+// Streudiagramm: Puffer je Fahrt
+(()=>{const g=document.getElementById('streu'),W=332,H=190,x0=26,x1=W-4,y0=166,ym=6,max=40;
+const X=h=>x0+(h-6)/18*(x1-x0),Y=m=>y0-m/max*(y0-ym);
+[0,10,20,30,40].forEach(v=>{el('line',{x1:x0,x2:x1,y1:Y(v),y2:Y(v),stroke:'rgba(227,246,84,.18)'},g);const t=el('text',{x:0,y:Y(v)+4,fill:'#e3f654','font-size':10,'font-family':'Space Grotesk'},g);t.textContent=v;});const ut=el('text',{x:x0+4,y:ym+12,fill:'#e3f654','font-size':10,'font-family':'Space Grotesk'},g);ut.textContent='Puffer in min';
+[6,10,14,18,22,24].forEach(h=>{const t=el('text',{x:X(h),y:H-6,fill:'#e3f654','font-size':10,'text-anchor':'middle','font-family':'Space Grotesk'},g);t.textContent=String(h%24).padStart(2,'0');});
+el('rect',{x:X(18),y:ym,width:X(23.75)-X(18),height:y0-ym,fill:'rgba(255,111,99,.10)'},g);
+const lt=el('text',{x:X(18)+4,y:ym+12,fill:'#ff6f63','font-size':10,'font-family':'Space Grotesk'},g);lt.textContent='Heimspiel';
+el('rect',{x:X(14),y:ym,width:X(18)-X(14),height:y0-ym,fill:'rgba(255,255,255,.05)'},g);
+const lt2=el('text',{x:X(14)+4,y:ym+12,fill:'#fff','font-size':10,'font-family':'Space Grotesk','opacity':.7},g);lt2.textContent='Sperrung';
+el('line',{x1:x0,x2:x1,y1:Y(20),y2:Y(20),stroke:'#fff','stroke-width':1.2,'stroke-dasharray':'5 4'},g);
+for(let i=0;i<112;i++){const h=6.5+zufall()*17.2;let m=3+zufall()*12;
+ if(h<10&&zufall()<.5)m+=zufall()*12;
+ if(h>14&&h<18&&zufall()<.25)m+=10+zufall()*8;
+ if(h>18&&zufall()<.55)m+=8+zufall()*18;
+ m=Math.min(m,38);const c=m>=22?'#ff6f63':m>=13?'#e3f654':'#59be80';
+ el('circle',{cx:X(h),cy:Y(m),r:3.4,fill:c},g);}
+})();
+
+// Fahrzeitverteilung
+(()=>{const g=document.getElementById('vert'),W=326,H=70,b=[1,3,7,12,15,13,10,8,7,6,5,4,3,2,1.5,1,.6],bw=W/b.length,mx=15;
+b.forEach((v,i)=>{const m=25+i*3,c=m<=40?'#59be80':m<=58?'#e3f654':'#ff6f63';el('rect',{x:i*bw+1,y:52-v/mx*48,width:bw-2,height:v/mx*48,fill:c},g);});
+el('line',{x1:3*bw+bw/2,x2:3*bw+bw/2,y1:0,y2:52,stroke:'#1c1c1d','stroke-width':1.5},g);
+[['25 min',0,'start'],['40',5*bw,'middle'],['55',10*bw,'middle'],['75 min',W,'end']].forEach(([t,x,a])=>{const e=el('text',{x,y:66,fill:'#1c1c1d','font-size':10,'text-anchor':a,'font-family':'Space Grotesk','opacity':.6},g);e.textContent=t;});})();
+</script>
+</body>
+</html>

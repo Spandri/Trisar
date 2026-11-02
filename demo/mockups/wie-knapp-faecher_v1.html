@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup Wie knapp Fächer</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --lime:#e3f654; --gruen:#59be80; --rot:#ff6f63; --dunkel:#1c1c1d; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#151516; font-family:'Space Grotesk',sans-serif; color:#fff; padding:28px 24px 60px; }
+  .hinweis { font-size:13px; color:#9a9a9a; max-width:900px; margin:0 auto 18px; text-align:center; line-height:1.5; }
+  .schalter { display:flex; gap:8px; justify-content:center; margin-bottom:22px; flex-wrap:wrap; }
+  .schalter button { font-family:inherit; font-size:13px; font-weight:500; padding:8px 14px; background:transparent; color:var(--lime); border:2px solid var(--lime); cursor:pointer; }
+  .schalter button.an { background:var(--lime); color:#000; }
+  .schalter .trenn { width:16px; }
+  .leiste { display:flex; gap:40px; align-items:flex-start; justify-content:center; flex-wrap:wrap; }
+  .spalte { width:402px; }
+  .spalte h2 { font-size:14px; font-weight:500; color:#9a9a9a; margin-bottom:10px; letter-spacing:.3px; }
+  .spalte h2 b { color:#fff; }
+  .screen { width:402px; background:#000; border-radius:28px; outline:1px solid #333; padding:28px 20px 28px;
+    background:#000 radial-gradient(420px 300px at 0 0,#262b01 0%,#0c0e00 45%,#000 75%) no-repeat; }
+  .karte { border:2px solid var(--lime); color:var(--lime); padding:14px 16px; }
+  .kopf { display:flex; justify-content:space-between; align-items:baseline; }
+  .kopf p:first-child { font-size:16px; font-weight:700; }
+  .kopf p:last-child { font-size:11px; opacity:.75; }
+  .leg { display:flex; gap:12px; flex-wrap:wrap; margin-top:6px; font-size:11px; align-items:center; }
+  .leg i { display:inline-block; width:14px; height:9px; margin-right:4px; vertical-align:middle; }
+  .text { margin-top:8px; font-size:13px; line-height:18px; color:#fff; }
+  .tip { margin-top:8px; font-size:12px; line-height:16px; color:#fff; min-height:32px; opacity:.85; }
+  .fuss { margin-top:10px; font-size:10px; line-height:14px; color:rgba(227,246,84,.6); }
+  @media (max-width:460px) { body { padding:16px 0 40px; } .spalte, .screen { width:100%; } }
+</style>
+</head>
+<body>
+<p class="hinweis">Links die Grafik wie sie jetzt in der Demo ist, rechts der Vorschlag als Fächer. Echte Zahlen aus der Engine-Rechnung (500 Verläufe je Tag). Tippe auf eine Stunde im Fächer für die Werte.</p>
+<div class="schalter" id="schalter"></div>
+<div class="leiste">
+  <div class="spalte">
+    <h2><b>Jetzt</b> · eine Linie, schlechter Tag 1 von 10</h2>
+    <div class="screen"><div class="karte">
+      <div class="kopf"><p>Wie knapp wird es?</p><p>schlechter Tag, 1 von 10</p></div>
+      <div id="alt" style="margin-top:10px"></div>
+      <div class="leg"><span><i style="background:var(--gruen)"></i>sicher</span><span><i style="background:var(--lime)"></i>ausreichend</span><span><i style="background:var(--rot)"></i>knapp</span></div>
+      <p class="text" id="altText"></p>
+    </div></div>
+  </div>
+  <div class="spalte">
+    <h2><b>Neu</b> · Fächer über alle 500 Verläufe</h2>
+    <div class="screen"><div class="karte">
+      <div class="kopf"><p>Wie knapp wird es?</p><p>500 Verläufe des Tages</p></div>
+      <div id="neu" style="margin-top:10px"></div>
+      <div class="leg">
+        <span><i style="background:#fff;height:2px"></i>normaler Tag</span>
+        <span><i style="background:rgba(227,246,84,.45)"></i>jeder 2. Tag</span>
+        <span><i style="background:rgba(227,246,84,.18)"></i>8 von 10 Tagen</span>
+        <span><i style="background:rgba(255,111,99,.35)"></i>zu spät</span>
+      </div>
+      <p class="tip" id="tip">Tippe auf eine Stunde.</p>
+      <p class="text" id="neuText"></p>
+      <p class="fuss">Je Verlauf zählt der knappste Anschluss der Stunde. Ohne Eingreifen gerechnet, Flug- und Zugverspätung nach Pünktlichkeitsstatistik 2025. Keine Messwerte.</p>
+    </div></div>
+  </div>
+</div>
+<script>
+const D = {"0":{"name":"Basistag","standard":{"f":[{"h":8,"n":1,"p10":-8,"p25":13,"p50":27,"p75":38,"p90":53,"spaet":0.136},{"h":9,"n":2,"p10":-1,"p25":19,"p50":28,"p75":34,"p90":37,"spaet":0.102},{"h":10,"n":2,"p10":4,"p25":12,"p50":20,"p75":28,"p90":32,"spaet":0.048},{"h":11,"n":1,"p10":93,"p25":96,"p50":99,"p75":102,"p90":104,"spaet":0.0},{"h":12,"n":1,"p10":93,"p25":96,"p50":99,"p75":102,"p90":105,"spaet":0.0},{"h":13,"n":2,"p10":44,"p25":48,"p50":51,"p75":54,"p90":56,"spaet":0.0},{"h":16,"n":1,"p10":94,"p25":100,"p50":106,"p75":118,"p90":142,"spaet":0.0},{"h":17,"n":1,"p10":68,"p25":86,"p50":101,"p75":114,"p90":134,"spaet":0.02},{"h":18,"n":3,"p10":2,"p25":14,"p50":25,"p75":34,"p90":38,"spaet":0.092},{"h":19,"n":1,"p10":23,"p25":29,"p50":33,"p75":37,"p90":41,"spaet":0.0},{"h":20,"n":1,"p10":22,"p25":28,"p50":33,"p75":38,"p90":41,"spaet":0.002},{"h":21,"n":2,"p10":27,"p25":35,"p50":41,"p75":45,"p90":48,"spaet":0.002},{"h":22,"n":1,"p10":19,"p25":23,"p50":28,"p75":33,"p90":36,"spaet":0.002},{"h":23,"n":1,"p10":98,"p25":100,"p50":103,"p75":105,"p90":108,"spaet":0.0}],"v":[[8,-8],[9,4],[10,4],[11,93],[12,93],[13,45],[16,94],[17,68],[18,7],[19,23],[20,22],[21,30],[22,19],[23,98]],"g":1.0},"sicher":{"f":[{"h":9,"n":1,"p10":65,"p25":72,"p50":77,"p75":82,"p90":85,"spaet":0.0},{"h":10,"n":1,"p10":56,"p25":63,"p50":71,"p75":82,"p90":102,"spaet":0.0},{"h":11,"n":1,"p10":64,"p25":71,"p50":78,"p75":84,"p90":88,"spaet":0.0},{"h":12,"n":1,"p10":93,"p25":96,"p50":99,"p75":102,"p90":105,"spaet":0.0},{"h":13,"n":2,"p10":44,"p25":48,"p50":51,"p75":54,"p90":56,"spaet":0.0},{"h":16,"n":1,"p10":94,"p25":100,"p50":106,"p75":118,"p90":142,"spaet":0.0},{"h":18,"n":1,"p10":30,"p25":34,"p50":37,"p75":40,"p90":42,"spaet":0.0},{"h":19,"n":1,"p10":47,"p25":55,"p50":65,"p75":72,"p90":77,"spaet":0.0},{"h":20,"n":1,"p10":72,"p25":80,"p50":86,"p75":92,"p90":95,"spaet":0.0},{"h":21,"n":1,"p10":97,"p25":102,"p50":105,"p75":110,"p90":113,"spaet":0.0},{"h":22,"n":2,"p10":59,"p25":64,"p50":68,"p75":71,"p90":74,"spaet":0.0},{"h":23,"n":1,"p10":50,"p25":55,"p50":60,"p75":64,"p90":66,"spaet":0.0}],"v":[[9,65],[10,56],[11,64],[12,93],[13,45],[16,94],[18,30],[19,47],[20,72],[21,97],[22,61],[23,50]],"g":1.0}},"1":{"name":"Stadttag","standard":{"f":[{"h":7,"n":4,"p10":11,"p25":16,"p50":21,"p75":24,"p90":27,"spaet":0.002},{"h":8,"n":9,"p10":1,"p25":8,"p50":13,"p75":18,"p90":22,"spaet":0.078},{"h":9,"n":5,"p10":2,"p25":9,"p50":16,"p75":21,"p90":24,"spaet":0.07},{"h":10,"n":9,"p10":-23,"p25":-3,"p50":9,"p75":18,"p90":26,"spaet":0.274},{"h":11,"n":5,"p10":1,"p25":10,"p50":18,"p75":25,"p90":28,"spaet":0.08},{"h":12,"n":6,"p10":2,"p25":10,"p50":18,"p75":24,"p90":28,"spaet":0.076},{"h":13,"n":6,"p10":-2,"p25":8,"p50":16,"p75":22,"p90":28,"spaet":0.128},{"h":14,"n":4,"p10":3,"p25":9,"p50":15,"p75":20,"p90":23,"spaet":0.056},{"h":15,"n":10,"p10":1,"p25":9,"p50":16,"p75":22,"p90":26,"spaet":0.082},{"h":16,"n":10,"p10":-1,"p25":6,"p50":13,"p75":18,"p90":21,"spaet":0.102},{"h":17,"n":8,"p10":2,"p25":9,"p50":17,"p75":22,"p90":25,"spaet":0.066},{"h":18,"n":11,"p10":-3,"p25":4,"p50":11,"p75":16,"p90":19,"spaet":0.144},{"h":19,"n":4,"p10":4,"p25":10,"p50":17,"p75":23,"p90":26,"spaet":0.058},{"h":20,"n":2,"p10":11,"p25":23,"p50":32,"p75":39,"p90":44,"spaet":0.036},{"h":21,"n":1,"p10":56,"p25":64,"p50":72,"p75":78,"p90":81,"spaet":0.0}],"v":[[7,13],[8,2],[9,3],[10,-20],[11,5],[12,3],[13,-1],[14,3],[15,5],[16,1],[17,6],[18,-2],[19,5],[20,11],[21,56]],"g":0.999},"sicher":{"f":[{"h":7,"n":2,"p10":21,"p25":24,"p50":28,"p75":31,"p90":34,"spaet":0.0},{"h":8,"n":7,"p10":28,"p25":35,"p50":40,"p75":44,"p90":47,"spaet":0.0},{"h":9,"n":5,"p10":35,"p25":40,"p50":46,"p75":50,"p90":53,"spaet":0.0},{"h":10,"n":9,"p10":34,"p25":40,"p50":45,"p75":49,"p90":53,"spaet":0.0},{"h":11,"n":5,"p10":29,"p25":36,"p50":42,"p75":46,"p90":49,"spaet":0.0},{"h":12,"n":5,"p10":25,"p25":34,"p50":39,"p75":44,"p90":47,"spaet":0.0},{"h":13,"n":8,"p10":35,"p25":41,"p50":45,"p75":49,"p90":53,"spaet":0.0},{"h":14,"n":3,"p10":39,"p25":46,"p50":51,"p75":57,"p90":60,"spaet":0.0},{"h":15,"n":9,"p10":35,"p25":44,"p50":52,"p75":57,"p90":61,"spaet":0.0},{"h":16,"n":8,"p10":27,"p25":32,"p50":37,"p75":42,"p90":45,"spaet":0.0},{"h":17,"n":7,"p10":33,"p25":40,"p50":46,"p75":51,"p90":53,"spaet":0.0},{"h":18,"n":9,"p10":23,"p25":29,"p50":34,"p75":39,"p90":43,"spaet":0.0},{"h":19,"n":4,"p10":23,"p25":28,"p50":34,"p75":39,"p90":42,"spaet":0.0},{"h":20,"n":2,"p10":49,"p25":56,"p50":63,"p75":70,"p90":73,"spaet":0.0},{"h":21,"n":1,"p10":56,"p25":64,"p50":72,"p75":78,"p90":81,"spaet":0.0}],"v":[[7,21],[8,33],[9,35],[10,35],[11,31],[12,26],[13,35],[14,39],[15,37],[16,28],[17,34],[18,24],[19,23],[20,51],[21,56]],"g":0.999}},"2":{"name":"Messetag","standard":{"f":[{"h":8,"n":4,"p10":0,"p25":9,"p50":17,"p75":21,"p90":25,"spaet":0.094},{"h":9,"n":2,"p10":-14,"p25":-3,"p50":7,"p75":14,"p90":18,"spaet":0.302},{"h":10,"n":8,"p10":4,"p25":13,"p50":21,"p75":27,"p90":31,"spaet":0.058},{"h":11,"n":9,"p10":-11,"p25":1,"p50":13,"p75":20,"p90":24,"spaet":0.21},{"h":12,"n":6,"p10":9,"p25":16,"p50":22,"p75":27,"p90":30,"spaet":0.034},{"h":13,"n":8,"p10":4,"p25":14,"p50":23,"p75":29,"p90":33,"spaet":0.062},{"h":14,"n":7,"p10":-11,"p25":4,"p50":13,"p75":20,"p90":24,"spaet":0.192},{"h":15,"n":8,"p10":0,"p25":9,"p50":17,"p75":24,"p90":29,"spaet":0.092},{"h":16,"n":5,"p10":2,"p25":11,"p50":18,"p75":23,"p90":28,"spaet":0.08},{"h":17,"n":10,"p10":1,"p25":10,"p50":17,"p75":23,"p90":26,"spaet":0.086},{"h":18,"n":9,"p10":1,"p25":8,"p50":14,"p75":18,"p90":21,"spaet":0.086},{"h":19,"n":8,"p10":5,"p25":11,"p50":19,"p75":24,"p90":27,"spaet":0.054},{"h":20,"n":4,"p10":35,"p25":42,"p50":49,"p75":53,"p90":57,"spaet":0.0},{"h":21,"n":9,"p10":8,"p25":17,"p50":24,"p75":29,"p90":32,"spaet":0.058},{"h":22,"n":7,"p10":-4,"p25":5,"p50":13,"p75":18,"p90":22,"spaet":0.138},{"h":23,"n":7,"p10":-3,"p25":5,"p50":12,"p75":16,"p90":20,"spaet":0.134}],"v":[[8,5],[9,-14],[10,6],[11,-2],[12,9],[13,7],[14,-11],[15,2],[16,7],[17,1],[18,2],[19,8],[20,39],[21,12],[22,0],[23,2]],"g":0.984},"sicher":{"f":[{"h":9,"n":4,"p10":44,"p25":53,"p50":61,"p75":67,"p90":71,"spaet":0.0},{"h":10,"n":6,"p10":36,"p25":42,"p50":46,"p75":50,"p90":54,"spaet":0.0},{"h":11,"n":9,"p10":22,"p25":27,"p50":31,"p75":35,"p90":38,"spaet":0.0},{"h":12,"n":5,"p10":24,"p25":30,"p50":35,"p75":39,"p90":42,"spaet":0.0},{"h":13,"n":6,"p10":37,"p25":45,"p50":52,"p75":56,"p90":60,"spaet":0.0},{"h":14,"n":9,"p10":14,"p25":19,"p50":22,"p75":25,"p90":28,"spaet":0.0},{"h":15,"n":8,"p10":31,"p25":37,"p50":43,"p75":48,"p90":50,"spaet":0.0},{"h":16,"n":5,"p10":32,"p25":37,"p50":42,"p75":47,"p90":50,"spaet":0.0},{"h":17,"n":9,"p10":26,"p25":32,"p50":36,"p75":39,"p90":43,"spaet":0.0},{"h":18,"n":8,"p10":25,"p25":31,"p50":35,"p75":38,"p90":40,"spaet":0.0},{"h":19,"n":8,"p10":31,"p25":36,"p50":42,"p75":46,"p90":49,"spaet":0.0},{"h":20,"n":4,"p10":35,"p25":42,"p50":49,"p75":53,"p90":57,"spaet":0.0},{"h":21,"n":5,"p10":40,"p25":46,"p50":51,"p75":56,"p90":60,"spaet":0.0},{"h":22,"n":7,"p10":35,"p25":42,"p50":48,"p75":53,"p90":55,"spaet":0.0},{"h":23,"n":6,"p10":29,"p25":35,"p50":39,"p75":43,"p90":46,"spaet":0.0}],"v":[[9,47],[10,37],[11,24],[12,26],[13,41],[14,14],[15,32],[16,32],[17,28],[18,27],[19,32],[20,39],[21,40],[22,36],[23,30]],"g":0.984}}};
+let tag = '0', opt = 'standard';
+const B = 326, H = 170, x0 = 28, x1 = B - 4, y0 = H - 22, ym = 8;
+const LIME = '#e3f654', GRUEN = '#59be80', ROT = '#ff6f63';
+const farbe = (v) => v <= 2 ? ROT : v < 10 ? LIME : GRUEN;
+const X = (h) => x0 + ((h - 6) / 17) * (x1 - x0);
+const pct = (x) => (x * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 });
+const anTagen = (x) => (x < 0.01 ? 'seltener als an 1 von 100 Tagen' : `an ${Math.round(x * 100)} von 100 Tagen`);
+
+function skala(werte) {
+  const max = Math.max(20, Math.ceil(Math.max(...werte, 0) / 10) * 10);
+  const min = Math.max(-30, Math.min(0, Math.floor(Math.min(...werte, 0) / 10) * 10));
+  const Y = (v) => y0 - ((Math.max(v, min) - min) / (max - min)) * (y0 - ym);
+  return { max, min, Y };
+}
+function achsen(s) {
+  const marken = s.min < 0 ? [s.min, ...(-s.min / (s.max - s.min) > 0.15 ? [0] : []), s.max] : [0, s.max / 2, s.max];
+  let a = marken.map((v) => `<text x="0" y="${s.Y(v) + 4}" fill="${LIME}" font-size="10">${v}</text>`).join('');
+  a += [6, 10, 14, 18, 22].map((h) => `<text x="${X(h)}" y="${H - 6}" fill="${LIME}" font-size="10" text-anchor="middle">${String(h).padStart(2, '0')}</text>`).join('');
+  a += `<line x1="${x0}" x2="${x1}" y1="${s.Y(0)}" y2="${s.Y(0)}" stroke="rgba(255,255,255,.35)" stroke-dasharray="3 3"/>`;
+  return a;
+}
+
+function alt() {
+  const v = D[tag][opt].v;
+  const s = skala(v.map((p) => p[1]));
+  let g = `<rect x="${x0}" y="${s.Y(2.5)}" width="${x1 - x0}" height="${s.Y(s.min) - s.Y(2.5)}" fill="rgba(255,111,99,.16)"/>`;
+  g += `<rect x="${x0}" y="${s.Y(10)}" width="${x1 - x0}" height="${s.Y(2.5) - s.Y(10)}" fill="rgba(227,246,84,.10)"/>`;
+  g += `<rect x="${x0}" y="${ym}" width="${x1 - x0}" height="${s.Y(10) - ym}" fill="rgba(89,190,128,.10)"/>`;
+  g += achsen(s);
+  g += `<polyline points="${v.map((p) => `${X(p[0])},${s.Y(p[1])}`).join(' ')}" fill="none" stroke="#fff" stroke-width="1.5"/>`;
+  g += v.map((p) => `<circle cx="${X(p[0])}" cy="${s.Y(p[1])}" r="4" fill="${farbe(p[1])}"/>`).join('');
+  document.getElementById('alt').innerHTML = `<svg width="${B}" height="${H}">${g}</svg>`;
+  const k = v.reduce((a, b) => (b[1] < a[1] ? b : a));
+  document.getElementById('altText').innerHTML = `Am knappsten <b>${k[0]}–${k[0] + 1} Uhr</b>: ` +
+    (k[1] < 0 ? `an einem schlechten Tag fehlen beim knappsten Anschluss ${-k[1]} min.` : `an einem schlechten Tag bleiben beim knappsten Anschluss noch ${k[1]} min.`);
+}
+
+// Band nur über zusammenhängende Stunden zeichnen (Lücken ohne Anschluss bleiben offen).
+function stuecke(f) {
+  const out = []; let cur = [];
+  f.forEach((p, i) => { if (i && p.h !== f[i - 1].h + 1) { out.push(cur); cur = []; } cur.push(p); });
+  if (cur.length) out.push(cur);
+  return out;
+}
+function band(st, s, lo, hi, fill) {
+  return st.map((seg) => {
+    if (seg.length === 1) { const p = seg[0]; return `<rect x="${X(p.h) - 3}" y="${s.Y(p[hi])}" width="6" height="${s.Y(p[lo]) - s.Y(p[hi])}" fill="${fill}"/>`; }
+    const oben = seg.map((p) => `${X(p.h)},${s.Y(p[hi])}`);
+    const unten = seg.slice().reverse().map((p) => `${X(p.h)},${s.Y(p[lo])}`);
+    return `<polygon points="${[...oben, ...unten].join(' ')}" fill="${fill}"/>`;
+  }).join('');
+}
+
+let gewaehlt = null;
+function neu() {
+  const f = D[tag][opt].f;
+  const s = skala(f.flatMap((p) => [p.p10, p.p90]));
+  const st = stuecke(f);
+  let g = `<defs><clipPath id="unter"><rect x="${x0}" y="${s.Y(0)}" width="${x1 - x0}" height="${y0 - s.Y(0) + 1}"/></clipPath></defs>`;
+  g += achsen(s);
+  g += band(st, s, 'p10', 'p90', 'rgba(227,246,84,.18)');
+  g += band(st, s, 'p25', 'p75', 'rgba(227,246,84,.45)');
+  if (s.min < 0) g += `<g clip-path="url(#unter)">${band(st, s, 'p10', 'p90', 'rgba(255,111,99,.55)')}</g>`;
+  g += st.map((seg) => `<polyline points="${seg.map((p) => `${X(p.h)},${s.Y(p.p50)}`).join(' ')}" fill="none" stroke="#fff" stroke-width="1.8"/>`).join('');
+  g += f.map((p) => `<circle cx="${X(p.h)}" cy="${s.Y(p.p50)}" r="${gewaehlt === p.h ? 5 : 2.6}" fill="#fff"/>`).join('');
+  if (gewaehlt != null) g += `<line x1="${X(gewaehlt)}" x2="${X(gewaehlt)}" y1="${ym}" y2="${y0}" stroke="rgba(255,255,255,.4)"/>`;
+  g += f.map((p) => `<rect data-h="${p.h}" x="${X(p.h) - 9}" y="${ym}" width="18" height="${y0 - ym}" fill="transparent" style="cursor:pointer"/>`).join('');
+  const el = document.getElementById('neu');
+  el.innerHTML = `<svg width="${B}" height="${H}">${g}</svg>`;
+  el.querySelectorAll('rect[data-h]').forEach((r) => r.addEventListener('click', () => { gewaehlt = Number(r.dataset.h); neu(); }));
+
+  const p = f.find((x) => x.h === gewaehlt);
+  document.getElementById('tip').innerHTML = p
+    ? `<b>${p.h}–${p.h + 1} Uhr</b>, ${p.n} ${p.n === 1 ? 'Anschluss' : 'Anschlüsse'}: normal ${p.p50} min Luft, in 8 von 10 Tagen zwischen ${p.p10} und ${p.p90} min. ${p.spaet ? `Ohne Eingreifen ${anTagen(p.spaet)} ein Fahrzeug zu spät.` : 'An keinem der 500 Tage zu spät.'}`
+    : 'Tippe auf eine Stunde.';
+
+  const k = f.reduce((a, b) => (b.spaet > a.spaet || (b.spaet === a.spaet && b.p10 < a.p10) ? b : a));
+  const g2 = D[tag][opt].g;
+  document.getElementById('neuText').innerHTML = (k.spaet
+    ? `Am knappsten <b>${k.h}–${k.h + 1} Uhr</b>: ohne Eingreifen ${anTagen(k.spaet)} ein Fahrzeug zu spät. Dann teilt TRISAR am Einsatztag neu ein.`
+    : `Kein Anschluss wird in einem der 500 Verläufe knapp. Am engsten <b>${k.h}–${k.h + 1} Uhr</b> mit normal ${k.p50} min Luft.`)
+    + ` Mit Nachsteuern pünktlich: <b>${g2 >= 1 ? '100' : pct(g2)} % der Gäste</b>.`;
+}
+
+function schalter() {
+  const tage = Object.keys(D).map((t) => `<button data-t="${t}" class="${t === tag ? 'an' : ''}">${D[t].name}</button>`).join('');
+  const opts = [['standard', 'Standard'], ['sicher', 'Sicher']].map(([o, n]) => `<button data-o="${o}" class="${o === opt ? 'an' : ''}">${n}</button>`).join('');
+  const el = document.getElementById('schalter');
+  el.innerHTML = `${tage}<span class="trenn"></span>${opts}`;
+  el.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.t) tag = b.dataset.t; if (b.dataset.o) opt = b.dataset.o;
+    gewaehlt = null; zeichnen();
+  }));
+}
+function zeichnen() { schalter(); alt(); neu(); }
+zeichnen();
+</script>
+</body>
+</html>

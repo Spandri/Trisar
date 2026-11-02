@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: Supabase Local Postgres
+    uid: supabase_local_pg
+    type: postgres
+    access: proxy
+    isDefault: true
+    editable: true
+    url: host.docker.internal:54322
+    user: postgres
+    secureJsonData:
+      password: postgres
+    jsonData:
+      database: postgres
+      sslmode: disable
+      postgresVersion: 1700
+      timescaledb: false

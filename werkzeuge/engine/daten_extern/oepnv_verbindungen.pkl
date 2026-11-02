@@ -1,0 +1,1 @@
+/Users/stefanospandri/Documents/Projekte/Trisar/Förderung TRISAR/OR-Modell/engine_prototyp/daten_extern/oepnv_verbindungen.pkl

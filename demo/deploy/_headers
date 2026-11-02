@@ -1,0 +1,24 @@
+# Die Tutorial-Schritte werden haeufig bearbeitet. Ohne diese Regel liefert
+# Cloudflare sie bis zu vier Stunden aus dem Cache (max-age=14400) — Aenderungen
+# waeren dann erst Stunden spaeter zu sehen.
+/tutorial-fahrer.js
+  Cache-Control: no-cache, must-revalidate
+/tutorial-dispo.js
+  Cache-Control: no-cache, must-revalidate
+
+# Die Einstiegsseiten verweisen auf die gebauten Dateien mit Pruefsumme im
+# Namen. Werden sie selbst zwischengespeichert, laedt der Browser nach einer
+# Veroeffentlichung stundenlang weiter den alten Stand. Die Dateien mit
+# Pruefsumme (/assets/...) duerfen dagegen beliebig lange im Cache bleiben.
+/
+  Cache-Control: no-cache, must-revalidate
+/index.html
+  Cache-Control: no-cache, must-revalidate
+/fahrer/
+  Cache-Control: no-cache, must-revalidate
+/fahrer/index.html
+  Cache-Control: no-cache, must-revalidate
+/admin/
+  Cache-Control: no-cache, must-revalidate
+/admin/index.html
+  Cache-Control: no-cache, must-revalidate

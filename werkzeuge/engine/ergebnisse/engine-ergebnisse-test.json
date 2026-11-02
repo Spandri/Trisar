@@ -1,0 +1,1322 @@
+{
+ "planer": "trisar_engine",
+ "erstellt": "2026-10-27T20:59:42Z",
+ "hinweis": "Demo-Daten erfunden. Verkehrsereignisse sind Planungsannahmen.",
+ "tage": {
+  "0": {
+   "datum": "2026-08-16",
+   "name": "Basistag",
+   "fahrten": 31,
+   "optionen": {
+    "standard": {
+     "source": "cp_sat",
+     "mode": "standard",
+     "suggestions": [
+      {
+       "driver_id": "0012ce3e-dc52-423a-824d-39ab4ce592c7",
+       "driver_name": "Stefano Spandri",
+       "service_start": "06:12",
+       "service_end": "08:00",
+       "assigned_ride_ids": [
+        "demo-h001"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "ea99f07e-05b3-51a3-a22c-f1b275c80740",
+       "driver_name": "Luca Meyer",
+       "service_start": "06:26",
+       "service_end": "09:25",
+       "assigned_ride_ids": [
+        "demo-h002",
+        "demo-h006"
+       ],
+       "assigned_rides_count": 2,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "eb2bbd73-d6cb-5ae0-a78b-89e38fc690e8",
+       "driver_name": "Noah Meyer",
+       "service_start": "07:15",
+       "service_end": "14:26",
+       "assigned_ride_ids": [
+        "demo-h003",
+        "demo-h007",
+        "demo-h010",
+        "demo-h013",
+        "demo-h015"
+       ],
+       "assigned_rides_count": 5,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "2fc6d4d4-d0a9-5dfa-a299-7a2f262c08a3",
+       "driver_name": "Milan Meyer",
+       "service_start": "07:28",
+       "service_end": "11:00",
+       "assigned_ride_ids": [
+        "demo-h005",
+        "demo-h009"
+       ],
+       "assigned_rides_count": 2,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "f6bde9e0-12e3-5d66-ab81-965a75141fbd",
+       "driver_name": "Elias Meyer",
+       "service_start": "07:49",
+       "service_end": "13:54",
+       "assigned_ride_ids": [
+        "demo-h004",
+        "demo-h008",
+        "demo-h011",
+        "demo-h014"
+       ],
+       "assigned_rides_count": 4,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "975a55c5-a411-5b57-93b0-8d5c124bad73",
+       "driver_name": "Paul Meyer",
+       "service_start": "13:25",
+       "service_end": "18:39",
+       "assigned_ride_ids": [
+        "demo-h016",
+        "011ac7d9-f03d-5677-a76d-ae2bda3d7bdb",
+        "demo-h021"
+       ],
+       "assigned_rides_count": 3,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "6e7de569-d3bb-56d8-be8b-ef138d65ea55",
+       "driver_name": "Jonas Meyer",
+       "service_start": "13:29",
+       "service_end": "18:27",
+       "assigned_ride_ids": [
+        "19f25ddb-af39-519c-961b-3902848a0671",
+        "demo-h019"
+       ],
+       "assigned_rides_count": 2,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "98efdae9-3d4b-59f3-a003-36fbf471fa57",
+       "driver_name": "Finn Meyer",
+       "service_start": "16:18",
+       "service_end": "23:18",
+       "assigned_ride_ids": [
+        "demo-h017",
+        "demo-h022",
+        "3a5f0589-4c05-543c-8c1e-b78bac576924",
+        "demo-h029"
+       ],
+       "assigned_rides_count": 4,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "f404c813-f9e5-5f1f-80e6-725c517754ae",
+       "driver_name": "Ben Meyer",
+       "service_start": "16:27",
+       "service_end": "23:06",
+       "assigned_ride_ids": [
+        "demo-h018",
+        "demo-h020",
+        "demo-h023",
+        "demo-h025",
+        "demo-h026",
+        "demo-h028"
+       ],
+       "assigned_rides_count": 6,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "86fb21a9-a2a6-59d1-9d4a-a493a5c17463",
+       "driver_name": "Leon Meyer",
+       "service_start": "21:14",
+       "service_end": "23:05",
+       "assigned_ride_ids": [
+        "demo-h027"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "d2a3169d-e3fc-5555-9c25-cc6b273c800d",
+       "driver_name": "Max Meyer",
+       "service_start": "22:56",
+       "service_end": "23:38",
+       "assigned_ride_ids": [
+        "demo-h030"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      }
+     ],
+     "unassigned_ride_ids": [],
+     "warnings": [],
+     "kpis": {
+      "total_planned_hours": 48.0,
+      "active_driver_count": 11,
+      "unassigned_ride_count": 0,
+      "objective_value": 286728,
+      "best_objective_bound": 286728,
+      "optimality_gap": 0.0,
+      "solver_status": "OPTIMAL",
+      "solver_wall_time_seconds": 1,
+      "total_deadhead_minutes": 373
+     },
+     "vehicle_plans": [
+      {
+       "driver_id": "0012ce3e-dc52-423a-824d-39ab4ce592c7",
+       "vehicle_id": "b8f81e08-85dc-4310-90b1-5035bf23af34",
+       "vehicle_label": "BMW i7 M70 (M-P 204I)",
+       "is_ev": true,
+       "shift_km": 81.9,
+       "charge_stops": [],
+       "min_range_reserve_km": 449.4,
+       "note": ""
+      },
+      {
+       "driver_id": "ea99f07e-05b3-51a3-a22c-f1b275c80740",
+       "vehicle_id": "734f4b57-010b-48ec-a4b2-010cb3b431cc",
+       "vehicle_label": "BMW i7 M70 (M-N 202U)",
+       "is_ev": true,
+       "shift_km": 94.3,
+       "charge_stops": [
+        {
+         "start": "2026-08-16T08:20:00",
+         "end": "2026-08-16T08:47:00",
+         "km_gained": 82,
+         "station_id": null,
+         "station_name": "Schnelllader nahe München Hauptbahnhof"
+        }
+       ],
+       "min_range_reserve_km": 445.2,
+       "note": "Ladeplan der Engine"
+      },
+      {
+       "driver_id": "eb2bbd73-d6cb-5ae0-a78b-89e38fc690e8",
+       "vehicle_id": "0c338136-416b-4960-aece-04d00be9c6c9",
+       "vehicle_label": "BMW i7 M70 (M-R 206W)",
+       "is_ev": true,
+       "shift_km": 78.0,
+       "charge_stops": [
+        {
+         "start": "2026-08-16T11:00:00",
+         "end": "2026-08-16T11:23:00",
+         "km_gained": 69,
+         "station_id": null,
+         "station_name": "Schnelllader nahe Prinzregentenstraße 91"
+        },
+        {
+         "start": "2026-08-16T12:53:00",
+         "end": "2026-08-16T12:55:00",
+         "km_gained": 6,
+         "station_id": null,
+         "station_name": "Schnelllader nahe Käfer-Schänke"
+        }
+       ],
+       "min_range_reserve_km": 462.4,
+       "note": "Ladeplan der Engine"
+      },
+      {
+       "driver_id": "2fc6d4d4-d0a9-5dfa-a299-7a2f262c08a3",
+       "vehicle_id": "31e2c1f1-97b6-43e0-843c-8c697db4a265",
+       "vehicle_label": "BMW i7 M70 (M-L 200G)",
+       "is_ev": true,
+       "shift_km": 152.5,
+       "charge_stops": [],
+       "min_range_reserve_km": 379.5,
+       "note": ""
+      },
+      {
+       "driver_id": "f6bde9e0-12e3-5d66-ab81-965a75141fbd",
+       "vehicle_id": "21ced190-6111-4e11-81b5-dac554267781",
+       "vehicle_label": "BMW i7 M70 (M-Q 205P)",
+       "is_ev": true,
+       "shift_km": 78.7,
+       "charge_stops": [
+        {
+         "start": "2026-08-16T12:10:00",
+         "end": "2026-08-16T12:36:00",
+         "km_gained": 77,
+         "station_id": null,
+         "station_name": "Schnelllader nahe TUM Campus Garching"
+        }
+       ],
+       "min_range_reserve_km": 488.7,
+       "note": "Ladeplan der Engine"
+      },
+      {
+       "driver_id": "975a55c5-a411-5b57-93b0-8d5c124bad73",
+       "vehicle_id": "bfc9145e-6777-4ee4-9cbb-c4150a1db6b0",
+       "vehicle_label": "BMW i7 M70 (M-O 203B)",
+       "is_ev": true,
+       "shift_km": 90.4,
+       "charge_stops": [
+        {
+         "start": "2026-08-16T14:40:00",
+         "end": "2026-08-16T15:08:00",
+         "km_gained": 83,
+         "station_id": null,
+         "station_name": "Schnelllader nahe MUC Terminal 2"
+        }
+       ],
+       "min_range_reserve_km": 485.6,
+       "note": "Ladeplan der Engine"
+      },
+      {
+       "driver_id": "6e7de569-d3bb-56d8-be8b-ef138d65ea55",
+       "vehicle_id": "7e6a0245-9821-4265-8ef7-f9dbd26d48a8",
+       "vehicle_label": "BMW i7 M70 (M ST 2154)",
+       "is_ev": true,
+       "shift_km": 157.3,
+       "charge_stops": [
+        {
+         "start": "2026-08-16T15:46:00",
+         "end": "2026-08-16T16:38:00",
+         "km_gained": 156,
+         "station_id": null,
+         "station_name": "Schnelllader nahe Flughafen München"
+        }
+       ],
+       "min_range_reserve_km": 451.7,
+       "note": "Ladeplan der Engine"
+      },
+      {
+       "driver_id": "98efdae9-3d4b-59f3-a003-36fbf471fa57",
+       "vehicle_id": "9b42d2a8-048c-43a4-98c0-56dd2967c9f4",
+       "vehicle_label": "BMW i7 M70 (M-M 201N)",
+       "is_ev": true,
+       "shift_km": 138.5,
+       "charge_stops": [],
+       "min_range_reserve_km": 393.7,
+       "note": ""
+      },
+      {
+       "driver_id": "f404c813-f9e5-5f1f-80e6-725c517754ae",
+       "vehicle_id": "792ab5ba-3721-4172-a030-9272d19ef0e7",
+       "vehicle_label": "BMW i7 M70 (M-S 207D)",
+       "is_ev": true,
+       "shift_km": 70.2,
+       "charge_stops": [],
+       "min_range_reserve_km": 460.9,
+       "note": ""
+      },
+      {
+       "driver_id": "86fb21a9-a2a6-59d1-9d4a-a493a5c17463",
+       "vehicle_id": "c24ed31f-5385-48ce-a28f-772fa38608cc",
+       "vehicle_label": "BMW i7 M70 (M-T 208K)",
+       "is_ev": true,
+       "shift_km": 57.8,
+       "charge_stops": [],
+       "min_range_reserve_km": 473.4,
+       "note": ""
+      },
+      {
+       "driver_id": "d2a3169d-e3fc-5555-9c25-cc6b273c800d",
+       "vehicle_id": "269bf389-6de0-404a-968a-c815a872c5ed",
+       "vehicle_label": "BMW i7 M70 (M-U 209R)",
+       "is_ev": true,
+       "shift_km": 7.4,
+       "charge_stops": [],
+       "min_range_reserve_km": 523.7,
+       "note": ""
+      }
+     ],
+     "fleet_kpis": {
+      "ev_shift_count": 11,
+      "combustion_shift_count": 0,
+      "unassigned_shift_count": 0,
+      "total_km": 1007,
+      "ev_km": 1007,
+      "co2_kg": 86,
+      "co2_saved_kg": 128
+     },
+     "engine": {
+      "option": "standard",
+      "titel": "Standard",
+      "standard": true,
+      "kennzahlen": {
+       "fahrzeuge": 11,
+       "fahrer": 11,
+       "km": 1007,
+       "leer_km": 473,
+       "co2_kg": 86,
+       "kosten_eur": 2718,
+       "e_anteil_km": 1.0,
+       "sammelfahrten": 0,
+       "puenktlich_abholung": 0.986,
+       "puenktlich_gaeste": 1.0,
+       "verspaetung_min_tag": 0,
+       "max_verspaetung_min": 210.1,
+       "min_reserve_min": -244,
+       "mittlere_reserve_min": -10,
+       "szenarien_planung": 20,
+       "szenarien_test": 300
+      },
+      "sammel": [],
+      "fahrten": {
+       "demo-h001": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "07:05",
+        "ankunft": "07:45"
+       },
+       "demo-h002": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "07:20",
+        "ankunft": "08:00"
+       },
+       "demo-h006": {
+        "reserve_min": -228,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "08:50",
+        "ankunft": "09:06"
+       },
+       "demo-h003": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "07:45",
+        "ankunft": "08:11"
+       },
+       "demo-h007": {
+        "reserve_min": -22,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "09:15",
+        "ankunft": "09:49"
+       },
+       "demo-h010": {
+        "reserve_min": -44,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "10:45",
+        "ankunft": "10:59"
+       },
+       "demo-h013": {
+        "reserve_min": 74,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "12:40",
+        "ankunft": "12:52"
+       },
+       "demo-h015": {
+        "reserve_min": 26,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "13:45",
+        "ankunft": "14:09"
+       },
+       "demo-h005": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "08:30",
+        "ankunft": "09:01"
+       },
+       "demo-h009": {
+        "reserve_min": -244,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "10:10",
+        "ankunft": "10:50"
+       },
+       "demo-h004": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "08:10",
+        "ankunft": "08:41"
+       },
+       "demo-h008": {
+        "reserve_min": -13,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "09:40",
+        "ankunft": "09:50"
+       },
+       "demo-h011": {
+        "reserve_min": 75,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "11:30",
+        "ankunft": "11:49"
+       },
+       "demo-h014": {
+        "reserve_min": 10,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "13:10",
+        "ankunft": "13:44"
+       },
+       "demo-h016": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "14:05",
+        "ankunft": "14:36"
+       },
+       "011ac7d9-f03d-5677-a76d-ae2bda3d7bdb": {
+        "reserve_min": 63,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "16:24",
+        "ankunft": "17:08"
+       },
+       "demo-h021": {
+        "reserve_min": -197,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "18:15",
+        "ankunft": "18:21"
+       },
+       "19f25ddb-af39-519c-961b-3902848a0671": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "14:30",
+        "ankunft": "15:08"
+       },
+       "demo-h019": {
+        "reserve_min": -211,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "17:30",
+        "ankunft": "18:16"
+       },
+       "demo-h017": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "16:45",
+        "ankunft": "17:26"
+       },
+       "demo-h022": {
+        "reserve_min": -43,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "18:40",
+        "ankunft": "19:34"
+       },
+       "3a5f0589-4c05-543c-8c1e-b78bac576924": {
+        "reserve_min": -27,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "21:15",
+        "ankunft": "21:16"
+       },
+       "demo-h029": {
+        "reserve_min": 82,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "23:00",
+        "ankunft": "23:10"
+       },
+       "demo-h018": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "17:10",
+        "ankunft": "17:22"
+       },
+       "demo-h020": {
+        "reserve_min": 3,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "18:00",
+        "ankunft": "18:21"
+       },
+       "demo-h023": {
+        "reserve_min": -2,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "19:05",
+        "ankunft": "19:24"
+       },
+       "demo-h025": {
+        "reserve_min": -9,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "20:15",
+        "ankunft": "20:24"
+       },
+       "demo-h026": {
+        "reserve_min": -7,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "21:30",
+        "ankunft": "21:44"
+       },
+       "demo-h028": {
+        "reserve_min": -12,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "22:30",
+        "ankunft": "22:46"
+       },
+       "demo-h027": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "22:10",
+        "ankunft": "22:52"
+       },
+       "demo-h030": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "23:20",
+        "ankunft": "23:30"
+       }
+      },
+      "ereignisse": [],
+      "vorteile": [
+       "wenigste Emissionen (86 kg CO₂)",
+       "niedrigste Betriebskosten (2.718 €)",
+       "wenigste Fahrzeuge und Fahrer (11)",
+       "100 % der km elektrisch"
+      ],
+      "nachteile": []
+     }
+    },
+    "sicher": {
+     "source": "cp_sat",
+     "mode": "sicher",
+     "suggestions": [
+      {
+       "driver_id": "0012ce3e-dc52-423a-824d-39ab4ce592c7",
+       "driver_name": "Stefano Spandri",
+       "service_start": "06:12",
+       "service_end": "08:00",
+       "assigned_ride_ids": [
+        "demo-h001"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "ea99f07e-05b3-51a3-a22c-f1b275c80740",
+       "driver_name": "Luca Meyer",
+       "service_start": "06:26",
+       "service_end": "08:20",
+       "assigned_ride_ids": [
+        "demo-h002"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "eb2bbd73-d6cb-5ae0-a78b-89e38fc690e8",
+       "driver_name": "Noah Meyer",
+       "service_start": "07:15",
+       "service_end": "10:20",
+       "assigned_ride_ids": [
+        "demo-h003",
+        "demo-h008"
+       ],
+       "assigned_rides_count": 2,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "2fc6d4d4-d0a9-5dfa-a299-7a2f262c08a3",
+       "driver_name": "Milan Meyer",
+       "service_start": "07:28",
+       "service_end": "09:26",
+       "assigned_ride_ids": [
+        "demo-h005"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "f6bde9e0-12e3-5d66-ab81-965a75141fbd",
+       "driver_name": "Elias Meyer",
+       "service_start": "07:49",
+       "service_end": "11:00",
+       "assigned_ride_ids": [
+        "demo-h004",
+        "demo-h009"
+       ],
+       "assigned_rides_count": 2,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "975a55c5-a411-5b57-93b0-8d5c124bad73",
+       "driver_name": "Paul Meyer",
+       "service_start": "08:34",
+       "service_end": "09:25",
+       "assigned_ride_ids": [
+        "demo-h006"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "6e7de569-d3bb-56d8-be8b-ef138d65ea55",
+       "driver_name": "Jonas Meyer",
+       "service_start": "08:44",
+       "service_end": "13:54",
+       "assigned_ride_ids": [
+        "demo-h007",
+        "demo-h011",
+        "demo-h014"
+       ],
+       "assigned_rides_count": 3,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "98efdae9-3d4b-59f3-a003-36fbf471fa57",
+       "driver_name": "Finn Meyer",
+       "service_start": "10:11",
+       "service_end": "14:26",
+       "assigned_ride_ids": [
+        "demo-h010",
+        "demo-h013",
+        "demo-h015"
+       ],
+       "assigned_rides_count": 3,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "f404c813-f9e5-5f1f-80e6-725c517754ae",
+       "driver_name": "Ben Meyer",
+       "service_start": "13:25",
+       "service_end": "17:19",
+       "assigned_ride_ids": [
+        "demo-h016",
+        "011ac7d9-f03d-5677-a76d-ae2bda3d7bdb"
+       ],
+       "assigned_rides_count": 2,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "86fb21a9-a2a6-59d1-9d4a-a493a5c17463",
+       "driver_name": "Leon Meyer",
+       "service_start": "13:29",
+       "service_end": "15:27",
+       "assigned_ride_ids": [
+        "19f25ddb-af39-519c-961b-3902848a0671"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "d2a3169d-e3fc-5555-9c25-cc6b273c800d",
+       "driver_name": "Max Meyer",
+       "service_start": "16:18",
+       "service_end": "23:06",
+       "assigned_ride_ids": [
+        "demo-h017",
+        "demo-h023",
+        "3a5f0589-4c05-543c-8c1e-b78bac576924",
+        "demo-h028"
+       ],
+       "assigned_rides_count": 4,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "d7a30f75-0d26-5999-801e-8406ae170891",
+       "driver_name": "Tim Meyer",
+       "service_start": "16:27",
+       "service_end": "23:05",
+       "assigned_ride_ids": [
+        "demo-h018",
+        "demo-h020",
+        "demo-h025",
+        "demo-h027"
+       ],
+       "assigned_rides_count": 4,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "f0c24483-b897-5a9d-9a28-40bda0ea97db",
+       "driver_name": "David Meyer",
+       "service_start": "16:29",
+       "service_end": "18:27",
+       "assigned_ride_ids": [
+        "demo-h019"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "0e8f3079-03fb-5e7f-9cc0-1fdf09dfb18b",
+       "driver_name": "Erik Meyer",
+       "service_start": "17:42",
+       "service_end": "18:39",
+       "assigned_ride_ids": [
+        "demo-h021"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "57beb8cc-9790-5eb1-9cb4-65dd44d6123d",
+       "driver_name": "Jan Meyer",
+       "service_start": "18:04",
+       "service_end": "20:17",
+       "assigned_ride_ids": [
+        "demo-h022"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "f593e93b-fa38-5bcb-baa7-22f96821ca93",
+       "driver_name": "Felix Meyer",
+       "service_start": "20:49",
+       "service_end": "23:18",
+       "assigned_ride_ids": [
+        "demo-h026",
+        "demo-h029"
+       ],
+       "assigned_rides_count": 2,
+       "note": "TRISAR-Engine · Limousine elektrisch (i7)",
+       "split_block": null
+      },
+      {
+       "driver_id": "1a088f05-a345-51f3-92a7-a5496096f3eb",
+       "driver_name": "Nico Meyer",
+       "service_start": "22:56",
+       "service_end": "23:38",
+       "assigned_ride_ids": [
+        "demo-h030"
+       ],
+       "assigned_rides_count": 1,
+       "note": "TRISAR-Engine · Limousine Benzin (740)",
+       "split_block": null
+      }
+     ],
+     "unassigned_ride_ids": [],
+     "warnings": [],
+     "kpis": {
+      "total_planned_hours": 49.8,
+      "active_driver_count": 17,
+      "unassigned_ride_count": 0,
+      "objective_value": 328533,
+      "best_objective_bound": 328533,
+      "optimality_gap": 0.0,
+      "solver_status": "OPTIMAL",
+      "solver_wall_time_seconds": 0,
+      "total_deadhead_minutes": 199
+     },
+     "vehicle_plans": [
+      {
+       "driver_id": "0012ce3e-dc52-423a-824d-39ab4ce592c7",
+       "vehicle_id": "0c338136-416b-4960-aece-04d00be9c6c9",
+       "vehicle_label": "BMW i7 M70 (M-R 206W)",
+       "is_ev": true,
+       "shift_km": 81.9,
+       "charge_stops": [],
+       "min_range_reserve_km": 449.4,
+       "note": ""
+      },
+      {
+       "driver_id": "ea99f07e-05b3-51a3-a22c-f1b275c80740",
+       "vehicle_id": "792ab5ba-3721-4172-a030-9272d19ef0e7",
+       "vehicle_label": "BMW i7 M70 (M-S 207D)",
+       "is_ev": true,
+       "shift_km": 81.8,
+       "charge_stops": [],
+       "min_range_reserve_km": 449.1,
+       "note": ""
+      },
+      {
+       "driver_id": "eb2bbd73-d6cb-5ae0-a78b-89e38fc690e8",
+       "vehicle_id": "0bc084a6-8ad5-4a7e-b4ab-a08fb11f321b",
+       "vehicle_label": "BMW i7 M70 (M-V 210Y)",
+       "is_ev": true,
+       "shift_km": 27.3,
+       "charge_stops": [],
+       "min_range_reserve_km": 503.1,
+       "note": ""
+      },
+      {
+       "driver_id": "2fc6d4d4-d0a9-5dfa-a299-7a2f262c08a3",
+       "vehicle_id": "734f4b57-010b-48ec-a4b2-010cb3b431cc",
+       "vehicle_label": "BMW i7 M70 (M-N 202U)",
+       "is_ev": true,
+       "shift_km": 83.2,
+       "charge_stops": [],
+       "min_range_reserve_km": 447.9,
+       "note": ""
+      },
+      {
+       "driver_id": "f6bde9e0-12e3-5d66-ab81-965a75141fbd",
+       "vehicle_id": "b8f81e08-85dc-4310-90b1-5035bf23af34",
+       "vehicle_label": "BMW i7 M70 (M-P 204I)",
+       "is_ev": true,
+       "shift_km": 82.9,
+       "charge_stops": [],
+       "min_range_reserve_km": 447.5,
+       "note": ""
+      },
+      {
+       "driver_id": "975a55c5-a411-5b57-93b0-8d5c124bad73",
+       "vehicle_id": "1af40ede-e377-41e8-b241-0f3dcc060946",
+       "vehicle_label": "BMW i7 M70 (M-Y 213T)",
+       "is_ev": true,
+       "shift_km": 12.5,
+       "charge_stops": [],
+       "min_range_reserve_km": 518.2,
+       "note": ""
+      },
+      {
+       "driver_id": "6e7de569-d3bb-56d8-be8b-ef138d65ea55",
+       "vehicle_id": "bfc9145e-6777-4ee4-9cbb-c4150a1db6b0",
+       "vehicle_label": "BMW i7 M70 (M-O 203B)",
+       "is_ev": true,
+       "shift_km": 83.0,
+       "charge_stops": [
+        {
+         "start": "2026-08-16T12:10:00",
+         "end": "2026-08-16T12:37:00",
+         "km_gained": 82,
+         "station_id": null,
+         "station_name": "Schnelllader nahe TUM Campus Garching"
+        }
+       ],
+       "min_range_reserve_km": 483.7,
+       "note": "Ladeplan der Engine"
+      },
+      {
+       "driver_id": "98efdae9-3d4b-59f3-a003-36fbf471fa57",
+       "vehicle_id": "b2b1fb05-a32a-43ff-95cf-1ca55f5361c3",
+       "vehicle_label": "BMW i7 M70 (M-X 212M)",
+       "is_ev": true,
+       "shift_km": 20.7,
+       "charge_stops": [
+        {
+         "start": "2026-08-16T11:00:00",
+         "end": "2026-08-16T11:04:00",
+         "km_gained": 11,
+         "station_id": null,
+         "station_name": "Schnelllader nahe Prinzregentenstraße 91"
+        },
+        {
+         "start": "2026-08-16T12:53:00",
+         "end": "2026-08-16T12:55:00",
+         "km_gained": 6,
+         "station_id": null,
+         "station_name": "Schnelllader nahe Käfer-Schänke"
+        }
+       ],
+       "min_range_reserve_km": 520.4,
+       "note": "Ladeplan der Engine"
+      },
+      {
+       "driver_id": "f404c813-f9e5-5f1f-80e6-725c517754ae",
+       "vehicle_id": "9b42d2a8-048c-43a4-98c0-56dd2967c9f4",
+       "vehicle_label": "BMW i7 M70 (M-M 201N)",
+       "is_ev": true,
+       "shift_km": 84.6,
+       "charge_stops": [
+        {
+         "start": "2026-08-16T14:40:00",
+         "end": "2026-08-16T15:08:00",
+         "km_gained": 83,
+         "station_id": null,
+         "station_name": "Schnelllader nahe MUC Terminal 2"
+        }
+       ],
+       "min_range_reserve_km": 487.7,
+       "note": "Ladeplan der Engine"
+      },
+      {
+       "driver_id": "86fb21a9-a2a6-59d1-9d4a-a493a5c17463",
+       "vehicle_id": "21ced190-6111-4e11-81b5-dac554267781",
+       "vehicle_label": "BMW i7 M70 (M-Q 205P)",
+       "is_ev": true,
+       "shift_km": 81.9,
+       "charge_stops": [],
+       "min_range_reserve_km": 449.3,
+       "note": ""
+      },
+      {
+       "driver_id": "d2a3169d-e3fc-5555-9c25-cc6b273c800d",
+       "vehicle_id": "7e6a0245-9821-4265-8ef7-f9dbd26d48a8",
+       "vehicle_label": "BMW i7 M70 (M ST 2154)",
+       "is_ev": true,
+       "shift_km": 95.3,
+       "charge_stops": [],
+       "min_range_reserve_km": 434.9,
+       "note": ""
+      },
+      {
+       "driver_id": "d7a30f75-0d26-5999-801e-8406ae170891",
+       "vehicle_id": "31e2c1f1-97b6-43e0-843c-8c697db4a265",
+       "vehicle_label": "BMW i7 M70 (M-L 200G)",
+       "is_ev": true,
+       "shift_km": 85.1,
+       "charge_stops": [],
+       "min_range_reserve_km": 446.4,
+       "note": ""
+      },
+      {
+       "driver_id": "f0c24483-b897-5a9d-9a28-40bda0ea97db",
+       "vehicle_id": "c24ed31f-5385-48ce-a28f-772fa38608cc",
+       "vehicle_label": "BMW i7 M70 (M-T 208K)",
+       "is_ev": true,
+       "shift_km": 81.7,
+       "charge_stops": [],
+       "min_range_reserve_km": 448.7,
+       "note": ""
+      },
+      {
+       "driver_id": "0e8f3079-03fb-5e7f-9cc0-1fdf09dfb18b",
+       "vehicle_id": "d6fd3318-b360-4e7e-96a9-208fd528c893",
+       "vehicle_label": "BMW i7 M70 (M-Z 214A)",
+       "is_ev": true,
+       "shift_km": 7.6,
+       "charge_stops": [],
+       "min_range_reserve_km": 522.6,
+       "note": ""
+      },
+      {
+       "driver_id": "57beb8cc-9790-5eb1-9cb4-65dd44d6123d",
+       "vehicle_id": "269bf389-6de0-404a-968a-c815a872c5ed",
+       "vehicle_label": "BMW i7 M70 (M-U 209R)",
+       "is_ev": true,
+       "shift_km": 58.2,
+       "charge_stops": [],
+       "min_range_reserve_km": 472.8,
+       "note": ""
+      },
+      {
+       "driver_id": "f593e93b-fa38-5bcb-baa7-22f96821ca93",
+       "vehicle_id": "7bafcef4-4662-430c-bee8-71430faee629",
+       "vehicle_label": "BMW i7 M70 (M-W 211F)",
+       "is_ev": true,
+       "shift_km": 24.7,
+       "charge_stops": [],
+       "min_range_reserve_km": 505.7,
+       "note": ""
+      },
+      {
+       "driver_id": "1a088f05-a345-51f3-92a7-a5496096f3eb",
+       "vehicle_id": "516bc2b5-c1ef-45fa-b4d5-0763eef4502d",
+       "vehicle_label": "BMW 740 (M-A 215H)",
+       "is_ev": false,
+       "shift_km": 7.4,
+       "charge_stops": [],
+       "min_range_reserve_km": null,
+       "note": ""
+      }
+     ],
+     "fleet_kpis": {
+      "ev_shift_count": 16,
+      "combustion_shift_count": 1,
+      "unassigned_shift_count": 0,
+      "total_km": 1000,
+      "ev_km": 993,
+      "co2_kg": 86,
+      "co2_saved_kg": 126
+     },
+     "engine": {
+      "option": "sicher",
+      "titel": "Sicher",
+      "standard": false,
+      "kennzahlen": {
+       "fahrzeuge": 17,
+       "fahrer": 17,
+       "km": 1000,
+       "leer_km": 466,
+       "co2_kg": 86,
+       "kosten_eur": 3212,
+       "e_anteil_km": 0.99,
+       "sammelfahrten": 0,
+       "puenktlich_abholung": 1.0,
+       "puenktlich_gaeste": 1.0,
+       "verspaetung_min_tag": 0,
+       "max_verspaetung_min": 0.0,
+       "min_reserve_min": 3,
+       "mittlere_reserve_min": 26,
+       "szenarien_planung": 20,
+       "szenarien_test": 300
+      },
+      "sammel": [],
+      "fahrten": {
+       "demo-h001": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "07:05",
+        "ankunft": "07:45"
+       },
+       "demo-h002": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "07:20",
+        "ankunft": "08:00"
+       },
+       "demo-h003": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "07:45",
+        "ankunft": "08:11"
+       },
+       "demo-h008": {
+        "reserve_min": 34,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "09:40",
+        "ankunft": "09:50"
+       },
+       "demo-h005": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "08:30",
+        "ankunft": "09:01"
+       },
+       "demo-h004": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "08:10",
+        "ankunft": "08:41"
+       },
+       "demo-h009": {
+        "reserve_min": 20,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "10:10",
+        "ankunft": "10:50"
+       },
+       "demo-h006": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "08:50",
+        "ankunft": "09:06"
+       },
+       "demo-h007": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "09:15",
+        "ankunft": "09:49"
+       },
+       "demo-h011": {
+        "reserve_min": 26,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "11:30",
+        "ankunft": "11:49"
+       },
+       "demo-h014": {
+        "reserve_min": 10,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "13:10",
+        "ankunft": "13:44"
+       },
+       "demo-h010": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "10:45",
+        "ankunft": "10:59"
+       },
+       "demo-h013": {
+        "reserve_min": 74,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "12:40",
+        "ankunft": "12:52"
+       },
+       "demo-h015": {
+        "reserve_min": 26,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "13:45",
+        "ankunft": "14:09"
+       },
+       "demo-h016": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "14:05",
+        "ankunft": "14:36"
+       },
+       "011ac7d9-f03d-5677-a76d-ae2bda3d7bdb": {
+        "reserve_min": 63,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "16:24",
+        "ankunft": "17:08"
+       },
+       "19f25ddb-af39-519c-961b-3902848a0671": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "14:30",
+        "ankunft": "15:08"
+       },
+       "demo-h017": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "16:45",
+        "ankunft": "17:26"
+       },
+       "demo-h023": {
+        "reserve_min": 4,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "19:05",
+        "ankunft": "19:24"
+       },
+       "3a5f0589-4c05-543c-8c1e-b78bac576924": {
+        "reserve_min": 76,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "21:15",
+        "ankunft": "21:16"
+       },
+       "demo-h028": {
+        "reserve_min": 47,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "22:30",
+        "ankunft": "22:46"
+       },
+       "demo-h018": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "17:10",
+        "ankunft": "17:22"
+       },
+       "demo-h020": {
+        "reserve_min": 3,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "18:00",
+        "ankunft": "18:21"
+       },
+       "demo-h025": {
+        "reserve_min": 33,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "20:15",
+        "ankunft": "20:24"
+       },
+       "demo-h027": {
+        "reserve_min": 17,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "22:10",
+        "ankunft": "22:52"
+       },
+       "demo-h019": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "17:30",
+        "ankunft": "18:16"
+       },
+       "demo-h021": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "18:15",
+        "ankunft": "18:21"
+       },
+       "demo-h022": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "18:40",
+        "ankunft": "19:34"
+       },
+       "demo-h026": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "21:30",
+        "ankunft": "21:44"
+       },
+       "demo-h029": {
+        "reserve_min": 20,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "23:00",
+        "ankunft": "23:10"
+       },
+       "demo-h030": {
+        "reserve_min": null,
+        "route": null,
+        "sammel": false,
+        "abfahrt": "23:20",
+        "ankunft": "23:30"
+       }
+      },
+      "ereignisse": [],
+      "vorteile": [
+       "wenigste Emissionen (86 kg CO₂)",
+       "größte Reserve: mindestens 3 min Luft vor jeder Folgeabholung im ungünstigen Szenario"
+      ],
+      "nachteile": [
+       "494 € höhere Kosten",
+       "6 Fahrzeuge mehr"
+      ]
+     }
+    }
+   },
+   "angebote": [
+    {
+     "ride_id": "demo-h022",
+     "modus": "oepnv",
+     "umstieg": null,
+     "auto_bis_min": 0,
+     "weiter_min": 39,
+     "gesamt_min": 39,
+     "auto_min": 54,
+     "zeit_gespart_min": 15,
+     "km_gespart": 28.1,
+     "co2_gespart_kg": 0.0,
+     "abfahrt": "18:40",
+     "stau_vorhergesagt": true,
+     "nachricht": "Zu Ihrer Fahrzeit ist auf der Strecke viel Verkehr vorhergesagt. Unsere Alternative: Mit der U-Bahn sind Sie in rund 39 Minuten bei Seepromenade Starnberg, etwa 15 Minuten schneller als mit dem Auto im Stau. So sparen Sie Zeit, reisen entspannter und kommen planbar an. Ihr Fahrzeug bleibt für Sie reserviert, falls Sie es sich anders überlegen oder das Wetter umschlägt."
+    }
+   ]
+  }
+ }
+}

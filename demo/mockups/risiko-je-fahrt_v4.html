@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup Risiko je Fahrt</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --lime:#e3f654; --lime-halb:rgba(227,246,84,.5); --gruen:#59be80; --rot:#ff6f63; --dunkel:#1c1c1d; --blau:#2f5cff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#151516; font-family:'Space Grotesk',sans-serif; color:#fff; padding:28px 24px 60px; }
+  .leiste { display:flex; gap:40px; align-items:flex-start; justify-content:center; flex-wrap:wrap; }
+  .spalte { width:402px; }
+  .spalte h2 { font-size:14px; font-weight:500; color:#9a9a9a; margin-bottom:10px; letter-spacing:.3px; }
+  .spalte h2 b { color:#fff; }
+  .screen { width:402px; position:relative; overflow:hidden; background:#000; border-radius:28px; outline:1px solid #333; padding:40px 20px 40px; }
+  .bg-planer { background:#000 url("data:image/svg+xml;utf8,<svg viewBox='0 0 402 873' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect width='100%' height='100%' fill='url(%23g)'/><defs><radialGradient id='g' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(43.25 96.3 -44.344 19.869 0 0)'><stop stop-color='rgba(49,55,1,1)' offset='0'/><stop stop-color='rgba(25,28,0,1)' offset='0.2283'/><stop stop-color='rgba(12,14,0,1)' offset='0.34244'/><stop stop-color='rgba(0,0,0,1)' offset='0.45659'/><stop stop-color='rgba(0,0,0,1)' offset='0.6782'/><stop stop-color='rgba(0,22,64,1)' offset='0.75865'/><stop stop-color='rgba(0,45,128,1)' offset='0.8391'/><stop stop-color='rgba(0,89,255,1)' offset='1'/></radialGradient></defs></svg>") top left/100% 100% no-repeat; }
+  .bg-blau { background:#000 radial-gradient(520px 520px at -40px -40px,#0b46ff 0%,#06216e 35%,#000 70%) no-repeat; }
+  .neu { position:relative; }
+  .neu::before { content:''; position:absolute; inset:-6px; border:2px dashed var(--rot); pointer-events:none; }
+  .neu-tag { position:absolute; top:-15px; right:-2px; background:var(--rot); color:#000; font-size:10px; font-weight:700; padding:1px 6px; letter-spacing:.5px; }
+  .zurueck { width:50px; height:50px; border:1px solid #747474; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .zurueck img { width:27px; height:16px; transform:rotate(180deg) scale(1.2); }
+  .datum { display:flex; align-items:center; justify-content:space-between; height:32px; }
+  .datum span.s { width:44px; height:2px; background:#e3f754; }
+  .datum span.t { font-size:26px; font-weight:700; letter-spacing:-.5px; color:#e3f754; }
+  .legende { display:flex; justify-content:space-between; font-size:12px; font-weight:500; color:var(--lime); margin-top:40px; }
+  .titel { font-size:40px; font-weight:700; color:var(--lime); letter-spacing:-.5px; line-height:1.1; }
+  .kasten { border:1px solid var(--lime); color:var(--lime); padding:12px 14px; font-size:12px; line-height:17px; }
+  .kasten .k { font-weight:700; font-size:13px; }
+  .klein { font-size:10px; line-height:14px; opacity:.6; }
+  .karte { background:#fefffe; color:var(--dunkel); padding:16px 18px; }
+  .feld { border:2px solid var(--lime); height:56px; display:flex; align-items:center; gap:12px; padding:0 18px; margin-top:12px; font-size:16px; }
+  .feld .l { color:#8f9a3a; }
+  .chip { display:inline-block; font-size:11px; font-weight:700; padding:2px 6px; color:var(--dunkel); }
+  .chip.r { background:var(--rot); } .chip.m { background:var(--lime); } .chip.g { background:var(--gruen); }
+  .zeile { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:9px 0; border-top:1px solid #d9d9d9; font-size:13px; line-height:17px; }
+  .blase-ich { width:314px; margin-left:auto; padding:12px 12px 8px; background:var(--lime); color:#000; border-radius:16px 16px 6px 16px; font-size:16px; font-weight:500; line-height:20px; }
+  .blase-ich .zeit { font-size:10px; color:rgba(0,0,0,.6); margin-top:10px; font-weight:400; }
+  .blase-tri { width:314px; padding:12px 12px 10px; background:#242525; border:1px solid #3a3a3a; border-radius:16px 16px 16px 6px; font-size:14px; line-height:19px; }
+  .knopf { height:48px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:500; }
+  .knopf.lime { background:var(--lime); color:#000; }
+  .knopf.rand { border:2px solid var(--rot); color:var(--rot); }
+.kacheln { display:flex; gap:12px; overflow:hidden; margin-top:12px; }
+  .kachel { flex:0 0 150px; height:132px; border:2px solid var(--lime); color:var(--lime); padding:14px 16px; display:flex; flex-direction:column; justify-content:space-between; }
+  .kachel.weiss { background:#fefffe; border-color:#fefffe; color:var(--dunkel); }
+  .kl { font-size:13px; font-weight:400; line-height:16px; }
+  .kw { font-size:32px; font-weight:700; letter-spacing:-.5px; line-height:36px; color:var(--lime); }
+  .kachel.weiss .kw { color:var(--dunkel); }
+  .ku { font-size:12px; line-height:15px; }
+  .dash .kw { color:var(--lime); } .dash .ku { color:var(--lime); opacity:.75; }
+  .planen { height:56px; border:2px solid #e2f754; background:linear-gradient(90deg,#0b3ee8 0%,#06216e 45%,#000 85%); display:flex; align-items:center; justify-content:space-between; padding:0 26px 0 22px; color:var(--lime); font-size:16px; font-weight:500; letter-spacing:.5px; }
+  .planen img { width:24px; height:24px; }
+  .dash { border:2px solid var(--lime); color:var(--lime); padding:14px 16px; }
+.ereignis { background:#fefffe; color:var(--dunkel); padding:14px 16px; margin-top:12px; }
+  .ek { display:flex; justify-content:space-between; align-items:center; }
+  .chip.auto { background:#e9e9e9; color:var(--dunkel); }
+  .ez { font-size:12px; font-weight:700; }
+  .et { font-size:18px; font-weight:700; letter-spacing:-.3px; margin-top:8px; }
+  .eg { display:grid; grid-template-columns:64px 1fr; gap:3px 8px; margin-top:8px; font-size:12px; line-height:16px; }
+  .eg span { opacity:.55; } .eg b { font-weight:500; }
+  .eb { display:flex; gap:8px; margin-top:12px; }
+  .eb span { flex:1; height:36px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500; border:2px solid var(--dunkel); }
+  .eb .ent { border-color:var(--rot); color:var(--rot); }
+  .eb .anp.voll { background:var(--lime); border-color:var(--lime); }
+  .ereignis.offen { outline:2px solid var(--lime); outline-offset:-2px; }
+  .bearb { margin-top:10px; background:#f3f3f3; padding:10px 12px; }
+  .bf { display:grid; grid-template-columns:40px auto 18px auto; gap:6px; align-items:center; font-size:13px; line-height:22px; }
+  .bf span { opacity:.55; } .bf .pfeil { opacity:.4; text-align:center; }
+  .kzl { font-size:11px; line-height:14px; letter-spacing:.5px; opacity:.6; } .kzw { font-size:16px; font-weight:700; line-height:20px; }
+  .kacheln.klein .kachel { flex:0 0 112px; height:98px; padding:10px 12px; }
+  .kacheln.klein .kw { font-size:24px; line-height:28px; } .kacheln.klein .kl, .kacheln.klein .ku { font-size:11px; line-height:13px; }
+  .hinweis { font-size:13px; color:#9a9a9a; max-width:900px; margin:0 auto 22px; text-align:center; line-height:1.5; }
+</style>
+</head>
+<body>
+<p class="hinweis">Rot gestrichelt = neu. Alles andere ist der heutige Stand der Demo. Zahlen, Namen und Ereignisse sind Platzhalter.</p>
+<div class="leiste">
+
+<!-- 1a  Bedarf prüfen -->
+<div class="spalte">
+<h2><b>1 · Bedarf prüfen</b> · vor der Planung</h2>
+<div class="screen bg-planer">
+  <div class="zurueck"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9IiNCNUI0QjUiLz4KPC9zdmc+Cg==" alt=""></div>
+  <div class="datum" style="margin-top:28px"><span class="s"></span><span class="t">Donnerstag 29.10.</span><span class="s"></span></div>
+  <div class="legende" style="margin-top:44px"><span>Fahrer <span style="display:inline-block;width:12px;height:12px;background:var(--gruen);vertical-align:-1px"></span></span><span>Bedarf Fahrer <span style="color:var(--lime)">●</span> <span style="color:var(--rot)">●</span></span><span>Gebuchte Fahrten <span style="color:var(--blau)">—</span></span></div>
+  <svg id="bedarf" width="362" height="222" style="display:block;margin-top:14px"></svg>
+
+  <div class="neu" style="margin-top:30px">
+    <span class="neu-tag">NEU</span>
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><p style="font-size:20px;font-weight:700;color:var(--lime)">Ereignisse</p><p style="font-size:12px;color:var(--lime-halb)">wischen →</p></div>
+    <div class="kacheln">
+      <div class="kachel"><p class="kl">Heimspiel FC Bayern</p><p class="kw">18–24</p><p class="ku">A9 Nord · bis +20 min</p></div>
+      <div class="kachel"><p class="kl">Messe · bauma</p><p class="kw">06–10</p><p class="ku">Zufahrt Riem · +15 min</p></div>
+      <div class="kachel weiss"><p class="kl">Sperrung · von dir</p><p class="kw">14–18</p><p class="ku">Ludwigstraße · 9 Fahrten</p></div>
+      <div class="kachel"><p class="kl">Baustelle A99</p><p class="kw">ganztags</p><p class="ku">Aschheim · 1 Spur</p></div>
+    </div>
+    <div class="planen" style="margin-top:12px"><span>Ereignis ergänzen</span><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQuMTM5NiIgdmlld0JveD0iMCAwIDI0IDI0LjEzOTYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxnIHN0cm9rZT0iI0UzRjY1NCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbWl0ZXJsaW1pdD0iMTAiPgo8cGF0aCBkPSJNMTAgMjQuMDcwOEMxMCAyNC4wNzA4IDkuMzI4NjkgMTQuMDcwOCAwIDE0LjA3MDgiLz4KPHBhdGggZD0iTTEwIDQuMDcwOEMxMCA0LjA3MDggMTAuNjcxMyAxNC4wNzA4IDIwIDE0LjA3MDgiLz4KPHBhdGggZD0iTTE5IDEwLjA3MDhDMTkgMTAuMDcwOCAxOC42NjM5IDUuMDcwOCAxNCA1LjA3MDgiLz4KPHBhdGggZD0iTTE5IDEwLjA3MDhDMTkgMTAuMDcwOCAxOS4zMzYxIDUuMDcwOCAyNCA1LjA3MDgiLz4KPHBhdGggZD0iTTE5IDAuMDcwNzk5OUMxOSAwLjA3MDc5OTkgMTguNjYzOSA1LjA3MDggMTQgNS4wNzA4Ii8+CjxwYXRoIGQ9Ik0xOSAwLjA3MDc5OTlDMTkgMC4wNzA3OTk5IDE5LjMzNjEgNS4wNzA4IDI0IDUuMDcwOCIvPgo8cGF0aCBkPSJNMTAgNC4wNzA4QzEwIDQuMDcwOCA5LjMyODY5IDE0LjA3MDggMCAxNC4wNzA4Ii8+CjxwYXRoIGQ9Ik0xMCAyNC4wNzA4QzEwIDI0LjA3MDggMTAuNjcxMyAxNC4wNzA4IDIwIDE0LjA3MDgiLz4KPC9nPgo8L3N2Zz4K" alt=""></div>
+  </div>
+
+  <p style="text-align:center;font-size:12px;font-weight:500;color:var(--lime-halb);margin-top:36px;line-height:16px;letter-spacing:.5px">Bedarf per Hand anpassen: Punkte im Diagramm nach oben oder unten ziehen.</p>
+  <div style="position:relative;height:48px;margin-top:22px"><span style="position:absolute;left:50%;top:12px;transform:translateX(-50%);font-size:14px;font-weight:500;color:var(--lime-halb)">Zurücksetzen</span><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDUiIGhlaWdodD0iMjgiIHZpZXdCb3g9IjAgMCA0NSAyOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggaWQ9IlZlY3RvciIgZD0iTTUuNDA5NTcgMTEuMjU0VjEwLjI2MzdMMTguMTQzNiA1LjE3Njg1VjBMMCA3Ljc0Mjc3VjEyLjk2NDZWMTMuOTFWMjAuMjU3MkwxOC4xNDM2IDI4VjIyLjgyMzJMNS40MDk1NyAxNy43MzYzVjE2Ljc0Nkg0NVYxMy45MVYxMi45NjQ2VjExLjI1NEg1LjQwOTU3WiIgZmlsbD0iI0UzRjY1NCIvPgo8L3N2Zz4K" alt="" style="position:absolute;right:8px;top:10px;width:45px;height:28px;transform:rotate(180deg)"></div>
+</div>
+</div>
+
+<!-- 1b  Ereignis ergänzen -->
+<div class="spalte">
+<h2><b>1b · Ereignisse</b> · nach Tippen</h2>
+<div class="screen bg-planer" style="padding:0">
+  <div style="padding:40px 20px 0;opacity:.25">
+    <div class="datum" style="margin-top:78px"><span class="s"></span><span class="t">Donnerstag 29.10.</span><span class="s"></span></div>
+  </div>
+  <div class="neu" style="margin:28px 0 0;background:#0d0d0e;border-top:1px solid #3a3a3a;border-radius:24px 24px 0 0;padding:14px 20px 26px">
+    <span class="neu-tag" style="right:20px;top:-10px">NEU</span>
+    <div style="width:40px;height:4px;background:#3a3a3a;border-radius:2px;margin:0 auto 16px"></div>
+    <p style="font-size:20px;font-weight:700;color:var(--lime)">Ereignisse am 29.10.</p>
+    <p style="font-size:12px;color:var(--lime-halb);margin-top:2px">3 automatisch gefunden · 1 von dir</p>
+
+    <div class="ereignis">
+      <div class="ek"><span class="chip auto">automatisch</span><span class="ez">23 Fahrten</span></div>
+      <p class="et">Heimspiel FC Bayern</p>
+      <div class="eg"><span>Zeit</span><b>18:00–20:15 · 22:15–23:45</b><span>Wirkung</span><b>A9 Fröttmaning, Kreuz Nord · bis +20 min</b><span>Quelle</span><b>Spielplan DFL · Polizei München</b></div>
+      <div class="eb"><span class="anp">Anpassen</span><span class="ent">Entfernen</span></div>
+    </div>
+
+    <div class="ereignis">
+      <div class="ek"><span class="chip auto">automatisch</span><span class="ez">31 Fahrten</span></div>
+      <p class="et">Messe · bauma, Tag 4</p>
+      <div class="eg"><span>Zeit</span><b>06:30–10:00 · ab 17:00</b><span>Wirkung</span><b>Zufahrt Riem, A94 · bis +15 min</b><span>Quelle</span><b>Messekalender München</b></div>
+      <div class="eb"><span class="anp">Anpassen</span><span class="ent">Entfernen</span></div>
+    </div>
+
+    <div class="ereignis offen">
+      <div class="ek"><span class="chip auto">automatisch</span><span class="ez">6 Fahrten</span></div>
+      <p class="et">Baustelle A99, Aschheim</p>
+      <div class="eg"><span>Zeit</span><b>ganztägig</b><span>Wirkung</span><b>eine Spur gesperrt · bis +6 min</b><span>Quelle</span><b>Autobahn GmbH</b></div>
+      <div class="bearb">
+        <p style="font-size:11px;opacity:.6;margin-bottom:6px">Wird angepasst</p>
+        <div class="bf"><span>bis</span><b>+6 min</b><span class="pfeil">→</span><b style="color:var(--rot)">+12 min</b></div>
+        <div class="bf"><span>Zeit</span><b>ganztägig</b><span class="pfeil">→</span><b>06:00–20:00</b></div>
+      </div>
+      <div class="eb"><span class="anp voll">Speichern</span><span class="ent" style="border-color:#c9c9c9;color:#888">Abbrechen</span></div>
+    </div>
+
+    <div class="ereignis">
+      <div class="ek"><span class="chip m">von dir</span><span class="ez">9 Fahrten</span></div>
+      <p class="et">Sperrung Ludwigstraße</p>
+      <div class="eg"><span>Zeit</span><b>14:00–18:00</b><span>Wirkung</span><b>Umfahrung Altstadtring · bis +12 min</b><span>Quelle</span><b>Samira, heute 09:42</b></div>
+      <div class="eb"><span class="anp">Anpassen</span><span class="ent">Entfernen</span></div>
+    </div>
+
+    <div class="planen" style="margin-top:18px"><span>Ereignis ergänzen</span><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQuMTM5NiIgdmlld0JveD0iMCAwIDI0IDI0LjEzOTYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxnIHN0cm9rZT0iI0UzRjY1NCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbWl0ZXJsaW1pdD0iMTAiPgo8cGF0aCBkPSJNMTAgMjQuMDcwOEMxMCAyNC4wNzA4IDkuMzI4NjkgMTQuMDcwOCAwIDE0LjA3MDgiLz4KPHBhdGggZD0iTTEwIDQuMDcwOEMxMCA0LjA3MDggMTAuNjcxMyAxNC4wNzA4IDIwIDE0LjA3MDgiLz4KPHBhdGggZD0iTTE5IDEwLjA3MDhDMTkgMTAuMDcwOCAxOC42NjM5IDUuMDcwOCAxNCA1LjA3MDgiLz4KPHBhdGggZD0iTTE5IDEwLjA3MDhDMTkgMTAuMDcwOCAxOS4zMzYxIDUuMDcwOCAyNCA1LjA3MDgiLz4KPHBhdGggZD0iTTE5IDAuMDcwNzk5OUMxOSAwLjA3MDc5OTkgMTguNjYzOSA1LjA3MDggMTQgNS4wNzA4Ii8+CjxwYXRoIGQ9Ik0xOSAwLjA3MDc5OTlDMTkgMC4wNzA3OTk5IDE5LjMzNjEgNS4wNzA4IDI0IDUuMDcwOCIvPgo8cGF0aCBkPSJNMTAgNC4wNzA4QzEwIDQuMDcwOCA5LjMyODY5IDE0LjA3MDggMCAxNC4wNzA4Ii8+CjxwYXRoIGQ9Ik0xMCAyNC4wNzA4QzEwIDI0LjA3MDggMTAuNjcxMyAxNC4wNzA4IDIwIDE0LjA3MDgiLz4KPC9nPgo8L3N2Zz4K" alt=""></div>
+    <p style="font-size:11px;color:var(--lime-halb);text-align:center;margin-top:8px">Eintippen oder sagen, z. B. „Ludwigstraße 14–18 Uhr gesperrt"</p>
+  </div>
+</div>
+</div>
+
+<!-- 2a  KI Planer Tag, Dash -->
+<div class="spalte">
+<h2><b>2 · KI Planer, Tag</b> · Dash</h2>
+<div class="screen bg-planer">
+  <div class="zurueck"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9IiNCNUI0QjUiLz4KPC9zdmc+Cg==" alt=""></div>
+  <p style="text-align:center;font-size:26px;font-weight:700;color:var(--lime);margin-top:24px">Do., 29. Okt.</p>
+  <div style="display:flex;justify-content:space-around;margin-top:26px;font-size:17px;font-weight:500"><span style="color:var(--lime);border-left:2px solid var(--lime);border-right:2px solid var(--lime);padding:0 12px">CO₂-arm</span><span style="color:var(--lime-halb)">Günstig</span><span style="color:var(--lime-halb)">Reserve</span></div>
+  <div class="karte" style="margin-top:22px;display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><p style="font-size:20px;font-weight:700;letter-spacing:-.3px">CO₂-arm</p><span class="chip m">Standard</span></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px">
+      <div><p class="kzl">Fahrer/Fahrzeuge</p><p class="kzw">45</p></div>
+      <div><p class="kzl">km gesamt</p><p class="kzw">5.484</p></div>
+      <div><p class="kzl">CO₂</p><p class="kzw">496 kg</p></div>
+      <div><p class="kzl">Kosten</p><p class="kzw">14.320 €</p></div>
+      <div><p class="kzl">elektrisch</p><p class="kzw">98 %</p></div>
+      <div><p class="kzl">Sammelfahrten</p><p class="kzw">24</p></div>
+    </div>
+    <p style="font-size:12px;line-height:16px;color:var(--gruen)"><b>Pünktlich 100,0 %</b> der Abholungen in 300 neuen Tagesverläufen (Flugverspätung, Stau, Gast später). Luft vor Folgeabholungen im Mittel 14 min.</p>
+    <p style="font-size:12px;line-height:16px;opacity:.8">Bisheriger Planer (feste Fahrtdauer, 20 min Puffer): 75 Dienste, 83 Fahrten offen, 88,1 % pünktlich im selben Verkehrsmodell.</p>
+    <ul style="list-style:none;font-size:12px;line-height:17px">
+      <li><b style="color:var(--gruen)">+ </b>wenigste Emissionen (496 kg CO₂)</li>
+      <li><b style="color:var(--gruen)">+ </b>wenigste Fahrzeuge und Fahrer (45)</li>
+      <li><b style="color:var(--gruen)">+ </b>98 % der km elektrisch</li>
+      <li><b style="color:var(--rot)">– </b>38 € höhere Kosten</li>
+    </ul>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding-top:6px;border-top:1px solid #d9d9d9;font-size:11px;line-height:14px">
+      <div><b>CO₂-arm</b><br>45 Fz · 496 kg<br>14.320 €</div>
+      <div style="opacity:.6"><b>Kostengünstig</b><br>46 Fz · 539 kg<br>14.282 €</div>
+      <div style="opacity:.6"><b>Maximale Reserve</b><br>47 Fz · 530 kg<br>14.745 €</div>
+    </div>
+  </div>
+
+  <div class="neu" style="margin-top:24px">
+    <span class="neu-tag">NEU</span>
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><p style="font-size:16px;font-weight:700;color:var(--lime)">Vorhersage</p><p style="font-size:12px;color:var(--lime-halb)">wischen →</p></div>
+    <div class="kacheln klein">
+      <div class="kachel"><p class="kl">Heimspiel</p><p class="kw">18–24</p><p class="ku">A9 · +20 min</p></div>
+      <div class="kachel"><p class="kl">Messe bauma</p><p class="kw">06–10</p><p class="ku">Riem · +15 min</p></div>
+      <div class="kachel weiss"><p class="kl">Sperrung</p><p class="kw">14–18</p><p class="ku">Ludwigstr. · +12</p></div>
+      <div class="kachel"><p class="kl">Baustelle</p><p class="kw">06–20</p><p class="ku">A99 · +12 min</p></div>
+    </div>
+  </div>
+
+  <div class="neu" style="margin-top:28px">
+    <span class="neu-tag">NEU</span>
+    <div class="dash">
+      <div style="display:flex;justify-content:space-between;align-items:center"><p style="font-size:16px;font-weight:700">Puffer je Fahrt</p><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9IiNFM0Y2NTQiLz4KPC9zdmc+Cg==" alt="" style="width:28px"></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);margin-top:12px">
+        <div><p class="kw" style="font-size:28px">11</p><p class="ku">Ø min<br>bisher 20</p></div>
+        <div><p class="kw" style="font-size:28px;color:var(--rot)">14</p><p class="ku">Fahrten<br>hohes Risiko</p></div>
+        <div><p class="kw" style="font-size:28px">4</p><p class="ku">Ereignisse<br>eingerechnet</p></div>
+      </div>
+      <svg id="streuKlein" width="326" height="56" style="display:block;margin-top:12px"></svg>
+    </div>
+  </div>
+
+  <div class="kasten" style="margin-top:22px;opacity:.45"><p class="k">Rad &amp; U-Bahn: noch offen</p></div>
+</div>
+</div>
+
+<!-- 2b  Dash geöffnet -->
+<div class="spalte">
+<h2><b>2b · Puffer je Fahrt</b> · nach Tippen</h2>
+<div class="screen bg-planer">
+  <div class="zurueck"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9IiNCNUI0QjUiLz4KPC9zdmc+Cg==" alt=""></div>
+  <p class="titel" style="margin-top:34px;font-size:36px">Puffer je Fahrt</p>
+  <p style="font-size:14px;color:var(--lime-halb);margin-top:6px">Do., 29. Okt. · CO₂-arm</p>
+  <div class="neu" style="margin-top:24px">
+    <span class="neu-tag">NEU</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="kachel" style="height:auto"><p class="kl">Puffer Ø</p><p class="kw">11 min</p><p class="ku">bisher 20 min je Fahrt</p></div>
+      <div class="kachel" style="height:auto;border-color:var(--rot)"><p class="kl" style="color:var(--rot)">Hohes Risiko</p><p class="kw" style="color:var(--rot)">14</p><p class="ku" style="color:var(--rot)">von 170 Fahrten</p></div>
+    </div>
+    <div class="dash" style="margin-top:12px">
+      <svg id="streu" width="326" height="190" style="display:block"></svg>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:11px;color:var(--lime)">
+        <span><span style="color:var(--gruen)">●</span> niedrig</span><span>● mittel</span><span><span style="color:var(--rot)">●</span> hoch</span><span style="color:#fff">- - bisher 20 min</span>
+      </div>
+    </div>
+    <div class="karte" style="margin-top:12px;padding-bottom:8px">
+      <p style="font-size:16px;font-weight:700">Hohes Risiko</p>
+      <div class="zeile" style="margin-top:8px"><div><b>21:50</b> Messe – Flughafen<p style="font-size:11px;opacity:.6">Heimspiel · 31 min</p></div><span class="chip r">hoch</span></div>
+      <div class="zeile"><div><b>07:40</b> Flughafen – Messe<p style="font-size:11px;opacity:.6">LH 2031 · 26 min</p></div><span class="chip r">hoch</span></div>
+      <div class="zeile"><div><b>15:10</b> Bayerischer Hof – Messe<p style="font-size:11px;opacity:.6">Sperrung · 24 min</p></div><span class="chip r">hoch</span></div>
+      <p style="font-size:13px;padding:8px 0 4px;text-decoration:underline">Alle 14 ansehen</p>
+    </div>
+    <p class="klein" style="color:var(--lime);margin-top:10px">500 Verläufe des Tages · Planungsannahmen, kein Messwert</p>
+  </div>
+</div>
+</div>
+
+<!-- 3  Alle Fahrten -->
+<div class="spalte">
+<h2><b>3 · Alle Fahrten</b></h2>
+<div class="screen bg-blau">
+  <div class="zurueck"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9IiNCNUI0QjUiLz4KPC9zdmc+Cg==" alt=""></div>
+  <p class="titel" style="margin-top:34px">Alle Fahrten</p>
+  <div class="feld" style="margin-top:24px"><span class="l" style="color:#a3ad48;font-weight:500">Mein Standort</span><span style="color:#8f9a3a">Ort eingeben</span></div>
+  <div style="display:flex;gap:12px;margin-top:12px"><div class="feld" style="flex:1;margin:0;background:var(--lime);color:#000;justify-content:space-between">Filter <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGcgaWQ9IkZpbHRlcl9NYXBfSWNvbiI+CjxnIGlkPSJHcm91cCAzMyI+CjxwYXRoIGlkPSJWZWN0b3IiIGQ9Ik0xNS42NDE5IDIzLjQzOThWMjIuODc3MUwyMy4wMzggMTkuOTg2OFYxNy4wNDU1TDEyLjUgMjEuNDQ0OFYyNC40MTE3VjI0Ljk0ODhWMjguNTU1MkwyMy4wMzggMzIuOTU0NVYzMC4wMTMyTDE1LjY0MTkgMjcuMTIyOVYyNi41NjAySDM4LjYzNjRWMjQuOTQ4OFYyNC40MTE3VjIzLjQzOThIMTUuNjQxOVoiIGZpbGw9IiM4ODg5ODkiLz4KPGNpcmNsZSBpZD0iRWxsaXBzZSA4IiBjeD0iMjUiIGN5PSIyNSIgcj0iMjQiIGZpbGw9IiNFM0Y2NTQiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMiIvPgo8L2c+CjxwYXRoIGlkPSJWZWN0b3IgNTQiIGQ9Ik0xMyAxNkgzNiIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxwYXRoIGlkPSJWZWN0b3IgNTUiIGQ9Ik0xMyAyNUgzNiIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxwYXRoIGlkPSJWZWN0b3IgNTYiIGQ9Ik0xMyAzNEgzNiIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxjaXJjbGUgaWQ9IkVsbGlwc2UgOSIgY3g9IjI5IiBjeT0iMTYiIHI9IjIuNSIgZmlsbD0iI0UzRjY1NCIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxjaXJjbGUgaWQ9IkVsbGlwc2UgMTAiIGN4PSIyMCIgY3k9IjI1IiByPSIyLjUiIGZpbGw9IiNFM0Y2NTQiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMyIvPgo8Y2lyY2xlIGlkPSJFbGxpcHNlIDExIiBjeD0iMzAiIGN5PSIzNCIgcj0iMi41IiBmaWxsPSIjRTNGNjU0IiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjMiLz4KPC9nPgo8L3N2Zz4K" alt="" style="width:22px"></div><div class="feld" style="width:90px;margin:0"></div></div>
+  <div class="feld"><span style="color:#a3ad48">Kunden/Fahrer Suchen</span></div>
+
+  <div class="karte" style="margin-top:24px;padding:18px">
+    <div style="display:flex;justify-content:space-between"><p style="font-size:24px;line-height:30px;font-weight:700">M. Keller,<br>A. Brandt</p><div style="text-align:right;font-weight:700;font-size:16px;line-height:20px">21:50<p style="font-weight:400">29.10.</p></div></div>
+    <p style="font-size:12px;font-weight:500;opacity:.8;margin-top:6px">Messe München - Flughafen München, Terminal 2</p>
+    <div class="neu" style="margin-top:12px"><span class="neu-tag">NEU</span><div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500"><span class="chip r">Risiko hoch</span>Heimspiel-Stau A9 · Puffer 31 min</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><p style="font-size:16px;font-weight:700">S. Spandri (12)</p><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9ImJsYWNrIi8+Cjwvc3ZnPgo=" alt="" style="width:30px" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'→',style:'font-size:28px'}))"></div>
+  </div>
+  <div class="karte" style="margin-top:14px;padding:18px">
+    <div style="display:flex;justify-content:space-between"><p style="font-size:24px;line-height:30px;font-weight:700">K. Wagner</p><div style="text-align:right;font-weight:700;font-size:16px;line-height:20px">11:15<p style="font-weight:400">29.10.</p></div></div>
+    <p style="font-size:12px;font-weight:500;opacity:.8;margin-top:6px">Andaz Schwabinger Tor - Hauptbahnhof</p>
+    <div class="neu" style="margin-top:12px"><div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500"><span class="chip g">Risiko niedrig</span>Puffer 6 min</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><p style="font-size:16px;font-weight:700">L. Meyer (4)</p><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9ImJsYWNrIi8+Cjwvc3ZnPgo=" alt="" style="width:30px"></div>
+  </div>
+</div>
+</div>
+
+<!-- 4  Fahrt bearbeiten -->
+<div class="spalte">
+<h2><b>4 · Fahrt bearbeiten</b></h2>
+<div class="screen bg-blau">
+  <div class="zurueck"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzEiIHZpZXdCb3g9IjAgMCAzNiAzMSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwLjA2IDBWNS43MUwzMi4xOSAxMS42MlYxMi40NUgwVjE3Ljg1SDMyLjE5VjE4LjY3TDIwLjA2IDI0LjU4VjMwLjI5TDM2IDIyLjMyVjE3Ljg1VjEyLjQ1VjcuOTdMMjAuMDYgMFoiIGZpbGw9IiNCNUI0QjUiLz4KPC9zdmc+Cg==" alt=""></div>
+  <p class="titel" style="margin-top:34px">Fahrt bearbeiten</p>
+  <div class="feld" style="margin-top:20px"><span class="l">Datum</span>29.10.2026</div>
+  <div class="feld"><span class="l">Start Zeit</span>21:50</div>
+  <div class="feld"><span class="l">Start</span>Messe München, Eingang West</div>
+  <div class="feld"><span class="l">Ziel</span>Flughafen München, Terminal 2</div>
+  <div class="feld"><span class="l">Fahrer</span>Stefano Spandri (12)</div>
+  <div class="feld"><span class="l">aktueller Status</span>offen</div>
+
+  <div class="neu" style="margin:30px -20px 0;background:var(--dunkel);padding:20px">
+    <span class="neu-tag" style="right:18px">NEU</span>
+    <div class="karte">
+      <div style="display:flex;justify-content:space-between;align-items:center"><p style="font-size:16px;font-weight:700">Was dieser Fahrt passieren kann</p><span class="chip r">hoch</span></div>
+      <p style="font-size:11px;opacity:.6;margin-top:12px">Fahrzeit in 500 Verläufen</p>
+      <svg id="vert" width="326" height="70" style="display:block;margin-top:4px"></svg>
+      <p style="font-size:13px;line-height:18px;margin-top:6px">Normal <b>34 min</b>, in 9 von 10 Verläufen höchstens <b>58 min</b>.</p>
+      <div style="margin-top:12px">
+        <div class="zeile"><div>Heimspiel-Stau A9<p style="font-size:11px;opacity:.6">Abpfiff 22:20 · Planungsannahme</p></div><div style="text-align:right;white-space:nowrap"><b>7 von 10</b><p style="font-size:11px;opacity:.6">bis +22 min</p></div></div>
+        <div class="zeile"><div>Gast verspätet<p style="font-size:11px;opacity:.6">Messeende</p></div><div style="text-align:right;white-space:nowrap"><b>2 von 10</b><p style="font-size:11px;opacity:.6">bis +10 min</p></div></div>
+      </div>
+      <div style="border-top:1px solid #d9d9d9;padding-top:10px;font-size:13px;line-height:22px">
+        <div style="display:flex;justify-content:space-between"><span>Eingeplanter Puffer</span><b>31 min</b></div>
+        <div style="display:flex;justify-content:space-between;opacity:.5"><span>Bisher pauschal</span><span>20 min</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Route</span><span>Flughafentangente Ost</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Folgefahrt 23:40</span><b style="color:var(--gruen)">in allen Verläufen pünktlich</b></div>
+      </div>
+      <p style="font-size:10px;opacity:.5;margin-top:10px">Planungsannahmen, keine Messwerte.</p>
+    </div>
+  </div>
+
+  <div class="feld" style="margin-top:30px;justify-content:space-between">Bearbeitung speichern <span style="font-size:24px">→</span></div>
+  <div class="knopf rand" style="margin-top:12px">Fahrt stornieren</div>
+</div>
+</div>
+
+</div>
+<script>
+const NS='http://www.w3.org/2000/svg';
+const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e;};
+let s=7;const zufall=()=>(s=(s*16807)%2147483647)/2147483647;
+
+// Bedarfsdiagramm wie in der App
+(()=>{const g=document.getElementById('bedarf'),W=362,H=210,x0=30,y0=192,max=20;
+[0,5,10,15,20].forEach(v=>{const y=y0-v/max*170;el('line',{x1:0,x2:W,y1:y,y2:y,stroke:'#e3f654','stroke-width':1},g);const t=el('text',{x:0,y:y-6,fill:'#e3f654','font-size':16,'font-family':'Space Grotesk'},g);t.textContent=v;});
+const bed=[2,7,12,8,9,13,9,9,11,10,11,14,11,8,9,15,13,11,0,0],geb=[1,6,12,6,9,12,6,9,10,8,10,13,9,8,6,15,12,11,0,0];
+const px=i=>x0+i*17;
+el('polyline',{points:geb.map((v,i)=>`${px(i)},${y0-v/max*170}`).join(' '),fill:'none',stroke:'#2f5cff','stroke-width':2},g);
+el('polyline',{points:bed.map((v,i)=>`${px(i)},${y0-v/max*170}`).join(' '),fill:'none',stroke:'#fff','stroke-width':1.5},g);
+bed.forEach((v,i)=>el('circle',{cx:px(i),cy:y0-v/max*170,r:5,fill:v?'#ff6f63':'#e3f654'},g));
+['06:00','09:00','12:00','15:00','18:00','21:00','00:00'].forEach((t,i)=>{const e=el('text',{x:px(i*3),y:y0+22,fill:'#e3f654','font-size':12,'font-weight':500,'text-anchor':'middle','font-family':'Space Grotesk'},g);e.textContent=t;});})();
+
+// Streudiagramm: Puffer je Fahrt (gross mit Achsen, klein als Dash)
+const streu=(id,W,H,achsen)=>{const g=document.getElementById(id);s=7;const x0=achsen?26:0,x1=W-4,y0=achsen?H-24:H-2,ym=achsen?6:2,max=40;
+const X=h=>x0+(h-6)/18*(x1-x0),Y=m=>y0-m/max*(y0-ym);
+if(achsen){[0,10,20,30,40].forEach(v=>{el('line',{x1:x0,x2:x1,y1:Y(v),y2:Y(v),stroke:'rgba(227,246,84,.18)'},g);const t=el('text',{x:0,y:Y(v)+4,fill:'#e3f654','font-size':10,'font-family':'Space Grotesk'},g);t.textContent=v;});
+[6,10,14,18,22,24].forEach(h=>{const t=el('text',{x:X(h),y:H-6,fill:'#e3f654','font-size':10,'text-anchor':'middle','font-family':'Space Grotesk'},g);t.textContent=String(h%24).padStart(2,'0');});
+const ut=el('text',{x:x0+4,y:ym+12,fill:'#e3f654','font-size':10,'font-family':'Space Grotesk'},g);ut.textContent='min';}
+el('rect',{x:X(18),y:ym,width:X(23.75)-X(18),height:y0-ym,fill:'rgba(255,111,99,.12)'},g);
+el('rect',{x:X(14),y:ym,width:X(18)-X(14),height:y0-ym,fill:'rgba(255,255,255,.06)'},g);
+if(achsen){const a=el('text',{x:X(18)+4,y:ym+12,fill:'#ff6f63','font-size':10,'font-family':'Space Grotesk'},g);a.textContent='Heimspiel';const b=el('text',{x:X(14)+4,y:ym+12,fill:'#fff','font-size':10,'font-family':'Space Grotesk',opacity:.7},g);b.textContent='Sperrung';}
+el('line',{x1:x0,x2:x1,y1:Y(20),y2:Y(20),stroke:'#fff','stroke-width':1.2,'stroke-dasharray':'5 4'},g);
+for(let i=0;i<112;i++){const h=6.5+zufall()*17.2;let m=3+zufall()*12;
+ if(h<10&&zufall()<.5)m+=zufall()*12;
+ if(h>14&&h<18&&zufall()<.25)m+=10+zufall()*8;
+ if(h>18&&zufall()<.55)m+=8+zufall()*18;
+ m=Math.min(m,38);const c=m>=22?'#ff6f63':m>=13?'#e3f654':'#59be80';
+ el('circle',{cx:X(h),cy:Y(m),r:achsen?3.4:2.4,fill:c},g);}};
+streu('streu',326,190,true);streu('streuKlein',326,56,false);
+
+// Fahrzeitverteilung
+(()=>{const g=document.getElementById('vert'),W=326,H=70,b=[1,3,7,12,15,13,10,8,7,6,5,4,3,2,1.5,1,.6],bw=W/b.length,mx=15;
+b.forEach((v,i)=>{const m=25+i*3,c=m<=40?'#59be80':m<=58?'#e3f654':'#ff6f63';el('rect',{x:i*bw+1,y:52-v/mx*48,width:bw-2,height:v/mx*48,fill:c},g);});
+el('line',{x1:3*bw+bw/2,x2:3*bw+bw/2,y1:0,y2:52,stroke:'#1c1c1d','stroke-width':1.5},g);
+[['25 min',0,'start'],['40',5*bw,'middle'],['55',10*bw,'middle'],['75 min',W,'end']].forEach(([t,x,a])=>{const e=el('text',{x,y:66,fill:'#1c1c1d','font-size':10,'text-anchor':a,'font-family':'Space Grotesk','opacity':.6},g);e.textContent=t;});})();
+</script>
+</body>
+</html>

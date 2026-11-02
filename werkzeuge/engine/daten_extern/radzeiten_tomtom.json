@@ -1,0 +1,1340 @@
+{
+ "48.14053,11.57294|48.13781,11.58416": {
+  "min": 6.7,
+  "km": 1.16,
+  "von": "Hotel Bayerischer Hof, Promenadeplatz 2–6",
+  "nach": "Hotel Maximilian's, Maximilianstraße 40, Augsburg"
+ },
+ "48.14053,11.57294|48.17471,11.59324": {
+  "min": 16.1,
+  "km": 4.87,
+  "von": "Hotel Bayerischer Hof, Promenadeplatz 2–6",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.13781,11.58416|48.14053,11.57294": {
+  "min": 6.7,
+  "km": 1.14,
+  "von": "Hotel Maximilian's, Maximilianstraße 40, Augsburg",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.13910,11.58220|48.16214,11.58709": {
+  "min": 10.9,
+  "km": 3.38,
+  "von": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17",
+  "nach": "Münchner Freiheit 6"
+ },
+ "48.13729,11.58076|48.13913,11.58022": {
+  "min": 1.3,
+  "km": 0.27,
+  "von": "Mandarin Oriental, Neuturmstraße 1",
+  "nach": "Löwenbräukeller"
+ },
+ "48.13971,11.55832|48.17208,11.58643": {
+  "min": 16.2,
+  "km": 5.3,
+  "von": "München Hauptbahnhof, Bayerstraße 10a",
+  "nach": "Andaz München Schwabinger Tor, Leopoldstraße 170"
+ },
+ "48.13971,11.55832|48.15293,11.53273": {
+  "min": 9.7,
+  "km": 2.99,
+  "von": "München Hauptbahnhof, Bayerstraße 10a",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.16214,11.58709|48.13917,11.60795": {
+  "min": 14.3,
+  "km": 4.02,
+  "von": "Münchner Freiheit 6",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.15187,11.53763|48.13910,11.58220": {
+  "min": 13.7,
+  "km": 4.33,
+  "von": "Nymphenburger Straße 136",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.15187,11.53763|48.16214,11.58709": {
+  "min": 14.4,
+  "km": 4.55,
+  "von": "Nymphenburger Straße 136",
+  "nach": "Münchner Freiheit 6"
+ },
+ "48.17947,11.60393|48.15052,11.60822": {
+  "min": 16.6,
+  "km": 5.33,
+  "von": "U Alte Heide",
+  "nach": "Herkomerplatz 2"
+ },
+ "48.17947,11.60393|48.14053,11.57294": {
+  "min": 16.2,
+  "km": 5.3,
+  "von": "U Alte Heide",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.17947,11.60393|48.13910,11.58220": {
+  "min": 16.8,
+  "km": 5.41,
+  "von": "U Alte Heide",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.17947,11.60393|48.13729,11.58076": {
+  "min": 17.9,
+  "km": 5.69,
+  "von": "U Alte Heide",
+  "nach": "Mandarin Oriental, Neuturmstraße 1"
+ },
+ "48.17947,11.60393|48.13917,11.60795": {
+  "min": 20.9,
+  "km": 6.39,
+  "von": "U Alte Heide",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.17947,11.60393|48.15199,11.61715": {
+  "min": 19.7,
+  "km": 6.36,
+  "von": "U Alte Heide",
+  "nach": "The Westin Grand, Arabellastraße 6"
+ },
+ "48.15328,11.62038|48.14053,11.57294": {
+  "min": 16.1,
+  "km": 5.13,
+  "von": "U Arabellapark",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.15328,11.62038|48.13910,11.58220": {
+  "min": 13.8,
+  "km": 4.31,
+  "von": "U Arabellapark",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.15328,11.62038|48.13729,11.58076": {
+  "min": 14.0,
+  "km": 4.49,
+  "von": "U Arabellapark",
+  "nach": "Mandarin Oriental, Neuturmstraße 1"
+ },
+ "48.15328,11.62038|48.17471,11.59324": {
+  "min": 19.4,
+  "km": 5.93,
+  "von": "U Arabellapark",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.15328,11.62038|48.16214,11.58709": {
+  "min": 13.7,
+  "km": 4.18,
+  "von": "U Arabellapark",
+  "nach": "Münchner Freiheit 6"
+ },
+ "48.15328,11.62038|48.13917,11.60795": {
+  "min": 10.1,
+  "km": 2.87,
+  "von": "U Arabellapark",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.15328,11.62038|48.14290,11.56247": {
+  "min": 18.7,
+  "km": 5.98,
+  "von": "U Arabellapark",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.16691,11.57854|48.14053,11.57294": {
+  "min": 12.1,
+  "km": 3.57,
+  "von": "U Bonner Platz",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.16691,11.57854|48.13910,11.58220": {
+  "min": 12.2,
+  "km": 3.77,
+  "von": "U Bonner Platz",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.16691,11.57854|48.15187,11.53763": {
+  "min": 13.7,
+  "km": 4.37,
+  "von": "U Bonner Platz",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.16691,11.57854|48.15293,11.53273": {
+  "min": 14.1,
+  "km": 4.42,
+  "von": "U Bonner Platz",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.16691,11.57854|48.14290,11.56247": {
+  "min": 11.3,
+  "km": 3.51,
+  "von": "U Bonner Platz",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.11217,11.54871|48.09934,11.53048": {
+  "min": 9.1,
+  "km": 2.85,
+  "von": "U Brudermühlstraße",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11217,11.54871|48.09506,11.51584": {
+  "min": 13.3,
+  "km": 4.0,
+  "von": "U Brudermühlstraße",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11217,11.54871|48.13971,11.55832": {
+  "min": 11.0,
+  "km": 3.51,
+  "von": "U Brudermühlstraße",
+  "nach": "München Hauptbahnhof, Bayerstraße 10a"
+ },
+ "48.11217,11.54871|48.15187,11.53763": {
+  "min": 17.9,
+  "km": 5.69,
+  "von": "U Brudermühlstraße",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.11217,11.54871|48.15293,11.53273": {
+  "min": 18.7,
+  "km": 5.93,
+  "von": "U Brudermühlstraße",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.14287,11.61537|48.14053,11.57294": {
+  "min": 12.9,
+  "km": 4.11,
+  "von": "U Böhmerwaldplatz",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.14287,11.61537|48.17471,11.59324": {
+  "min": 18.4,
+  "km": 5.59,
+  "von": "U Böhmerwaldplatz",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.14287,11.61537|48.16214,11.58709": {
+  "min": 12.6,
+  "km": 3.84,
+  "von": "U Böhmerwaldplatz",
+  "nach": "Münchner Freiheit 6"
+ },
+ "48.14287,11.61537|48.10268,11.64350": {
+  "min": 19.1,
+  "km": 6.32,
+  "von": "U Böhmerwaldplatz",
+  "nach": "The Charles Hotel"
+ },
+ "48.14287,11.61537|48.14290,11.56247": {
+  "min": 15.4,
+  "km": 4.97,
+  "von": "U Böhmerwaldplatz",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.11150,11.56983|48.09934,11.53048": {
+  "min": 12.7,
+  "km": 3.97,
+  "von": "U Candidplatz",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11150,11.56983|48.09506,11.51584": {
+  "min": 17.4,
+  "km": 5.49,
+  "von": "U Candidplatz",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11150,11.56983|48.13910,11.58220": {
+  "min": 12.5,
+  "km": 3.94,
+  "von": "U Candidplatz",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.11150,11.56983|48.13917,11.60795": {
+  "min": 16.7,
+  "km": 5.06,
+  "von": "U Candidplatz",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.16663,11.59031|48.14053,11.57294": {
+  "min": 10.9,
+  "km": 3.55,
+  "von": "U Dietlindenstraße",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.16663,11.59031|48.13910,11.58220": {
+  "min": 11.5,
+  "km": 3.65,
+  "von": "U Dietlindenstraße",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.16663,11.59031|48.13729,11.58076": {
+  "min": 12.5,
+  "km": 3.94,
+  "von": "U Dietlindenstraße",
+  "nach": "Mandarin Oriental, Neuturmstraße 1"
+ },
+ "48.16663,11.59031|48.15187,11.53763": {
+  "min": 16.3,
+  "km": 5.22,
+  "von": "U Dietlindenstraße",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.16663,11.59031|48.13917,11.60795": {
+  "min": 15.5,
+  "km": 4.63,
+  "von": "U Dietlindenstraße",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.16663,11.59031|48.15293,11.53273": {
+  "min": 16.7,
+  "km": 5.23,
+  "von": "U Dietlindenstraße",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.16663,11.59031|48.14290,11.56247": {
+  "min": 13.0,
+  "km": 4.17,
+  "von": "U Dietlindenstraße",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.09469,11.49847|48.09506,11.51584": {
+  "min": 5.0,
+  "km": 1.41,
+  "von": "U Forstenrieder Allee",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.18749,11.57268|48.15052,11.60822": {
+  "min": 19.9,
+  "km": 6.39,
+  "von": "U Frankfurter Ring",
+  "nach": "Herkomerplatz 2"
+ },
+ "48.18749,11.57268|48.15187,11.53763": {
+  "min": 18.4,
+  "km": 5.86,
+  "von": "U Frankfurter Ring",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.18749,11.57268|48.15293,11.53273": {
+  "min": 18.8,
+  "km": 5.9,
+  "von": "U Frankfurter Ring",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.19240,11.61454|48.15052,11.60822": {
+  "min": 20.7,
+  "km": 6.58,
+  "von": "U Freimann",
+  "nach": "Herkomerplatz 2"
+ },
+ "48.19240,11.61454|48.15199,11.61715": {
+  "min": 20.4,
+  "km": 6.47,
+  "von": "U Freimann",
+  "nach": "The Westin Grand, Arabellastraße 6"
+ },
+ "48.13513,11.51137|48.09934,11.53048": {
+  "min": 17.4,
+  "km": 5.41,
+  "von": "U Friedenheimer Straße",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.13513,11.51137|48.09506,11.51584": {
+  "min": 18.5,
+  "km": 6.04,
+  "von": "U Friedenheimer Straße",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.13513,11.51137|48.15187,11.53763": {
+  "min": 12.3,
+  "km": 3.64,
+  "von": "U Friedenheimer Straße",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.13513,11.51137|48.15293,11.53273": {
+  "min": 10.6,
+  "km": 3.23,
+  "von": "U Friedenheimer Straße",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.16350,11.52898|48.17471,11.59324": {
+  "min": 22.1,
+  "km": 6.75,
+  "von": "U Gern",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.11081,11.59465|48.09934,11.53048": {
+  "min": 19.8,
+  "km": 6.2,
+  "von": "U Giesing",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11081,11.59465|48.13917,11.60795": {
+  "min": 14.3,
+  "km": 4.08,
+  "von": "U Giesing",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.15714,11.58493|48.14053,11.57294": {
+  "min": 7.4,
+  "km": 2.37,
+  "von": "U Giselastraße",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.15714,11.58493|48.17471,11.59324": {
+  "min": 8.3,
+  "km": 2.39,
+  "von": "U Giselastraße",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.15714,11.58493|48.15187,11.53763": {
+  "min": 12.9,
+  "km": 4.14,
+  "von": "U Giselastraße",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.15714,11.58493|48.13917,11.60795": {
+  "min": 11.6,
+  "km": 3.36,
+  "von": "U Giselastraße",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.15714,11.58493|48.15293,11.53273": {
+  "min": 13.9,
+  "km": 4.35,
+  "von": "U Giselastraße",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.15714,11.58493|48.14290,11.56247": {
+  "min": 9.5,
+  "km": 2.99,
+  "von": "U Giselastraße",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.11555,11.47724|48.09506,11.51584": {
+  "min": 14.8,
+  "km": 4.76,
+  "von": "U Großhadern",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11841,11.49025|48.09934,11.53048": {
+  "min": 14.3,
+  "km": 4.6,
+  "von": "U Haderner Stern",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11841,11.49025|48.09506,11.51584": {
+  "min": 13.1,
+  "km": 4.24,
+  "von": "U Haderner Stern",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11841,11.49025|48.15293,11.53273": {
+  "min": 20.5,
+  "km": 6.26,
+  "von": "U Haderner Stern",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.11688,11.53621|48.09934,11.53048": {
+  "min": 7.5,
+  "km": 2.22,
+  "von": "U Harras",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11688,11.53621|48.09506,11.51584": {
+  "min": 11.5,
+  "km": 3.52,
+  "von": "U Harras",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11688,11.53621|48.13971,11.55832": {
+  "min": 11.5,
+  "km": 3.69,
+  "von": "U Harras",
+  "nach": "München Hauptbahnhof, Bayerstraße 10a"
+ },
+ "48.11688,11.53621|48.15187,11.53763": {
+  "min": 17.1,
+  "km": 5.47,
+  "von": "U Harras",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.11688,11.53621|48.15293,11.53273": {
+  "min": 17.9,
+  "km": 5.71,
+  "von": "U Harras",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.13340,11.53347|48.09934,11.53048": {
+  "min": 13.8,
+  "km": 4.43,
+  "von": "U Heimeranplatz",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.13340,11.53347|48.09506,11.51584": {
+  "min": 17.8,
+  "km": 5.73,
+  "von": "U Heimeranplatz",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.13340,11.53347|48.15187,11.53763": {
+  "min": 12.4,
+  "km": 3.81,
+  "von": "U Heimeranplatz",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.13340,11.53347|48.15293,11.53273": {
+  "min": 11.9,
+  "km": 3.81,
+  "von": "U Heimeranplatz",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.16117,11.56799|48.17471,11.59324": {
+  "min": 12.1,
+  "km": 3.62,
+  "von": "U Hohenzollernplatz",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.16117,11.56799|48.15293,11.53273": {
+  "min": 9.7,
+  "km": 2.98,
+  "von": "U Hohenzollernplatz",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.16117,11.56799|48.14290,11.56247": {
+  "min": 7.4,
+  "km": 2.21,
+  "von": "U Hohenzollernplatz",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.11631,11.50242|48.09934,11.53048": {
+  "min": 11.4,
+  "km": 3.64,
+  "von": "U Holzapfelkreuth",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11631,11.50242|48.09506,11.51584": {
+  "min": 10.2,
+  "km": 3.29,
+  "von": "U Holzapfelkreuth",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11631,11.50242|48.13971,11.55832": {
+  "min": 18.9,
+  "km": 6.12,
+  "von": "U Holzapfelkreuth",
+  "nach": "München Hauptbahnhof, Bayerstraße 10a"
+ },
+ "48.11631,11.50242|48.15187,11.53763": {
+  "min": 19.7,
+  "km": 6.19,
+  "von": "U Holzapfelkreuth",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.11631,11.50242|48.15293,11.53273": {
+  "min": 18.0,
+  "km": 5.78,
+  "von": "U Holzapfelkreuth",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.11934,11.54834|48.09934,11.53048": {
+  "min": 10.9,
+  "km": 3.43,
+  "von": "U Implerstraße",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11934,11.54834|48.09506,11.51584": {
+  "min": 14.9,
+  "km": 4.79,
+  "von": "U Implerstraße",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11934,11.54834|48.13971,11.55832": {
+  "min": 8.6,
+  "km": 2.71,
+  "von": "U Implerstraße",
+  "nach": "München Hauptbahnhof, Bayerstraße 10a"
+ },
+ "48.11934,11.54834|48.15187,11.53763": {
+  "min": 15.4,
+  "km": 4.89,
+  "von": "U Implerstraße",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.11934,11.54834|48.13917,11.60795": {
+  "min": 20.3,
+  "km": 6.09,
+  "von": "U Implerstraße",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.11934,11.54834|48.15293,11.53273": {
+  "min": 16.2,
+  "km": 5.12,
+  "von": "U Implerstraße",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.12041,11.61915|48.14290,11.56247": {
+  "min": 19.2,
+  "km": 6.3,
+  "von": "U Innsbrucker Ring",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.12696,11.63443|48.13910,11.58220": {
+  "min": 14.3,
+  "km": 4.54,
+  "von": "U Josephsburg",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.12696,11.63443|48.13729,11.58076": {
+  "min": 14.5,
+  "km": 4.71,
+  "von": "U Josephsburg",
+  "nach": "Mandarin Oriental, Neuturmstraße 1"
+ },
+ "48.12696,11.63443|48.13443,11.69264": {
+  "min": 18.2,
+  "km": 5.52,
+  "von": "U Josephsburg",
+  "nach": "Messe München, Am Messesee 2"
+ },
+ "48.12696,11.63443|48.13218,11.69116": {
+  "min": 18.9,
+  "km": 5.6,
+  "von": "U Josephsburg",
+  "nach": "Riem Arcaden, Willy-Brandt-Platz 5"
+ },
+ "48.15478,11.56628|48.17208,11.58643": {
+  "min": 10.6,
+  "km": 3.25,
+  "von": "U Josephsplatz",
+  "nach": "Andaz München Schwabinger Tor, Leopoldstraße 170"
+ },
+ "48.15478,11.56628|48.17471,11.59324": {
+  "min": 13.8,
+  "km": 4.1,
+  "von": "U Josephsplatz",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.15478,11.56628|48.15293,11.53273": {
+  "min": 9.4,
+  "km": 3.0,
+  "von": "U Josephsplatz",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.11846,11.60952|48.13917,11.60795": {
+  "min": 10.2,
+  "km": 2.92,
+  "von": "U Karl-Preis-Platz",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.20285,11.61266|48.17471,11.59324": {
+  "min": 16.6,
+  "km": 4.76,
+  "von": "U Kieferngarten",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.10897,11.47362|48.09506,11.51584": {
+  "min": 15.9,
+  "km": 5.11,
+  "von": "U Klinikum Großhadern",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11908,11.57652|48.09934,11.53048": {
+  "min": 16.1,
+  "km": 5.08,
+  "von": "U Kolumbusplatz",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11908,11.57652|48.15052,11.60822": {
+  "min": 13.9,
+  "km": 4.57,
+  "von": "U Kolumbusplatz",
+  "nach": "Herkomerplatz 2"
+ },
+ "48.11908,11.57652|48.15187,11.53763": {
+  "min": 17.3,
+  "km": 5.63,
+  "von": "U Kolumbusplatz",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.11908,11.57652|48.13917,11.60795": {
+  "min": 13.8,
+  "km": 4.12,
+  "von": "U Kolumbusplatz",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.11908,11.57652|48.15293,11.53273": {
+  "min": 18.3,
+  "km": 5.89,
+  "von": "U Kolumbusplatz",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.12585,11.64470|48.13910,11.58220": {
+  "min": 16.8,
+  "km": 5.27,
+  "von": "U Kreillerstraße",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.12585,11.64470|48.13729,11.58076": {
+  "min": 17.0,
+  "km": 5.45,
+  "von": "U Kreillerstraße",
+  "nach": "Mandarin Oriental, Neuturmstraße 1"
+ },
+ "48.12585,11.64470|48.13443,11.69264": {
+  "min": 16.1,
+  "km": 4.74,
+  "von": "U Kreillerstraße",
+  "nach": "Messe München, Am Messesee 2"
+ },
+ "48.12585,11.64470|48.13218,11.69116": {
+  "min": 16.7,
+  "km": 4.82,
+  "von": "U Kreillerstraße",
+  "nach": "Riem Arcaden, Willy-Brandt-Platz 5"
+ },
+ "48.12585,11.64470|48.15199,11.61715": {
+  "min": 15.7,
+  "km": 4.89,
+  "von": "U Kreillerstraße",
+  "nach": "The Westin Grand, Arabellastraße 6"
+ },
+ "48.13542,11.50295|48.09934,11.53048": {
+  "min": 18.0,
+  "km": 5.78,
+  "von": "U Laimer Platz",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.13542,11.50295|48.09506,11.51584": {
+  "min": 16.6,
+  "km": 5.42,
+  "von": "U Laimer Platz",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.13542,11.50295|48.15187,11.53763": {
+  "min": 13.7,
+  "km": 4.24,
+  "von": "U Laimer Platz",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.13542,11.50295|48.15293,11.53273": {
+  "min": 12.0,
+  "km": 3.83,
+  "von": "U Laimer Platz",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.09812,11.51346|48.09934,11.53048": {
+  "min": 4.0,
+  "km": 1.29,
+  "von": "U Machtlfinger Straße",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.09789,11.58097|48.09934,11.53048": {
+  "min": 16.5,
+  "km": 5.14,
+  "von": "U Mangfallplatz",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.09789,11.58097|48.09506,11.51584": {
+  "min": 21.2,
+  "km": 6.66,
+  "von": "U Mangfallplatz",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11878,11.63060|48.13443,11.69264": {
+  "min": 21.1,
+  "km": 6.32,
+  "von": "U Michaelibad",
+  "nach": "Messe München, Am Messesee 2"
+ },
+ "48.11878,11.63060|48.13218,11.69116": {
+  "min": 21.8,
+  "km": 6.41,
+  "von": "U Michaelibad",
+  "nach": "Riem Arcaden, Willy-Brandt-Platz 5"
+ },
+ "48.18116,11.57312|48.14053,11.57294": {
+  "min": 16.3,
+  "km": 5.11,
+  "von": "U Milbertshofen",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.18116,11.57312|48.13910,11.58220": {
+  "min": 16.8,
+  "km": 5.36,
+  "von": "U Milbertshofen",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.18116,11.57312|48.13729,11.58076": {
+  "min": 17.8,
+  "km": 5.64,
+  "von": "U Milbertshofen",
+  "nach": "Mandarin Oriental, Neuturmstraße 1"
+ },
+ "48.18116,11.57312|48.15187,11.53763": {
+  "min": 16.2,
+  "km": 5.15,
+  "von": "U Milbertshofen",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.18116,11.57312|48.15293,11.53273": {
+  "min": 16.5,
+  "km": 5.2,
+  "von": "U Milbertshofen",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.18116,11.57312|48.14290,11.56247": {
+  "min": 14.9,
+  "km": 4.78,
+  "von": "U Milbertshofen",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.13051,11.67076|48.13443,11.69264": {
+  "min": 8.3,
+  "km": 2.28,
+  "von": "U Moosfeld",
+  "nach": "Messe München, Am Messesee 2"
+ },
+ "48.13051,11.67076|48.13917,11.60795": {
+  "min": 20.1,
+  "km": 6.14,
+  "von": "U Moosfeld",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.13051,11.67076|48.13218,11.69116": {
+  "min": 8.9,
+  "km": 2.36,
+  "von": "U Moosfeld",
+  "nach": "Riem Arcaden, Willy-Brandt-Platz 5"
+ },
+ "48.13051,11.67076|48.15199,11.61715": {
+  "min": 22.4,
+  "km": 7.22,
+  "von": "U Moosfeld",
+  "nach": "The Westin Grand, Arabellastraße 6"
+ },
+ "48.16183,11.58630|48.14053,11.57294": {
+  "min": 8.9,
+  "km": 2.86,
+  "von": "U Münchner Freiheit",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.16183,11.58630|48.15187,11.53763": {
+  "min": 14.2,
+  "km": 4.61,
+  "von": "U Münchner Freiheit",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.16183,11.58630|48.13917,11.60795": {
+  "min": 13.6,
+  "km": 3.94,
+  "von": "U Münchner Freiheit",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.16183,11.58630|48.15293,11.53273": {
+  "min": 14.7,
+  "km": 4.59,
+  "von": "U Münchner Freiheit",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.16183,11.58630|48.14290,11.56247": {
+  "min": 11.0,
+  "km": 3.49,
+  "von": "U Münchner Freiheit",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.10098,11.64743|48.13218,11.69116": {
+  "min": 22.1,
+  "km": 6.39,
+  "von": "U Neuperlach Zentrum",
+  "nach": "Riem Arcaden, Willy-Brandt-Platz 5"
+ },
+ "48.17340,11.59740|48.15052,11.60822": {
+  "min": 14.2,
+  "km": 4.54,
+  "von": "U Nordfriedhof",
+  "nach": "Herkomerplatz 2"
+ },
+ "48.17340,11.59740|48.14053,11.57294": {
+  "min": 13.9,
+  "km": 4.51,
+  "von": "U Nordfriedhof",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.17340,11.59740|48.13910,11.58220": {
+  "min": 14.5,
+  "km": 4.61,
+  "von": "U Nordfriedhof",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.17340,11.59740|48.13729,11.58076": {
+  "min": 15.5,
+  "km": 4.89,
+  "von": "U Nordfriedhof",
+  "nach": "Mandarin Oriental, Neuturmstraße 1"
+ },
+ "48.17340,11.59740|48.13917,11.60795": {
+  "min": 18.6,
+  "km": 5.59,
+  "von": "U Nordfriedhof",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.17340,11.59740|48.14290,11.56247": {
+  "min": 16.0,
+  "km": 5.13,
+  "von": "U Nordfriedhof",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.09845,11.53804|48.09506,11.51584": {
+  "min": 7.3,
+  "km": 2.33,
+  "von": "U Obersendling",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.09845,11.53804|48.13971,11.55832": {
+  "min": 17.3,
+  "km": 5.47,
+  "von": "U Obersendling",
+  "nach": "München Hauptbahnhof, Bayerstraße 10a"
+ },
+ "48.18618,11.54571|48.15187,11.53763": {
+  "min": 18.6,
+  "km": 5.47,
+  "von": "U Oberwiesenfeld",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.18618,11.54571|48.15293,11.53273": {
+  "min": 17.2,
+  "km": 5.14,
+  "von": "U Oberwiesenfeld",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.18618,11.54571|48.14290,11.56247": {
+  "min": 18.0,
+  "km": 5.83,
+  "von": "U Oberwiesenfeld",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.18199,11.52954|48.14290,11.56247": {
+  "min": 16.8,
+  "km": 5.44,
+  "von": "U Olympia-Einkaufszentrum",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.17871,11.55667|48.14053,11.57294": {
+  "min": 17.2,
+  "km": 5.4,
+  "von": "U Olympiazentrum",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.17871,11.55667|48.13910,11.58220": {
+  "min": 18.4,
+  "km": 5.85,
+  "von": "U Olympiazentrum",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.17871,11.55667|48.15187,11.53763": {
+  "min": 14.8,
+  "km": 4.71,
+  "von": "U Olympiazentrum",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.17871,11.55667|48.15293,11.53273": {
+  "min": 15.2,
+  "km": 4.75,
+  "von": "U Olympiazentrum",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.17871,11.55667|48.14290,11.56247": {
+  "min": 13.9,
+  "km": 4.5,
+  "von": "U Olympiazentrum",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.12814,11.60407|48.13917,11.60795": {
+  "min": 7.0,
+  "km": 1.66,
+  "von": "U Ostbahnhof",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.12814,11.60407|48.10268,11.64350": {
+  "min": 18.1,
+  "km": 5.59,
+  "von": "U Ostbahnhof",
+  "nach": "The Charles Hotel"
+ },
+ "48.11652,11.52660|48.09934,11.53048": {
+  "min": 8.2,
+  "km": 2.66,
+  "von": "U Partnachplatz",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11652,11.52660|48.09506,11.51584": {
+  "min": 9.8,
+  "km": 3.17,
+  "von": "U Partnachplatz",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11652,11.52660|48.13971,11.55832": {
+  "min": 14.2,
+  "km": 4.52,
+  "von": "U Partnachplatz",
+  "nach": "München Hauptbahnhof, Bayerstraße 10a"
+ },
+ "48.11652,11.52660|48.15187,11.53763": {
+  "min": 19.8,
+  "km": 6.31,
+  "von": "U Partnachplatz",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.11652,11.52660|48.15293,11.53273": {
+  "min": 19.1,
+  "km": 6.18,
+  "von": "U Partnachplatz",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.17545,11.56657|48.14053,11.57294": {
+  "min": 16.7,
+  "km": 5.06,
+  "von": "U Petuelring",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.17545,11.56657|48.13910,11.58220": {
+  "min": 17.9,
+  "km": 5.51,
+  "von": "U Petuelring",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.17545,11.56657|48.13729,11.58076": {
+  "min": 18.9,
+  "km": 5.79,
+  "von": "U Petuelring",
+  "nach": "Mandarin Oriental, Neuturmstraße 1"
+ },
+ "48.17545,11.56657|48.15187,11.53763": {
+  "min": 14.3,
+  "km": 4.36,
+  "von": "U Petuelring",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.17545,11.56657|48.15293,11.53273": {
+  "min": 14.6,
+  "km": 4.4,
+  "von": "U Petuelring",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.17545,11.56657|48.14290,11.56247": {
+  "min": 13.4,
+  "km": 4.16,
+  "von": "U Petuelring",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.13931,11.60700|48.17471,11.59324": {
+  "min": 18.3,
+  "km": 5.55,
+  "von": "U Prinzregentenplatz",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.13931,11.60700|48.16214,11.58709": {
+  "min": 12.6,
+  "km": 3.79,
+  "von": "U Prinzregentenplatz",
+  "nach": "Münchner Freiheit 6"
+ },
+ "48.13931,11.60700|48.10268,11.64350": {
+  "min": 19.2,
+  "km": 6.25,
+  "von": "U Prinzregentenplatz",
+  "nach": "The Charles Hotel"
+ },
+ "48.13931,11.60700|48.14290,11.56247": {
+  "min": 13.5,
+  "km": 4.2,
+  "von": "U Prinzregentenplatz",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.10910,11.64642|48.13443,11.69264": {
+  "min": 17.7,
+  "km": 5.33,
+  "von": "U Quiddestraße",
+  "nach": "Messe München, Am Messesee 2"
+ },
+ "48.10910,11.64642|48.13218,11.69116": {
+  "min": 18.3,
+  "km": 5.41,
+  "von": "U Quiddestraße",
+  "nach": "Riem Arcaden, Willy-Brandt-Platz 5"
+ },
+ "48.14887,11.61630|48.14053,11.57294": {
+  "min": 14.2,
+  "km": 4.51,
+  "von": "U Richard-Strauss-Straße",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.14887,11.61630|48.17471,11.59324": {
+  "min": 17.5,
+  "km": 5.32,
+  "von": "U Richard-Strauss-Straße",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.14887,11.61630|48.16214,11.58709": {
+  "min": 11.8,
+  "km": 3.56,
+  "von": "U Richard-Strauss-Straße",
+  "nach": "Münchner Freiheit 6"
+ },
+ "48.14887,11.61630|48.14290,11.56247": {
+  "min": 16.7,
+  "km": 5.37,
+  "von": "U Richard-Strauss-Straße",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.15299,11.53351|48.13910,11.58220": {
+  "min": 14.9,
+  "km": 4.7,
+  "von": "U Rotkreuzplatz",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.15299,11.53351|48.16214,11.58709": {
+  "min": 15.0,
+  "km": 4.63,
+  "von": "U Rotkreuzplatz",
+  "nach": "Münchner Freiheit 6"
+ },
+ "48.17148,11.57270|48.14053,11.57294": {
+  "min": 14.8,
+  "km": 4.05,
+  "von": "U Scheidplatz",
+  "nach": "Hotel Bayerischer Hof, Promenadeplatz 2–6"
+ },
+ "48.17148,11.57270|48.13910,11.58220": {
+  "min": 15.3,
+  "km": 4.3,
+  "von": "U Scheidplatz",
+  "nach": "Hotel Vier Jahreszeiten Kempinski, Maximilianstraße 17"
+ },
+ "48.17148,11.57270|48.13729,11.58076": {
+  "min": 16.3,
+  "km": 4.59,
+  "von": "U Scheidplatz",
+  "nach": "Mandarin Oriental, Neuturmstraße 1"
+ },
+ "48.17148,11.57270|48.15187,11.53763": {
+  "min": 15.9,
+  "km": 4.53,
+  "von": "U Scheidplatz",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.17148,11.57270|48.15293,11.53273": {
+  "min": 16.3,
+  "km": 4.57,
+  "von": "U Scheidplatz",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.17148,11.57270|48.14290,11.56247": {
+  "min": 13.4,
+  "km": 3.72,
+  "von": "U Scheidplatz",
+  "nach": "The Charles Hotel, Sophienstraße 28"
+ },
+ "48.13347,11.53976|48.09934,11.53048": {
+  "min": 13.8,
+  "km": 4.51,
+  "von": "U Schwanthalerhöhe",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.13347,11.53976|48.09506,11.51584": {
+  "min": 17.8,
+  "km": 5.81,
+  "von": "U Schwanthalerhöhe",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.13347,11.53976|48.15187,11.53763": {
+  "min": 11.3,
+  "km": 3.28,
+  "von": "U Schwanthalerhöhe",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.13347,11.53976|48.15293,11.53273": {
+  "min": 12.1,
+  "km": 3.52,
+  "von": "U Schwanthalerhöhe",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.11516,11.57946|48.09934,11.53048": {
+  "min": 16.9,
+  "km": 5.29,
+  "von": "U Silberhornstraße",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11516,11.57946|48.13917,11.60795": {
+  "min": 13.7,
+  "km": 4.11,
+  "von": "U Silberhornstraße",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.10396,11.58179|48.09934,11.53048": {
+  "min": 17.8,
+  "km": 5.43,
+  "von": "U St.-Quirin-Platz",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.10396,11.58179|48.09506,11.51584": {
+  "min": 22.4,
+  "km": 6.95,
+  "von": "U St.-Quirin-Platz",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.10396,11.58179|48.13917,11.60795": {
+  "min": 18.0,
+  "km": 5.24,
+  "von": "U St.-Quirin-Platz",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.18329,11.60803|48.15052,11.60822": {
+  "min": 18.0,
+  "km": 5.85,
+  "von": "U Studentenstadt",
+  "nach": "Herkomerplatz 2"
+ },
+ "48.18329,11.60803|48.13917,11.60795": {
+  "min": 22.4,
+  "km": 6.91,
+  "von": "U Studentenstadt",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.18329,11.60803|48.15199,11.61715": {
+  "min": 18.4,
+  "km": 5.99,
+  "von": "U Studentenstadt",
+  "nach": "The Westin Grand, Arabellastraße 6"
+ },
+ "48.10141,11.54662|48.09934,11.53048": {
+  "min": 5.1,
+  "km": 1.48,
+  "von": "U Thalkirchen (Tierpark)",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.10141,11.54662|48.09506,11.51584": {
+  "min": 9.8,
+  "km": 3.0,
+  "von": "U Thalkirchen (Tierpark)",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.10141,11.54662|48.13971,11.55832": {
+  "min": 15.0,
+  "km": 4.8,
+  "von": "U Thalkirchen (Tierpark)",
+  "nach": "München Hauptbahnhof, Bayerstraße 10a"
+ },
+ "48.12552,11.66335|48.13443,11.69264": {
+  "min": 11.6,
+  "km": 3.42,
+  "von": "U Trudering",
+  "nach": "Messe München, Am Messesee 2"
+ },
+ "48.12552,11.66335|48.13917,11.60795": {
+  "min": 16.6,
+  "km": 5.03,
+  "von": "U Trudering",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.12552,11.66335|48.13218,11.69116": {
+  "min": 12.2,
+  "km": 3.5,
+  "von": "U Trudering",
+  "nach": "Riem Arcaden, Willy-Brandt-Platz 5"
+ },
+ "48.12552,11.66335|48.15199,11.61715": {
+  "min": 19.1,
+  "km": 6.2,
+  "von": "U Trudering",
+  "nach": "The Westin Grand, Arabellastraße 6"
+ },
+ "48.11264,11.58738|48.09934,11.53048": {
+  "min": 18.1,
+  "km": 5.65,
+  "von": "U Untersbergstraße",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11264,11.58738|48.13917,11.60795": {
+  "min": 14.6,
+  "km": 4.12,
+  "von": "U Untersbergstraße",
+  "nach": "Prinzregentenstraße 91"
+ },
+ "48.13438,11.52270|48.09934,11.53048": {
+  "min": 15.0,
+  "km": 4.88,
+  "von": "U Westendstraße",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.13438,11.52270|48.09506,11.51584": {
+  "min": 17.1,
+  "km": 5.45,
+  "von": "U Westendstraße",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.13438,11.52270|48.15187,11.53763": {
+  "min": 11.1,
+  "km": 3.39,
+  "von": "U Westendstraße",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.13438,11.52270|48.15293,11.53273": {
+  "min": 9.4,
+  "km": 2.97,
+  "von": "U Westendstraße",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.16931,11.52846|48.17471,11.59324": {
+  "min": 22.4,
+  "km": 6.91,
+  "von": "U Westfriedhof",
+  "nach": "Marriott Hotel, Berliner Straße 93"
+ },
+ "48.11787,11.51712|48.09934,11.53048": {
+  "min": 8.6,
+  "km": 2.77,
+  "von": "U Westpark",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.11787,11.51712|48.09506,11.51584": {
+  "min": 10.2,
+  "km": 3.27,
+  "von": "U Westpark",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.11787,11.51712|48.13971,11.55832": {
+  "min": 16.3,
+  "km": 5.11,
+  "von": "U Westpark",
+  "nach": "München Hauptbahnhof, Bayerstraße 10a"
+ },
+ "48.11787,11.51712|48.15187,11.53763": {
+  "min": 21.8,
+  "km": 6.9,
+  "von": "U Westpark",
+  "nach": "Nymphenburger Straße 136"
+ },
+ "48.11787,11.51712|48.15293,11.53273": {
+  "min": 20.8,
+  "km": 6.7,
+  "von": "U Westpark",
+  "nach": "Rotkreuzplatz 4"
+ },
+ "48.10920,11.57476|48.09934,11.53048": {
+  "min": 15.5,
+  "km": 4.86,
+  "von": "U Wettersteinplatz",
+  "nach": "Boschetsrieder Straße 67"
+ },
+ "48.10920,11.57476|48.09506,11.51584": {
+  "min": 20.2,
+  "km": 6.38,
+  "von": "U Wettersteinplatz",
+  "nach": "Holiday Inn, Kistlerhofstraße 142"
+ },
+ "48.10920,11.57476|48.13917,11.60795": {
+  "min": 16.0,
+  "km": 4.86,
+  "von": "U Wettersteinplatz",
+  "nach": "Prinzregentenstraße 91"
+ }
+}

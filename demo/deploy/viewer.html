@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/trisar_logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <title>TRISAR – Demo-Vorschau</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        background: radial-gradient(1200px 800px at 70% 20%, #16210a 0%, #0a0a0a 55%);
+        color: #f5f5f5;
+        font-family: 'Space Grotesk', system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        overflow: hidden;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .topbar a.back {
+        color: #8f8f90;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+      }
+      .topbar a.back:hover { color: #e3f654; }
+      .switch {
+        display: flex;
+        border: 2px solid #e3f654;
+        background: #000;
+      }
+      .switch a {
+        padding: 8px 20px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        color: #e3f654;
+        text-decoration: none;
+      }
+      .switch a.active { background: #e3f654; color: #000; }
+      .hint {
+        border: 2px solid #e3f654;
+        color: #e3f654;
+        opacity: 0.6;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+
+      /* iPhone-Rahmen: 402x874 pt Viewport, per JS auf Fensterhöhe skaliert */
+      .stage { flex: 0 0 auto; }
+      /* Display exakt 402x874 pt (iPhone-Logikgröße), Gehäuse liegt außen herum.
+         Sonst bekommt die App weniger Breite als auf dem echten Gerät und die
+         seitlichen Ränder ihres 402px-Rasters werden ungleich. */
+      .phone {
+        position: relative;
+        width: 418px;  /* 402 + 2x8 Gehäuse */
+        height: 890px; /* 874 + 2x8 Gehäuse */
+        transform-origin: top center;
+        border-radius: 62px;
+        background: #050505;
+        box-shadow:
+          0 0 0 4px #3a3a3c,
+          0 0 0 6px #1c1c1e,
+          0 30px 80px rgba(0, 0, 0, 0.65);
+      }
+      .phone::before { /* seitliche Tasten */
+        content: '';
+        position: absolute;
+        left: -8px;
+        top: 180px;
+        width: 3px;
+        height: 110px;
+        border-radius: 2px;
+        background: #3a3a3c;
+        box-shadow: 0 150px 0 #3a3a3c;
+      }
+      .phone::after { /* power-taste */
+        content: '';
+        position: absolute;
+        right: -8px;
+        top: 230px;
+        width: 3px;
+        height: 90px;
+        border-radius: 2px;
+        background: #3a3a3c;
+      }
+      .screen {
+        position: absolute;
+        inset: 8px;
+        border-radius: 54px;
+        overflow: hidden;
+        background: #000;
+      }
+      .screen iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+      }
+      .island {
+        position: absolute;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 122px;
+        height: 34px;
+        border-radius: 20px;
+        background: #000;
+        z-index: 10;
+        pointer-events: none;
+        box-shadow: inset 0 0 2px rgba(255, 255, 255, 0.08);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <a class="back" href="/">← Übersicht</a>
+      <nav class="switch" id="switch">
+        <a href="/viewer.html?app=admin" data-app="admin">Disposition</a>
+        <a href="/viewer.html?app=fahrer" data-app="fahrer">Fahrer-App</a>
+      </nav>
+      <span class="hint">DEMO · simulierte Daten</span>
+    </div>
+    <div class="stage">
+      <div class="phone" id="phone">
+        <div class="island"></div>
+        <div class="screen"><iframe id="app" title="TRISAR Demo" allow="geolocation"></iframe></div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var params = new URLSearchParams(location.search);
+        var app = params.get('app') === 'fahrer' ? 'fahrer' : 'admin';
+        var target = '/' + app + '/';
+
+        // Echtes Mobilgerät: direkt in die App, ohne Rahmen
+        var isMobile = matchMedia('(max-width: 560px)').matches
+          || /iPhone|Android.+Mobile/i.test(navigator.userAgent);
+        if (isMobile) { location.replace(target); return; }
+
+        document.getElementById('app').src = target;
+        document.querySelectorAll('#switch a').forEach(function (a) {
+          if (a.dataset.app === app) a.classList.add('active');
+        });
+
+        // Telefon auf verfügbare Höhe skalieren
+        var phone = document.getElementById('phone');
+        var stage = phone.parentElement;
+        var FRAME_W = 418, FRAME_H = 890;
+        function fit() {
+          var reserved = 110; /* topbar + abstände */
+          var scale = Math.min(1, (innerHeight - reserved) / FRAME_H, (innerWidth - 40) / FRAME_W);
+          phone.style.transform = 'scale(' + scale + ')';
+          stage.style.width = FRAME_W * scale + 'px';
+          stage.style.height = FRAME_H * scale + 'px';
+        }
+        fit();
+        addEventListener('resize', fit);
+      })();
+    </script>
+  </body>
+</html>

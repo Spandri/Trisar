@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'fahrer'; ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS vehicle_id UUID REFERENCES public.vehicles(id) ON DELETE SET NULL; ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS driver_number BIGINT; ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS license_plate TEXT;

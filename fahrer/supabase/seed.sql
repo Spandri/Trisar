@@ -1,0 +1,2 @@
+-- Intentionally empty.
+-- Keep this file so `supabase db reset` does not fail when seed loading is enabled.

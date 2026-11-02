@@ -1,0 +1,1169 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=2" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png?v=2" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet" />
+    <title>TRISAR – Demo</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        background: #0a0a0a;
+        color: #f5f5f5;
+        font-family: 'Space Grotesk', system-ui, sans-serif;
+        overflow: hidden;
+        position: relative;
+      }
+
+      /* ---------- Hintergrundverlauf: eigene Ebene, damit er sich beim App-Wechsel
+         drehen kann. Ein Quadrat mit Kantenlaenge 200vmax, mittig — so bleibt bei
+         jedem Drehwinkel der ganze Bildschirm bedeckt. Der Leuchtpunkt sitzt wie
+         zuvor bei 70 % / 20 % des Fensters: Mitte + 20vw / - 30vh. Zwei Verlaeufe
+         uebereinander (lime, blau); beim Wechsel zur Disposition dreht die Ebene
+         um 180° und blendet gleichzeitig auf blau ueber. ---------- */
+      .hintergrund {
+        position: fixed; left: 50%; top: 50%;
+        width: 200vmax; height: 200vmax;
+        transform: translate(-50%, -50%) rotate(0deg);
+        transition: transform 1.4s cubic-bezier(0.65, 0, 0.35, 1);
+        z-index: 0; pointer-events: none;
+      }
+      .hintergrund::before, .hintergrund::after {
+        content: ''; position: absolute; inset: 0;
+        transition: opacity 1.4s ease-in-out;
+      }
+      .hintergrund::before {
+        background: radial-gradient(1200px 800px at calc(50% + 20vw) calc(50% - 30vh), #16210a 0%, #0a0a0a 55%);
+      }
+      .hintergrund::after {
+        background: radial-gradient(1200px 800px at calc(50% + 20vw) calc(50% - 30vh), #001b4e 0%, #0a0a0a 55%);
+        opacity: 0;
+      }
+      .hintergrund.dispo { transform: translate(-50%, -50%) rotate(180deg); }
+      .hintergrund.dispo::after { opacity: 1; }
+      /* Direktstart in der Disposition (?tutorial=dispo): ohne Drehung starten. */
+      .hintergrund.ohne-uebergang, .hintergrund.ohne-uebergang::before, .hintergrund.ohne-uebergang::after { transition: none; }
+
+      /* ---------- Bühne: 1512 × 895 wie das Figma-Sheet, als Ganzes skaliert ---------- */
+      .sheet {
+        position: absolute; z-index: 1;
+        left: 50%; top: 50%;
+        width: 1512px; height: 895px;
+        transform-origin: center center;
+      }
+
+      /* ---------- Kopfleiste: erscheint erst nach dem Trailer ---------- */
+      .topbar {
+        /* 16 px: damit der Abstand zum Telefon (38 px) genauso gross ist wie
+           unten zwischen Telefon und Fortschrittsleiste. */
+        position: absolute; left: 0; right: 0; top: 16px;
+        display: flex; justify-content: center; align-items: center;
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.5s ease;
+      }
+      .topbar.sichtbar { opacity: 1; pointer-events: auto; }
+      .switch { display: flex; border: 2px solid #e3f654; background: #000; }
+      .switch button {
+        padding: 8px 20px;
+        font: 700 13px 'Space Grotesk', system-ui, sans-serif;
+        letter-spacing: 0.5px;
+        color: #e3f654; background: none; border: 0; cursor: pointer;
+      }
+      .switch button.active { background: #e3f654; color: #000; }
+
+      /* ---------- iPhone (Position und Größe aus dem Figma-Sheet) ---------- */
+      .phone {
+        position: absolute; left: 582px; top: 91px;
+        width: 418px; height: 890px;
+        transform: scale(0.83); transform-origin: top left;
+        border-radius: 62px; background: #050505;
+        box-shadow: 0 0 0 4px #3a3a3c, 0 0 0 6px #1c1c1e, 0 30px 80px rgba(0, 0, 0, 0.65);
+      }
+      .phone::before {
+        content: ''; position: absolute; left: -8px; top: 180px;
+        width: 3px; height: 110px; border-radius: 2px;
+        background: #3a3a3c; box-shadow: 0 150px 0 #3a3a3c;
+      }
+      .phone::after {
+        content: ''; position: absolute; right: -8px; top: 230px;
+        width: 3px; height: 90px; border-radius: 2px; background: #3a3a3c;
+      }
+      .screen { position: absolute; inset: 8px; border-radius: 54px; overflow: hidden; background: #000; }
+      /* Beim App-Wechsel wird das Display weich schwarz und danach wieder hell. */
+      .wechsel {
+        position: absolute; inset: 0; z-index: 30; background: #000;
+        opacity: 0; transition: opacity 0.45s ease-in-out; pointer-events: none;
+      }
+      .wechsel.zu { opacity: 1; }
+      .screen iframe { width: 100%; height: 100%; border: 0; display: block; }
+      .island {
+        position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+        width: 122px; height: 34px; border-radius: 20px; background: #000;
+        z-index: 40; pointer-events: none;
+        box-shadow: inset 0 0 2px rgba(255, 255, 255, 0.08);
+      }
+
+      /* ---------- Tutorial ---------- */
+      .tut { opacity: 0; transition: opacity 0.6s ease; }
+      .tut.sichtbar { opacity: 1; }
+      .block { position: absolute; top: 352px; width: 360px; transition: opacity 0.35s ease; }
+      /* Waehrend der Finger noch unterwegs ist, bleibt der neue Text verborgen —
+         die Erklaerung kommt, sobald die Ansicht erreicht ist. */
+      .tut.unterwegs .block { opacity: 0; }
+      .block.links { left: 140px; text-align: right; }
+      .block.rechts { left: 1015px; text-align: left; }
+      .block.leer { opacity: 0; pointer-events: none; }
+      .block .kat { color: #e3f654; font-size: 13px; font-weight: 700; letter-spacing: 0.2px; }
+      .block .text { margin-top: 8px; color: #f5f5f5; font-size: 17px; line-height: 1.38; font-weight: 400; }
+      .block .pfad { margin-top: 14px; color: #7a7a7a; font-size: 10px; letter-spacing: 0.2px; }
+      .block .pfad b { color: #9a9a9a; font-weight: 400; }
+
+      /* Abschluss-Schritt: zwei Knoepfe unter dem Text */
+      /* Symbol-Reihe: alle moeglichen Dispositions-Markierungen nebeneinander,
+         als Anschauungsmaterial unter dem erklaerenden Text. */
+      .block .symbole { margin-top: 18px; display: flex; gap: 10px; }
+      .block .symbole[hidden] { display: none; }
+      .block .symbole span {
+        width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;
+        border: 1px solid rgba(227, 246, 84, 0.3); border-radius: 4px;
+      }
+      /* Symbole als Maske statt <img>: die SVGs sind einfarbig, so bestimmt die
+         Textfarbe den Ton (lime im Fahrer-, blau im Dispo-Tutorial). */
+      .block .symbole i {
+        width: 24px; height: 24px; display: block; color: #e3f654; background: currentColor;
+        -webkit-mask: var(--icon) center / contain no-repeat;
+        mask: var(--icon) center / contain no-repeat;
+      }
+
+      .block .abschluss { margin-top: 22px; display: flex; gap: 10px; }
+      .block .abschluss[hidden] { display: none; }
+      .block.links .abschluss { justify-content: flex-end; }
+      .block .abschluss button {
+        border: 2px solid #e3f654; background: #000; color: #e3f654;
+        font: 700 12px 'Space Grotesk', system-ui, sans-serif; letter-spacing: 0.4px;
+        padding: 9px 14px; cursor: pointer; transition: background 0.2s ease, color 0.2s ease;
+      }
+      .block .abschluss button:hover, .block .abschluss button.primaer { background: #e3f654; color: #000; }
+      .block .abschluss button.primaer:hover { background: #d4ff28; }
+
+      /* "Tutorial starten": reiner Text unten links, 100 px, lime, mit dem
+         TRISAR-Pfeil daneben — steht, wenn die Fahrer-App ohne laufendes
+         Tutorial da ist (nach dem Zurueckwechsel oder "frei erkunden"). */
+      .tutStart {
+        /* Unterkante buendig mit der Unterkante des iPhones
+           (top 91 + 890 * 0.83 = 829,7 -> 65 px Rand). */
+        position: absolute; left: 60px; bottom: 65px;
+        display: flex; align-items: center; gap: 14px;
+        background: none; border: 0; padding: 0; cursor: pointer;
+        color: #e3f654; text-align: left;
+        font: 700 40px/1 'Space Grotesk', system-ui, sans-serif; letter-spacing: -1px;
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.4s ease;
+      }
+      .tutStart.sichtbar { opacity: 1; pointer-events: auto; }
+      .tutStart svg { width: 30px; height: 25.83px; display: block; margin-top: 2px; transition: transform 0.25s ease; }
+      .tutStart:hover svg { transform: translateX(8px); }
+
+      .pfeile { position: absolute; left: 1015px; top: 778px; display: flex; align-items: center; gap: 26px; transition: opacity 0.45s ease; }
+      .pfeile button {
+        background: none; border: 0; padding: 6px; cursor: pointer;
+        display: inline-flex; align-items: center;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+      }
+      .pfeile button:hover { transform: translateX(var(--nudge, 0)); }
+      .pfeile button[disabled] { opacity: 0.28; cursor: default; }
+      .pfeile button[disabled]:hover { transform: none; }
+      #zurueck { --nudge: -2px; }
+      #weiter { --nudge: 2px; }
+      /* TRISAR-Pfeile, beide gleich gross; zurueck = gespiegelt, grau.
+         Inline-SVG mit currentColor, damit das Dispo-Tutorial sie blau faerbt. */
+      .pfeile svg { width: 40px; height: 34.44px; display: block; }
+      #zurueck svg { transform: scaleX(-1); opacity: 0.6; color: #b5b4b5; }
+      #weiter svg { color: #e3f654; }
+      /* Nach 30 s ohne Klick: kaum merkliches Atmen des Weiter-Pfeils. */
+      #weiter.puls svg { animation: puls 2.6s ease-in-out infinite; }
+      @keyframes puls {
+        0%, 100% { transform: translateX(0); opacity: 1; }
+        50% { transform: translateX(3px); opacity: 0.72; }
+      }
+
+      /* 859 statt 868: die Knoepfe sind 20 px hoch, damit man den 2-px-Strich
+         ueberhaupt treffen kann — die sichtbare Linie liegt weiterhin bei 868. */
+      .leiste {
+        position: absolute; left: 119px; right: 119px; top: 859px;
+        display: flex; justify-content: center; align-items: center; gap: 8px;
+        --strich-max: 52px;
+      }
+      /* Uebergang Fahrer -> Disposition: siehe leisteUmbauZuDispo (Deckschicht
+         mit transform/opacity, damit er beim Laden der Dispo-App nicht ruckelt). */
+      .leiste.ohne-uebergang, .leiste.ohne-uebergang .strich i { transition: none !important; }
+      .leiste .strich {
+        flex: 1 1 52px; max-width: var(--strich-max, 52px); height: 20px;
+        display: flex; align-items: center;
+        background: none; border: 0; padding: 0; cursor: pointer;
+      }
+      .leiste .bahn {
+        display: block; width: 100%; height: 2px; border-radius: 1px;
+        background: #3b3b3b; overflow: hidden; position: relative;
+        transition: background 0.2s ease;
+      }
+      .leiste .strich:hover .bahn { background: #6a6a6a; }
+      /* Bereits gefuellte Striche werden beim Zeigen leicht durchsichtig,
+         statt heller zu werden — bei Lime waere heller kaum zu sehen. */
+      .leiste .strich.an:hover i { opacity: 0.7; }
+      /* Striche laden sich wie ein Download von links nach rechts voll. */
+      .leiste .strich i {
+        position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+        background: #e3f654; border-radius: 1px;
+        /* Der Farbwechsel dauert genauso lang wie die Hintergrund-Animation,
+           damit Leiste und Buehne gemeinsam von Lime nach Blau gehen. */
+        transition: width 0.55s cubic-bezier(0.4, 0, 0.2, 1), background 1.4s ease-in-out, opacity 0.18s ease;
+      }
+      .leiste .strich.an i { width: 100%; }
+      /* Disposition: Fortschritt in Blau, passend zum blauen Hintergrund. */
+      .leiste.dispo .strich i { background: #3b82f6; }
+      /* Kapitelname beim Zeigen auf einen Strich. */
+      .leisteTitel {
+        position: absolute; top: 879px;
+        color: #a8a8a8; font-size: 11px; letter-spacing: 0.3px; white-space: nowrap;
+        transform: translateX(-50%); pointer-events: none;
+        opacity: 0; transition: opacity 0.18s ease;
+      }
+      .leisteTitel.sichtbar { opacity: 1; }
+      /* Beim Wechsel zur Disposition bleibt unten nur die Fortschrittsleiste
+         stehen — Texte und Pfeile gehoeren zum Fahrer-Tutorial. */
+      /* Nur die Leiste bleibt: Texte und Pfeile blenden weich aus, statt zu
+         verschwinden — sonst springt das Bild beim Wechsel. */
+      .tut.nur-leiste .block, .tut.nur-leiste .pfeile { opacity: 0; pointer-events: none; }
+
+      /* ---------- Dispo-Tutorial: Blau statt Lime (Werte wie .leiste.dispo) ---------- */
+      .tut.dispo .block .kat { color: #3b82f6; }
+      .tut.dispo .block .symbole span { border-color: rgba(59, 130, 246, 0.3); }
+      .tut.dispo .block .symbole i { color: #3b82f6; }
+      .tut.dispo .block .abschluss button { border-color: #3b82f6; color: #3b82f6; }
+      .tut.dispo .block .abschluss button:hover, .tut.dispo .block .abschluss button.primaer { background: #3b82f6; color: #fff; }
+      .tut.dispo .block .abschluss button.primaer:hover { background: #60a5fa; border-color: #60a5fa; }
+      .tut.dispo #weiter svg { color: #3b82f6; }
+      .tutStart.dispo { color: #3b82f6; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .topbar, .tut, .block, .pfeile button, .leiste .strich i, .leisteTitel, .hintergrund, .hintergrund::before, .hintergrund::after, .wechsel { transition: none; }
+        #weiter.puls svg { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hintergrund" id="hintergrund"></div>
+    <div class="sheet" id="sheet">
+      <div class="topbar" id="topbar">
+        <nav class="switch" id="switch">
+          <button type="button" data-app="admin">Disposition</button>
+          <button type="button" data-app="fahrer">Fahrer</button>
+        </nav>
+      </div>
+
+      <div class="phone" id="phone">
+        <div class="island"></div>
+        <div class="screen">
+          <iframe id="app" title="TRISAR Demo" allow="geolocation"></iframe>
+          <div class="wechsel" id="wechsel"></div>
+        </div>
+      </div>
+
+      <button type="button" class="tutStart" id="tutStart">
+        <span>Tutorial starten</span>
+        <!-- TRISAR-Pfeil (icon/_Icon_Lime/Arrow_Trisar_Icons_01_Lime.svg) inline, Farbe per currentColor -->
+        <svg viewBox="0 0 36 31" aria-hidden="true"><path fill="currentColor" d="M20.06 0V5.71L32.19 11.62V12.45H0V17.85H32.19V18.67L20.06 24.58V30.29L36 22.32V17.85V12.45V7.97L20.06 0Z"/></svg>
+      </button>
+
+      <section class="tut" id="tut" hidden aria-label="Tutorial">
+        <!-- Abschluss-Knoepfe kommen aus den Schrittdaten (Feld 'abschluss'). -->
+        <div class="block links leer" id="blockLinks">
+          <div class="kat"></div>
+          <p class="text"></p>
+          <div class="symbole" hidden></div>
+          <div class="pfad"></div>
+          <div class="abschluss" hidden></div>
+        </div>
+        <div class="block rechts leer" id="blockRechts">
+          <div class="kat"></div>
+          <p class="text"></p>
+          <div class="symbole" hidden></div>
+          <div class="pfad"></div>
+          <div class="abschluss" hidden></div>
+        </div>
+        <div class="pfeile">
+          <button type="button" id="zurueck" aria-label="Zurück">
+            <svg viewBox="0 0 36 31" aria-hidden="true"><path fill="currentColor" d="M20.06 0V5.71L32.19 11.62V12.45H0V17.85H32.19V18.67L20.06 24.58V30.29L36 22.32V17.85V12.45V7.97L20.06 0Z"/></svg>
+          </button>
+          <button type="button" id="weiter" aria-label="Weiter">
+            <svg viewBox="0 0 36 31" aria-hidden="true"><path fill="currentColor" d="M20.06 0V5.71L32.19 11.62V12.45H0V17.85H32.19V18.67L20.06 24.58V30.29L36 22.32V17.85V12.45V7.97L20.06 0Z"/></svg>
+          </button>
+        </div>
+        <div class="leiste" id="leiste"></div>
+        <div class="leisteTitel" id="leisteTitel"></div>
+      </section>
+    </div>
+
+    <!-- Versionsmarke nur noch als Notnagel: /_headers setzt fuer diese Dateien
+         no-cache, der Browser fragt also bei jedem Aufruf nach Aenderungen. -->
+    <script src="/tutorial-fahrer.js?v=20261020-205626"></script>
+    <script src="/tutorial-dispo.js?v=20261020-205626"></script>
+    <script>
+      (function () {
+        var iframe = document.getElementById('app');
+        var topbar = document.getElementById('topbar');
+        var sheet = document.getElementById('sheet');
+        var tut = document.getElementById('tut');
+        var blockLinks = document.getElementById('blockLinks');
+        var blockRechts = document.getElementById('blockRechts');
+        var zurueck = document.getElementById('zurueck');
+        var weiter = document.getElementById('weiter');
+        var leiste = document.getElementById('leiste');
+
+        var fertig = false;          // Trailer durch, Bedienung frei
+        var aktiveApp = 'fahrer';
+        var imWechsel = false;   // waehrend des Uebergangs zwischen den Apps
+        var appBereit = false;       // App hat sich fuer das Tutorial gemeldet
+        // Tutorial, das starten soll, sobald die App sich meldet und das Display
+        // wieder hell ist ('fahrer' | 'admin' | null) — nach "Weiter zur
+        // Disposition" und beim Direktstart ueber ?tutorial=...
+        var startWartet = null;
+
+        // Echtes Mobilgeraet: ohne Rahmen direkt in die Fahrer-App.
+        var istMobil = matchMedia('(max-width: 560px)').matches
+          || /iPhone|Android.+Mobile/i.test(navigator.userAgent);
+        if (istMobil) { location.replace('/fahrer/?trailer=1'); return; }
+
+        function appLaden(welche, mitTrailer) {
+          aktiveApp = welche;
+          appBereit = false;
+          tutStart.classList.toggle('dispo', welche === 'admin');
+          startKnopfAktualisieren();
+          iframe.src = '/' + welche + '/?' + (mitTrailer ? 'trailer=1' : 'nosplash=1');
+          document.querySelectorAll('#switch button').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.app === welche);
+          });
+        }
+
+        // Wechsel zwischen Fahrer-App und Disposition: Hintergrund dreht sich um
+        // 180° und wird blau (bzw. zurueck lime), das Display wird schwarz, die
+        // andere App laedt, das Display wird wieder hell.
+        // mitTutorial: das Tutorial der Ziel-App startet von selbst, sobald sie
+        // bereit ist (nur "Weiter zur Disposition"). Sonst steht dort nur
+        // "Tutorial starten".
+        var hintergrund = document.getElementById('hintergrund');
+        var wechsel = document.getElementById('wechsel');
+        function appWechseln(welche, mitTutorial) {
+          if (welche === aktiveApp) return;
+          imWechsel = true;
+          startWartet = mitTutorial ? welche : null;
+          startKnopfAktualisieren();
+          hintergrund.classList.toggle('dispo', welche === 'admin');
+          titelVerbergen();
+          if (welche === 'admin' && mitTutorial) leisteUmbauZuDispo();
+          else leisteSanftAusblenden();
+          wechsel.classList.add('zu');
+          setTimeout(function () {
+            var hell = function () {
+              iframe.removeEventListener('load', hell);
+              // Der App einen Moment zum ersten Zeichnen lassen, dann aufblenden.
+              setTimeout(function () {
+                wechsel.classList.remove('zu');
+                imWechsel = false;
+                startKnopfAktualisieren();
+                wartendesTutorialStarten();
+                restLeisteAusblenden();
+              }, 350);
+            };
+            iframe.addEventListener('load', hell);
+            appLaden(welche, false);
+          }, 480);
+        }
+
+        function trailerBeenden() {
+          if (fertig) return;
+          fertig = true;
+          topbar.inert = false;
+          topbar.classList.add('sichtbar');
+          startKnopfAktualisieren();
+        }
+        topbar.inert = true;
+
+        // ---------- Tutorial ----------
+        // Ein Plan je App: Schritte, Ortskarte fuer die Bruecke und Seitenplan.
+        var tutAktiv = false;
+        var tutApp = 'fahrer';       // zu welcher App das laufende (oder letzte) Tutorial gehoert
+        var schritt = 0;
+        var pulsTimer = null;
+        var PULS_NACH_MS = 30000;
+
+        // Seitenplan: 'text' wechselt die Seite von Schritt zu Schritt (erster
+        // links), 'links'/'rechts' stehen fest. Einmal vorab berechnet, damit ein
+        // erneut gesendeter Schritt immer gleich aussieht.
+        function seitenPlanBauen(schritte) {
+          var plan = [];
+          var letzte = 'rechts';
+          for (var i = 0; i < schritte.length; i++) {
+            var s = schritte[i];
+            if (s.links || s.rechts) {
+              plan.push({ links: s.links || null, rechts: s.rechts || null });
+              if (!(s.links && s.rechts)) letzte = s.links ? 'links' : 'rechts';
+              continue;
+            }
+            var seite = letzte === 'links' ? 'rechts' : 'links';
+            letzte = seite;
+            plan.push(seite === 'links' ? { links: s.text || '', rechts: null } : { links: null, rechts: s.text || '' });
+          }
+          return plan;
+        }
+
+        function planAnlegen(schritte, orte) {
+          var liste = Array.isArray(schritte) ? schritte : [];
+          return {
+            schritte: liste,
+            orte: orte && typeof orte === 'object' ? orte : null,
+            seitenPlan: seitenPlanBauen(liste),
+          };
+        }
+
+        var plaene = {
+          fahrer: planAnlegen(window.TRISAR_TUTORIAL_FAHRER, window.TRISAR_TUTORIAL_ORTE),
+          admin: planAnlegen(window.TRISAR_TUTORIAL_DISPO, window.TRISAR_TUTORIAL_ORTE_DISPO),
+        };
+        // Plan des laufenden (bzw. zuletzt gelaufenen) Tutorials.
+        function plan() { return plaene[tutApp] || plaene.fahrer; }
+
+        function anApp(nachricht) {
+          try { iframe.contentWindow.postMessage(nachricht, '*'); } catch (e) { /* App noch nicht da */ }
+        }
+
+        // Icons fuer die Symbol-Reihe — dieselben Dateien wie in der App
+        // (shared/vehicleBadges bzw. SoloFlughafen MARKER_ICON_URLS).
+        var SYMBOL_ICON_URLS = {
+          accessibility: '/icon/_Icon_Lime/Rollstuhl_Trisar_Icons_01_Lime.svg',
+          vip: '/icon/_Icon_Lime/Stern_Trisar_Icon_01_Lime.svg',
+          child: '/icon/_Icon_Lime/Kind_Trisar_Icons_01_Lime.svg',
+          luggage: '/icon/_Icon_Lime/Gepäck_viel_Trisar_Icons_01_Lime.svg',
+        };
+
+        // Abschluss-Knoepfe eines Schritts:
+        //   abschluss: true  -> die Knoepfe des Fahrer-Tutorials (wie bisher)
+        //   abschluss: [{ label, ziel, primaer? }, ...]  -> eigene Knoepfe
+        // Ohne 'primaer' ist der erste Knopf hervorgehoben.
+        function abschlussKnoepfe(s) {
+          if (s.abschluss === true) {
+            return [
+              { label: 'Weiter zur Disposition', ziel: 'dispo', primaer: true },
+              { label: 'Fahrer frei erkunden', ziel: 'frei', primaer: false },
+            ];
+          }
+          if (!Array.isArray(s.abschluss)) return [];
+          return s.abschluss
+            .filter(function (k) { return k && typeof k.label === 'string' && typeof k.ziel === 'string'; })
+            .map(function (k, i) {
+              return { label: k.label, ziel: k.ziel, primaer: typeof k.primaer === 'boolean' ? k.primaer : i === 0 };
+            });
+        }
+
+        function blockFuellen(block, s, text) {
+          if (!text) { block.classList.add('leer'); return; }
+          block.classList.remove('leer');
+          var kategorie = block === blockLinks
+            ? (s.kategorieLinks || s.kategorie || '')
+            : (s.kategorieRechts || s.kategorie || '');
+          block.querySelector('.kat').textContent = kategorie;
+          block.querySelector('.text').textContent = text;
+          var pfad = Array.isArray(s.pfad) ? s.pfad : [];
+          block.querySelector('.pfad').innerHTML = pfad.map(function (t, i) {
+            var stueck = document.createElement(i === pfad.length - 1 ? 'b' : 'span');
+            stueck.textContent = t;
+            return stueck.outerHTML;
+          }).join(' ← ');
+          // Eigene Liste je Seite (wie kategorieLinks/kategorieRechts) — Symbole
+          // gehoeren nur zu EINER Erklaerung, nicht automatisch zu beiden.
+          var symboleZiel = block.querySelector('.symbole');
+          var symbole = (block === blockLinks ? s.symboleLinks : s.symboleRechts) || [];
+          symboleZiel.hidden = symbole.length === 0;
+          symboleZiel.innerHTML = '';
+          symbole.forEach(function (name) {
+            var url = SYMBOL_ICON_URLS[name];
+            if (!url) return;
+            var rahmen = document.createElement('span');
+            var bild = document.createElement('i');
+            bild.style.setProperty('--icon', 'url("' + encodeURI(url) + '")');
+            rahmen.appendChild(bild);
+            symboleZiel.appendChild(rahmen);
+          });
+          var abschlussZiel = block.querySelector('.abschluss');
+          var knoepfe = abschlussKnoepfe(s);
+          abschlussZiel.hidden = knoepfe.length === 0;
+          abschlussZiel.innerHTML = '';
+          knoepfe.forEach(function (k) {
+            var knopf = document.createElement('button');
+            knopf.type = 'button';
+            knopf.dataset.ziel = k.ziel;
+            knopf.textContent = k.label;
+            if (k.primaer) knopf.className = 'primaer';
+            abschlussZiel.appendChild(knopf);
+          });
+        }
+
+        // Abschluss-Knopf ausfuehren:
+        //   'dispo'            Disposition laden und deren Tutorial automatisch starten
+        //   'fahrer' / 'admin' Tutorial beenden und App wechseln (dort "Tutorial starten")
+        //   'frei'             Tutorial beenden, in der App bleiben
+        function abschlussAusfuehren(ziel) {
+          if (ziel === 'dispo') {
+            if (aktiveApp === 'admin') {
+              // Schon in der Disposition: deren Tutorial von vorn.
+              tutorialBeenden(false);
+              tutorialStarten('admin');
+              return;
+            }
+            tutorialBeenden(true);
+            appWechseln('admin', true);
+            return;
+          }
+          if (ziel === 'fahrer' || ziel === 'admin') {
+            if (ziel === aktiveApp) { tutorialBeenden(false); return; }
+            tutorialBeenden(ziel === 'admin');
+            appWechseln(ziel, false);
+            return;
+          }
+          tutorialBeenden(false);
+        }
+
+        tut.addEventListener('click', function (e) {
+          var knopf = e.target.closest('button[data-ziel]');
+          if (!knopf) return;
+          abschlussAusfuehren(knopf.dataset.ziel);
+        });
+
+        function pulsNeuStarten() {
+          weiter.classList.remove('puls');
+          clearTimeout(pulsTimer);
+          if (schritt >= plan().schritte.length - 1) return;
+          pulsTimer = setTimeout(function () { weiter.classList.add('puls'); }, PULS_NACH_MS);
+        }
+
+        var leisteTitel = document.getElementById('leisteTitel');
+
+        // Kapitelname eines Schritts: die letzte Station des Pfads, weil sie den
+        // Schritt benennt ("Zeiten", "Flug", "Gaeste"). Die Kategorie waere zu
+        // grob — "Fahrt" stuende fuenfmal hintereinander.
+        function kapitelTitel(i) {
+          var s = plan().schritte[i];
+          if (!s) return '';
+          if (Array.isArray(s.pfad) && s.pfad.length) return s.pfad[s.pfad.length - 1];
+          return s.kategorie || s.kategorieLinks || s.kategorieRechts || '';
+        }
+
+        function titelZeigen(index) {
+          var text = kapitelTitel(index);
+          if (!text || !tutAktiv) return;
+          var knopf = leiste.children[index];
+          if (!knopf) return;
+          var sheetBox = sheet.getBoundingClientRect();
+          var box = knopf.getBoundingClientRect();
+          var faktor = sheetBox.width / 1512;
+          leisteTitel.textContent = text;
+          // Mitte des Strichs, zurueckgerechnet in Buehnen-Koordinaten.
+          leisteTitel.style.left = Math.round((box.left + box.width / 2 - sheetBox.left) / faktor) + 'px';
+          leisteTitel.classList.add('sichtbar');
+        }
+
+        function titelVerbergen() {
+          leisteTitel.classList.remove('sichtbar');
+        }
+
+        function strichBauen(index) {
+          var knopf = document.createElement('button');
+          knopf.type = 'button';
+          knopf.className = 'strich';
+          var bahn = document.createElement('span');
+          bahn.className = 'bahn';
+          bahn.appendChild(document.createElement('i'));
+          knopf.appendChild(bahn);
+          knopf.addEventListener('mouseenter', function () { titelZeigen(index); });
+          knopf.addEventListener('mouseleave', titelVerbergen);
+          knopf.addEventListener('click', function () {
+            if (!tutAktiv || index >= plan().schritte.length || index === schritt) return;
+            schritt = index;
+            schrittZeigen();
+          });
+          return knopf;
+        }
+
+        function leisteAnlegen() {
+          leiste.innerHTML = '';
+          var anzahl = plan().schritte.length;
+          for (var i = 0; i < anzahl; i++) leiste.appendChild(strichBauen(i));
+          leiste.dataset.app = tutApp;
+        }
+        // Fortschritt wie ein Ladebalken: der Strich des aktuellen Schritts ist
+        // nicht sofort voll, sondern fuellt sich, waehrend der Cursor zeigt.
+        //   1. Weg zur Ansicht:  langsam bis ~30 %
+        //   2. Angekommen:       ueber die geschaetzte Dauer der Aktionen bis ~90 %
+        //   3. Schritt fertig:   zuegig auf 100 %
+        // Fertige Schritte davor sind voll, spaetere leer.
+        var STRICH_FARBE_UEBERGANG = 'background 1.4s ease-in-out, opacity 0.18s ease';
+        function strichBalken(index) {
+          var knopf = leiste.children[index];
+          return knopf ? knopf.querySelector('i') : null;
+        }
+        function strichFuellen(index, prozent, dauerMs, kurve) {
+          var balken = strichBalken(index);
+          if (!balken) return;
+          balken.style.transition = 'width ' + Math.max(0, Math.round(dauerMs)) + 'ms ' + (kurve || 'linear') + ', ' + STRICH_FARBE_UEBERGANG;
+          balken.style.width = prozent + '%';
+        }
+        function strichLoesen(index) {
+          var balken = strichBalken(index);
+          if (!balken) return;
+          balken.style.transition = '';
+          balken.style.width = '';
+        }
+        // Ungefaehre Dauer der Cursor-Aktionen eines Schritts (ms).
+        function aktionsDauer(s) {
+          var liste = !s || !s.aktion ? [] : (Array.isArray(s.aktion) ? s.aktion : [s.aktion]);
+          var ms = 0;
+          liste.forEach(function (a) {
+            ms += (typeof a.nach === 'number' ? a.nach : 500);
+            if (a.tippen) ms += String(a.tippen).length * 55 + 600;
+            if (a.klick) ms += 1400;
+            if (a.scrollZu) ms += 1800;
+            if (a.ziehen) ms += 1300;
+          });
+          return ms;
+        }
+        var fertigTimer = null;
+        function leisteZeichnen() {
+          var striche = leiste.children;
+          window.clearTimeout(fertigTimer);
+          for (var i = 0; i < striche.length; i++) {
+            if (i === schritt) continue;
+            striche[i].classList.toggle('an', i < schritt);
+            strichLoesen(i);
+          }
+          var aktuell = striche[schritt];
+          if (!aktuell) return;
+          if (schrittFertig) {
+            aktuell.classList.add('an');
+            strichLoesen(schritt);
+            return;
+          }
+          // Neu anlaufen: erst ohne Uebergang auf 0, Layout erzwingen, dann den
+          // Weg zur Ansicht zeigen.
+          aktuell.classList.remove('an');
+          strichFuellen(schritt, 0, 0);
+          var balken = strichBalken(schritt);
+          if (balken) void balken.offsetWidth;
+          strichFuellen(schritt, 30, 2600, 'cubic-bezier(0.2, 0.6, 0.35, 1)');
+        }
+        function strichAngekommen() {
+          if (schrittFertig || !leiste.children[schritt]) return;
+          var s = plan().schritte[schritt];
+          // Ohne Aktionen ist der Schritt fast sofort fertig — dann nur kurz weiter.
+          var dauer = Math.max(900, aktionsDauer(s) + 900);
+          strichFuellen(schritt, 90, dauer, 'cubic-bezier(0.25, 0.1, 0.45, 1)');
+        }
+        function strichFertig() {
+          var index = schritt;
+          if (!leiste.children[index]) return;
+          strichFuellen(index, 100, 450, 'cubic-bezier(0.4, 0, 0.2, 1)');
+          window.clearTimeout(fertigTimer);
+          fertigTimer = window.setTimeout(function () {
+            if (index !== schritt || !leiste.children[index]) return;
+            leiste.children[index].classList.add('an');
+            strichLoesen(index);
+          }, 480);
+        }
+
+        // Beim Wechsel zur Disposition bleibt die Fortschrittsleiste stehen und
+        // springt auf das erste Kapitel — in Blau. Startet danach das
+        // Dispo-Tutorial, uebernimmt es diese Leiste; sonst blendet sie aus.
+        // Staffelung des Leerlaufens: der rechte Strich zuerst, der linke zuletzt.
+        // Gesamtdauer des Leerlaufens; zusammen mit der 0,55-s-Fuellzeit eines
+        // Strichs ergibt das ungefaehr die 1,4 s der Hintergrund-Animation.
+        var ENTLADE_GESAMT_MS = 850;
+        var entladeTimer = [];
+        var ausblendTimer = null;
+
+        function dispoLeisteZeigen() {
+          var anzahl = plaene.admin.schritte.length || plaene.fahrer.schritte.length;
+          if (!anzahl) return;
+          clearTimeout(ausblendTimer);
+          // Ein gerade laufender Ladebalken wird zum normalen Strich: ist der
+          // Schritt schon angefangen, zaehlt er als gefuellt.
+          window.clearTimeout(fertigTimer);
+          for (var k = 0; k < leiste.children.length; k++) {
+            var balken = strichBalken(k);
+            if (balken && balken.style.width && parseFloat(balken.style.width) > 0) leiste.children[k].classList.add('an');
+            strichLoesen(k);
+          }
+
+          if (leiste.children.length !== anzahl) {
+            // Kein vergleichbarer Stand vorhanden — Leiste frisch aufbauen.
+            leiste.innerHTML = '';
+            for (var i = 0; i < anzahl; i++) {
+              var strich = strichBauen(i);
+              if (i === 0) strich.classList.add('an');   // erstes Kapitel
+              leiste.appendChild(strich);
+            }
+          } else {
+            // Vorhandenen Fortschritt von rechts nach links leerlaufen lassen.
+            // Die Staffelung laeuft ueber echte Zeitgeber statt ueber
+            // transition-delay: gesetzt im selben Zug wie der Klassenwechsel
+            // wurde die Verzoegerung vom Browser nicht zuverlaessig beachtet.
+            entladeTimer.forEach(clearTimeout);
+            entladeTimer = [];
+            // Nur die tatsaechlich gefuellten Striche entladen — und die
+            // Staffelung ueber sie verteilen, damit die Bewegung gleichmaessig
+            // ueber die volle Dauer laeuft statt am Stueck.
+            var gefuellt = 0;
+            for (var g = 0; g < anzahl; g++) if (leiste.children[g].classList.contains('an')) gefuellt++;
+            var abstand = gefuellt > 2 ? ENTLADE_GESAMT_MS / (gefuellt - 2) : 0;
+            for (var j = gefuellt - 1; j >= 1; j--) {
+              entladeTimer.push(setTimeout(
+                (function (idx) {
+                  return function () {
+                    // Hat das Dispo-Tutorial schon uebernommen und steht weiter,
+                    // bleibt sein Fortschritt stehen.
+                    if (!leiste.children[idx] || (tutAktiv && idx <= schritt)) return;
+                    leiste.children[idx].classList.remove('an');
+                  };
+                })(j),
+                Math.round((gefuellt - 1 - j) * abstand),
+              ));
+            }
+            leiste.children[0].classList.add('an');   // erstes Kapitel bleibt stehen
+          }
+          leiste.dataset.app = 'admin';
+          leiste.classList.add('dispo');
+          tut.hidden = false;
+          tut.classList.add('nur-leiste');
+          void tut.offsetWidth;
+          tut.classList.add('sichtbar');
+        }
+
+        // "Weiter zur Disposition": die Fahrer-Leiste zieht sich zu einer Linie
+        // zusammen, wird blau und teilt sich in die Schritte der Disposition.
+        //
+        // Die Bewegung laeuft ausschliesslich ueber transform und opacity auf
+        // einer Deckschicht. Genau in diesen Millisekunden startet im iframe die
+        // Dispo-App und haelt den Haupt-Thread beschaeftigt — Uebergaenge auf
+        // max-width oder gap (Layout pro Bild) ruckelten deshalb. transform und
+        // opacity rechnet die Grafikkarte weiter, auch wenn die Seite gerade laedt.
+        // Alle Phasen stehen von Anfang an fest in einer Animation.
+        var UMBAU_MS = 1650;
+        var UMBAU_KURVE = 'cubic-bezier(0.45, 0, 0.2, 1)';
+        var leisteImUmbau = false;
+        var umbauTimer = [];
+        var umbauSchicht = null;
+        function leisteUmbauZuDispo() {
+          var anzahl = plaene.admin.schritte.length || plaene.fahrer.schritte.length;
+          if (!anzahl) return;
+          clearTimeout(ausblendTimer);
+          window.clearTimeout(fertigTimer);
+          entladeTimer.forEach(clearTimeout);
+          entladeTimer = [];
+          umbauTimer.forEach(clearTimeout);
+          umbauTimer = [];
+          if (umbauSchicht) { umbauSchicht.remove(); umbauSchicht = null; }
+          leisteImUmbau = true;
+          titelVerbergen();
+          tut.hidden = false;
+          tut.classList.add('nur-leiste', 'sichtbar');
+
+          // Ausgangslage messen (Layout-Pixel der Buehne, ohne Skalierung).
+          var breite = leiste.offsetWidth;
+          var alt = [];
+          for (var k = 0; k < leiste.children.length; k++) {
+            var knopf = leiste.children[k];
+            alt.push({ x: knopf.offsetLeft, b: knopf.offsetWidth });
+          }
+          // Zielbild: so legt die Leiste die Striche der Disposition aus.
+          var LUECKE = 8;
+          var strich = Math.min(52, (breite - LUECKE * (anzahl - 1)) / anzahl);
+          var gesamt = anzahl * strich + (anzahl - 1) * LUECKE;
+          var start = (breite - gesamt) / 2;
+          // Die gemeinsame Linie liegt dort, wo spaeter die neuen Striche stehen.
+          var linieStart = start;
+          var linieBreite = gesamt;
+
+          // Die echte Leiste gleich in den Endzustand bringen, aber unsichtbar.
+          leiste.style.opacity = '0';
+          leiste.innerHTML = '';
+          for (var i = 0; i < anzahl; i++) {
+            var neuerStrich = strichBauen(i);
+            neuerStrich.classList.add('an');
+            leiste.appendChild(neuerStrich);
+          }
+          leiste.dataset.app = 'admin';
+          leiste.classList.add('dispo', 'ohne-uebergang');
+
+          // Deckschicht genau ueber der Leiste.
+          var schicht = document.createElement('div');
+          schicht.setAttribute('aria-hidden', 'true');
+          Object.assign(schicht.style, {
+            position: 'absolute', left: leiste.offsetLeft + 'px', top: (leiste.offsetTop + 9) + 'px',
+            width: breite + 'px', height: '2px', pointerEvents: 'none',
+          });
+          leiste.parentNode.appendChild(schicht);
+          umbauSchicht = schicht;
+
+          var segment = function (farbe, b) {
+            var el = document.createElement('div');
+            Object.assign(el.style, {
+              position: 'absolute', left: '0', top: '0', height: '2px', width: b + 'px',
+              background: farbe, borderRadius: '1px', transformOrigin: '0 50%', willChange: 'transform, opacity',
+            });
+            schicht.appendChild(el);
+            return el;
+          };
+          var lage = function (x, b, basis) { return 'translateX(' + x + 'px) scaleX(' + (b / basis) + ')'; };
+
+          // Phase 1 (0–45 %): Lime-Striche ruecken zur Linie zusammen und
+          // blenden dabei aus, waehrend die blaue Linie darunter aufgeht.
+          var altAnzahl = alt.length || 1;
+          alt.forEach(function (a, n) {
+            var el = segment('#e3f654', a.b);
+            var zielB = linieBreite / altAnzahl;
+            el.animate([
+              { offset: 0, transform: lage(a.x, a.b, a.b), opacity: 1 },
+              { offset: 0.22, opacity: 1 },
+              { offset: 0.45, transform: lage(linieStart + n * zielB, zielB + 0.5, a.b), opacity: 0 },
+              { offset: 1, transform: lage(linieStart + n * zielB, zielB + 0.5, a.b), opacity: 0 },
+            ], { duration: UMBAU_MS, easing: UMBAU_KURVE, fill: 'forwards' });
+          });
+
+          // Phase 2 (45–100 %): die blaue Linie teilt sich in die Striche der
+          // Disposition — jede Luecke oeffnet sich gleichmaessig.
+          var teil = linieBreite / anzahl;
+          for (var j = 0; j < anzahl; j++) {
+            var blau = segment('#3b82f6', strich);
+            blau.animate([
+              { offset: 0, transform: lage(linieStart + j * teil, teil + 0.5, strich), opacity: 0 },
+              { offset: 0.18, opacity: 0 },
+              { offset: 0.42, transform: lage(linieStart + j * teil, teil + 0.5, strich), opacity: 1 },
+              { offset: 0.5, transform: lage(linieStart + j * teil, teil + 0.5, strich), opacity: 1 },
+              { offset: 1, transform: lage(start + j * (strich + LUECKE), strich, strich), opacity: 1 },
+            ], { duration: UMBAU_MS, easing: UMBAU_KURVE, fill: 'forwards' });
+          }
+
+          var nach = function (ms, fn) { umbauTimer.push(setTimeout(fn, ms)); };
+          // Fertig: echte Leiste zeigen, Deckschicht weich ausblenden. Bis das
+          // Tutorial startet, bleibt nur das erste Kapitel voll.
+          nach(UMBAU_MS + 30, function () {
+            leiste.classList.remove('ohne-uebergang');
+            if (!tutAktiv) {
+              for (var m = 1; m < leiste.children.length; m++) leiste.children[m].classList.remove('an');
+            }
+            leiste.style.opacity = '';
+            schicht.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: 'ease-out', fill: 'forwards' });
+            leisteImUmbau = false;
+            wartendesTutorialStarten();
+          });
+          nach(UMBAU_MS + 320, function () {
+            if (umbauSchicht === schicht) { schicht.remove(); umbauSchicht = null; }
+          });
+        }
+
+        // Manueller Wechsel ueber den Umschalter: Leiste und Texte blenden weich
+        // aus, ohne Farbwechsel — dort steht dann "Tutorial starten".
+        function leisteSanftAusblenden() {
+          umbauTimer.forEach(clearTimeout);
+          umbauTimer = [];
+          if (umbauSchicht) { umbauSchicht.remove(); umbauSchicht = null; }
+          leiste.style.opacity = '';
+          leiste.classList.remove('ohne-uebergang');
+          leisteImUmbau = false;
+          entladeTimer.forEach(clearTimeout);
+          entladeTimer = [];
+          titelVerbergen();
+          if (tut.hidden) { leisteVerstecken(); return; }
+          tut.classList.remove('sichtbar');
+          clearTimeout(ausblendTimer);
+          ausblendTimer = setTimeout(function () {
+            if (tutAktiv) return;
+            leisteVerstecken();
+          }, 650);
+        }
+
+        function leisteVerstecken() {
+          titelVerbergen();
+          clearTimeout(ausblendTimer);
+          entladeTimer.forEach(clearTimeout);
+          entladeTimer = [];
+          leiste.classList.remove('dispo');
+          tut.classList.remove('nur-leiste', 'sichtbar');
+          tut.hidden = true;
+        }
+
+        // Nach einem Wechsel ohne automatischen Start steht noch die blaue
+        // Uebergangsleiste da — sie blendet weich aus, "Tutorial starten" uebernimmt.
+        function restLeisteAusblenden() {
+          if (tutAktiv || startWartet || !tut.classList.contains('nur-leiste')) return;
+          tut.classList.remove('sichtbar');
+          clearTimeout(ausblendTimer);
+          ausblendTimer = setTimeout(function () {
+            if (tutAktiv) return;
+            leisteVerstecken();
+          }, 650);
+        }
+
+        var schrittFertig = false; // die App hat den aktuellen Schritt komplett abgespielt
+        function schrittZeigen() {
+          schrittFertig = false;
+          var p = plan();
+          var s = p.schritte[schritt];
+          if (!s) return;
+          // Text erst nach der Ankunft zeigen; bis dahin ausblenden.
+          tut.classList.add('unterwegs');
+          blockFuellen(blockLinks, s, p.seitenPlan[schritt].links);
+          blockFuellen(blockRechts, s, p.seitenPlan[schritt].rechts);
+          zurueck.disabled = schritt === 0;
+          weiter.disabled = schritt >= p.schritte.length - 1;
+          leisteZeichnen();
+          pulsNeuStarten();
+          anApp({
+            trisar: 'tutorial', cmd: 'schritt',
+            orte: p.orte,
+            zustand: s.zustand || null,
+            ort: s.ort || null,
+            fokus: s.fokus || null,
+            fokusDanach: s.fokusDanach || null,
+            luft: s.luft,
+            aktion: s.aktion || null,
+            // Reihenfolge innerhalb des Schritts: Aktion vor Text/Hervorhebung,
+            // Hervorhebung erst nach der Aktion.
+            aktionZuerst: s.aktionZuerst === true,
+            fokusNachAktion: typeof s.fokusNachAktion === 'number' ? s.fokusNachAktion : (s.fokusNachAktion === true),
+          });
+        }
+
+        // "Tutorial starten" steht, wenn die App bereit ist, kein Tutorial laeuft
+        // und keines gleich von selbst startet — also nach dem Wechsel ueber den
+        // Umschalter oder nach "frei erkunden". In der Disposition in Blau.
+        var tutStart = document.getElementById('tutStart');
+        function startKnopfAktualisieren() {
+          // Waehrend eines App-Wechsels zeigt der Knopf nichts an — sonst blitzt
+          // er kurz auf, solange die alte App noch geladen ist.
+          var p = plaene[aktiveApp];
+          var zeigen = fertig && appBereit && !imWechsel && !tutAktiv && !startWartet && Boolean(p) && p.schritte.length > 0;
+          tutStart.classList.toggle('sichtbar', zeigen);
+        }
+        tutStart.addEventListener('click', function () { tutorialStarten(aktiveApp); });
+
+        function tutorialStarten(app) {
+          var welche = app || aktiveApp;
+          var p = plaene[welche];
+          if (tutAktiv || !p || !p.schritte.length || aktiveApp !== welche) return;
+          tutAktiv = true;
+          tutApp = welche;
+          schritt = 0;
+          clearTimeout(ausblendTimer);
+          tut.hidden = false;
+          tut.classList.remove('nur-leiste');
+          tut.classList.toggle('dispo', welche === 'admin');
+          leiste.classList.toggle('dispo', welche === 'admin');
+          // Die Fahrer-Leiste wird wie bisher immer neu aufgebaut. Die blaue
+          // Uebergangsleiste der Disposition wird uebernommen, wenn sie passt —
+          // so geht der Wechsel ohne Neuaufbau direkt ins Tutorial ueber.
+          if (welche !== 'admin' || leiste.dataset.app !== 'admin' || leiste.children.length !== p.schritte.length) {
+            leisteAnlegen();
+          }
+          void tut.offsetWidth; // Reflow, damit die Einblendung wirklich animiert
+          tut.classList.add('sichtbar');
+          startKnopfAktualisieren();
+          schrittZeigen();
+        }
+
+        // Startet ein vorgemerktes Tutorial, sobald die App bereit und das
+        // Display wieder hell ist.
+        function wartendesTutorialStarten() {
+          if (!startWartet || !appBereit || imWechsel || !fertig || leisteImUmbau) return;
+          if (startWartet !== aktiveApp) { startWartet = null; return; }
+          var welche = startWartet;
+          startWartet = null;
+          tutorialStarten(welche);
+          startKnopfAktualisieren();
+        }
+
+        // leisteBehalten: beim Wechsel zur Disposition bleibt die Fortschritts-
+        // leiste stehen und laeuft dort leer, statt hart zu verschwinden.
+        function tutorialBeenden(leisteBehalten) {
+          if (!tutAktiv) return;
+          tutAktiv = false;
+          clearTimeout(pulsTimer);
+          weiter.classList.remove('puls');
+          if (!leisteBehalten) {
+            tut.classList.remove('sichtbar');
+            tut.hidden = true;
+          }
+          anApp({ trisar: 'tutorial', cmd: 'ende' });
+          startKnopfAktualisieren();
+        }
+
+        function schrittWechseln(delta) {
+          if (!tutAktiv) return;
+          var ziel = schritt + delta;
+          if (ziel < 0 || ziel >= plan().schritte.length) return;
+          schritt = ziel;
+          schrittZeigen();
+        }
+
+        zurueck.addEventListener('click', function () { schrittWechseln(-1); });
+        weiter.addEventListener('click', function () { schrittWechseln(1); });
+
+        // Pfeiltasten nicht abfangen, solange geschrieben wird (KI-Chat,
+        // Formulare) — sonst springt das Tutorial beim Bewegen im Text.
+        function istEingabe(el) {
+          if (!el || el.nodeType !== 1) return false;
+          var tag = el.tagName;
+          return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true;
+        }
+        function tasten(e) {
+          if (!tutAktiv) return;
+          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+          if (istEingabe(e.target)) return;
+          try {
+            var doc = iframe.contentDocument;
+            if (doc && doc.hasFocus() && istEingabe(doc.activeElement)) return;
+          } catch (err) { /* fremde Origin */ }
+          if (e.key === 'ArrowRight') schrittWechseln(1);
+          if (e.key === 'ArrowLeft') schrittWechseln(-1);
+        }
+        window.addEventListener('keydown', tasten);
+        // Nach einem Klick ins iPhone liegt der Tastaturfokus im iframe; die
+        // App ist same-origin, also dort ebenfalls lauschen (bei jedem Laden neu).
+        iframe.addEventListener('load', function () {
+          try { iframe.contentWindow.addEventListener('keydown', tasten); } catch (e) { /* fremde Origin */ }
+        });
+
+        // Hintergrund-Tabs drosseln Zeitgeber und Animationen — ein Schritt kann
+        // dabei mitten in der Bewegung haengen bleiben. Beim Zurueckkehren den
+        // aktuellen Schritt neu schicken, dann laeuft er sauber von vorn.
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState !== 'visible') return;
+          // Nur einen haengengebliebenen Schritt neu schicken — ein fertiger wuerde
+          // sonst seine Aktionen wiederholen (z. B. eine Fahrt erneut anlegen).
+          if (tutAktiv && appBereit && !imWechsel && tutApp === aktiveApp && !schrittFertig) schrittZeigen();
+        });
+
+        // Easter Egg: waehrend des Trailers springt ein Doppelklick oder Esc
+        // ans Ende. Klicks neben das iPhone landen hier im Rahmen und werden an
+        // die App weitergereicht, die den Sprung ausfuehrt.
+        function trailerUeberspringen() {
+          if (fertig) return;
+          anApp({ trisar: 'trailer-ueberspringen' });
+        }
+        window.addEventListener('dblclick', trailerUeberspringen);
+        window.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') trailerUeberspringen();
+        });
+
+        // Stammt die Nachricht von der App, die gerade im iPhone laufen soll?
+        // Das Fenster-Objekt des iframes bleibt beim Seitenwechsel dasselbe —
+        // darum zusaetzlich den Pfad pruefen: eine noch nicht abgeloeste alte App
+        // (z. B. /fahrer/ waehrend /admin/ laedt) darf kein Tutorial weiterschalten.
+        function vonAktiverApp(e) {
+          if (!e || e.source !== iframe.contentWindow) return false;
+          try {
+            // Nur die jeweils ANDERE App ausschliessen — aendert eine App ihren
+            // Pfad selbst, bleibt sie so trotzdem erkennbar.
+            var pfad = e.source.location.pathname || '';
+            var andere = aktiveApp === 'admin' ? '/fahrer' : '/admin';
+            return pfad.indexOf(andere) !== 0;
+          } catch (err) {
+            return true; // fremde Origin: nur die Fensterpruefung zaehlt
+          }
+        }
+
+        // ---------- Nachrichten aus der App ----------
+        window.addEventListener('message', function (e) {
+          var d = e && e.data;
+          if (!d || !d.trisar) return;
+          if (d.trisar === 'trailer-fertig') {
+            trailerBeenden();
+            tutorialStarten('fahrer');
+          }
+          if (d.trisar === 'tutorial-angekommen') {
+            if (!vonAktiverApp(e)) return;
+            tut.classList.remove('unterwegs');
+            strichAngekommen();
+          }
+          if (d.trisar === 'tutorial-fertig') {
+            if (!vonAktiverApp(e)) return;
+            schrittFertig = true;
+            strichFertig();
+          }
+          if (d.trisar === 'tutorial-bereit') {
+            if (!vonAktiverApp(e)) return;
+            appBereit = true;
+            startKnopfAktualisieren();
+            // App ist (neu) da: aktuellen Schritt erneut schicken, falls er
+            // vor dem Mount verschickt wurde.
+            if (tutAktiv && tutApp === aktiveApp) schrittZeigen();
+            wartendesTutorialStarten();
+          }
+        });
+
+        document.querySelectorAll('#switch button').forEach(function (b) {
+          b.addEventListener('click', function () {
+            // Waehrend eines Wechsels gesperrt — ein zweiter Klick laedt die App
+            // sonst doppelt und verwirft einen wartenden Tutorial-Start.
+            if (!fertig || imWechsel || b.dataset.app === aktiveApp) return;
+            // Laufendes Tutorial endet; in der Ziel-App steht "Tutorial starten".
+            tutorialBeenden(b.dataset.app === 'admin');
+            appWechseln(b.dataset.app, false);
+          });
+        });
+
+        // ---------- Bühne auf das Fenster skalieren ----------
+        function skalieren() {
+          var faktor = Math.min(1, window.innerWidth / 1512, window.innerHeight / 895);
+          sheet.style.transform = 'translate(-50%, -50%) scale(' + faktor + ')';
+        }
+        skalieren();
+        window.addEventListener('resize', skalieren);
+
+        // Direktstart ohne Trailer: /?tutorial=1 (Fahrer) bzw. /?tutorial=dispo
+        // (Disposition) — das Tutorial beginnt, sobald die App sich meldet. Zum
+        // Testen und fuer einen erneuten Durchlauf.
+        var direkt = new URLSearchParams(location.search).get('tutorial');
+        if (direkt === 'dispo') {
+          trailerBeenden();
+          // Gleich blau, ohne die Drehung des Hintergrunds abzuspielen.
+          hintergrund.classList.add('ohne-uebergang', 'dispo');
+          void hintergrund.offsetWidth;
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () { hintergrund.classList.remove('ohne-uebergang'); });
+          });
+          startWartet = 'admin';
+          appLaden('admin', false);
+          return;
+        }
+        if (direkt === '1') {
+          trailerBeenden();
+          startWartet = 'fahrer';
+          appLaden('fahrer', false);
+          return;
+        }
+
+        // Sicherheitsnetz: falls die Meldung ausbleibt, Bedienung freigeben.
+        setTimeout(trailerBeenden, 20000);
+
+        appLaden('fahrer', true);
+      })();
+    </script>
+  </body>
+</html>
