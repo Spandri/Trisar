@@ -12,6 +12,7 @@
 
 set -euo pipefail
 cd "$(dirname "$0")"
+APPS=..
 
 MIT_BUILD=0
 for arg in "$@"; do
@@ -23,19 +24,19 @@ done
 
 if [ "$MIT_BUILD" = "1" ]; then
   echo "→ Fahrer-App bauen"
-  (cd fahrer-app-demo && npx vite build --base=/fahrer/ >/dev/null)
-  rm -rf deploy/fahrer && cp -R fahrer-app-demo/dist deploy/fahrer
+  (cd "$APPS/fahrer" && VITE_DATENQUELLE=demo npx vite build --base=/fahrer/ >/dev/null)
+  rm -rf deploy/fahrer && cp -R "$APPS/fahrer/dist" deploy/fahrer
 
   echo "→ Dispo-App bauen"
-  (cd admin-app-demo && npx vite build --base=/admin/ >/dev/null)
-  rm -rf deploy/admin && cp -R admin-app-demo/dist deploy/admin
+  (cd "$APPS/admin" && VITE_DATENQUELLE=demo npx vite build --base=/admin/ >/dev/null)
+  rm -rf deploy/admin && cp -R "$APPS/admin/dist" deploy/admin
 fi
 
 # Beide Apps holen Icons und Fahrzeugbilder ueber absolute Pfade (/icon/…,
 # /fahrzeuge/…) von der Wurzel der Seite. Neue Dateien aus public/ muessen
 # deshalb auch dort liegen — sonst liefert Cloudflare stattdessen die Startseite.
 for ordner in icon fahrzeuge support; do
-  for app in fahrer-app-demo admin-app-demo; do
+  for app in "$APPS/fahrer" "$APPS/admin"; do
     if [ -d "$app/public/$ordner" ]; then
       mkdir -p "deploy/$ordner"
       rsync -a --exclude '.DS_Store' "$app/public/$ordner/" "deploy/$ordner/"

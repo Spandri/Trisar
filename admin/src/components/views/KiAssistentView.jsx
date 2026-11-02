@@ -4,6 +4,7 @@ import BackCircleButton from '../ui/BackCircleButton';
 import { askDatabaseAssistant, invalidateDatabaseAssistantCache } from '../../services/kiAssistant';
 import { supabase } from '../../services/supabase';
 import { demoStore } from '../../demo/demoClient';
+import { DEMO_MODE } from '../../datenquelle';
 import { useI18n } from '../../i18n';
 
 // Telefonnummern in Antworten des Assistenten werden zu Links: ein Tipp ruft an.
@@ -51,8 +52,9 @@ const restoreStoredMessages = (parsed, t) => {
   const cleaned = parsed
     .filter((msg) => msg && !msg.pending && !LEGACY_DEMO_TEXT_RE.test(String(msg.text || '')))
     .map((msg) => (msg.bookingStatus === 'saving' ? { ...msg, bookingStatus: 'pending' } : msg));
+  // Nur in der Demo: dort leben die Fahrten im Speicher und sind nach Reload weg.
   const jobs = Array.isArray(demoStore?.jobs) ? demoStore.jobs : [];
-  const hasStaleBooking = cleaned.some((msg) => (
+  const hasStaleBooking = DEMO_MODE && cleaned.some((msg) => (
     msg.bookingStatus === 'booked'
     && !jobs.some((job) => String(job?.id || '') === String(msg.bookingRideId || ''))
   ));

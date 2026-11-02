@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5177",
+    "dev:live": "VITE_DATENQUELLE=supabase vite --port 5177",
     "build": "vite build",
+    "build:live": "VITE_DATENQUELLE=supabase vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "ai:webhook": "node scripts/ai-webhook-server.js",

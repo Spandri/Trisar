@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:live": "VITE_DATENQUELLE=supabase vite",
     "build": "vite build",
+    "build:live": "VITE_DATENQUELLE=supabase vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "docker:sync": "bash ./scripts/docker-sync-sources.sh",

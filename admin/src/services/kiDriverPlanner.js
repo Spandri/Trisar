@@ -6,6 +6,7 @@ import distanceData from '../demo/data/distances.json';
 import trafficFactors from '../demo/data/traffic_factors.json';
 import { echtenPlanFinden } from '../demo/planerErgebnisse';
 import { enginePlanFinden } from '../demo/engineErgebnisse';
+import { DEMO_MODE } from '../datenquelle';
 
 const DEFAULT_MODEL = 'llama3.1:8b';
 const DEFAULT_RIDE_DURATION_MINUTES = 80;
@@ -962,9 +963,12 @@ export const planDriverShiftsWithOllama = async ({
       // Gleiche Eingaben wie die Anfrage an den Planer (mit echten Fahrzeiten).
       // TRISAR-Engine (Optionen Standard und Sicher): vorab gerechnet,
       // siehe demo/engineErgebnisse.js. Sonst die bisherigen CP-SAT-Ergebnisse.
-      const enginePlan = await enginePlanFinden({ serviceDate, mode: normalizedSettings.mode, rides: ridesForCpSat });
+      // Im Live-Betrieb (VITE_DATENQUELLE=supabase) rechnet immer der Planer-Server.
+      const enginePlan = DEMO_MODE
+        ? await enginePlanFinden({ serviceDate, mode: normalizedSettings.mode, rides: ridesForCpSat })
+        : null;
       if (enginePlan) logProgress('TRISAR-Engine: Szenarien, Fahrzeugketten, Ladeplan.');
-      const echterPlan = enginePlan || await echtenPlanFinden({
+      const echterPlan = !DEMO_MODE ? null : enginePlan || await echtenPlanFinden({
         serviceDate,
         settings: normalizedSettings,
         drivers,
