@@ -69,4 +69,5 @@ PY
 find deploy -name '.DS_Store' -delete
 
 echo "→ Veroeffentlichen"
-npx wrangler pages deploy deploy --project-name=trisar-demo --branch=main
+# Feste Version: npx sucht sonst gelegentlich eine noch nicht veroeffentlichte und bricht ab.
+npx -y wrangler@4.156.1 pages deploy deploy --project-name=trisar-demo --branch=main

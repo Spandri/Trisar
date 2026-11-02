@@ -1,0 +1,11 @@
+# Cloudflare Pages: demo.trisar.de (Projekt trisar-demo), veroeffentlicht mit ./deploy.sh.
+# Die Funktionen in functions/ fuehren das Besucherprotokoll (siehe functions/_middleware.js).
+name = "trisar-demo"
+pages_build_output_dir = "deploy"
+compatibility_date = "2026-10-01"
+
+# Besucherprotokoll in D1 (sofort lesbar, anders als KV-Listen). Tabelle: werkzeuge/protokoll/schema.sql
+[[d1_databases]]
+binding = "PROTOKOLL"
+database_name = "trisar-demo-besuche"
+database_id = "9bfdc9b9-f6b9-4942-bf36-258945c26f91"

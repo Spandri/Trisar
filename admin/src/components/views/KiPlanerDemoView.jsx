@@ -1,4 +1,4 @@
-import { cloneElement, useEffect, useMemo, useRef, useState } from 'react';
+import { cloneElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BackCircleButton from '../ui/BackCircleButton';
 import FahrtSimulationView from './FahrtSimulationView';
 import TrisarFooter from '../ui/TrisarFooter';
@@ -11,6 +11,11 @@ import EinsatzplanungKalender from './EinsatzplanungKalender';
 import EinsatzplanungTag from './EinsatzplanungTag';
 import EreignisseView from './EreignisseView';
 import PufferView from './PufferView';
+import NeuplanungView from './NeuplanungView';
+import { engineTag } from '../../demo/engineErgebnisse';
+import {
+  neuplanungStatus, neuplanungStatusSetzen, neuplanungZielLesen, neuplanungZielLoeschen,
+} from '../../demo/stoerungDemo';
 import EinsatzplanungBedarf from './EinsatzplanungBedarf';
 import EinsatzplanungUebersicht from './EinsatzplanungUebersicht';
 import EinsatzTagKarte from './EinsatzTagKarte';
@@ -334,7 +339,7 @@ export default function KiPlanerDemoView({
   // Mit einem fertigen Einsatz ist die Uebersicht die Hauptansicht, ohne Einsatz
   // geht es direkt in den Kalender — ausser im Tutorial, das vom KI-Planer aus startet.
   const [ablauf, setAblauf] = useState(() => {
-    if (tutorialLaeuft()) return null;
+    // Auch im Tutorial: ohne Einsatz direkt der Kalender, nie die alte Planer-Ansicht.
     return einsatzCache?.tage?.length ? 'uebersicht' : 'kalender';
   }); // null | 'uebersicht' | 'kalender' | 'bedarf' | 'tag'
   const [einsatz, setEinsatz] = useState(() => einsatzCache);
@@ -354,6 +359,22 @@ export default function KiPlanerDemoView({
   const [simEntry, setSimEntry] = useState(null);
   const [ereignisseTag, setEreignisseTag] = useState(null); // Seite "Ereignisse" fuer diesen Tag
   const [pufferSeite, setPufferSeite] = useState(null);     // { tag, option, titel }
+  // Neuplanung nach einer Störung, geöffnet über den Link im KI-Assistenten:
+  // { iso, tag (Engine-Ergebnis), status, fehler, laeuft }
+  const [neuplanung, setNeuplanung] = useState(() => {
+    const iso = neuplanungZielLesen();
+    return iso ? { iso, tag: null, status: neuplanungStatus(iso), fehler: '', laeuft: false } : null;
+  });
+  const neuplanungIso = neuplanung?.iso || null;
+  useEffect(() => {
+    neuplanungZielLoeschen();
+    if (!neuplanungIso) return undefined;
+    let aktiv = true;
+    engineTag(neuplanungIso).then((tag) => {
+      if (aktiv) setNeuplanung((n) => (n && n.iso === neuplanungIso ? { ...n, tag } : n));
+    });
+    return () => { aktiv = false; };
+  }, [neuplanungIso]);
   const [isPlanning, setIsPlanning] = useState(false);
   const [dismissedIds, setDismissedIds] = useState(() => new Set(dismissedIdsCache));
   const [acceptedIds, setAcceptedIds] = useState(() => new Set(acceptedIdsCache));
@@ -904,6 +925,57 @@ export default function KiPlanerDemoView({
     }
   };
 
+  // Rundgang: direkt zu einem Tag der Tagesplanung springen ({ planerTag: <Tagesnummer, 0 = heute> }
+  // im Zustand eines Tutorial-Schritts), statt bis zu den Pfeilen unten zu wischen.
+  const tagWechselnRef = useRef(tagWechseln);
+  tagWechselnRef.current = tagWechseln;
+  const planTageRef = useRef(planTage);
+  planTageRef.current = planTage;
+  const ablaufRef = useRef(ablauf);
+  ablaufRef.current = ablauf;
+  const planungLaeuftRef = useRef(isPlanning);
+  planungLaeuftRef.current = isPlanning;
+  // Kommt der Wunsch, bevor die Tagesplanung steht (der Schritt navigiert erst
+  // danach hin), wartet er, bis Tag und Plan da sind.
+  const tagWunschRef = useRef(null);
+  const runPlanningRef = useRef(null);
+  runPlanningRef.current = runPlanning;
+  const tagWunschAnwenden = useCallback(() => {
+    const nr = tagWunschRef.current;
+    if (!Number.isFinite(nr) || ablaufRef.current !== 'tag' || planungLaeuftRef.current) return;
+    const index = planTageRef.current.findIndex((iso) => (
+      Math.round((new Date(`${iso}T12:00:00`) - new Date(`${todayIso}T12:00:00`)) / 86400000) === nr
+    ));
+    if (index < 0) {
+      // Tag noch nicht im Zeitraum: dazunehmen und nur ihn rechnen (vorab gerechnete
+      // Engine-Ergebnisse, geht schnell). Danach greift der Wunsch beim naechsten Durchlauf.
+      const iso = addDaysToIso(todayIso, nr);
+      const tage = [...planTageRef.current, iso].sort();
+      setPlanTage(tage);
+      runPlanningRef.current?.({ tage: [iso], zeitfenster: null });
+      return;
+    }
+    tagWunschRef.current = null;
+    tagWechselnRef.current(index);
+  }, [todayIso]);
+  useEffect(() => {
+    const anZustand = (e) => {
+      // Tutorial: { planerZu: '<marker>' } springt ohne langes Wischen zu einem
+      // Element der Tagesplanung (z. B. accept ganz unten).
+      const ziel = e?.detail?.planerZu;
+      if (typeof ziel === 'string' && ziel) {
+        setTimeout(() => document.querySelector(`[data-tutorial="${ziel}"]`)?.scrollIntoView({ block: 'center' }), 250);
+      }
+      const nr = e?.detail?.planerTag;
+      if (!Number.isFinite(nr)) return;
+      tagWunschRef.current = nr;
+      tagWunschAnwenden();
+    };
+    window.addEventListener('trisar:tutorial-zustand', anZustand);
+    return () => window.removeEventListener('trisar:tutorial-zustand', anZustand);
+  }, [tagWunschAnwenden]);
+  useEffect(() => { tagWunschAnwenden(); }, [ablauf, isPlanning, planTage, tagWunschAnwenden]);
+
   // Uebersicht -> Tagesplanung des gewaehlten Tages.
   const einsatzTagOeffnen = (index) => {
     if (!einsatz?.tage?.[index]) return;
@@ -929,26 +1001,42 @@ export default function KiPlanerDemoView({
     runPlanning({ tage: [iso], zeitfenster: kalenderAuswahl, strategie: preset });
   };
 
-  // Einsatztag (Engine): vorgerechnete Neuplanung nach einer Störung als neue
-  // Vorschläge des Tages zeigen. Übernehmen wie gewohnt (Tag annehmen).
-  const neuplanungZeigen = (dayIso, antwort) => {
-    if (!antwort || isPlanning) return;
+  // Neuplanung uebernehmen: der neue Plan ersetzt den angenommenen Tag. Gezeigt
+  // werden nur die Aenderungen, uebernommen wird der ganze neue Tagesplan.
+  const neuplanungUebernehmen = async () => {
+    const iso = neuplanung?.iso;
+    const st = neuplanung?.tag?.stoerung;
+    if (!iso || !st || typeof onApplySuggestions !== 'function') return;
+    setNeuplanung((n) => ({ ...n, laeuft: true, fehler: '' }));
     const ridesOfDay = (Array.isArray(allRidesRef.current) ? allRidesRef.current : [])
-      .filter((ride) => String(ride?.ride_date || '').trim() === dayIso);
-    const key = `${plannedByDay[dayIso]?.strategyKey || strategyKey}-neu`;
-    const suggestions = mapPlannerSuggestions(antwort, ridesOfDay, key, dayIso, t);
+      .filter((ride) => String(ride?.ride_date || '').trim() === iso);
+    const basis = plannedByDay[iso]?.strategyKey || 'standard';
+    const suggestions = mapPlannerSuggestions(st.antwort, ridesOfDay, `${basis}-neu`, iso, t);
+    const rows = suggestions.filter((entry) => entry.driverId).map((entry) => ({
+      driverId: entry.driverId, serviceStart: entry.start, serviceEnd: entry.end, rideIds: entry.rideIds || [], vehicleId: entry.vehicleId || '',
+    }));
+    const result = await onApplySuggestions({ serviceDate: iso, rows });
+    if (!result?.ok) {
+      setNeuplanung((n) => ({ ...n, laeuft: false, fehler: result?.error || t('planer.applyFailed') }));
+      return;
+    }
     const entry = {
-      ...(plannedByDay[dayIso] || {}),
-      strategyKey: plannedByDay[dayIso]?.strategyKey || strategyKey,
+      ...(plannedByDay[iso] || {}),
+      strategyKey: basis,
       suggestions,
-      engine: { ...(antwort.engine || {}), neuplanung: true },
+      engine: { ...(st.antwort.engine || {}), neuplanung: true },
+      neueFahrten: st.aenderungen.flatMap((a) => a.ride_ids),
     };
-    suggestions.forEach((v) => { dismissedIdsCache.delete(v.id); acceptedIdsCache.delete(v.id); });
-    plannedByDayCache[dayIso] = entry;
+    plannedByDayCache[iso] = entry;
+    acceptedByDayCache[iso] = rows;
+    suggestions.forEach((v) => { dismissedIdsCache.delete(v.id); acceptedIdsCache.add(v.id); });
     persistPlanCaches();
-    setPlannedByDay((prev) => ({ ...prev, [dayIso]: entry }));
+    setPlannedByDay((prev) => ({ ...prev, [iso]: entry }));
+    setAcceptedByDay((prev) => ({ ...prev, [iso]: rows }));
     setDismissedIds(new Set(dismissedIdsCache));
     setAcceptedIds(new Set(acceptedIdsCache));
+    neuplanungStatusSetzen(iso, 'uebernommen');
+    setNeuplanung((n) => ({ ...n, laeuft: false, status: 'uebernommen' }));
   };
 
   // accept unten: alle offenen Vorschlaege des Tages auf einmal uebernehmen.
@@ -1504,7 +1592,6 @@ export default function KiPlanerDemoView({
           anfang={kalenderAuswahl}
           onZurueck={() => {
             if (einsatz?.tage?.length) setAblauf('uebersicht');
-            else if (tutorialLaeuft()) setAblauf(null);
             else onClose?.();
           }}
           onEinstellungen={() => setShowSettings(true)}
@@ -1558,7 +1645,6 @@ export default function KiPlanerDemoView({
           onAblehnen={dismiss}
           onRueckgaengig={handleUndoAccept}
           onTagAnnehmen={tagAnnehmen}
-          onNeuplanungZeigen={neuplanungZeigen}
           onEreignisse={setEreignisseTag}
           onPuffer={(tag, option, titel) => setPufferSeite({ tag, option, titel })}
           tagesStatus={tagesStatus}
@@ -1580,6 +1666,23 @@ export default function KiPlanerDemoView({
 
       {ereignisseTag && (ablauf === 'bedarf' || ablauf === 'tag') ? (
         <EreignisseView tagIso={ereignisseTag} onZurueck={() => setEreignisseTag(null)} />
+      ) : null}
+
+      {neuplanung ? (
+        <NeuplanungView
+          tagIso={neuplanung.iso}
+          stoerung={neuplanung.tag?.stoerung || null}
+          bisher={neuplanung.tag?.bisheriger_planer?.passend === false ? null : neuplanung.tag?.bisheriger_planer}
+          status={neuplanung.status}
+          fehler={neuplanung.fehler}
+          laeuft={neuplanung.laeuft}
+          onUebernehmen={neuplanungUebernehmen}
+          onAblehnen={() => {
+            neuplanungStatusSetzen(neuplanung.iso, 'abgelehnt');
+            setNeuplanung((n) => ({ ...n, status: 'abgelehnt' }));
+          }}
+          onZurueck={() => setNeuplanung(null)}
+        />
       ) : null}
 
       {pufferSeite && ablauf === 'tag' ? (

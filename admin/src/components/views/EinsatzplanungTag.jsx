@@ -102,7 +102,7 @@ const kurzeAdresse = (text) => {
   return teile.length ? teile[0] : '';
 };
 
-function Fahrtzeile({ fahrt, mitte }) {
+function Fahrtzeile({ fahrt, mitte, neu }) {
   return (
     <div
       className="absolute left-[18px] w-[285px] -translate-y-1/2 text-[12px] leading-[16px] tracking-[0.5px] overflow-hidden"
@@ -115,6 +115,8 @@ function Fahrtzeile({ fahrt, mitte }) {
       <span className="font-bold">{fahrt.ankunft}</span>
       {fahrt.sammel ? <span className="font-bold" style={{ color: '#2d6cff' }}> · Sammelfahrt</span> : null}
       {fahrt.route === 'FTO' ? <span className="font-bold" style={{ color: '#2d6cff' }}> · über Flughafentangente Ost</span> : null}
+      {neu ? ' ' : null}
+      {neu ? <span className="font-bold px-[3px]" style={{ background: LIME, color: '#000' }}>neu nach Unfall</span> : null}
     </div>
   );
 }
@@ -143,7 +145,6 @@ export default function EinsatzplanungTag({
   onTagAnnehmen,
   onOeffnen,
   tagesStatus = [],   // je Tag: true = bestaetigt
-  onNeuplanungZeigen,
   onEreignisse,
   onPuffer,
 }) {
@@ -172,6 +173,8 @@ export default function EinsatzplanungTag({
   );
   const tagIndex = Math.round((new Date(`${tagIso}T12:00:00`) - new Date(`${heuteIso}T12:00:00`)) / 86400000);
 
+  // Fahrten, die die Neuplanung nach einer Störung einem anderen Fahrer gibt.
+  const neueFahrten = useMemo(() => new Set(eintrag?.neueFahrten || []), [eintrag]);
   const vorschlaege = useMemo(() => (eintrag?.suggestions || []).filter((v) => !abgelehnt.has(v.id)), [eintrag, abgelehnt]);
   const offene = vorschlaege.filter((v) => !uebernommen.has(v.id));
   const erledigte = vorschlaege.filter((v) => uebernommen.has(v.id));
@@ -309,7 +312,6 @@ export default function EinsatzplanungTag({
               eintrag={eintrag}
               laeuft={laeuft}
               onHoehe={setEngineHoehe}
-              onNeuplanungZeigen={(antwort) => onNeuplanungZeigen?.(tagIso, antwort)}
               onEreignisse={onEreignisse}
               onPuffer={onPuffer}
             />
@@ -337,16 +339,18 @@ export default function EinsatzplanungTag({
             {karten.map(({ v, position, erledigt, top, hoehe: kartenHoehe, knopfTop }) => {
               const rides = Array.isArray(v.rides) ? v.rides : [];
               const sichtbar = rides.length > MAX_FAHRTZEILEN ? rides.slice(0, MAX_FAHRTZEILEN) : rides;
+              const geaendert = rides.some((r) => neueFahrten.has(r.id));
               return (
                 <div key={v.id} style={{ opacity: laeuft ? 0.3 : 1, pointerEvents: laeuft ? 'none' : 'auto' }} className="transition-opacity duration-300">
                   <div
                     role="button"
                     tabIndex={0}
                     data-tutorial={`planer-vorschlag-${position}`}
+                    data-neuplanung-karte={geaendert ? 'ja' : undefined}
                     onClick={() => onOeffnen(v, position)}
                     onKeyDown={(e) => { if (e.key === 'Enter') onOeffnen(v, position); }}
                     className="absolute left-[20px] w-[362px] bg-[#fefffe] overflow-hidden cursor-pointer"
-                    style={{ top: `${top}px`, height: `${kartenHoehe}px` }}
+                    style={{ top: `${top}px`, height: `${kartenHoehe}px`, boxShadow: geaendert ? `inset 0 0 0 4px ${LIME}` : undefined }}
                   >
                     <p className="absolute left-[18px] top-[18px] w-[262px] overflow-hidden text-ellipsis whitespace-nowrap text-[30px] font-bold tracking-[-0.5px] leading-[normal] text-[#1c1c1d]">
                       {`#${position + 1} ${v.name}`}
@@ -362,7 +366,7 @@ export default function EinsatzplanungTag({
                     {!erledigt ? (
                       <>
                         {sichtbar.length ? sichtbar.map((fahrt, k) => (
-                          <Fahrtzeile key={`${v.id}-${k}`} fahrt={fahrt} mitte={87 + k * 40} />
+                          <Fahrtzeile key={`${v.id}-${k}`} fahrt={fahrt} mitte={87 + k * 40} neu={neueFahrten.has(fahrt.id)} />
                         )) : (
                           <div className="absolute left-[18px] w-[285px] -translate-y-1/2 text-[12px] leading-[16px] tracking-[0.5px]" style={{ top: '87px', color: 'rgba(29,28,29,0.8)' }}>
                             {t('planer.standbyFallback')}
