@@ -82,7 +82,27 @@ export default function AiDienstplanView({
   const [isDemandCustomized, setIsDemandCustomized] = useState(Boolean(initialDemandCustomized));
   const isDemandCustomizedRef = useRef(Boolean(initialDemandCustomized));
   const [suggestions, setSuggestions] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [fleetKpis, setFleetKpis] = useState(null);
   const [expandedSuggestionIds, setExpandedSuggestionIds] = useState(() => new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadVehicles = async () => {
+      if (!hasSupabaseConfig) return;
+      let result = await supabase.from('vehicles').select('*').order('brand_model', { ascending: true });
+      if ((result.error || (Array.isArray(result.data) ? result.data : []).length === 0) && hasSupabaseAdminConfig) {
+        result = await supabaseAdmin.from('vehicles').select('*').order('brand_model', { ascending: true });
+      }
+      if (!cancelled && !result.error && Array.isArray(result.data)) {
+        setVehicles(result.data);
+      }
+    };
+    loadVehicles();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [warnings, setWarnings] = useState([]);
   const [unassignedRideIds, setUnassignedRideIds] = useState([]);
   const [sourceLabel, setSourceLabel] = useState('');
@@ -257,7 +277,7 @@ export default function AiDienstplanView({
   }, [chartGeometry.maxValue]);
 
   const contentMinHeight = useMemo(() => {
-    const suggestionRowsHeight = suggestions.length === 0 ? 76 : (suggestions.length * 136);
+    const suggestionRowsHeight = suggestions.length === 0 ? 76 : (suggestions.length * 168);
     return Math.max(1720, 930 + 28 + suggestionRowsHeight + 80);
   }, [suggestions.length]);
 
@@ -301,6 +321,7 @@ export default function AiDienstplanView({
           service_end_time: normalizeClockValue(driver?.serviceEndTime),
         })),
         rides: ridesForServiceDate,
+        vehicles,
         serviceDate,
         settings: {
           maxWorkHours,
@@ -312,9 +333,16 @@ export default function AiDienstplanView({
         onProgress: appendPlanningLog,
       });
 
+      const vehiclePlanByDriverId = new Map(
+        (Array.isArray(result?.vehicle_plans) ? result.vehicle_plans : [])
+          .map((plan) => [String(plan?.driver_id || '').trim(), plan])
+          .filter(([driverId]) => Boolean(driverId)),
+      );
+
       const normalizedSuggestions = (Array.isArray(result?.suggestions) ? result.suggestions : []).map((entry, index) => {
         const driverId = String(entry?.driver_id || '').trim();
         const fallbackName = driverNameById.get(driverId) || `Fahrer #${index + 1}`;
+        const vehiclePlan = vehiclePlanByDriverId.get(driverId) || null;
         return {
           id: `${driverId || `driver-${index}`}-${index}`,
           driverId,
@@ -324,11 +352,17 @@ export default function AiDienstplanView({
           assignedRidesCount: Math.max(0, Number.parseInt(String(entry?.assigned_rides_count || 0), 10) || 0),
           assignedRideIds: Array.isArray(entry?.assigned_ride_ids) ? entry.assigned_ride_ids : [],
           note: String(entry?.note || '').trim(),
+          vehicleLabel: String(vehiclePlan?.vehicle_label || '').trim(),
+          vehicleIsEv: Boolean(vehiclePlan?.is_ev),
+          shiftKm: Number.isFinite(Number(vehiclePlan?.shift_km)) ? Number(vehiclePlan.shift_km) : null,
+          chargeStopCount: Array.isArray(vehiclePlan?.charge_stops) ? vehiclePlan.charge_stops.length : 0,
+          vehicleNote: String(vehiclePlan?.note || '').trim(),
           accepted: true,
         };
       });
 
       setSuggestions(normalizedSuggestions);
+      setFleetKpis(result?.fleet_kpis || null);
       setExpandedSuggestionIds(new Set());
       setWarnings(Array.isArray(result?.warnings) ? result.warnings : []);
       setUnassignedRideIds(Array.isArray(result?.unassigned_ride_ids) ? result.unassigned_ride_ids : []);
@@ -388,11 +422,11 @@ export default function AiDienstplanView({
           <div className="absolute left-[24px] top-[140px]">
             <div className="text-[#E3F654] text-[36px] leading-[1] font-bold font-['Space_Grotesk']">KI Planer</div>
             <div className="mt-[8px] text-white/70 text-[13px] font-medium font-['Space_Grotesk']">
-              Ollama-basierte Dienstplanung mit editierbarer Fahrtenlinie
+              CP-SAT Dienst- und Fahrzeugplanung mit editierbarer Fahrtenlinie
             </div>
           </div>
 
-          <div className="absolute left-[24px] top-[220px] w-[356px] bg-[#0F0F0F] border-2 border-[#E3F654]/40 px-[10px] py-[10px]">
+          <div className="absolute left-[24px] top-[220px] w-[356px] bg-[#0F0F0F] outline outline-2 outline-offset-[-1px] outline-[#E3F654]/40 px-[10px] py-[10px]">
             <div className="flex items-center justify-between">
               <div className="text-[#E3F654] text-[13px] font-semibold font-['Space_Grotesk']">Planungsdiagramm</div>
               <button
@@ -692,6 +726,13 @@ export default function AiDienstplanView({
 
           <div className="absolute left-[24px] top-[930px] w-[356px] pb-[44px]">
             <div className="text-[#E3F654] text-[16px] font-semibold font-['Space_Grotesk']">Vorschläge</div>
+            {fleetKpis ? (
+              <div className="mt-[4px] text-white/60 text-[11px] font-medium font-['Space_Grotesk']">
+                Flotte: {fleetKpis.ev_shift_count} EV / {fleetKpis.combustion_shift_count} Verbrenner
+                {fleetKpis.unassigned_shift_count > 0 ? ` / ${fleetKpis.unassigned_shift_count} ohne Fahrzeug` : ''}
+                {' · '}{fleetKpis.total_km} km · CO₂ gespart: {fleetKpis.co2_saved_kg} kg
+              </div>
+            ) : null}
             <div className="mt-[8px] space-y-[8px]">
               {suggestions.length === 0 ? (
                 <div className="text-white/60 text-[12px] font-medium font-['Space_Grotesk']">
@@ -748,6 +789,20 @@ export default function AiDienstplanView({
                       className="h-[34px] border-2 border-[#E3F654]/50 bg-black text-[#E3F654] text-[14px] font-semibold font-['Space_Grotesk'] px-[8px] outline-none"
                     />
                   </div>
+                  {row.vehicleLabel ? (
+                    <div className="mt-[6px] text-[11px] font-medium font-['Space_Grotesk']">
+                      <span className={row.vehicleIsEv ? 'text-[#8DFFAF]' : 'text-white/75'}>
+                        {row.vehicleIsEv ? 'EV' : 'Verbrenner'} · {row.vehicleLabel}
+                      </span>
+                      <span className="text-white/50">
+                        {row.shiftKm != null ? ` · ${row.shiftKm} km` : ''}
+                        {row.chargeStopCount > 0 ? ` · ${row.chargeStopCount} Ladestopp(s)` : ''}
+                      </span>
+                    </div>
+                  ) : null}
+                  {row.vehicleNote ? (
+                    <div className="mt-[2px] text-white/45 text-[10px] font-medium font-['Space_Grotesk']">{row.vehicleNote}</div>
+                  ) : null}
                   {row.note ? (
                     <div className="mt-[6px] text-white/55 text-[11px] font-medium font-['Space_Grotesk']">{row.note}</div>
                   ) : null}

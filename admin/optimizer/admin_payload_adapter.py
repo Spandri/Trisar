@@ -11,7 +11,7 @@ Focus:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dataclass_replace
 from datetime import date, datetime, time
 import math
 import os
@@ -178,6 +178,8 @@ class AdapterOptions:
     far_zone_rounding_minutes: int = 15
     far_zone_fallback_minutes: int = 75
     include_done_rides: bool = False
+    # Dispo-Puffer aus den Planungseinstellungen (Minuten vor jeder Fahrt)
+    extra_buffer_minutes: int = 0
 
 
 MUNICH_INNER_KEYWORDS = (
@@ -301,6 +303,12 @@ def _infer_zone_from_address(
     if not text:
         return (options.munich_near_zone, options.munich_near_minutes)
 
+    # Flughafen VOR dem Innenstadt-Check: "Flughafen München" enthaelt
+    # "münchen" und wuerde sonst faelschlich als Innenstadt (Anfahrt 0)
+    # klassifiziert. Der Airport liegt ~40 Fahrminuten draussen.
+    if any(key in text for key in ("flughafen", "airport", "terminal 1", "terminal 2")):
+        return ("FLUGHAFEN_MUC", 40)
+
     if any(key in text for key in MUNICH_INNER_KEYWORDS):
         return (options.munich_inner_zone, 0)
 
@@ -333,6 +341,29 @@ def _to_float(row: Dict[str, object], key: str, default: float) -> float:
         return float(default)
 
 
+def _parse_window_minutes(value: object) -> Optional[int]:
+    """Zeitfenster-Angabe in Minuten seit 00:00 des Planungstags.
+
+    Akzeptiert Minuten als Zahl (auch > 1440 für den Folgetag) oder "HH:MM".
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value).strip()
+    if not text:
+        return None
+    if ":" in text:
+        clock = _parse_clock(text)
+        if clock is None:
+            return None
+        return clock.hour * 60 + clock.minute
+    try:
+        return int(float(text))
+    except (TypeError, ValueError):
+        return None
+
+
 def adapt_drivers(
     raw_drivers: Sequence[Dict[str, object]],
     options: Optional[AdapterOptions] = None,
@@ -362,6 +393,12 @@ def adapt_drivers(
                 end_zone=str(row.get("end_zone") or opts.default_driver_end_zone),
                 is_ev=bool(row.get("is_ev", False)),
                 ev_range_km=_to_float(row, "ev_range_km", 0.0),
+                earliest_start_minute=_parse_window_minutes(
+                    row.get("earliest_start_minute", row.get("rest_until"))
+                ),
+                latest_end_minute=_parse_window_minutes(
+                    row.get("latest_end_minute", row.get("must_end_by"))
+                ),
             )
         )
     return adapted
@@ -435,6 +472,10 @@ def adapt_rides(
                 is_vip_ride=bool(row.get("is_vip_ride", False)),
                 start_zone=start_zone,
                 end_zone=end_zone,
+                extra_buffer_minutes=int(opts.extra_buffer_minutes),
+                # Klartext-Orte fuer die echte Distanztabelle.
+                start_place=str(row.get("pickup_name") or row.get("pickup_address") or "").strip(),
+                end_place=str(row.get("dropoff_name") or row.get("dropoff_address") or "").strip(),
             )
         )
 
@@ -469,6 +510,8 @@ def adapt_admin_payload_to_solver_inputs(
     service_date_value: object,
     zone_provider: Optional[TravelTimeProvider] = None,
     options: Optional[AdapterOptions] = None,
+    place_minutes: Optional[Dict[str, float]] = None,
+    depot_place: Optional[str] = None,
 ) -> Tuple[List[Driver], List[Ride], ZoneMatrix, List[str]]:
     """
     Main adapter entrypoint.
@@ -489,8 +532,92 @@ def adapt_admin_payload_to_solver_inputs(
         zone_provider=provider,
         options=opts,
     )
-    zone_matrix = build_zone_matrix_from_zone_minutes(zone_minutes)
+    if place_minutes:
+        drivers, rides, zone_matrix = _with_place_travel_times(
+            drivers, rides, zone_minutes, place_minutes, depot_place, provider, opts, warnings,
+        )
+    else:
+        zone_matrix = build_zone_matrix_from_zone_minutes(zone_minutes)
     return drivers, rides, zone_matrix, warnings
+
+
+def _with_place_travel_times(
+    drivers: List[Driver],
+    rides: List[Ride],
+    zone_minutes: Dict[str, int],
+    place_minutes: Dict[str, float],
+    depot_place: Optional[str],
+    provider: Optional[TravelTimeProvider],
+    opts: AdapterOptions,
+    warnings: List[str],
+) -> Tuple[List[Driver], List[Ride], ZoneMatrix]:
+    """
+    Leerfahrten (Anfahrt, Umsetzen zwischen zwei Fahrten, Rueckweg) mit echten
+    Fahrzeiten je Ortspaar statt der Zonenschaetzung.
+
+    `place_minutes` ist die Routentabelle ("A|B" -> Minuten, z. B. TomTom-Matrix).
+    Jeder Ort aus der Tabelle wird zu einer eigenen Zone; Fahrer starten und enden
+    am `depot_place`. Paare ohne Tabelleneintrag (Orte, die die Tabelle nicht
+    kennt) behalten die bisherige Zonenregel.
+    """
+    places = set()
+    for key in place_minutes:
+        if "|" in key:
+            a, b = key.split("|", 1)
+            places.add(a.strip())
+            places.add(b.strip())
+
+    # Radiale Minuten je Zone fuer die Rueckfallregel (Paare ohne Tabelle).
+    radial: Dict[str, int] = dict(zone_minutes)
+
+    def place_zone(place: str, fallback_zone: str) -> str:
+        name = str(place or "").strip()
+        if name and name in places:
+            radial.setdefault(name, int(zone_minutes.get(fallback_zone, opts.munich_near_minutes)))
+            return name
+        return fallback_zone
+
+    rides = [
+        dataclass_replace(
+            ride,
+            start_zone=place_zone(ride.start_place, ride.start_zone),
+            end_zone=place_zone(ride.end_place, ride.end_zone),
+        )
+        for ride in rides
+    ]
+
+    depot = str(depot_place or "").strip()
+    if depot and depot in places:
+        depot_zone, depot_minutes = _infer_zone_from_address(depot, provider=provider, options=opts, warnings=warnings)
+        radial.setdefault(depot, int(depot_minutes))
+        radial.setdefault(depot_zone, int(depot_minutes))
+        drivers = [
+            dataclass_replace(
+                drv,
+                start_zone=depot if drv.start_zone == opts.default_driver_start_zone else drv.start_zone,
+                end_zone=depot if drv.end_zone == opts.default_driver_end_zone else drv.end_zone,
+            )
+            for drv in drivers
+        ]
+    elif depot:
+        warnings.append(f"Startort '{depot}' fehlt in der Routentabelle -> Zonenschaetzung fuer die Anfahrt.")
+
+    zones = sorted({r.start_zone for r in rides} | {r.end_zone for r in rides}
+                   | {d.start_zone for d in drivers} | {d.end_zone for d in drivers} | set(radial))
+    travel: Dict[Tuple[str, str], int] = {}
+    for a in zones:
+        for b in zones:
+            if a == b:
+                travel[(a, b)] = 0
+                continue
+            value = place_minutes.get(f"{a}|{b}")
+            if value is None:
+                value = place_minutes.get(f"{b}|{a}")
+            if value is not None:
+                travel[(a, b)] = max(0, int(round(float(value))))
+            else:
+                travel[(a, b)] = max(30, int(radial.get(a, 30)), int(radial.get(b, 30)))
+    return drivers, rides, ZoneMatrix(travel_minutes=travel, default_between_distinct_zones=30)
 
 
 def solve_schedule_from_admin_payload(

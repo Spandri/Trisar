@@ -18,7 +18,10 @@ Important assumptions (made explicit for implementation clarity):
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import hashlib
+import random
+
+from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Dict, Iterable, List, Literal, Optional, Tuple
 
@@ -34,10 +37,19 @@ PoiType = Literal["Airport", "Hotel", "Private"]
 Mode = Literal["balanced", "cost", "fairness", "service_level"]
 
 POI_BUFFER_MINUTES: Dict[PoiType, int] = {
-    "Airport": 45,
+    # Flughafenabholung: Ankunft zur Landung genuegt, den Terminalweg deckt
+    # der einstellbare Extra-Puffer. Das eigentliche Risiko (Gast kommt durch
+    # Gepaeck/Passkontrolle SPAETER raus) liegt HINTER der Abholung und wird
+    # ueber AIRPORT_POST_DELAY_MINUTES vor der Folgefahrt eingeplant.
+    "Airport": 0,
     "Hotel": 15,
     "Private": 5,
 }
+
+# Verspaetungsreserve nach einer Flughafenabholung: die Folgefahrt darf erst
+# so spaet beginnen, dass ein verspaetet eintreffender Gast die Kette nicht
+# sprengt. Wirkt nur auf die Verkettung, nicht auf Fahrt- oder Schichtdauer.
+AIRPORT_POST_DELAY_MINUTES = 20
 
 
 @dataclass(frozen=True)
@@ -52,6 +64,12 @@ class Driver:
     end_zone: str
     is_ev: bool = False
     ev_range_km: float = 0.0
+    # Ruhezeitfenster über Tagesgrenzen hinweg: frühester Schichtbeginn bzw.
+    # spätestes Schichtende in Minuten seit 00:00 des Planungstags. Ergibt sich
+    # aus der Schicht des Vortags (+ Ruhezeit) und der Schicht des Folgetags
+    # (− Ruhezeit). None = keine Einschränkung.
+    earliest_start_minute: Optional[int] = None
+    latest_end_minute: Optional[int] = None
 
     @property
     def hard_max_hours(self) -> float:
@@ -73,6 +91,13 @@ class Ride:
     is_vip_ride: bool
     start_zone: str
     end_zone: str
+    # Globaler Zuschlag aus den Planungseinstellungen (Dispo-Puffer), der auf
+    # den POI-Puffer addiert wird.
+    extra_buffer_minutes: int = 0
+    # Klartext-Orte fuer die echte Distanztabelle (Zonen sind zu grob, um
+    # Kilometer realistisch zu schaetzen).
+    start_place: str = ""
+    end_place: str = ""
 
     @property
     def end_time(self) -> datetime:
@@ -80,7 +105,13 @@ class Ride:
 
     @property
     def pre_buffer_minutes(self) -> int:
-        return POI_BUFFER_MINUTES.get(self.start_poi_type, POI_BUFFER_MINUTES["Private"])
+        base = POI_BUFFER_MINUTES.get(self.start_poi_type, POI_BUFFER_MINUTES["Private"])
+        return base + max(0, int(self.extra_buffer_minutes))
+
+    @property
+    def post_buffer_minutes(self) -> int:
+        # Reserve fuer verspaetete Gaeste nach einer Flughafenabholung.
+        return AIRPORT_POST_DELAY_MINUTES if self.start_poi_type == "Airport" else 0
 
 
 @dataclass(frozen=True)
@@ -123,7 +154,9 @@ MODE_WEIGHTS: Dict[Mode, SolverWeights] = {
         unassigned_ride=1_000_000,
         active_driver=8_000,
         idle_minute=20,
-        fairness_pair_abs_minute=10,
+        # Ausgewogen heisst: alle arbeiten etwa gleich lang. Die Spreizung der
+        # Arbeitszeiten wiegt deshalb spuerbar, ist aber keine harte Grenze.
+        fairness_pair_abs_minute=40,
         service_slack_minute_reward=0,
         deadhead_minute=30,
     ),
@@ -155,10 +188,41 @@ MODE_WEIGHTS: Dict[Mode, SolverWeights] = {
 
 
 @dataclass(frozen=True)
+class TunnelCorridor:
+    """
+    Suchkorridor ("Tunnel") einer KI-Vorstufe: je Fahrt die plausiblen Fahrer,
+    je Fahrtpaar die plausiblen Verkettungen. Der Solver erzeugt Variablen nur
+    innerhalb des Korridors und optimiert dort vollwertig — der Korridor macht
+    das Modell klein, nicht die Lösung schlechter (er enthält per Konstruktion
+    die komplette Startlösung des Ensembles, das Ergebnis kann also nie hinter
+    diese zurückfallen).
+
+    Alles auf ID-Basis (nicht Index), damit die Sortierreihenfolge der Fahrten
+    im Solver keine Rolle spielt.
+    """
+
+    driver_ids_by_ride: Dict[str, frozenset] = field(default_factory=dict)
+    successor_pairs: frozenset = frozenset()
+
+    def allows_assignment(self, driver_id: str, ride_id: str) -> bool:
+        candidates = self.driver_ids_by_ride.get(ride_id)
+        # Fahrt ohne Kandidatenliste bleibt uneingeschränkt (defensiv).
+        return candidates is None or driver_id in candidates
+
+    def allows_pair(self, ride_id_a: str, ride_id_b: str) -> bool:
+        return (ride_id_a, ride_id_b) in self.successor_pairs
+
+
+@dataclass(frozen=True)
 class SolverConfig:
     mode: Mode = "balanced"
     weights_override: Optional[SolverWeights] = None
-    max_solver_time_seconds: float = 30.0
+    # Abbruch nach Lösungsgüte, nicht nach Zeit: der Solver stoppt, sobald die
+    # gefundene Lösung nachweislich höchstens `relative_gap_limit` vom Optimum
+    # entfernt ist (0.0 = bis beweisbar optimal).
+    relative_gap_limit: float = 0.0
+    # Reines Sicherheitsnetz gegen Endlosläufe — kein Qualitätsregler.
+    max_solver_time_seconds: float = 300.0
     num_search_workers: int = 8
     planning_day: Optional[date] = None
     # If True, return inactive drivers as well (with empty rides).
@@ -170,6 +234,30 @@ class SolverConfig:
     max_chain_gap_minutes: int = 240
     # Warm start: seed CP-SAT with a greedy feasible schedule via AddHint.
     use_warm_start_hint: bool = True
+    # KI-Korridor: beschränkt Zuweisungs- und Verkettungsvariablen auf die von
+    # der Vorstufe als plausibel markierten Kandidaten. None = Vollmodell.
+    tunnel: Optional[TunnelCorridor] = None
+    # Geteilte Dienste: Index-Paare (a, b) in der Fahrerliste, die zwei
+    # Arbeitsblöcke DESSELBEN Fahrers darstellen (a = Frühblock, b = Spätblock).
+    # Zwischen den Blöcken liegt eine unbezahlte Pause von mindestens
+    # `min_split_pause_minutes`; die Summe beider Blöcke respektiert das
+    # Tagesmaximum des Fahrers.
+    split_driver_pairs: Tuple[Tuple[int, int], ...] = ()
+    min_split_pause_minutes: int = 180
+    # Bereitschaft als lineare Untergrenzen statt Max-Gleichung (bessere Schranke).
+    standby_linear: bool = True
+    # Gleichwertige Fahrer in fester, je Tag wechselnder Reihenfolge einsetzen
+    # (Symmetriebruch, nur ohne KI-Korridor).
+    symmetry_breaking: bool = True
+    # Fairness: "spanne" = laengster minus kuerzester Dienst (global, schwer zu
+    # beweisen); "ziel" = Abweichung jedes Fahrers von einer Zielarbeitszeit,
+    # die die Vorstufe aus einem schnellen Vorplan und den Vorstunden ableitet.
+    fairness_mode: str = "spanne"
+    # Stellschrauben der Zielvorgabe: Hoehe (Anteil am Vorplan-Mittel) und
+    # Gewichte (Teiler des Fairness-Gewichts) fuer Abweichung und Spanne.
+    fairness_target_scale: float = 1.0
+    fairness_dev_div: int = 4
+    fairness_spread_div: int = 4
 
     @property
     def weights(self) -> SolverWeights:
@@ -268,9 +356,10 @@ def _is_connection_feasible(
     ride_j_start_zone: str,
     ride_j_pre_buffer_min: int,
     zone_matrix: ZoneMatrix,
+    ride_i_post_buffer_min: int = 0,
 ) -> bool:
     transfer = zone_matrix.minutes(ride_i_end_zone, ride_j_start_zone)
-    required = ride_i_end_min + transfer + ride_j_pre_buffer_min
+    required = ride_i_end_min + ride_i_post_buffer_min + transfer + ride_j_pre_buffer_min
     return required <= ride_j_start_min
 
 
@@ -285,18 +374,21 @@ def _greedy_schedule(
     ride_start_min: List[int],
     ride_end_min: List[int],
     ride_pre_buffer: List[int],
+    rng: Optional[random.Random] = None,
 ) -> Dict[int, List[int]]:
     """
     Fast feasible schedule for warm starting: rides in start-time order, each
     assigned to the eligible driver with the smallest waiting time. Respects
     the same hard rules as the CP model (VIP eligibility, connection
     feasibility, hard max shift span incl. deadheads).
+    With `rng`, picks among the top-3 candidates instead of strictly the best —
+    the tunnel guide uses this to generate a diverse solution ensemble.
     Returns {driver_index: [ride_indices in chain order]}.
     """
     chains: Dict[int, List[int]] = {d: [] for d in range(len(drivers))}
     for i in range(len(rides_sorted)):
         ride = rides_sorted[i]
-        best: Optional[Tuple[int, int]] = None  # (wait_minutes, driver_index)
+        candidates: List[Tuple[int, int]] = []  # (wait_minutes, driver_index)
         for d, drv in enumerate(drivers):
             if ride.is_vip_ride and not drv.is_vip_qualified:
                 continue
@@ -307,10 +399,14 @@ def _greedy_schedule(
                     ride_end_min[last], rides_sorted[last].end_zone,
                     ride_start_min[i], ride.start_zone,
                     ride_pre_buffer[i], zone_matrix,
+                    ride_i_post_buffer_min=rides_sorted[last].post_buffer_minutes,
                 ):
                     continue
                 transfer = zone_matrix.minutes(rides_sorted[last].end_zone, ride.start_zone)
-                wait = ride_start_min[i] - ride_end_min[last] - transfer - ride_pre_buffer[i]
+                wait = (
+                    ride_start_min[i] - ride_end_min[last]
+                    - rides_sorted[last].post_buffer_minutes - transfer - ride_pre_buffer[i]
+                )
                 first = chain[0]
                 span = (
                     ride_end_min[i] - ride_start_min[first]
@@ -328,10 +424,14 @@ def _greedy_schedule(
                 )
             if span > _safe_int_minutes(drv.hard_max_hours):
                 continue
-            if best is None or wait < best[0]:
-                best = (wait, d)
-        if best is not None:
-            chains[best[1]].append(i)
+            candidates.append((wait, d))
+        if candidates:
+            candidates.sort()
+            if rng is not None and len(candidates) > 1:
+                pick = rng.choice(candidates[:3])
+            else:
+                pick = candidates[0]
+            chains[pick[1]].append(i)
     return chains
 
 
@@ -366,11 +466,21 @@ def solve_schedule(
             mode=mode,
             weights_override=cfg.weights_override,
             max_solver_time_seconds=cfg.max_solver_time_seconds,
+            relative_gap_limit=cfg.relative_gap_limit,
             num_search_workers=cfg.num_search_workers,
             planning_day=cfg.planning_day,
             include_inactive_drivers_in_output=cfg.include_inactive_drivers_in_output,
             max_chain_gap_minutes=cfg.max_chain_gap_minutes,
             use_warm_start_hint=cfg.use_warm_start_hint,
+            tunnel=cfg.tunnel,
+            split_driver_pairs=cfg.split_driver_pairs,
+            min_split_pause_minutes=cfg.min_split_pause_minutes,
+            standby_linear=cfg.standby_linear,
+            symmetry_breaking=cfg.symmetry_breaking,
+            fairness_mode=cfg.fairness_mode,
+            fairness_target_scale=cfg.fairness_target_scale,
+            fairness_dev_div=cfg.fairness_dev_div,
+            fairness_spread_div=cfg.fairness_spread_div,
         )
     weights = cfg.weights
 
@@ -422,6 +532,26 @@ def solve_schedule(
         use[d] = model.NewBoolVar(f"use_{d}")
         for i, ride in enumerate(rides_sorted):
             eligible = not (ride.is_vip_ride and not drv.is_vip_qualified)
+
+            # Ruhezeit über Tagesgrenzen: Eine Fahrt kommt für den Fahrer nur
+            # infrage, wenn Anfahrt und Rückweg vollständig in sein Fenster
+            # passen. Wer gestern bis spät gefahren ist, startet heute später.
+            if eligible and drv.earliest_start_minute is not None:
+                approach = zone_matrix.minutes(drv.start_zone, ride.start_zone) + ride_pre_buffer[i]
+                if ride_start_min[i] - approach < int(drv.earliest_start_minute):
+                    eligible = False
+            if eligible and drv.latest_end_minute is not None:
+                return_leg = zone_matrix.minutes(ride.end_zone, drv.end_zone)
+                if ride_end_min[i] + return_leg > int(drv.latest_end_minute):
+                    eligible = False
+
+            # KI-Korridor: Fahrer außerhalb der Kandidatenliste dieser Fahrt
+            # kommen nicht ins Modell (Fahrt kann weiterhin unassigned bleiben,
+            # das Modell wird dadurch nie unlösbar).
+            if eligible and cfg.tunnel is not None:
+                if not cfg.tunnel.allows_assignment(drv.driver_id, ride.ride_id):
+                    eligible = False
+
             x[(d, i)] = model.NewBoolVar(f"x_{d}_{i}")
             if not eligible:
                 model.Add(x[(d, i)] == 0)
@@ -443,6 +573,8 @@ def solve_schedule(
                     and ride_start_min[j] - ride_end_min[i] > cfg.max_chain_gap_minutes
                 ):
                     continue
+                if cfg.tunnel is not None and not cfg.tunnel.allows_pair(ri.ride_id, rj.ride_id):
+                    continue
                 if _is_connection_feasible(
                     ride_i_end_min=ride_end_min[i],
                     ride_i_end_zone=ri.end_zone,
@@ -450,6 +582,7 @@ def solve_schedule(
                     ride_j_start_zone=rj.start_zone,
                     ride_j_pre_buffer_min=ride_pre_buffer[j],
                     zone_matrix=zone_matrix,
+                    ride_i_post_buffer_min=ri.post_buffer_minutes,
                 ):
                     y_arc[(d, i, j)] = model.NewBoolVar(f"ya_{d}_{i}_{j}")
 
@@ -458,6 +591,12 @@ def solve_schedule(
         model.Add(sum(x[(d, i)] for d in range(d_count)) + u[i] == 1)
 
     planned_minutes: Dict[int, cp_model.IntVar] = {}
+    # Bezahlte Dienstzeit: gefahrene Zeit, mindestens aber der Mindestdienst —
+    # die Luecke ist Bereitschaft (der Fahrer steht bereit, faehrt aber nicht).
+    paid_minutes: Dict[int, cp_model.IntVar] = {}
+    standby_expr_terms: List[cp_model.LinearExpr] = []
+    first_start_by_driver: Dict[int, cp_model.LinearExpr] = {}
+    last_end_by_driver: Dict[int, cp_model.LinearExpr] = {}
     idle_minutes_expr_terms: List[cp_model.LinearExpr] = []
     service_slack_expr_terms: List[cp_model.LinearExpr] = []
     deadhead_expr_terms: List[cp_model.LinearExpr] = []
@@ -497,6 +636,8 @@ def solve_schedule(
         last_end_expr = sum(
             y_sink[(d, i)] * ride_end_min[i] for i in range(r_count) if (d, i) in y_sink
         )
+        first_start_by_driver[d] = first_start_expr
+        last_end_by_driver[d] = last_end_expr
         shift_span = model.NewIntVar(0, horizon, f"shift_span_{d}")
         model.Add(shift_span == last_end_expr - first_start_expr)
 
@@ -536,7 +677,19 @@ def solve_schedule(
         max_allowed = _safe_int_minutes(drv.hard_max_hours)
         min_if_used = _safe_int_minutes(drv.min_shift_hours)
         model.Add(planned <= max_allowed)
-        model.Add(planned >= min_if_used * use[d])
+        # Mindestdienst darf mit Bereitschaft aufgefuellt werden: ein kurzer
+        # Einsatz ist zulaessig, bezahlt wird aber mindestens der Mindestdienst.
+        # Bereitschaft als eigene, nie negative Groesse: sie fuellt den
+        # Mindestdienst auf. So bleiben alle Kosten im Ziel positiv — sonst
+        # rutscht die untere Schranke des Solvers weit ins Minus und die
+        # Guete laesst sich nicht mehr beweisen.
+        standby = model.NewIntVar(0, max(0, min_if_used), f"standby_{d}")
+        model.Add(standby >= min_if_used * use[d] - planned)
+        paid = model.NewIntVar(0, horizon * 2 + min_if_used, f"paid_{d}")
+        model.Add(paid == planned + standby)
+        model.Add(paid <= max(max_allowed, min_if_used))
+        paid_minutes[d] = paid
+        standby_expr_terms.append(standby)
 
         # Idle/slack between rides:
         # idle(i,j) = start_j - end_i - transfer(i->j) - pre_buffer(j), for selected arcs.
@@ -546,11 +699,29 @@ def solve_schedule(
                 if key not in y_arc:
                     continue
                 transfer = zone_matrix.minutes(rides_sorted[i].end_zone, rides_sorted[j].start_zone)
-                idle_ij = ride_start_min[j] - ride_end_min[i] - transfer - ride_pre_buffer[j]
+                idle_ij = (
+                    ride_start_min[j] - ride_end_min[i]
+                    - rides_sorted[i].post_buffer_minutes - transfer - ride_pre_buffer[j]
+                )
                 idle_ij = max(0, int(idle_ij))
                 if idle_ij > 0:
                     idle_minutes_expr_terms.append(y_arc[key] * idle_ij)
                     service_slack_expr_terms.append(y_arc[key] * idle_ij)
+
+    # Geteilte Dienste: Block b desselben Fahrers beginnt fruehestens
+    # `min_split_pause_minutes` nach dem Ende von Block a; beide Bloecke
+    # zusammen respektieren das Tagesmaximum. Block b nur, wenn Block a
+    # ueberhaupt stattfindet (bricht Symmetrie und haelt die Suche klein).
+    for (a, b) in cfg.split_driver_pairs:
+        if a not in planned_minutes or b not in planned_minutes:
+            continue
+        model.AddImplication(use[b], use[a])
+        model.Add(
+            first_start_by_driver[b]
+            >= last_end_by_driver[a] + int(cfg.min_split_pause_minutes)
+        ).OnlyEnforceIf([use[a], use[b]])
+        pair_max = _safe_int_minutes(drivers[a].hard_max_hours)
+        model.Add(paid_minutes[a] + paid_minutes[b] <= pair_max)
 
     # Fairness (soft): minimize the SPREAD (max - min) of total minutes
     # (historical + planned) across active, fairness-eligible drivers.
@@ -558,25 +729,110 @@ def solve_schedule(
     # quadratically and needed big-M gating per pair). Inactive drivers are
     # excluded from both bounds via conditional constraints.
     fairness_driver_indices = [i for i, d in enumerate(drivers) if not d.is_availability_limited]
-    fairness_spread: Optional[cp_model.IntVar] = None
-    if len(fairness_driver_indices) > 1:
+    # Beides zaehlt: bezahlte Arbeitszeit (inkl. Bereitschaft) und gefahrene Zeit.
+    fairness_spread: Optional[cp_model.LinearExpr] = None
+    fairness_ziel_terms: List[cp_model.LinearExpr] = []
+    fairness_ueber_terms: List[cp_model.LinearExpr] = []
+    fairness_ziel_info: Dict[str, float] = {}
+    if cfg.fairness_mode in ("ziel", "ziel2", "hybrid") and len(fairness_driver_indices) > 1:
+        # Vorstufe: schneller Vorplan (Greedy) -> typische Dienstlaenge der
+        # eingesetzten Fahrer. Wer schon mehr Vorstunden hat, bekommt ein
+        # entsprechend niedrigeres Ziel.
+        vorplan = _greedy_schedule(rides_sorted, drivers, zone_matrix, ride_start_min, ride_end_min, ride_pre_buffer)
+        bezahlt_werte, gefahren_werte = [], []
+        fair_set = set(fairness_driver_indices)
+        for d, chain in vorplan.items():
+            if not chain or d not in fair_set:
+                continue
+            drv = drivers[d]
+            first, last = chain[0], chain[-1]
+            gefahren = (
+                ride_end_min[last] - ride_start_min[first]
+                + zone_matrix.minutes(drv.start_zone, rides_sorted[first].start_zone)
+                + ride_pre_buffer[first]
+                + zone_matrix.minutes(rides_sorted[last].end_zone, drv.end_zone)
+            )
+            gefahren_werte.append(gefahren)
+            bezahlt_werte.append(max(gefahren, _safe_int_minutes(drv.min_shift_hours)))
+        if bezahlt_werte:
+            skala = max(0.1, float(cfg.fairness_target_scale))
+            ziel_bezahlt = int(round(sum(bezahlt_werte) / len(bezahlt_werte) * skala))
+            ziel_gefahren = int(round(sum(gefahren_werte) / len(gefahren_werte) * skala))
+            hist_mittel = sum(_safe_int_minutes(drivers[d].historical_worked_hours) for d in fairness_driver_indices) / len(fairness_driver_indices)
+            for d in fairness_driver_indices:
+                korrektur = _safe_int_minutes(drivers[d].historical_worked_hours) - hist_mittel
+                for art, quelle, ziel in (("bezahlt", paid_minutes, ziel_bezahlt), ("gefahren", planned_minutes, ziel_gefahren)):
+                    z = max(0, int(round(ziel - korrektur)))
+                    if cfg.fairness_mode in ("ziel2", "hybrid"):
+                        # Ueber dem Ziel (mehr Arbeit als die anderen) wiegt doppelt.
+                        ueber = model.NewIntVar(0, 200_000, f"fair_ueber_{art}_{d}")
+                        unter = model.NewIntVar(0, 200_000, f"fair_unter_{art}_{d}")
+                        model.Add(ueber >= quelle[d] - z * use[d])
+                        model.Add(unter >= z * use[d] - quelle[d])
+                        fairness_ueber_terms.append(ueber)
+                        fairness_ziel_terms.append(unter)
+                    else:
+                        abw = model.NewIntVar(0, 200_000, f"fair_abw_{art}_{d}")
+                        model.Add(abw >= quelle[d] - z * use[d])
+                        model.Add(abw >= z * use[d] - quelle[d])
+                        fairness_ziel_terms.append(abw)
+            fairness_ziel_info = {"ziel_bezahlt_min": ziel_bezahlt, "ziel_gefahren_min": ziel_gefahren}
+    if cfg.fairness_mode in ("spanne", "hybrid") and len(fairness_driver_indices) > 1:
         total_bound = 200_000
-        fair_max = model.NewIntVar(0, total_bound, "fair_max")
-        fair_min = model.NewIntVar(0, total_bound, "fair_min")
-        for d in fairness_driver_indices:
-            hist = _safe_int_minutes(drivers[d].historical_worked_hours)
-            total_d = model.NewIntVar(0, total_bound, f"fair_total_{d}")
-            model.Add(total_d == planned_minutes[d] + hist)
-            model.Add(fair_max >= total_d).OnlyEnforceIf(use[d])
-            model.Add(fair_min <= total_d).OnlyEnforceIf(use[d])
-        fairness_spread = model.NewIntVar(0, total_bound, "fair_spread")
-        model.Add(fairness_spread >= fair_max - fair_min)
+        spreads = []
+        for art, quelle in (("bezahlt", paid_minutes), ("gefahren", planned_minutes)):
+            fair_max = model.NewIntVar(0, total_bound, f"fair_max_{art}")
+            fair_min = model.NewIntVar(0, total_bound, f"fair_min_{art}")
+            for d in fairness_driver_indices:
+                hist = _safe_int_minutes(drivers[d].historical_worked_hours)
+                total_d = model.NewIntVar(0, total_bound, f"fair_total_{art}_{d}")
+                model.Add(total_d == quelle[d] + hist)
+                model.Add(fair_max >= total_d).OnlyEnforceIf(use[d])
+                model.Add(fair_min <= total_d).OnlyEnforceIf(use[d])
+            spread = model.NewIntVar(0, total_bound, f"fair_spread_{art}")
+            model.Add(spread >= fair_max - fair_min)
+            spreads.append(spread)
+        fairness_spread = spreads
+
+    # Symmetriebruch: gleichwertige Fahrer (gleiches Profil, gleiche Fenster,
+    # gleiche Vorstunden) nur in fester Reihenfolge einsetzen. Die Reihenfolge
+    # wechselt je Planungstag, damit nicht immer dieselben Fahrer zuerst dran sind.
+    if cfg.symmetry_breaking and cfg.tunnel is None:
+        spaet_von = {b for (_, b) in cfg.split_driver_pairs}
+        gruppen: Dict[Tuple, List[int]] = {}
+        for d, drv in enumerate(drivers):
+            if d in spaet_von:
+                continue
+            profil = (
+                drv.is_vip_qualified, drv.historical_worked_hours, drv.availability_max_hours, drv.legal_max_hours,
+                drv.min_shift_hours, drv.start_zone, drv.end_zone, drv.is_ev, drv.ev_range_km,
+                drv.earliest_start_minute, drv.latest_end_minute,
+            )
+            gruppen.setdefault(profil, []).append(d)
+        tag_text = planning_day.isoformat()
+        for mitglieder in gruppen.values():
+            if len(mitglieder) < 2:
+                continue
+            mitglieder.sort(key=lambda d: hashlib.sha1(f"{tag_text}|{drivers[d].driver_id}".encode()).hexdigest())
+            for a, b in zip(mitglieder, mitglieder[1:]):
+                model.Add(use[a] >= use[b])
 
     total_unassigned = sum(u[i] for i in range(r_count))
     total_active = sum(use[d] for d in range(d_count))
-    total_idle = sum(idle_minutes_expr_terms) if idle_minutes_expr_terms else 0
+    # Bereitschaft kostet wie Leerlauf: bezahlte Zeit ohne Fahrt.
+    total_idle = sum(idle_minutes_expr_terms + standby_expr_terms) if (idle_minutes_expr_terms or standby_expr_terms) else 0
     total_service_slack = sum(service_slack_expr_terms) if service_slack_expr_terms else 0
-    total_fairness = fairness_spread if fairness_spread is not None else 0
+    fair_w = int(weights.fairness_pair_abs_minute)
+    total_fairness_weighted = 0
+    if fairness_ueber_terms:
+        # Ueber dem Ziel doppelt so teuer wie darunter.
+        w = max(1, fair_w // max(1, cfg.fairness_dev_div))
+        total_fairness_weighted += 2 * w * sum(fairness_ueber_terms) + w * sum(fairness_ziel_terms)
+    elif fairness_ziel_terms:
+        total_fairness_weighted += max(1, fair_w // 8) * sum(fairness_ziel_terms)
+    if fairness_spread is not None and cfg.fairness_spread_div > 0:
+        w_s = max(1, fair_w // cfg.fairness_spread_div) if cfg.fairness_mode == "hybrid" else fair_w
+        total_fairness_weighted += (w_s // 2) * fairness_spread[0] + (w_s - w_s // 2) * fairness_spread[1]
     total_deadhead = sum(deadhead_expr_terms) if deadhead_expr_terms else 0
 
     # Minimize weighted objective. Service slack is a reward (subtracted).
@@ -584,7 +840,9 @@ def solve_schedule(
         weights.unassigned_ride * total_unassigned
         + weights.active_driver * total_active
         + weights.idle_minute * total_idle
-        + weights.fairness_pair_abs_minute * total_fairness
+        + total_fairness_weighted
+        # Unnoetige Bereitschaft minimal teurer als jeder Fairness-Gewinn.
+        + (sum(standby_expr_terms) if standby_expr_terms else 0)
         + weights.deadhead_minute * total_deadhead
         - weights.service_slack_minute_reward * total_service_slack
     )
@@ -598,6 +856,8 @@ def solve_schedule(
             rides_sorted, drivers, zone_matrix,
             ride_start_min, ride_end_min, ride_pre_buffer,
         )
+        # Kurze Ketten sind zulaessig: der Mindestdienst wird mit Bereitschaft
+        # aufgefuellt, der Greedy-Hint bleibt deshalb vollstaendig.
         assigned_ride_to_driver: Dict[int, int] = {}
         for d, chain in greedy_chains.items():
             for i in chain:
@@ -609,8 +869,33 @@ def solve_schedule(
             for i in range(r_count):
                 model.AddHint(x[(d, i)], 1 if assigned_ride_to_driver.get(i) == d else 0)
 
+        # Auch die Kettenstruktur mitgeben: ohne Start-, End- und Verbindungs-
+        # kanten ist der Hinweis unvollständig und CP-SAT verwirft ihn meist,
+        # statt von der fertigen Startlösung aus weiterzusuchen.
+        for d, chain in greedy_chains.items():
+            if not chain:
+                continue
+            first, last = chain[0], chain[-1]
+            if (d, first) in y_source:
+                model.AddHint(y_source[(d, first)], 1)
+            if (d, last) in y_sink:
+                model.AddHint(y_sink[(d, last)], 1)
+            for position in range(len(chain) - 1):
+                key = (d, chain[position], chain[position + 1])
+                if key in y_arc:
+                    model.AddHint(y_arc[key], 1)
+            # Übrige Start-/Endkanten dieses Fahrers ausschließen, damit der
+            # Hinweis in sich widerspruchsfrei bleibt.
+            for i in chain:
+                if i != first and (d, i) in y_source:
+                    model.AddHint(y_source[(d, i)], 0)
+                if i != last and (d, i) in y_sink:
+                    model.AddHint(y_sink[(d, i)], 0)
+
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = float(cfg.max_solver_time_seconds)
+    if float(cfg.relative_gap_limit) > 0:
+        solver.parameters.relative_gap_limit = float(cfg.relative_gap_limit)
     solver.parameters.num_search_workers = int(cfg.num_search_workers)
 
     status = solver.Solve(model)
@@ -647,7 +932,8 @@ def solve_schedule(
         deadhead_minutes = 0
         shift_start_dt: Optional[datetime] = None
         shift_end_dt: Optional[datetime] = None
-        planned_hours = solver.Value(planned_minutes[d]) / 60.0 if d in planned_minutes else 0.0
+        planned_hours = solver.Value(paid_minutes[d]) / 60.0 if d in paid_minutes else 0.0
+        standby_minutes = (solver.Value(paid_minutes[d]) - solver.Value(planned_minutes[d])) if d in paid_minutes else 0
         total_planned_hours += planned_hours
 
         if active:
@@ -676,7 +962,7 @@ def solve_schedule(
             shift_start_min = ride_start_min[first_i] - ride_pre_buffer[first_i] - start_transfer
             shift_start_min = max(0, shift_start_min)
             end_transfer = zone_matrix.minutes(rides_sorted[last_i].end_zone, drv.end_zone)
-            shift_end_min = ride_end_min[last_i] + end_transfer
+            shift_end_min = ride_end_min[last_i] + end_transfer + max(0, standby_minutes)
             deadhead_minutes += start_transfer + end_transfer
 
             day_start = datetime.combine(planning_day, time.min, tzinfo=rides_sorted[first_i].start_time.tzinfo)
@@ -684,7 +970,8 @@ def solve_schedule(
             shift_end_dt = day_start + timedelta(minutes=shift_end_min)
 
         note = (
-            "Active shift with compactness/fairness objective applied."
+            ("Active shift with compactness/fairness objective applied."
+             + (f" Inkl. {standby_minutes} min Bereitschaft (Mindestdienst)." if standby_minutes > 0 else ""))
             if active
             else "Driver not used in this plan."
         )
