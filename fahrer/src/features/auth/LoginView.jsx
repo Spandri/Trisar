@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import TrisarFooter from '../../components/ui/TrisarFooter';
 import {
+  PARTNER_LOGO_URL,
+  PARTNER_X_URL,
   PASSWORD_EYE_CLOSED_ICON_URL,
   PASSWORD_EYE_OPEN_ICON_URL,
   RIDE_ARROW_RIGHT_URL,
   TRISAR_LOGO_URL,
 } from '../../shared/ui/icons';
+import { DEMO_MODE } from '../../datenquelle';
 
 const screenBg = {
   backgroundImage:
@@ -43,6 +46,13 @@ const LoginView = ({
 
         <div className="absolute left-5 top-[103px] w-[362px] h-[53px]">
           <img src={TRISAR_LOGO_URL} alt="trisar" className="absolute left-0 top-[14px] w-[161.79px] h-6 object-contain" />
+          {/* Kundenlogo (trisar x Kunde) nur im Live-Betrieb, die Demo zeigt nur trisar. */}
+          {!DEMO_MODE ? (
+            <>
+              <img src={PARTNER_X_URL} alt="" className="absolute left-[195px] top-[17px] w-5 h-5 object-contain" />
+              <img src={PARTNER_LOGO_URL} alt="partner" className="absolute left-[249px] top-0 w-[113px] h-[53px] object-contain" />
+            </>
+          ) : null}
         </div>
 
         <div className="absolute left-5 top-[212px] w-[362px] h-[304px]">
