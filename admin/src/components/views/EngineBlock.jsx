@@ -2,14 +2,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { engineTag } from '../../demo/engineErgebnisse';
 import { ereignisseFuerTag, risikoOption, risikoTag, useEreignisAenderungen, useRisikoDaten } from '../../demo/risikoErgebnisse';
 import { EreignisKacheln, PufferDash } from './RisikoBausteine';
-import { useI18n } from '../../i18n';
 import { demoStore } from '../../demo/demoClient';
+import { angebotAntwort, useAngebotAntworten } from '../../demo/angebotAntworten';
 
 // TRISAR-Engine in der Tagesplanung (zwischen Optionen und Dienstkarten):
 //   - gewählte Option mit Kennzahlen, Vor- und Nachteilen im Vergleich
 //   - vorhergesagte Verkehrsereignisse (z. B. Heimspiel Allianz Arena)
 //   - Rad-/U-Bahn-Angebote, die vorab an Standardgäste gehen
-//   - Einsatztag: vorgerechnete Störung (Unfall A9) mit Neuplanung
+//   (Die Störung am Einsatztag meldet der KI-Assistent, siehe NeuplanungView.)
 // Die Höhe meldet der Block nach oben, damit die Karten darunter anschließen.
 
 const LIME = '#e3f654';
@@ -22,23 +22,9 @@ const zahl = (n, stellen = 0) => (Number.isFinite(Number(n))
   : '–');
 const uhr = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(Math.round(min) % 60).padStart(2, '0')}`;
 
-// Antwort der Gäste in der Demo: fest je Fahrt (keine Zufallszahlen beim Rendern).
-// Die fünf Demo-Angebote sind festgelegt (3 zugesagt, 1 abgelehnt, 1 offen), sonst
-// sagen etwa 6 von 10 zu, 2 lehnen ab, 2 haben noch nicht geantwortet.
-const ANTWORTEN = {
-  'demo-h001': 'zugesagt',   // 07:05 Leihrad
-  'demo-h002': 'abgelehnt',  // 07:20 U-Bahn
-  'demo-h009': 'zugesagt',   // 10:10 Leihrad
-  'demo-h019': 'offen',      // 17:30 Leihrad
-  'demo-e502': 'zugesagt',   // Messetag 08:10 U-Bahn
-};
-const antwort = (rideId) => {
-  if (ANTWORTEN[rideId]) return ANTWORTEN[rideId];
-  let h = 0;
-  for (const c of String(rideId)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const r = h % 10;
-  return r < 6 ? 'zugesagt' : r < 8 ? 'offen' : 'abgelehnt';
-};
+// Antwort der Gäste: In der Vorabplanung ist jedes Angebot offen, der Gast
+// entscheidet in seiner App (siehe demo/angebotAntworten.js).
+const antwort = (rideId) => angebotAntwort(rideId);
 const zugesagt = (rideId) => antwort(rideId) === 'zugesagt';
 const ANTWORT_FARBE = { zugesagt: GRUEN, abgelehnt: ROT };
 const ort = (name) => String(name || '').split(',')[0];
@@ -88,14 +74,13 @@ function Ereignis({ e, umfahrung }) {
   );
 }
 
-export default function EngineBlock({ tagIso, eintrag, onHoehe, onNeuplanungZeigen, laeuft, onEreignisse, onPuffer }) {
-  const { t } = useI18n();
+export default function EngineBlock({ tagIso, eintrag, onHoehe, laeuft, onEreignisse, onPuffer }) {
   const risiko = useRisikoDaten();
   useEreignisAenderungen();
+  useAngebotAntworten();
   const ref = useRef(null);
   const [tag, setTag] = useState(null);
   const [angebotOffen, setAngebotOffen] = useState(null);
-  const [stoerungOffen, setStoerungOffen] = useState(false);
 
   useEffect(() => {
     let aktiv = true;
@@ -129,7 +114,6 @@ export default function EngineBlock({ tagIso, eintrag, onHoehe, onNeuplanungZeig
   }, [gewaehltesAngebot, eintrag]);
   const ereignisse = Array.isArray(engine?.ereignisse) ? engine.ereignisse : [];
   const umfahrung = engine?.fahrten ? Object.values(engine.fahrten).filter((f) => f.route === 'FTO').length : 0;
-  const st = tag?.stoerung || null;
   // Vergleich nur, wenn der gespeicherte Plan des bisherigen Planers zu den heutigen Fahrten passt.
   const alt = tag?.bisheriger_planer?.passend === false ? null : (tag?.bisheriger_planer || null);
   const leerVergleich = (() => {
@@ -146,7 +130,7 @@ export default function EngineBlock({ tagIso, eintrag, onHoehe, onNeuplanungZeig
   return (
     <div ref={ref} className="absolute left-[20px] w-[362px] flex flex-col gap-[12px]" style={{ top: '540px', opacity: laeuft ? 0.3 : 1 }} data-tutorial="planer-engine">
       {kz ? (
-        <div className="bg-[#fefffe] px-[18px] py-[16px] flex flex-col gap-[10px]" style={{ color: DUNKEL }}>
+        <div data-tutorial="planer-engine-karte" className="bg-[#fefffe] px-[18px] py-[16px] flex flex-col gap-[10px]" style={{ color: DUNKEL }}>
           <div className="flex items-baseline justify-between">
             <p className="text-[20px] font-bold tracking-[-0.3px]">{engine.titel}</p>
             {engine.standard ? <span className="text-[11px] font-bold px-[6px] py-[2px]" style={{ background: LIME }}>Standard</span> : null}
@@ -238,7 +222,7 @@ export default function EngineBlock({ tagIso, eintrag, onHoehe, onNeuplanungZeig
         <div className="flex flex-col gap-[10px] mt-[10px]">
           <div className="flex items-baseline justify-between" style={{ color: LIME }}>
             <p className="text-[16px] font-bold">Rad & U-Bahn</p>
-            <span className="text-[12px] opacity-75">{`${zahl(kmGespart)} km gespart`}</span>
+            <span className="text-[12px] opacity-75">{zusagen.length ? `${zahl(kmGespart)} km gespart` : `${angebote.length} ${angebote.length === 1 ? 'Angebot' : 'Angebote'} an Gäste`}</span>
           </div>
           <div className="flex gap-[12px] overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {angeboteSortiert.map((a) => {
@@ -248,6 +232,7 @@ export default function EngineBlock({ tagIso, eintrag, onHoehe, onNeuplanungZeig
                 <button
                   key={a.ride_id}
                   type="button"
+                  data-tutorial={`angebot-${a.ride_id}`}
                   onClick={() => setAngebotOffen(offen ? null : a.ride_id)}
                   className="shrink-0 flex flex-col justify-between text-left border-2 border-solid"
                   style={{
@@ -267,7 +252,7 @@ export default function EngineBlock({ tagIso, eintrag, onHoehe, onNeuplanungZeig
             })}
           </div>
           {gewaehltesAngebot ? (
-            <div className="bg-[#fefffe] px-[14px] py-[12px] text-[12px] leading-[17px] flex flex-col gap-[4px]" style={{ color: DUNKEL }}>
+            <div data-tutorial="angebot-detail" className="bg-[#fefffe] px-[14px] py-[12px] text-[12px] leading-[17px] flex flex-col gap-[4px]" style={{ color: DUNKEL }}>
               <div className="flex justify-between gap-[8px] text-[13px]">
                 <span>{gaesteText(angebotDetail?.job)}</span>
                 <span style={{ color: ANTWORT_FARBE[antwort(gewaehltesAngebot.ride_id)] }}>{antwort(gewaehltesAngebot.ride_id)}</span>
@@ -283,60 +268,17 @@ export default function EngineBlock({ tagIso, eintrag, onHoehe, onNeuplanungZeig
               <span className="opacity-75">
                 {`Danach ${gewaehltesAngebot.modus === 'rad' ? 'Leihrad' : 'U-Bahn'} ${gewaehltesAngebot.weiter_min} min. Gesamt ${gewaehltesAngebot.gesamt_min} statt ${gewaehltesAngebot.auto_min} min, ${vergleichViel(gewaehltesAngebot.vorsprung_viel_verkehr_min)}.`}
               </span>
+              {antwort(gewaehltesAngebot.ride_id) === 'zugesagt' ? (
+                // Kleine Neuplanung nach der Zusage: das Auto faehrt nur noch bis zum Umsteigepunkt.
+                <span data-tutorial="angebot-neuplanung" className="mt-[4px] px-[6px] py-[4px] font-bold" style={{ background: LIME, color: '#000' }}>
+                  {`Neu geplant: ${angebotDetail?.dienst?.name || 'Der Fahrer'} fährt nur noch ${gewaehltesAngebot.auto_bis_min} statt ${gewaehltesAngebot.auto_min} min, ${zahl(gewaehltesAngebot.km_gespart)} km weniger.`}
+                </span>
+              ) : null}
             </div>
           ) : null}
         </div>
       ) : null}
 
-      {st ? (
-        <div className="border border-solid px-[14px] py-[12px] text-[12px] leading-[17px]" style={{ borderColor: ROT, color: '#ffffff' }}>
-          <button type="button" className="w-full text-left" onClick={() => setStoerungOffen((o) => !o)} data-tutorial="planer-stoerung">
-            <p className="font-bold text-[13px]" style={{ color: ROT }}>{`Einsatztag simulieren: ${st.ereignis.name.split(' (')[0]}`}</p>
-            <p className="opacity-90 mt-[2px]">{`Verkehrsmeldung um ${st.meldung}. `}<span className="underline">{stoerungOffen ? 'ausblenden' : 'Störung eintreten lassen'}</span></p>
-          </button>
-          {stoerungOffen ? (
-            <div className="mt-[10px] flex flex-col gap-[8px]">
-              <div className="grid grid-cols-3 gap-[6px]">
-                {[
-                  ['Bisheriger Planer', alt?.stoerung_spaet ? Object.keys(alt.stoerung_spaet).length : null,
-                    alt?.stoerung_spaet ? `${Object.values(alt.stoerung_spaet).reduce((a, b) => a + b, 0)} min` : 'nicht gerechnet'],
-                  ['TRISAR-Plan', st.ohne_neuplanung.anzahl, st.ohne_neuplanung.anzahl ? `${st.ohne_neuplanung.minuten} min` : 'Reserve hält'],
-                  ['nach Neuplanung', st.mit_neuplanung.anzahl,
-                    st.aenderungen.length ? `${st.mit_neuplanung.fahrertausch} getauscht · ${st.mit_neuplanung.reservefahrzeuge} Bereitschaft` : 'kein Eingriff nötig'],
-                ].map(([titel, n, unter]) => (
-                  <div key={titel} className="bg-[#2a2a2b] px-[8px] py-[8px]">
-                    <p className="text-[10px] leading-[13px] opacity-70">{titel}</p>
-                    <p className="text-[15px] font-bold" style={{ color: n ? ROT : GRUEN }}>{n == null ? '–' : `${n} zu spät`}</p>
-                    <p className="text-[10px] leading-[13px] opacity-70">{unter}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="opacity-70 text-[11px]">Zu spät = Fahrer erreicht den Abholort nach der Abholzeit. Gleiches Verkehrsmodell für beide Planer.</p>
-              {st.umfahrung_fto?.length ? <p className="opacity-90">{`${st.umfahrung_fto.length} Fahrten über die Flughafentangente Ost umgeleitet.`}</p> : null}
-              {Object.keys(st.spaetere_ankunft || {}).length ? (
-                <p className="opacity-90">{`${Object.keys(st.spaetere_ankunft).length} Ankünfte verschieben sich durch den Stau (bis +${Math.max(...Object.values(st.spaetere_ankunft))} min). Gäste und Ziel werden automatisch informiert.`}</p>
-              ) : null}
-              {st.aenderungen.slice(0, 8).map((a) => (
-                <p key={`${a.abfahrt}-${a.ride_ids[0]}`} className="opacity-90">
-                  <span className="font-bold">{a.abfahrt}</span>
-                  {` ${a.von}: ${a.reservefahrzeug ? 'Bereitschaft' : ''} ${a.neuer_fahrer} statt ${a.alter_fahrer || '–'}`}
-                </p>
-              ))}
-              {st.aenderungen.length > 8 ? <p className="opacity-70">{t('planer.moreRides', { n: st.aenderungen.length - 8 })}</p> : null}
-              {st.aenderungen.length ? (
-              <button
-                type="button"
-                onClick={() => onNeuplanungZeigen?.(st.antwort)}
-                className="mt-[4px] h-[44px] w-full flex items-center justify-center text-[18px] font-bold"
-                style={{ background: LIME, color: '#000' }}
-              >
-                Neuplanung als Vorschlag zeigen
-              </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   );
 }

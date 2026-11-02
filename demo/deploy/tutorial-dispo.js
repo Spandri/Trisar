@@ -57,17 +57,12 @@
     fahrtAnlegen: { von: 'list', hin: 'navi-plus', zurueck: 'anlegen-zurueck', kennung: 'fahrt-anlegen' },
 
     fahrer: { von: 'list', hin: 'start-fahrer', zurueck: 'fahrer-zurueck', kennung: 'fahrer-liste' },
-    // Das Blatt "Dienste planen" liegt ueber der Fahrerliste; hinein geht es
-    // nur mit ausgewaehlten Fahrern, darum oeffnet es der Schritt selbst.
-    dienstPlanen: { von: 'fahrer', hin: 'dienste-planen-knopf', zurueck: 'dienst-abbrechen', kennung: 'dienste-sheet' },
-    // Der KI-Planer liegt als Ebene ueber der Fahrerliste (die darunter
-    // sichtbar bleibt) — als tieferer Ort wird er zuerst erkannt.
-    planer: { von: 'fahrer', hin: 'planer-ki-knopf', zurueck: 'planer-zurueck', kennung: 'ki-planer' },
+    // Der KI-Planer oeffnet ohne Einsatz direkt den Kalender (wie ausserhalb des Tutorials).
+    planer: { von: 'fahrer', hin: 'planer-ki-knopf', zurueck: 'planer-kalender-zurueck', kennung: 'planer-kalender' },
     // Einsatzplanung: Kalender (Zeitraum) und Tagesplanung liegen als Ebenen
     // ueber dem KI-Planer. In die Tagesplanung geht es nur mit gewaehltem Tag,
     // darum waehlt der Schritt ihn selbst.
-    planerKalender: { von: 'planer', hin: 'planer-starten', zurueck: 'planer-kalender-zurueck', kennung: 'planer-kalender' },
-    planerBedarf: { von: 'planerKalender', hin: 'planer-kalender-weiter', zurueck: 'planer-bedarf-zurueck', kennung: 'planer-bedarf' },
+    planerBedarf: { von: 'planer', hin: 'planer-kalender-weiter', zurueck: 'planer-bedarf-zurueck', kennung: 'planer-bedarf' },
     planerTag: { von: 'planerBedarf', hin: 'planer-bedarf-weiter', zurueck: 'planer-tag-zurueck', kennung: 'planer-tagesplanung' },
 
     karte: { von: 'list', hin: 'navi-karte', zurueck: 'karte-zurueck', kennung: 'karte-ansicht' },
@@ -75,6 +70,8 @@
     fahrzeuge: { von: 'list', hin: 'start-fahrzeuge', zurueck: 'fahrzeuge-zurueck', kennung: 'fahrzeuge-liste' },
     kunden: { von: 'list', hin: 'start-kunden', zurueck: 'kunden-zurueck', kennung: 'kunden-liste' },
     ki: { von: 'list', hin: 'navi-ki-assistent', zurueck: 'ki-zurueck', kennung: 'ki-assistent' },
+    // Neuplanung nach einer Stoerung: aus der Meldung im KI-Assistenten heraus.
+    neuplanung: { von: 'ki', hin: 'ki-neuplanung', zurueck: 'planer-neuplanung-zurueck', kennung: 'planer-neuplanung' },
   };
 
   window.TRISAR_TUTORIAL_DISPO = [
@@ -217,41 +214,21 @@
       fokus: ['fahrer-status', 'fahrer-' + FAHRER_ADRIAN],
       text: 'Jeder Fahrer steht mit Fahrzeug, Nummer und Dienstzeiten in der Liste. Über Im Dienst, Frei und Unfertig lässt sich die Liste eingrenzen.',
     },
-    {
-      kategorie: 'Dienste planen',
-      pfad: ['Fahrer Liste', 'Dienste planen'],
-      ort: 'fahrer',
-      // Eine Auswahl aus einem frueheren Durchlauf bleibt sonst stehen und der
-      // Tipp auf "Auswaehlen" hebt sie wieder auf — in der Ansicht leeren, nicht springen.
-      zustand: { fahrerAuswahlLeeren: true },
-      // Fahrer anwischen legt "Auswaehlen" frei, danach oeffnet "Planen" das Blatt.
-      aktion: [
-        { scrollZu: 'fahrer-' + FAHRER_ADRIAN, nach: 400 },
-        { ziehen: 'fahrer-' + FAHRER_ADRIAN, dx: 120, dy: 0, nach: 300 },
-        { klick: 'fahrer-aktion-auswaehlen-' + FAHRER_ADRIAN, nach: 400 },
-        { klick: 'dienste-planen-knopf', nach: 700, ortDanach: 'dienstPlanen' },
-      ],
-      fokusDanach: 'dienst-vorlagen',
-      text: 'Ausgewählte Fahrer werden gemeinsam eingeplant, mit Vorlagen für Früh-, Tag-, Spät- und Nachtdienst. Beim Fahrer erscheint die Dienstanfrage direkt auf dem Dashboard.',
-    },
+    // "Dienste planen" (von Hand) ist vorerst ausgeblendet, siehe DIENSTE_VON_HAND in AlleFahrer.jsx.
 
     // ---------- KI-Planer ----------
     {
       kategorie: 'KI-Planer',
       pfad: ['Fahrer Liste', 'KI-Planer'],
+      // Ohne fertigen Einsatz oeffnet der KI-Planer direkt den Kalender.
       ort: 'planer',
-      fokus: 'planer-diagramm',
-      // Einen Tag weiterblaettern.
-      aktion: [
-        { ziehen: 'planer-wischflaeche', dx: -180, dy: 0, nach: 1600 },
-      ],
-      text: 'Der KI-Planer rechnet für bis zu drei Tage voraus, wie viele Fahrer zu welcher Stunde gebraucht werden.',
+      fokus: 'planer-kalender',
+      text: 'Der KI-Planer beginnt mit dem Kalender. Die Disposition wählt den Zeitraum des Einsatzes, bis zu drei Tage voraus. Wählbar sind die Tage, an denen Fahrten anstehen.',
     },
     {
-      kategorieLinks: 'Einsatzplanung',
-      kategorieRechts: 'Vorschläge',
+      kategorie: 'Einsatzplanung',
       pfad: ['KI-Planer', 'Einsatzplanung'],
-      ort: 'planerKalender',
+      ort: 'planer',
       // Der Schritt bereitet sich selbst vor: im Kalender morgen waehlen und
       // die Planung starten. So stehen Vorschlaege auch dann da, wenn man von
       // hinten hierher kommt.
@@ -260,16 +237,109 @@
         { klick: 'planer-kalender-weiter', nach: 600, ortDanach: 'planerBedarf' },
         // Bedarfsuebersicht: gerechnet wird erst mit dem Pfeil.
         { klick: 'planer-bedarf-weiter', nach: 1400, ortDanach: 'planerTag' },
+      ],
+      // Nur das Tagesdiagramm (Fahrer gegen Bedarf): die Dienstvorschlaege liegen
+      // seit dem Engine-Block weit unten und kommen als eigener Schritt ("Vorschläge").
+      // 'planer-strategie' gibt es auch in der Planer-Ansicht dahinter, deshalb nicht.
+      fokus: 'planer-tag-diagramm',
+      fokusNachAktion: true,
+      text: 'Mit einem Tipp entstehen Dienstvorschläge für den gewählten Zeitraum. Die TRISAR-Engine rechnet Stau, Flugverspätungen und Großveranstaltungen vorab ein und senkt CO₂ und Kosten gemeinsam. Standard plant knapp und steuert am Einsatztag nach, Sicher deckt mit mehr Fahrzeugen auch seltene Störungen vorab ab.',
+    },
+
+    // ---------- TRISAR-Engine in der Tagesplanung (Stadttag) ----------
+    // Werte aus admin-app-demo/src/demo/data/engine-ergebnisse.json, Stand 02.11.2026.
+    {
+      kategorie: 'TRISAR-Engine',
+      pfad: ['Einsatzplanung', 'Engine'],
+      ort: 'planerTag',
+      zustand: { planerTag: 1 },
+      fokus: 'planer-engine-karte',
+      text: 'Die Engine plant Fahrzeuge, Fahrerdienste, Ladefenster und Verkehrsart aller Fahrten in einer Rechnung, mit CO₂ und Kosten als Ziel. Darunter der Vergleich mit der Planung wie heute, mit festen 20 min Puffer je Fahrt.',
+    },
+    {
+      kategorieLinks: 'Vorhersage',
+      kategorieRechts: 'Puffer je Fahrt',
+      pfad: ['Einsatzplanung', 'Risiko'],
+      ort: 'planerTag',
+      zustand: { planerTag: 1 },
+      fokus: ['planer-vorhersage', 'planer-puffer-dash'],
+      links: 'Vor dem Einsatztag sammelt die Engine, was der Tag bringt: Flugankünfte mit Verspätung, Bahnankünfte, Verkehr je Stunde, Großveranstaltungen.',
+      rechts: 'Daraus rechnet sie für jede Fahrt das Risiko. Puffer gibt es nur dort, wo er gebraucht wird, statt überall gleich.',
+    },
+    {
+      kategorie: 'Rad & U-Bahn',
+      pfad: ['Einsatzplanung', 'Umstieg'],
+      ort: 'planerTag',
+      // Heute (Basistag): hier liegen die Rad-Angebote. Antwort des Gasts zuruecksetzen,
+      // damit der Schritt immer gleich aussieht.
+      zustand: { planerTag: 0, angebot: { ride: 'demo-h001', antwort: 'offen' } },
+      aktion: [
+        { scrollZu: 'angebot-demo-h001', nach: 500 },
+        { klick: 'angebot-demo-h001', nach: 800 },
+      ],
+      fokus: [['angebot-demo-h001', 'angebot-detail']],
+      fokusNachAktion: true,
+      text: 'Ist viel Verkehr vorhergesagt, schlägt die Engine Standardgästen vor, ab einem Umsteigepunkt mit Leihrad oder U-Bahn weiterzufahren, wenn das deutlich schneller ist. In der Vorabplanung bleibt das ein Angebot. Entscheiden tut der Gast.',
+    },
+    {
+      kategorie: 'Zusage',
+      pfad: ['Umstieg', 'Neu geplant'],
+      ort: 'planerTag',
+      zustand: { planerTag: 0, angebot: { ride: 'demo-h001', antwort: 'zugesagt' } },
+      fokus: [['angebot-demo-h001', 'angebot-detail']],
+      text: 'Sagt der Gast in seiner App zu, plant TRISAR die Fahrt neu: Das Auto fährt nur noch bis U Nordfriedhof, der Gast ist 10 Minuten früher am Ziel und das Auto fährt 5,6 km weniger.',
+    },
+    {
+      kategorie: 'Vorschläge',
+      pfad: ['Einsatzplanung', 'Vorschläge'],
+      ort: 'planerTag',
+      zustand: { planerTag: 1 },
+      aktion: [
+        { scrollZu: 'planer-vorschlag-0', nach: 400 },
         // Annehmen und Ablehnen nur zeigen: ein angenommener Vorschlag
         // verschwindet, die Hervorhebung spraenge sonst auf den naechsten Fahrer.
         { umkreisen: '[data-tutorial="planer-vorschlag-0-ablehnen"]', runden: 1, nach: 1400 },
         { umkreisen: '[data-tutorial="planer-vorschlag-0-annehmen"]', runden: 1, nach: 200 },
       ],
-      fokus: ['planer-strategie', ['planer-vorschlag-0', 'planer-vorschlag-0-ablehnen', 'planer-vorschlag-0-annehmen']],
-      // Hervorheben, sobald die Vorschlaege da sind — noch vor dem Umkreisen.
-      fokusNachAktion: 3,
-      links: 'Mit einem Tipp entstehen Dienstvorschläge für den gewählten Zeitraum. Die TRISAR-Engine rechnet Stau, Flugverspätungen und Großveranstaltungen vorab ein und senkt CO₂ und Kosten gemeinsam. Standard plant knapp und steuert am Einsatztag nach, Sicher deckt mit mehr Fahrzeugen auch seltene Störungen vorab ab.',
-      rechts: 'Jeder Vorschlag wird angenommen oder abgelehnt. Angenommene Dienste gehen als Anfrage an den Fahrer.',
+      fokus: [['planer-vorschlag-0', 'planer-vorschlag-0-ablehnen', 'planer-vorschlag-0-annehmen']],
+      fokusNachAktion: 1,
+      text: 'Darunter steht für jeden Fahrer ein Dienstvorschlag mit seinen Fahrten. Jeder Vorschlag lässt sich einzeln annehmen oder ablehnen.',
+    },
+    {
+      kategorie: 'Plan annehmen',
+      pfad: ['Einsatzplanung', 'Annehmen'],
+      ort: 'planerTag',
+      // Direkt nach unten springen statt an allen Vorschlaegen vorbeizuwischen.
+      zustand: { planerTag: 1, planerZu: 'planer-tag-accept' },
+      aktion: [
+        { klick: 'planer-tag-accept', nach: 900 },
+      ],
+      fokus: 'planer-tag-accept',
+      text: 'Mit accept wird der ganze Tag übernommen. Jeder Fahrer bekommt seinen Dienst als Anfrage in die Fahrer-App.',
+    },
+    {
+      kategorie: 'Störung am Einsatztag',
+      pfad: ['KI-Assistent', 'Störung'],
+      ort: 'ki',
+      // Stoerung am Stadttag (morgen) sicher im Assistenten, auch wenn accept uebersprungen wurde.
+      // Direkt in den Assistenten, statt sich rueckwaerts durch die Planung zu klicken.
+      zustand: { stoerungTag: 1, ansicht: 'kiAssistent' },
+      fokus: [['ki-antwort', 'ki-neuplanung']],
+      text: 'Am Einsatztag sperrt ein Unfall die A9. Der KI-Assistent meldet die Störung, erklärt kurz die Folgen und hat schon eine Neuplanung vorbereitet.',
+    },
+    {
+      kategorieLinks: 'Neuplanung',
+      kategorieRechts: 'Übernehmen',
+      pfad: ['Störung', 'Neuplanung'],
+      ort: 'neuplanung',
+      fokus: 'neuplanung-vergleich',
+      aktion: [
+        { scrollZu: 'planer-neuplanung-uebernehmen', nach: 1600 },
+        { umkreisen: '[data-tutorial="planer-neuplanung-uebernehmen"]', runden: 1, nach: 300 },
+      ],
+      fokusDanach: [['neuplanung-aenderungen', 'planer-neuplanung-uebernehmen']],
+      links: 'Der Planer zeigt nur, was sich ändert, mit dem Vergleich: ohne Eingriff 3 Gäste zu spät, nach der Neuplanung keiner. Mit festen Puffern wären es 38 gewesen, 23 davon schon ohne Unfall.',
+      rechts: '4 Fahrten bekommen einen anderen Fahrer. Die Disposition übernimmt mit einem Tipp oder lehnt ab.',
     },
 
     // ---------- Karte ----------

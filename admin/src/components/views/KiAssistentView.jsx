@@ -5,6 +5,9 @@ import { askDatabaseAssistant, invalidateDatabaseAssistantCache } from '../../se
 import { supabase } from '../../services/supabase';
 import { demoStore } from '../../demo/demoClient';
 import { useI18n } from '../../i18n';
+import {
+  neuplanungStatus, neuplanungZielSetzen, stoerungenNachAnnahme, stoerungText,
+} from '../../demo/stoerungDemo';
 
 // Telefonnummern in Antworten des Assistenten werden zu Links: ein Tipp ruft an.
 const TELEFON_RE = /(\+?\d[\d ()/-]{6,}\d)/g;
@@ -170,6 +173,28 @@ export default function KiAssistentView({ setView, onCreateRide, onOpenRideEdito
       return buildDefaultMessages(t);
     }
   });
+
+  // Demo: Ist ein Tag mit vorgerechneter Störung angenommen, meldet der
+  // Assistent die Störung und verlinkt auf die Neuplanung im Planer.
+  useEffect(() => {
+    let aktiv = true;
+    stoerungenNachAnnahme().then((liste) => {
+      if (!aktiv || !liste.length) return;
+      setMessages((prev) => {
+        const neu = liste
+          .filter(({ iso }) => !prev.some((msg) => msg.id === `stoerung-${iso}`))
+          .map(({ iso, tag }) => ({
+            id: `stoerung-${iso}`,
+            role: 'assistant',
+            text: stoerungText(iso, tag.stoerung),
+            time: tag.stoerung.meldung,
+            stoerungTag: iso,
+          }));
+        return neu.length ? [...prev, ...neu] : prev;
+      });
+    });
+    return () => { aktiv = false; };
+  }, []);
 
   const hasInput = inputText.trim().length > 0;
 
@@ -666,6 +691,27 @@ export default function KiAssistentView({ setView, onCreateRide, onOpenRideEdito
                     </button>
                   </div>
                 </div>
+
+                {message.stoerungTag ? (
+                  <div className="mt-3 w-full max-w-[362px]">
+                    {neuplanungStatus(message.stoerungTag) ? (
+                      <div className="text-[#59BE80] text-[11px] font-medium font-['Space_Grotesk']">
+                        {neuplanungStatus(message.stoerungTag) === 'uebernommen' ? 'Neuplanung übernommen, Fahrer sind informiert.' : 'Neuplanung abgelehnt.'}
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      data-tutorial="ki-neuplanung"
+                      onClick={() => {
+                        neuplanungZielSetzen(message.stoerungTag);
+                        setView('kiPlaner');
+                      }}
+                      className="mt-2 w-full h-[51px] bg-[#E3F654] flex items-center justify-center"
+                    >
+                      <span className="text-black text-[20px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">Neuplanung im Planer ansehen</span>
+                    </button>
+                  </div>
+                ) : null}
 
                 {message.bookingProposal ? (
                   <div className="mt-3 flex flex-col items-center">

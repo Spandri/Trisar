@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
 import AiDienstplanView from './KiPlanerDemoView';
+import DienstePlanenBlatt from './DienstePlanenBlatt';
 import { DEFAULT_PLANNER_SETTINGS } from './KiPlanerSettingsView';
 import { computeDemandCurve, pickBusiestDayRides } from '../../demo/planungsKurven';
 import { hasSupabaseAdminConfig, hasSupabaseConfig, supabase, supabaseAdmin } from '../../services/supabase';
@@ -284,6 +285,9 @@ const PLAN_TEMPLATES = [
   { key: 'spaet', labelKey: 'fahrer.shiftLate', start: '14:00', end: '22:00' },
   { key: 'nacht', labelKey: 'fahrer.shiftNight', start: '22:00', end: '06:00' },
 ];
+// Dienste von Hand eintragen ("Dienste planen") ist vorerst ausgeblendet:
+// Dienste entstehen in der Demo nur ueber den KI-Planer. Wieder einschalten: true.
+const DIENSTE_VON_HAND = false;
 const PLANNER_SETTINGS_KEY = 'trisar_planner_settings_v1';
 const SELECTED_DRIVERS_STORAGE_KEY = 'trisar:admin:allefahrer:selected-driver-ids';
 
@@ -2150,6 +2154,7 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
           >
             X
           </button>
+          {DIENSTE_VON_HAND ? (
           <button
             type="button"
             onClick={() => {
@@ -2162,10 +2167,11 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
           >
             {t('fahrer.plan')}
           </button>
+          ) : null}
         </div>
       ) : null}
 
-      {isBulkPlannerOpen ? (
+      {DIENSTE_VON_HAND && isBulkPlannerOpen ? (
         <div className="absolute inset-0 z-[120]">
           <button
             type="button"
@@ -2173,156 +2179,30 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
             className="absolute inset-0 bg-black/55"
             aria-label={t('fahrer.closePlanner')}
           />
-          <div data-tutorial="dienste-sheet" className="absolute left-0 right-0 bottom-0 bg-[#111111] border-t-2 border-[#E3F654] px-[24px] pt-[20px] pb-[22px] max-h-[calc(100dvh-20px)] overflow-y-auto">
-            <div className="text-[#E3F654] text-[28px] font-bold font-['Space_Grotesk'] leading-tight">{t('fahrer.planServices')}</div>
-            <div className="mt-[4px] text-white/75 text-[14px] font-medium font-['Space_Grotesk']">
-              {selectedDriversCount > 0
-                ? t('fahrer.driversSelected', { n: selectedDriversCount })
-                : t('fahrer.noneSelected')}
-            </div>
-
-            <div data-tutorial="dienst-vorlagen" className="mt-[16px] grid grid-cols-4 gap-[8px]">
-              {PLAN_TEMPLATES.map((template) => (
-                <button
-                  key={template.key}
-                  type="button"
-                  data-tutorial={`dienst-vorlage-${template.key}`}
-                  onClick={() => {
-                    setBulkStartTime(template.start);
-                    setBulkEndTime(template.end);
-                    setBulkPlanError('');
-                    setBulkPlanSuccess('');
-                  }}
-                  className="h-[38px] border border-[#E3F654]/60 text-[#E3F654] text-[13px] font-semibold font-['Space_Grotesk']"
-                >
-                  {t(template.labelKey)}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-[14px] grid grid-cols-1 gap-[10px]">
-              <label className="border-2 border-[#E3F654] px-[10px] py-[8px]">
-                <span className="block text-[#E3F654]/80 text-[12px] font-medium font-['Space_Grotesk']">{t('fahrer.date')}</span>
-                <input
-                  type="date"
-                  value={bulkServiceDate}
-                  onChange={(event) => setBulkServiceDate(event.target.value)}
-                  className="w-full mt-[2px] bg-transparent border-none outline-none text-[#E3F654] text-[18px] font-semibold font-['Space_Grotesk']"
-                />
-              </label>
-            </div>
-
-            <div className="mt-[10px] grid grid-cols-2 gap-[10px]">
-              <label className="border-2 border-[#E3F654] px-[10px] py-[8px]">
-                <span className="block text-[#E3F654]/80 text-[12px] font-medium font-['Space_Grotesk']">{t('fahrer.serviceStart')}</span>
-                <div className="relative mt-[2px]">
-                  <input
-                    type="time"
-                    value={bulkStartTime}
-                    onChange={(event) => setBulkStartTime(normalizeClockValue(event.target.value))}
-                    className="relative z-[2] w-full pr-[28px] bg-transparent border-none outline-none text-[#E3F654] text-[18px] font-semibold font-['Space_Grotesk']"
-                  />
-                  {!bulkStartTime ? (
-                    <span className="absolute left-0 top-0 z-[1] pointer-events-none text-[#E3F654] text-[18px] font-semibold font-['Space_Grotesk']">
-                      --:--
-                    </span>
-                  ) : null}
-                  {bulkStartTime ? (
-                    <button
-                      type="button"
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                      }}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setBulkStartTime('');
-                      }}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-[24px] h-[24px] inline-flex items-center justify-center text-[#E3F654] text-[28px] font-bold leading-none z-[3]"
-                      aria-label={t('fahrer.resetServiceStart')}
-                    >
-                      X
-                    </button>
-                  ) : (
-                    <img
-                      src="/icon/_icon_lime/Uhr_Trisar_Icon_01_Lime.svg"
-                      alt=""
-                      aria-hidden="true"
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-5 h-5 z-[3] pointer-events-none"
-                    />
-                  )}
-                </div>
-              </label>
-              <label className="border-2 border-[#E3F654] px-[10px] py-[8px]">
-                <span className="block text-[#E3F654]/80 text-[12px] font-medium font-['Space_Grotesk']">{t('fahrer.serviceEnd')}</span>
-                <div className="relative mt-[2px]">
-                  <input
-                    type="time"
-                    value={bulkEndTime}
-                    onChange={(event) => setBulkEndTime(normalizeClockValue(event.target.value))}
-                    className="relative z-[2] w-full pr-[28px] bg-transparent border-none outline-none text-[#E3F654] text-[18px] font-semibold font-['Space_Grotesk']"
-                  />
-                  {!bulkEndTime ? (
-                    <span className="absolute left-0 top-0 z-[1] pointer-events-none text-[#E3F654] text-[18px] font-semibold font-['Space_Grotesk']">
-                      --:--
-                    </span>
-                  ) : null}
-                  {bulkEndTime ? (
-                    <button
-                      type="button"
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                      }}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setBulkEndTime('');
-                      }}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-[24px] h-[24px] inline-flex items-center justify-center text-[#E3F654] text-[28px] font-bold leading-none z-[3]"
-                      aria-label={t('fahrer.resetServiceEnd')}
-                    >
-                      X
-                    </button>
-                  ) : (
-                    <img
-                      src="/icon/_icon_lime/Uhr_Trisar_Icon_01_Lime.svg"
-                      alt=""
-                      aria-hidden="true"
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-5 h-5 z-[3] pointer-events-none"
-                    />
-                  )}
-                </div>
-              </label>
-            </div>
-
-            {bulkPlanError ? (
-              <div className="mt-[12px] text-[#FF8E8E] text-[13px] whitespace-pre-line font-medium font-['Space_Grotesk']">
-                {bulkPlanError}
-              </div>
-            ) : null}
-
-            <div className="mt-[16px] grid grid-cols-2 gap-[10px]">
-              <button
-                type="button"
-                onClick={() => setIsBulkPlannerOpen(false)}
-                data-tutorial="dienst-abbrechen"
-                className="h-[48px] border-2 border-white/30 text-white text-base font-medium font-['Space_Grotesk']"
-              >
-                {t('fahrer.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={applyBulkPlanning}
-                data-tutorial="dienst-anwenden"
-                disabled={isApplyingBulkPlan}
-                className="h-[48px] bg-[#E3F654] text-[#171717] text-base font-semibold font-['Space_Grotesk'] disabled:opacity-60"
-              >
-                {isApplyingBulkPlan ? t('fahrer.saving') : t('fahrer.applyToDrivers', { n: selectedDriversCount || 0 })}
-              </button>
-            </div>
-          </div>
+          <DienstePlanenBlatt
+            t={t}
+            anzahl={selectedDriversCount}
+            tage={Array.from({ length: PLANNING_HORIZON_DAYS }, (_, i) => {
+              const iso = addDaysToIsoDate(getTodayIsoDate(), i);
+              const d = new Date(`${iso}T12:00:00`);
+              return {
+                iso,
+                wochentag: i === 0 ? 'Heute' : d.toLocaleDateString('de-DE', { weekday: 'short' }),
+                datum: d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
+              };
+            })}
+            datum={bulkServiceDate}
+            onDatum={setBulkServiceDate}
+            start={bulkStartTime}
+            onStart={(wert) => { setBulkStartTime(wert); setBulkPlanError(''); setBulkPlanSuccess(''); }}
+            ende={bulkEndTime}
+            onEnde={(wert) => { setBulkEndTime(wert); setBulkPlanError(''); setBulkPlanSuccess(''); }}
+            vorlagen={PLAN_TEMPLATES}
+            fehler={bulkPlanError}
+            speichert={isApplyingBulkPlan}
+            onAnwenden={applyBulkPlanning}
+            onSchliessen={() => setIsBulkPlannerOpen(false)}
+          />
         </div>
       ) : null}
 

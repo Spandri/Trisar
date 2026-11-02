@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Funktionen (Besucherprotokoll) nur fuer Einstiegsseiten und /protokoll, nicht fuer Bilder und Skripte.",
+  "include": ["/", "/index.html", "/viewer.html", "/admin", "/admin/", "/admin/index.html", "/fahrer", "/fahrer/", "/fahrer/index.html", "/protokoll", "/besuch-da"],
+  "exclude": []
+}

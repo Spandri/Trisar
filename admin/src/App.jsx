@@ -25,6 +25,11 @@ import KartenFilterView from './components/views/KartenFilterView';
 import FahrtenFilter from './components/views/FahrtenFilter';
 import { I18nProvider, LANGUAGE_TO_CODE, translate } from './i18n';
 import TutorialBridge from './demo/TutorialBridge';
+import DispoLogin from './demo/DispoLogin';
+
+// Rundgang: die Disposition zeigt ihre Anmeldung (?login=1).
+const loginGewuenscht = () => typeof window !== 'undefined'
+  && new URLSearchParams(window.location.search).get('login') === '1';
 import { demoAlert, tutorialLaeuft } from './components/ui/demoDialoge';
 
 const buildTodayIsoDate = () => {
@@ -849,6 +854,8 @@ const resolveGuestIdFromInput = (input, guests = []) => {
 
 // Main App Component
 export default function App() {
+  const [dispoLoginOffen, setDispoLoginOffen] = useState(loginGewuenscht);
+  const dispoLoginSchliessen = useCallback(() => setDispoLoginOffen(false), []);
   const [view, setView] = useState(() => window.history.state?.view || 'list');
   const [rideEditorData, setRideEditorData] = useState(null);
   const [driverEditorData, setDriverEditorData] = useState(null);
@@ -3610,6 +3617,8 @@ export default function App() {
         {currentScreen}
       </div>
       <TutorialBridge />
+      {/* Rundgang: sichtbare Anmeldung der Disposition (?login=1) */}
+      {dispoLoginOffen ? <DispoLogin onFertig={dispoLoginSchliessen} /> : null}
     </I18nProvider>
   );
 }

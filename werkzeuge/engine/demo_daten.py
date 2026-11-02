@@ -116,13 +116,14 @@ HEIMSPIEL = Ereignis(
     schwabing_min=6, bekannt=True)
 
 UNFALL_A9 = Ereignis(
-    name="Unfall A9 Richtung München zwischen Kreuz Neufahrn und Garching-Nord (06:50)",
+    name="Unfall A9 Richtung München, Vollsperrung zwischen Kreuz Neufahrn und Garching-Nord (06:50)",
     art="unfall",
-    # Vollsperrung 40 min, danach ein Streifen frei, Rückstau löst sich bis 10:00 auf (Sperrdauer im
-    # Mittel 98 min laut Auswertung von 55.000 Sperrungen; Beispiele A9/A92 30 min bis 3 h).
-    # Die Umleitung über die Flughafentangente Ost ist durch umgeleiteten Verkehr selbst belastet.
-    profil=((6 * 60 + 50, 7 * 60 + 30, 45, 0), (7 * 60 + 30, 8 * 60 + 40, 28, 0), (8 * 60 + 40, 9 * 60 + 10, 10, 0)),
-    bekannt=False, fto_zusatz=15)
+    # Demo-Annahme, bewusst stark: Vollsperrung 2 h, danach ein Streifen frei, Rückstau löst sich bis
+    # 10:45 auf (Sperrdauer im Mittel 98 min laut Auswertung von 55.000 Sperrungen; Beispiele A9/A92
+    # 30 min bis 3 h). Die Umleitung über die Flughafentangente Ost ist durch den gesamten umgeleiteten
+    # Verkehr überlastet (+45 min). Bis 02.11.: 40 min Sperrung, FTO +15, siehe demo_daten_vor_starke_stoerung.py.
+    profil=((6 * 60 + 50, 8 * 60 + 50, 60, 0), (8 * 60 + 50, 10 * 60, 30, 0), (10 * 60, 10 * 60 + 45, 10, 0)),
+    bekannt=False, fto_zusatz=45)
 
 # Messebeginn 09:00: Zufahrt zur Messe Riem (A94, Ausfahrt Messe, Willy-Brandt-Allee) staut sich
 # morgens. Wirkt nur auf Fahrten in den Umkreis der Messe hinein. Planungsannahme, kein Messwert.
