@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
-import { KLASSE_TEXT, fahrerPasst, risikoFahrt, risikoGrund, useRisikoDaten } from '../../demo/risikoErgebnisse';
+import { KLASSE_TEXT, liveLage, risikoFahrt, useRisikoDaten } from '../../demo/risikoErgebnisse';
 import { KLASSE_FARBE } from './risikoFarben';
 import { useI18n } from '../../i18n';
 
@@ -25,8 +25,8 @@ function RisikoZeile({ risiko }) {
       className="relative mt-[4px] flex items-center gap-[8px] px-[8px] py-[6px] border-2 border-dashed text-[12px] font-medium font-['Space_Grotesk'] leading-4 text-zinc-900"
       style={{ borderColor: farbe }}
     >
-      <span className="shrink-0 px-[6px] py-[2px] text-[11px] font-bold" style={{ background: farbe }}>{KLASSE_TEXT[risiko.klasse]}</span>
-      <span className="truncate">{[risiko.grund, risiko.puffer != null ? `Puffer ${risiko.puffer} min` : ''].filter(Boolean).join(' · ')}</span>
+      <span className="shrink-0 px-[6px] py-[2px] text-[11px] font-bold" style={{ background: farbe }}>{risiko.live ? 'Live' : KLASSE_TEXT[risiko.klasse]}</span>
+      {risiko.grund ? <span className="truncate">{risiko.grund}</span> : null}
       {risiko.neu ? (
         <span className="absolute -top-[10px] right-[8px] px-[6px] text-[10px] font-bold tracking-[0.5px] text-black bg-[#ff6f63]">NEU</span>
       ) : null}
@@ -445,12 +445,14 @@ export default function AnkuenfteView({
     const datum = de ? `${de[3]}-${de[2]}-${de[1]}` : roh;
     const f = /^\d{4}-\d{2}-\d{2}$/.test(datum) ? risikoFahrt(risikoDaten, datum, ride?.id) : null;
     if (!f) return null;
-    // Puffer nur, wenn die Fahrt so eingeplant ist wie im Plan der Engine.
-    const geplant = fahrerPasst(f, getRideDriverEntries({ fahrerNamen: ride.fahrerNamen, driver: ride.driver }));
+    // Laufende Fahrt: was gerade passiert. Alles davor ist noch offen, dort
+    // reicht die Risikoklasse.
+    if (String(ride?.aktuellerStatus || '').trim().toLowerCase() === 'unterwegs') {
+      const lage = liveLage(f, ride.id);
+      if (lage) return { klasse: lage.klasse, live: true, grund: lage.text };
+    }
     return {
       klasse: f.klasse,
-      grund: f.klasse === 'niedrig' ? '' : risikoGrund(f),
-      puffer: geplant && f.luft ? f.luft.puffer : null,
       neu: f.klasse === 'hoch' && !gesehen.has(String(ride.id)),
     };
   };

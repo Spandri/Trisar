@@ -52,7 +52,32 @@ export const risikoGrund = (f) => {
 // Puffer gilt nur fuer den Plan der Engine: passt der eingetragene Fahrer dazu?
 // Vergleich ueber den Nachnamen ("V. Schulte (78)" passt zu "Volker Schulte").
 const nachname = (name) => String(name || '').replace(/\(.*\)/, '').trim().split(/\s+/).pop()?.toLowerCase() || '';
-export const fahrerPasst = (f, eintraege) => {
+// Lage einer laufenden Fahrt. Die Demo hat keine Live-Daten: Sie zieht je
+// Fahrt einen festen Verlauf aus derselben Fahrzeit-Verteilung (p10, p50, p90),
+// mit der das Risiko gerechnet ist. Ergebnis: Minuten gegenueber dem Plan und
+// ein kurzer Text, wie ihn im Betrieb Verkehrsdaten und Fahrzeug liefern.
+const festerZufall = (text) => {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i += 1) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 10000) / 10000;
+};
+export const liveLage = (f, rideId) => {
+  const z = f?.fahrzeit;
+  if (!z || !Number.isFinite(z.plan) || !Number.isFinite(z.p50)) return null;
+  const q = 0.05 + 0.9 * festerZufall(String(rideId || ''));
+  const wert = q < 0.5
+    ? z.p10 + (z.p50 - z.p10) * ((q - 0.05) / 0.45)
+    : z.p50 + (z.p90 - z.p50) * ((q - 0.5) / 0.45);
+  const min = Math.round(wert - z.plan);
+  if (min >= 3) {
+    const grund = f.ereignis?.min >= 5 ? f.ereignis.name.split(',')[0] : 'Mehr Verkehr';
+    return { min, klasse: min >= 10 ? 'hoch' : 'mittel', text: `${grund} · ${min} min später` };
+  }
+  if (min <= -3) return { min, klasse: 'niedrig', text: `Weniger Verkehr · ${-min} min früher` };
+  return { min, klasse: 'niedrig', text: 'Läuft nach Plan' };
+};
+
+export const fahrerPasst =(f, eintraege) => {
   const soll = nachname(f?.fahrer);
   return Boolean(soll) && (eintraege || []).some((e) => nachname(e) === soll);
 };
