@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
-import { KLASSE_TEXT, liveLage, risikoFahrt, useRisikoDaten } from '../../demo/risikoErgebnisse';
+import { KLASSE_TEXT, NAH_STUNDEN, liveLage, naheLage, risikoFahrt, useRisikoDaten } from '../../demo/risikoErgebnisse';
 import { KLASSE_FARBE } from './risikoFarben';
 import { useI18n } from '../../i18n';
 
@@ -454,15 +454,21 @@ export default function AnkuenfteView({
     const datum = de ? `${de[3]}-${de[2]}-${de[1]}` : roh;
     const f = /^\d{4}-\d{2}-\d{2}$/.test(datum) ? risikoFahrt(risikoDaten, datum, ride?.id) : null;
     if (!f) return null;
-    // Laufende Fahrt: was gerade passiert. Alles davor ist noch offen, dort
-    // reicht die Risikoklasse.
+    // Laufende Fahrt: was gerade passiert.
     if (String(ride?.aktuellerStatus || '').trim().toLowerCase() === 'unterwegs') {
       const lage = liveLage(f, ride.id);
       if (lage) return { klasse: lage.klasse, live: true, grund: lage.text };
     }
+    // In den naechsten Stunden: was sich schon abzeichnet. Weiter weg ist noch
+    // offen, dort reicht die Risikoklasse. NEU nur, wenn auch dasteht, was neu ist.
+    const start = parseTimeToMinutes(getRideTargetTime(ride));
+    const jetzt = new Date();
+    const bis = datum === getTodayIso() && start != null ? start - (jetzt.getHours() * 60 + jetzt.getMinutes()) : null;
+    const grund = bis != null && bis >= 0 && bis <= NAH_STUNDEN * 60 ? naheLage(f) : '';
     return {
       klasse: f.klasse,
-      neu: f.klasse === 'hoch' && !gesehen.has(String(ride.id)),
+      grund,
+      neu: Boolean(grund) && f.klasse === 'hoch' && !gesehen.has(String(ride.id)),
     };
   };
   const [searchTerm, setSearchTerm] = useState('');

@@ -77,7 +77,21 @@ export const liveLage = (f, rideId) => {
   return { min, klasse: 'niedrig', text: 'Läuft nach Plan' };
 };
 
-export const fahrerPasst =(f, eintraege) => {
+// Lage einer Fahrt in den naechsten Stunden: nur was man vorher schon sieht,
+// also Verkehr, Ereignisse und verspaetete Fluege oder Zuege. Ob ein Gast
+// spaeter bereit ist, weiss vorher niemand, das zaehlt hier nicht.
+export const NAH_STUNDEN = 3;
+export const naheLage = (f) => {
+  if (!f || f.klasse === 'niedrig') return '';
+  if (f.ereignis?.min >= 5) return f.ereignis.name.split(',')[0].replace('Starker Verkehr', 'Verkehr');
+  const namen = (f.ursachen || []).map((u) => u.name);
+  if (namen.some((n) => n.startsWith('Flug'))) return 'Flug verspätet';
+  if (namen.includes('Zug verspätet')) return 'Zug verspätet';
+  if (namen.includes('Mehr Verkehr als üblich')) return 'Verkehr nimmt zu';
+  return '';
+};
+
+export const fahrerPasst = (f, eintraege) => {
   const soll = nachname(f?.fahrer);
   return Boolean(soll) && (eintraege || []).some((e) => nachname(e) === soll);
 };
