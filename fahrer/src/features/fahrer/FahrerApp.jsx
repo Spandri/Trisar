@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { SUPABASE_FUNCTIONS } from '../../shared/supabase/functions';
 import { supabase } from '../../shared/supabase/client';
+import { DEMO_MODE } from '../../datenquelle';
 import KeineFahrtTrisar from '../../components/KeineFahrtTrisar';
 import KeinAuto from '../../components/KeinAuto';
 import TrisarFooter from '../../components/ui/TrisarFooter';
@@ -2307,6 +2308,8 @@ const FahrerApp = () => {
         [...(directJobs || []), ...(convoyJobs || [])].forEach((job) => jobsById.set(job.id, job));
         const allVisibleJobs = Array.from(jobsById.values())
           .filter((job) => isDriverVisibleJobStatus(job?.status))
+          // Live: nie abgeschlossene Altfahrten (Fahrtdatum vor gestern) ausblenden, DB bleibt unveraendert.
+          .filter((job) => DEMO_MODE || getRideDateFromJob(job) >= toLocalDateValue(Date.now() - DAY_IN_MS))
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
         const profileMap = Object.fromEntries((allProfiles || []).map((p) => [p.id, p]));
@@ -3081,6 +3084,8 @@ const FahrerApp = () => {
           status: nextStatus,
           refused_by_driver_id: action === 'refuse' ? ownDriverId : null,
           refusal_reason: action === 'refuse' ? refusalReason : null,
+          driver_response_status: action === 'accept' ? 'accepted' : 'refused',
+          driver_responded_at: new Date().toISOString(),
         };
         const { data: updatedJob, error } = await supabase
           .from('jobs')
@@ -3089,7 +3094,7 @@ const FahrerApp = () => {
           .eq('driver_id', ownDriverId)
           .select('id,status')
           .maybeSingle();
-        if (error && (error.message?.includes('refusal_reason') || error.message?.includes('refused_by_driver_id'))) {
+        if (error && (error.message?.includes('refusal_reason') || error.message?.includes('refused_by_driver_id') || error.message?.includes('driver_response'))) {
           const fallback = await supabase
             .from('jobs')
             .update({ status: nextStatus })
@@ -3310,7 +3315,12 @@ const FahrerApp = () => {
   };
 
   const unreadChatTotal = Object.values(unreadByChat || {}).reduce((sum, value) => sum + (value || 0), 0);
-  const noTripsScreen = currentVehicle ? <KeineFahrtTrisar currentVehicle={currentVehicle} onLogout={handleLogout} /> : <KeinAuto onLogout={handleLogout} />;
+  // Live: Profil (und Fahrzeug) auch ohne Fahrten erreichbar, die Demo bleibt wie bisher.
+  const noTripsProfileHandler = DEMO_MODE ? undefined : () => setView('profilFahrer');
+  const noTripsVehicleHandler = DEMO_MODE ? undefined : () => setView('vehicle');
+  const noTripsScreen = currentVehicle
+    ? <KeineFahrtTrisar currentVehicle={currentVehicle} onLogout={handleLogout} onOpenProfile={noTripsProfileHandler} onOpenVehicle={noTripsVehicleHandler} />
+    : <KeinAuto onLogout={handleLogout} onOpenProfile={noTripsProfileHandler} />;
 
   const pushLocalJobNote = useCallback((jobId, noteRow) => {
     const normalizedJobId = String(jobId || '').trim();

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
+import { DEMO_MODE } from '../../datenquelle';
 
 const dividerSrc = '/icon/_Icon_Schwarz/nav-divider.svg';
 const locationActiveSrc = '/icon/_Icon_Lime/Pin_Nav_Trisar_Icons_01_Lime.svg';
@@ -414,7 +415,8 @@ export default function Navibar({
         optionen={kiOptionen}
         aktiverKey={activeTab}
         speicherSchluessel="admin_nav_ki_selected_v1"
-        standardKey="ki"
+        // Im Betrieb ist der Assistent noch nicht freigeschaltet: vorne die Planung.
+        standardKey={DEMO_MODE ? 'ki' : 'planung'}
         tutorialMarker="navi-ki"
         ariaLabel={t('nav.aiAssistant')}
         feldStil={{ left: '58.56%', width: '17.68%' }}

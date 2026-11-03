@@ -5,6 +5,7 @@ import TrisarFooter from '../ui/TrisarFooter';
 import { computeDemandCurve } from '../../demo/planungsKurven';
 import { planDriverShiftsWithOllama } from '../../services/kiDriverPlanner';
 import { supabase } from '../../services/supabase';
+import { DEMO_MODE } from '../../datenquelle';
 import { useI18n } from '../../i18n';
 import KiPlanerSettingsView, { DEFAULT_PLANNER_SETTINGS } from './KiPlanerSettingsView';
 import EinsatzplanungKalender from './EinsatzplanungKalender';
@@ -1664,7 +1665,7 @@ export default function KiPlanerDemoView({
         />
       ) : null}
 
-      {ereignisseTag && (ablauf === 'bedarf' || ablauf === 'tag') ? (
+      {DEMO_MODE && ereignisseTag && (ablauf === 'bedarf' || ablauf === 'tag') ? (
         <EreignisseView tagIso={ereignisseTag} onZurueck={() => setEreignisseTag(null)} />
       ) : null}
 
@@ -1685,7 +1686,7 @@ export default function KiPlanerDemoView({
         />
       ) : null}
 
-      {pufferSeite && ablauf === 'tag' ? (
+      {DEMO_MODE && pufferSeite && ablauf === 'tag' ? (
         <PufferView
           tagIso={pufferSeite.tag}
           option={pufferSeite.option}

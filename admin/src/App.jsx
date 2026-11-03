@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DEMO_MODE, hasSupabaseAdminConfig, supabase, supabaseAdmin } from './services/supabase';
+import { DEMO_MODE, abmelden, hasSupabaseAdminConfig, supabase, supabaseAdmin } from './services/supabase';
 import HomeScreen from './components/HomeScreen';
 import AlleFahrer from './components/views/AlleFahrer';
 import AlleKunden from './components/views/AlleKunden';
@@ -81,7 +81,37 @@ const DEFAULT_PROFILE_DATA = {
   language: 'Deutsch',
   avatarUrl: DISPATCHER_AVATAR_URL,
 };
+// Live: kein Demo-Name, das Profil kommt aus profiles der angemeldeten Person.
+const LIVE_PROFILE_STORAGE_KEY = 'dispo_profil_live_v1';
+const LIVE_DEFAULT_PROFILE_DATA = { ...DEFAULT_PROFILE_DATA, firstName: '', lastName: '', avatarUrl: '' };
+const STARTPROFIL = DEMO_MODE ? DEFAULT_PROFILE_DATA : LIVE_DEFAULT_PROFILE_DATA;
+const PROFIL_SPEICHER = DEMO_MODE ? PROFILE_STORAGE_KEY : LIVE_PROFILE_STORAGE_KEY;
 let anonymousAuthUnavailable = false;
+
+// Live: Aenderungen aus den Einstellungen auch ins eigene profiles-Profil schreiben.
+const PROFIL_SPALTEN = {
+  firstName: 'first_name',
+  lastName: 'last_name',
+  email: 'email',
+  phone: 'phone',
+  street: 'street',
+  streetNumber: 'street_number',
+  city: 'city',
+  zip: 'zip',
+  language: 'language',
+  avatarUrl: 'avatar_url',
+};
+const profilInDbSpeichern = async (patch) => {
+  const zeile = {};
+  Object.entries(patch || {}).forEach(([feld, wert]) => {
+    if (PROFIL_SPALTEN[feld]) zeile[PROFIL_SPALTEN[feld]] = wert;
+  });
+  if (!Object.keys(zeile).length) return;
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth?.user?.id) return;
+  const { error } = await supabase.from('profiles').update(zeile).eq('id', auth.user.id);
+  if (error) console.warn('Profil konnte nicht gespeichert werden:', error.message);
+};
 
 const extractInvokeErrorStatus = (invokeError) => {
   if (!invokeError) return null;
@@ -1164,16 +1194,16 @@ export default function App() {
 
   const [profileData, setProfileData] = useState(() => {
     try {
-      const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
-      if (!raw) return { ...DEFAULT_PROFILE_DATA };
+      const raw = window.localStorage.getItem(PROFIL_SPEICHER);
+      if (!raw) return { ...STARTPROFIL };
       const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_PROFILE_DATA };
-      return { ...DEFAULT_PROFILE_DATA, ...parsed };
+      if (!parsed || typeof parsed !== 'object') return { ...STARTPROFIL };
+      return { ...STARTPROFIL, ...parsed };
     } catch {
-      return { ...DEFAULT_PROFILE_DATA };
+      return { ...STARTPROFIL };
     }
   });
-  const coordinatorName = [profileData.firstName, profileData.lastName].filter(Boolean).join(' ').trim() || 'Samira Chengula';
+  const coordinatorName = [profileData.firstName, profileData.lastName].filter(Boolean).join(' ').trim() || (DEMO_MODE ? 'Samira Chengula' : '');
   // Die Begruessung auf der Startseite nennt nur den Vornamen ("Willkommen zurueck Samira").
   const coordinatorFirstName = String(profileData.firstName || '').trim() || coordinatorName.split(/\s+/)[0];
 
@@ -1184,11 +1214,45 @@ export default function App() {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileData));
+      window.localStorage.setItem(PROFIL_SPEICHER, JSON.stringify(profileData));
     } catch {
       // Ignoriere Storage-Fehler (z. B. quota exceeded).
     }
   }, [profileData]);
+
+  // Live: Name und Kontaktdaten der angemeldeten Disposition aus profiles.
+  useEffect(() => {
+    if (DEMO_MODE) return undefined;
+    document.title = 'TRISAR – Disposition';
+    let aktiv = true;
+    (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const userId = auth?.user?.id;
+      if (!userId) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, email, phone, street, street_number, city, zip, language, avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+      if (!aktiv || !data) return;
+      setProfileData((prev) => ({
+        ...prev,
+        firstName: data.first_name || prev.firstName,
+        lastName: data.last_name || prev.lastName,
+        email: data.email || auth.user.email || prev.email,
+        phone: data.phone || prev.phone,
+        street: data.street || prev.street,
+        streetNumber: data.street_number || prev.streetNumber,
+        city: data.city || prev.city,
+        zip: data.zip || prev.zip,
+        language: data.language || prev.language,
+        avatarUrl: data.avatar_url || prev.avatarUrl,
+      }));
+    })();
+    return () => {
+      aktiv = false;
+    };
+  }, []);
 
   const loadRidesFromDb = useCallback(async () => {
       console.log('🚀 loadRidesFromDb wird ausgeführt...');
@@ -1328,13 +1392,13 @@ export default function App() {
           queryChunk: async (batch) => {
             let result = await supabase
               .from('job_notes')
-              .select('job_id, note_text, created_at')
+              .select('job_id, note_text, created_at, author_name')
               .in('job_id', batch)
               .order('created_at', { ascending: false });
             if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
               result = await supabaseAdmin
                 .from('job_notes')
-                .select('job_id, note_text, created_at')
+                .select('job_id, note_text, created_at, author_name')
                 .in('job_id', batch)
                 .order('created_at', { ascending: false });
             }
@@ -1410,15 +1474,21 @@ export default function App() {
         const profileById = new Map((profilesResult.data || []).map((row) => [String(row.id || ''), row]));
         const guestById = new Map((guestsResult.data || []).map((row) => [String(row.id || ''), row]));
         const convoyNameById = new Map((convoysResult.data || []).map((row) => [String(row.id || ''), String(row.name || '').trim()]));
+        // Neueste Notiz je Fahrt fuer die Liste (auch vom Fahrer) und getrennt
+        // die neueste Notiz der Disposition (ohne author_name) fuer den Editor.
+        // So landen Fahrernotizen beim Speichern nicht als Dispo-Notiz in der DB.
         const noteByJobId = new Map();
+        const dispoNoteByJobId = new Map();
         (jobNotesResult.data || []).forEach((row) => {
           const jobId = String(row?.job_id || '').trim();
-          if (!jobId || noteByJobId.has(jobId)) return;
+          if (!jobId) return;
           const rawText = String(row?.note_text || '').trim();
-          noteByJobId.set(jobId, {
+          const meta = {
             noteText: rawText.replace(AI_BOOKING_NOTE_TAG, '').trim(),
             aiBooked: rawText.includes(AI_BOOKING_NOTE_TAG),
-          });
+          };
+          if (!noteByJobId.has(jobId)) noteByJobId.set(jobId, meta);
+          if (!String(row?.author_name || '').trim() && !dispoNoteByJobId.has(jobId)) dispoNoteByJobId.set(jobId, meta);
         });
 
         const convoyDriverAssignmentsByJob = new Map();
@@ -1617,6 +1687,7 @@ export default function App() {
             || '--:--';
           const isDelayed = delayMins > 0 || Boolean(effectiveEtd && originalEtd && effectiveEtd !== originalEtd);
           const noteMeta = noteByJobId.get(jobId) || { noteText: '', aiBooked: false };
+          const dispoNoteMeta = dispoNoteByJobId.get(jobId) || { noteText: '', aiBooked: false };
           const aiBookedFromColumn = Boolean(job?.ai_booked);
 
           return {
@@ -1645,7 +1716,8 @@ export default function App() {
             flugnummer,
             zugnummer,
             note: noteMeta.noteText || '',
-            aiBooked: Boolean(aiBookedFromColumn || noteMeta.aiBooked),
+            dispoNote: dispoNoteMeta.noteText || '',
+            aiBooked: Boolean(aiBookedFromColumn || noteMeta.aiBooked || dispoNoteMeta.aiBooked),
             time: isDelayed
               ? {
                   original: originalEtd || effectiveEtd || '--:--',
@@ -2180,7 +2252,7 @@ export default function App() {
         zugnummer: String(ride.zugnummer || ''),
         anzahlKinder: String(ride.anzahlKinder || '0'),
         aktuellerStatus: String(ride.aktuellerStatus || 'offen'),
-        notes: String(ride.note || ''),
+        notes: String(ride.dispoNote ?? ride.note ?? ''),
         aiBooked: Boolean(ride.aiBooked),
       });
       navigateTo('fahrtBearbeiten');
@@ -2235,7 +2307,7 @@ export default function App() {
       const lauf = ++tutorialLaufRef.current;
 
       if (z.reset === true) {
-        setProfileData({ ...DEFAULT_PROFILE_DATA });
+        setProfileData({ ...STARTPROFIL });
         try {
           // Schluessel aus navigation/Navibar.jsx — 'fahrten' = "Alle Fahrten"
           window.localStorage.setItem('admin_nav_quick_selected_v1', 'fahrten');
@@ -2494,31 +2566,41 @@ export default function App() {
         || rideEditorData?.driver_id
         || '',
       ).trim();
-      let existingJobDriverId = '';
-      if (!fallbackDriverId) {
-        let existingJobResult = await supabase
+      // Bisheriger Stand der Fahrt: entscheidet, ob der Fahrer neu bestaetigen muss.
+      const existingJobColumns = 'driver_id, status, ride_date, etd, pickup_address, dropoff_address';
+      let existingJobResult = await supabase
+        .from('jobs')
+        .select(existingJobColumns)
+        .eq('id', rideId)
+        .maybeSingle();
+      if (existingJobResult.error && ADMIN_FALLBACK_ERROR_RE.test(existingJobResult.error.message || '')) {
+        existingJobResult = await supabaseAdmin
           .from('jobs')
-          .select('driver_id')
+          .select(existingJobColumns)
           .eq('id', rideId)
           .maybeSingle();
-        if (existingJobResult.error && ADMIN_FALLBACK_ERROR_RE.test(existingJobResult.error.message || '')) {
-          existingJobResult = await supabaseAdmin
-            .from('jobs')
-            .select('driver_id')
-            .eq('id', rideId)
-            .maybeSingle();
-        }
-        if (!existingJobResult.error) {
-          existingJobDriverId = String(existingJobResult.data?.driver_id || '').trim();
-        }
       }
+      const existingJob = existingJobResult.error ? null : (existingJobResult.data || null);
+      const existingJobDriverId = String(existingJob?.driver_id || '').trim();
 
       const resolvedDriverId = resolvedDriverIds[0] || fallbackDriverId || existingJobDriverId || null;
       const requestedJobStatus = mapEditorStatusToJobStatus(payload?.aktuellerStatus);
       const normalizedRequestedStatus = String(requestedJobStatus || '').trim().toLowerCase();
-      const shouldReRequestDriverResponse = Boolean(resolvedDriverId)
-        && !['done', 'completed', 'cancelled', 'canceled', 'refused'].includes(normalizedRequestedStatus);
-      const nextJobStatus = shouldReRequestDriverResponse ? 'pending' : requestedJobStatus;
+      const isFinalRequestedStatus = ['done', 'completed', 'cancelled', 'canceled', 'refused', 'in_progress'].includes(normalizedRequestedStatus);
+      const sameClock = (a, b) => String(a || '').slice(0, 5) === String(b || '').slice(0, 5);
+      // Nur wenn sich fuer den Fahrer etwas Wesentliches aendert, muss er neu annehmen.
+      // Sonst bleibt seine Annahme (assigned) bestehen, z. B. bei neuer Notiz oder Gaesten.
+      const driverOrTripChanged = !existingJob
+        || String(resolvedDriverId || '') !== existingJobDriverId
+        || String(existingJob.ride_date || '') !== rideDate
+        || !sameClock(existingJob.etd, startZeit)
+        || String(existingJob.pickup_address || '').trim() !== start
+        || String(existingJob.dropoff_address || '').trim() !== ziel;
+      const shouldReRequestDriverResponse = Boolean(resolvedDriverId) && !isFinalRequestedStatus && driverOrTripChanged;
+      const keepExistingStatus = Boolean(existingJob?.status) && !isFinalRequestedStatus && !driverOrTripChanged;
+      const nextJobStatus = shouldReRequestDriverResponse
+        ? 'pending'
+        : (keepExistingStatus ? existingJob.status : requestedJobStatus);
       const shouldSyncConvoyAssignments = Boolean(resolvedConvoyId) || requestedDriverNames.length > 1 || resolvedDriverIds.length > 1;
       const assignmentDriverIds = shouldSyncConvoyAssignments
         ? resolvedDriverIds
@@ -2535,6 +2617,7 @@ export default function App() {
         status: nextJobStatus,
         convoy_id: resolvedConvoyId,
         driver_id: resolvedDriverId,
+        ...(shouldReRequestDriverResponse ? { driver_response_status: 'pending', driver_responded_at: null } : {}),
         passengers: normalizePassengerNames(effectiveGuestNames),
         flight_number: hasValidatedFlight ? normalizedFlightNumber : (keepUnverifiedFlight ? unverifiedFlightNumber : null),
         train_number: hasValidatedTrain ? normalizedTrainNumber : (keepUnverifiedTrain ? unverifiedTrainNumber : null),
@@ -2620,15 +2703,16 @@ export default function App() {
       await syncConvoyAssignmentsForJob(
         rideId,
         assignmentDriverIds,
-        { resetResponseStatus: true, replaceAssignments: true },
+        { resetResponseStatus: shouldReRequestDriverResponse, replaceAssignments: true },
       );
 
       const noteText = String(payload?.notes || payload?.note || '').trim();
       const keepAiBookedTag = Boolean(payload?.aiBooked ?? rideEditorData?.aiBooked);
       const combinedNoteText = [keepAiBookedTag ? AI_BOOKING_NOTE_TAG : '', noteText].filter(Boolean).join('\n').trim();
-      let deleteNotesResult = await supabase.from('job_notes').delete().eq('job_id', rideId);
+      // Nur die Notizen der Disposition ersetzen, Fahrernotizen (mit author_name) bleiben.
+      let deleteNotesResult = await supabase.from('job_notes').delete().eq('job_id', rideId).is('author_name', null);
       if (deleteNotesResult.error && ADMIN_FALLBACK_ERROR_RE.test(deleteNotesResult.error.message || '')) {
-        deleteNotesResult = await supabaseAdmin.from('job_notes').delete().eq('job_id', rideId);
+        deleteNotesResult = await supabaseAdmin.from('job_notes').delete().eq('job_id', rideId).is('author_name', null);
       }
       if (deleteNotesResult.error && !MISSING_JOB_NOTES_TABLE_RE.test(deleteNotesResult.error.message || '')) {
         throw deleteNotesResult.error;
@@ -3429,8 +3513,11 @@ export default function App() {
         <SettingsViewKo
           setView={navigateTo}
           profileData={profileData}
-          onSaveProfile={(patch) => setProfileData((prev) => ({ ...prev, ...patch }))}
-          onLogout={() => navigateTo('list')}
+          onSaveProfile={(patch) => {
+            setProfileData((prev) => ({ ...prev, ...patch }));
+            if (!DEMO_MODE) profilInDbSpeichern(patch);
+          }}
+          onLogout={() => (DEMO_MODE ? navigateTo('list') : abmelden())}
         />
       );
     }

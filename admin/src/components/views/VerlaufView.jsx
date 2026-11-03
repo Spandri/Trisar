@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import TrisarFooter from '../ui/TrisarFooter';
 import BackCircleButton from '../ui/BackCircleButton';
 import { useI18n } from '../../i18n';
+import { DEMO_MODE } from '../../datenquelle';
 
 const BASE_WIDTH = 402;
 const TOP_OFFSET = 40;
-const BASE_HEIGHT = 1449 + TOP_OFFSET;
+// Im Betrieb gibt es noch keinen Verlauf: Seite nur bildschirmhoch.
+const BASE_HEIGHT = DEMO_MODE ? 1449 + TOP_OFFSET : 812;
 // Titel bei 140, Liste 24 px darunter: alles 32 px hoeher als zuvor.
 const CONTENT_SHIFT = 31;
 const STATUS_ROW_HEIGHT = 48;
@@ -95,6 +97,8 @@ export default function VerlaufView({ setView }) {
               {t('sonstige.verlauf')}
             </h1>
 
+            {DEMO_MODE ? (
+            <>
             <StatusRow top={199 + CONTENT_SHIFT} label={t('sonstige.dienststart', { time: '15:30' })} color="#E3F654" />
             <EntryCard top={262 + CONTENT_SHIFT} dateLabel="22.01.2026     16:00 - 18:00" names={['Horst Engel']} />
             <EntryCard top={364 + CONTENT_SHIFT} dateLabel="22.01.2026     18:30 - 20:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
@@ -113,6 +117,13 @@ export default function VerlaufView({ setView }) {
 
             <div className="absolute left-[112px] w-44 h-0 border-t border-[#E3F654]" style={{ top: `${FIRST_DIVIDER_TOP}px` }} />
             <div className="absolute left-[112px] w-44 h-0 border-t border-[#E3F654]" style={{ top: `${SECOND_DIVIDER_TOP}px` }} />
+            </>
+            ) : (
+              // Der Schichtverlauf oben ist Beispielinhalt — im Betrieb noch leer.
+              <p className="absolute left-[20px] w-[362px] text-white/60 text-[18px] font-bold tracking-[0.5px] leading-6" style={{ top: `${230}px` }}>
+                Noch keine Einträge.
+              </p>
+            )}
 
           </div>
         </div>

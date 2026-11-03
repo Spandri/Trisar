@@ -5,7 +5,7 @@ import AiDienstplanView from './KiPlanerDemoView';
 import DienstePlanenBlatt from './DienstePlanenBlatt';
 import { DEFAULT_PLANNER_SETTINGS } from './KiPlanerSettingsView';
 import { computeDemandCurve, pickBusiestDayRides } from '../../demo/planungsKurven';
-import { hasSupabaseAdminConfig, hasSupabaseConfig, supabase, supabaseAdmin } from '../../services/supabase';
+import { DEMO_MODE, hasSupabaseAdminConfig, hasSupabaseConfig, supabase, supabaseAdmin } from '../../services/supabase';
 import { useI18n } from '../../i18n';
 
 const DRIVERS_RELOAD_EVENT = 'trisar:admin:drivers:reload';
@@ -1119,6 +1119,9 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
           .lte('ride_date', horizonEndIso);
         if (!plannedRidesResult.error && Array.isArray(plannedRidesResult.data) && plannedRidesResult.data.length > 0) {
           setPlannedRidesToday(plannedRidesResult.data);
+        } else if (!DEMO_MODE) {
+          // Im Betrieb gilt der echte Zeitraum, auch wenn er leer ist.
+          setPlannedRidesToday([]);
         } else {
           // Demo-Vorschau: liegt am heutigen Tag keine Fahrt vor, zeigt die
           // Planung den fahrtenstärksten Tag des simulierten Einsatzes –

@@ -4,6 +4,7 @@ import { ereignisseFuerTag, risikoOption, risikoTag, useEreignisAenderungen, use
 import { EreignisKacheln, PufferDash } from './RisikoBausteine';
 import { demoStore } from '../../demo/demoClient';
 import { angebotAntwort, useAngebotAntworten } from '../../demo/angebotAntworten';
+import { DEMO_MODE } from '../../datenquelle';
 
 // TRISAR-Engine in der Tagesplanung (zwischen Optionen und Dienstkarten):
 //   - gewählte Option mit Kennzahlen, Vor- und Nachteilen im Vergleich
@@ -83,6 +84,7 @@ export default function EngineBlock({ tagIso, eintrag, onHoehe, laeuft, onEreign
   const [angebotOffen, setAngebotOffen] = useState(null);
 
   useEffect(() => {
+    if (!DEMO_MODE) return undefined;
     let aktiv = true;
     engineTag(tagIso).then((d) => { if (aktiv) setTag(d); });
     return () => { aktiv = false; };
@@ -125,7 +127,9 @@ export default function EngineBlock({ tagIso, eintrag, onHoehe, laeuft, onEreign
   const kacheln = ereignisseFuerTag(risiko, tagIso);
   const pufferOption = engine ? risikoOption(risiko, tagIso, engine.option) : null;
 
-  if (!engine && !tag) return <div ref={ref} />;
+  // Im Betrieb nichts aus den vorab gerechneten Demo-Ergebnissen zeigen
+  // (Engine-Kennzahlen, Ereignisse, Puffer, Angebote).
+  if (!DEMO_MODE || (!engine && !tag)) return <div ref={ref} />;
 
   return (
     <div ref={ref} className="absolute left-[20px] w-[362px] flex flex-col gap-[12px]" style={{ top: '540px', opacity: laeuft ? 0.3 : 1 }} data-tutorial="planer-engine">

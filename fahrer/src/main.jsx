@@ -6,6 +6,7 @@ import { karteBereitstellen } from './shared/karte/maplibreKarte';
 import App from './App.jsx';
 import { beiUeberspringen, wacheStarten } from './demo/ueberspringen';
 import splashVideo from './assets/loadScreen.mp4';
+import { DEMO_MODE } from './datenquelle';
 
 const BOOT_MAX_MS = 6000;
 
@@ -106,6 +107,9 @@ function BootSplashGate() {
     </>
   );
 }
+
+// index.html traegt den Demo-Titel, live ohne "Demo".
+if (!DEMO_MODE) document.title = 'TRISAR – Fahrer App';
 
 karteBereitstellen();
 

@@ -13,6 +13,7 @@ import {
   tabelleLesen,
 } from '../../services/spaltenErkennung';
 import { importBeispiele } from '../../demo/importBeispiele';
+import { DEMO_MODE } from '../../datenquelle';
 
 // Import von Fahrten und Fahrgästen aus beliebigen Tabellen (Excel oder CSV).
 // Kein festes Spaltenschema: jede Spalte wird erkannt, die Zuordnung als
@@ -153,8 +154,26 @@ export default function ImportView({ setView, mode = 'rides' }) {
     setIsBusy(true);
     setFehler('');
     try {
-      const { error } = await supabase.from(config.table).insert(ergebnis.fertig);
-      if (error) throw error;
+      if (config.table === 'jobs') {
+        // Notizen gehoeren in job_notes, nicht in jobs.
+        const zeilen = ergebnis.fertig.map((fahrt) => {
+          const zeile = { ...fahrt };
+          delete zeile.note;
+          return zeile;
+        });
+        const { data, error } = await supabase.from('jobs').insert(zeilen).select('id');
+        if (error) throw error;
+        const notizen = ergebnis.fertig
+          .map((fahrt, index) => ({ job_id: data?.[index]?.id, note_text: String(fahrt.note || '').trim() }))
+          .filter((notiz) => notiz.job_id && notiz.note_text);
+        if (notizen.length) {
+          const { error: notizFehler } = await supabase.from('job_notes').insert(notizen);
+          if (notizFehler) throw notizFehler;
+        }
+      } else {
+        const { error } = await supabase.from(config.table).insert(ergebnis.fertig);
+        if (error) throw error;
+      }
       window.dispatchEvent(new CustomEvent('trisar:fahrten-geaendert'));
       setImportiert(ergebnis.fertig.length);
       setSchritt('fertig');
@@ -221,7 +240,8 @@ export default function ImportView({ setView, mode = 'rides' }) {
               </button>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.tsv,.txt,text/csv" className="hidden" onChange={handleFile} />
 
-              {mode === 'rides' ? (
+              {/* Beispieldateien nur in der Demo. */}
+              {DEMO_MODE && mode === 'rides' ? (
                 <div className="mt-[28px]">
                   <div className={`text-[13px] font-medium ${schrift}`} style={{ color: 'rgba(227,246,84,0.7)' }}>{t('imp.beispiele')}</div>
                   <div className="mt-[10px] flex flex-col gap-[8px]">

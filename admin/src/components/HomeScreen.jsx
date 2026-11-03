@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import NaviFooterKomponente from './navigation/NaviFooterKomponente';
 import { useI18n } from '../i18n';
 import { einsatzKennzahlen } from '../demo/einsatzKennzahlen';
+import { DEMO_MODE } from '../datenquelle';
 
 const profileButtonSrc = '/icon/_Icon_Grau/Person_Trisar_Icons_01_grau.svg';
 const actionArrowSrc = '/icon/_Icon_Schwarz/Arrow_Trisar_Icons_01.svg';
@@ -127,7 +128,9 @@ export default function HomeScreen({ setView, coordinatorName = 'Martin', avatar
             {t('home.welcome', { name: coordinatorName })}
           </div>
 
-          {/* Statistics Cards */}
+          {/* Statistics Cards — Werte sind Demo-Zahlen, live gibt es noch keine
+              echte Auswertung. Die Knoepfe bleiben unten an der Leiste stehen. */}
+          {DEMO_MODE && (
           <div data-tutorial="kennzahlen" className="absolute left-[20px] top-[302px] flex gap-[6px]">
             <StatCard
               title={t('home.sinceStart')}
@@ -140,6 +143,7 @@ export default function HomeScreen({ setView, coordinatorName = 'Martin', avatar
               subtitle={t('home.costs')}
             />
           </div>
+          )}
 
           {/* Action Buttons */}
           <div className="absolute left-[20px] top-[442px] space-y-[12px]">

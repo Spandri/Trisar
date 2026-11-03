@@ -5,6 +5,7 @@ import { USER_LOCATION_DOT_URL } from '../../../shared/ui/icons';
 import { ColorBadge, EnergyBadge, FuelBadge, SeatBadge } from '../../../shared/vehicleBadges';
 import { useI18n } from '../../../i18n';
 import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
+import { DEMO_MODE } from '../../../datenquelle';
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 1264;
@@ -162,7 +163,8 @@ const SchadensBericht = ({ damages = [], onMelden, blockRef }) => {
   ];
 
   // Vom Fahrer gemeldete Schaeden stehen oben, darunter der vorhandene Bestand.
-  const displayDamages = [...damages, ...sampleDamages];
+  // Live nur echte Schaeden aus der Datenbank, die Beispiele gibt es nur in der Demo.
+  const displayDamages = DEMO_MODE ? [...damages, ...sampleDamages] : damages;
 
   return (
     <div ref={blockRef} className="absolute left-1/2 -translate-x-1/2 top-[771px] w-[353px] bg-white p-[29px]" data-tutorial="schadensbericht">
@@ -280,8 +282,8 @@ export default function VehicleView({ setView, vehicle, damages, onAddDamage }) 
             {/* Back Button */}
             <ZurueckKnopf onClick={() => setView('list')} marker="fahrzeug-zurueck" oben={40} />
 
-            {/* Map Component */}
-            <MapComponent />
+            {/* Map Component: feste Demo-Position, live ohne echten Standort ausgeblendet */}
+            {DEMO_MODE && <MapComponent />}
 
             {/* Vehicle Block */}
             <VehicleBlock vehicle={vehicle} />

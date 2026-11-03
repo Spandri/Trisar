@@ -21,6 +21,7 @@ import {
 import { karteBereitstellen } from '../../../shared/karte/maplibreKarte';
 import { gleicherOrt } from '../../../shared/utils/vorherigeFahrt';
 import { useDemoAnflug } from '../../../demo/flugAnflug';
+import { DEMO_MODE } from '../../../datenquelle';
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
   if (typeof value === 'string' && value.trim().toLowerCase().startsWith('your_')) return fallback;
@@ -1087,7 +1088,8 @@ export function RouteMapTop({ job, onBack, showBack = true, onDurationUpdate, op
   const isTrainRide = Boolean(String(job?.trainNumber || '').trim())
     || String(job?.flightLiveMode || '').trim().toLowerCase() === 'train';
   // Demo: ohne echte Live-Daten fliegt ein simulierter Anflug auf München.
-  const demoAnflug = useDemoAnflug(job, !isTrainRide && !baseFlightCoord);
+  // Simulierter Anflug nur in der Demo, live ohne Tracking-Position kein Flugzeug.
+  const demoAnflug = useDemoAnflug(job, DEMO_MODE && !isTrainRide && !baseFlightCoord);
   const flightCoords = (isTrainRide ? null : baseFlightCoord)
     ? {
         ...(isTrainRide ? null : baseFlightCoord),

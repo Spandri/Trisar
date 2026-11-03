@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import TrisarFooter from '../../../components/ui/TrisarFooter';
 import { useI18n } from '../../../i18n';
 import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
+import { DEMO_MODE } from '../../../datenquelle';
 
 const BASE_WIDTH = 402;
 const CONTACT_CARD_HEIGHT = 543;
@@ -14,7 +15,10 @@ const SECOND_CARD_TOP = FIRST_CARD_TOP + CONTACT_CARD_HEIGHT + CARD_GAP;
 const CONTACT_TO_FOOTER_GAP = 30;
 const FOOTER_TOP = SECOND_CARD_TOP + CONTACT_CARD_HEIGHT + CONTACT_TO_FOOTER_GAP;
 const FOOTER_HEIGHT = 40;
-const BASE_HEIGHT = FOOTER_TOP + FOOTER_HEIGHT + 1;
+// Live gibt es nur eine Kontaktkarte (Disposition) ohne Hotline, die Seite ist entsprechend kuerzer.
+const BASE_HEIGHT = DEMO_MODE
+  ? FOOTER_TOP + FOOTER_HEIGHT + 1
+  : HOTLINE_CARD_TOP + CONTACT_CARD_HEIGHT + CONTACT_TO_FOOTER_GAP + FOOTER_HEIGHT + 1;
 const CONTENT_TOP = 221;
 const CONTENT_HEIGHT = BASE_HEIGHT - CONTENT_TOP;
 
@@ -58,13 +62,17 @@ const ContactCard = ({ person, marker }) => {
     <button 
       type="button"
       className="absolute left-[12px] top-[457px] w-[338px] h-[56px] bg-[#E3F654] flex items-center justify-center gap-[10px]"
-      onClick={() => window.location.href = `tel:${person.phone}`}
+      onClick={() => window.location.href = person.phone ? `tel:${person.phone}` : `mailto:${person.email}`}
     >
       <span className="text-black text-[24px] font-bold tracking-[-0.5px]">{t('misc.getInTouch')}</span>
-      {/* Call icon using svg path */}
+      {/* Call icon using svg path, ohne Telefonnummer ein Briefumschlag */}
       <div className="w-[35px] h-[35px] flex items-center justify-center">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" fill="black"/>
+          {person.phone ? (
+            <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" fill="black"/>
+          ) : (
+            <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" fill="black"/>
+          )}
         </svg>
       </div>
     </button>
@@ -115,8 +123,8 @@ export default function AnsprechpartnerView({ setView, backView = 'profilFahrer'
     return () => window.removeEventListener('resize', updateScale);
   }, []);
 
-  // Contact data
-  const contacts = [
+  // Contact data: Demo mit Beispielpersonen, live nur die echte Disposition (ohne Telefonnummer)
+  const contacts = DEMO_MODE ? [
     {
       name: "Martin Sonneborn",
       photo: "/support/martin-sonneborn.jpg",
@@ -134,6 +142,16 @@ export default function AnsprechpartnerView({ setView, backView = 'profilFahrer'
       hours: "6:00 - 22:00",
       email: "anna.schubert@trisar-demo.de",
       phone: "+491234567892"
+    }
+  ] : [
+    {
+      name: "TRISAR Disposition",
+      photo: null,
+      role: t('misc.roleDispatch'),
+      description: t('misc.roleDispatchDesc'),
+      hours: "",
+      email: "team@trisar.de",
+      phone: null
     }
   ];
 
@@ -173,20 +191,29 @@ export default function AnsprechpartnerView({ setView, backView = 'profilFahrer'
             {t('misc.support')}
           </div>
 
-          {/* Hotline Card */}
-          <div className="absolute left-[20px]" style={{ top: `${HOTLINE_CARD_TOP}px` }}>
-            <HotlineCard hotline={hotline} />
-          </div>
+          {DEMO_MODE ? (
+            <>
+              {/* Hotline Card */}
+              <div className="absolute left-[20px]" style={{ top: `${HOTLINE_CARD_TOP}px` }}>
+                <HotlineCard hotline={hotline} />
+              </div>
 
-          {/* First Contact Card */}
-          <div className="absolute left-[20px]" style={{ top: `${FIRST_CARD_TOP}px` }}>
-            <ContactCard person={contacts[0]} index={0} marker="support-kontakt" />
-          </div>
+              {/* First Contact Card */}
+              <div className="absolute left-[20px]" style={{ top: `${FIRST_CARD_TOP}px` }}>
+                <ContactCard person={contacts[0]} index={0} marker="support-kontakt" />
+              </div>
 
-          {/* Second Contact Card */}
-          <div className="absolute left-[20px]" style={{ top: `${SECOND_CARD_TOP}px` }}>
-            <ContactCard person={contacts[1]} index={1} marker="support-kontakt-2" />
-          </div>
+              {/* Second Contact Card */}
+              <div className="absolute left-[20px]" style={{ top: `${SECOND_CARD_TOP}px` }}>
+                <ContactCard person={contacts[1]} index={1} marker="support-kontakt-2" />
+              </div>
+            </>
+          ) : (
+            /* Live: eine Karte an der Stelle der Hotline */
+            <div className="absolute left-[20px]" style={{ top: `${HOTLINE_CARD_TOP}px` }}>
+              <ContactCard person={contacts[0]} index={0} marker="support-kontakt" />
+            </div>
+          )}
 
         </div>
       </div>

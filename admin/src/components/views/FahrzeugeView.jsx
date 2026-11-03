@@ -3,6 +3,7 @@ import BackCircleButton from '../ui/BackCircleButton';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import { supabase, supabaseAdmin } from '../../services/supabase';
 import { ColorBadge, EnergyBadge, FuelBadge, SeatBadge, demoFillPercent } from '../../shared/vehicleBadges';
+import { DEMO_MODE } from '../../datenquelle';
 import { useI18n } from '../../i18n';
 
 const VEHICLES_RELOAD_EVENT = 'trisar:admin:vehicles:reload';
@@ -25,7 +26,9 @@ const sortVehicles = (rows, sortKey, sortDesc) => {
     if (sortKey === 'seats') return Number.parseInt(v.seat_count ?? 0, 10) || 0;
     if (sortKey === 'fill') {
       const parsed = Number.parseFloat(v.battery_fuel_percent);
-      return Number.isFinite(parsed) ? parsed : demoFillPercent(v.vin);
+      // Ohne Wert im Betrieb als niedrigster Stand (kein erfundener Fuellstand).
+      if (Number.isFinite(parsed)) return parsed;
+      return DEMO_MODE ? demoFillPercent(v.vin) : -1;
     }
     return String(v.plate || '').toLowerCase();
   };

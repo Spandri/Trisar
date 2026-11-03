@@ -325,12 +325,14 @@ export const fahrtenBauen = (datenzeilen, zuordnung) => {
       flight_origin: wert(zeile, 'herkunft') || null,
       train_number: zug || null,
       passengers: gaeste,
-      passenger_count: Number.isFinite(anzahl) ? anzahl : (gaeste.length || null),
+      // jobs kennt keine Gesamtzahl: wer ueber die Namen hinaus mitfaehrt, zaehlt als anonymer Gast.
+      anonymous_guests: Number.isFinite(anzahl) ? Math.max(0, anzahl - gaeste.length) : 0,
       trip_type: flug || FLUGHAFEN.test(abholort) || FLUGHAFEN.test(zielort) ? 'airport' : 'normal',
       is_vip: ja(wert(zeile, 'vip')),
       needs_child_seat: ja(wert(zeile, 'kindersitz')),
       needs_accessibility: ja(wert(zeile, 'rollstuhl')),
       needs_luggage: ja(gepaeck) || Number.parseInt(gepaeck, 10) > 0,
+      // Keine Spalte in jobs: ImportView legt die Notiz nach dem Einfuegen in job_notes an.
       note: wert(zeile, 'notiz') || null,
       status: 'pending',
       driver_response_status: 'pending',

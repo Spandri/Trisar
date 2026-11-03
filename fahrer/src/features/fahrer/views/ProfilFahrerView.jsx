@@ -3,6 +3,10 @@ import TrisarFooter from '../../../components/ui/TrisarFooter';
 import { PROFILE_LIGHTNING_ICON_URL, PROFILE_ROW_ARROW_ICON_URL } from '../../../shared/ui/icons';
 import { useI18n } from '../../../i18n';
 import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
+import { DEMO_MODE } from '../../../datenquelle';
+
+// Kennzahlen sind bisher nur Demo-Werte, live steht ein Strich bis echte Werte kommen.
+const statWert = (demoWert) => (DEMO_MODE ? demoWert : '–');
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 875;
@@ -18,7 +22,7 @@ export default function ProfilFahrerView({ setView, currentDriverName }) {
   const [viewportHeight, setViewportHeight] = useState(
     typeof window !== 'undefined' ? window.innerHeight : BASE_HEIGHT,
   );
-  const displayName = (currentDriverName || '').trim() || 'Horst Engel';
+  const displayName = (currentDriverName || '').trim() || (DEMO_MODE ? 'Horst Engel' : '');
 
   useEffect(() => {
     const updateScale = () => {
@@ -56,19 +60,21 @@ export default function ProfilFahrerView({ setView, currentDriverName }) {
             <div className="absolute left-0 top-[-28px] text-[#E2F754] text-[48px] font-bold tracking-[-0.5px] leading-none whitespace-nowrap">
               {displayName}
             </div>
-            <div className="absolute left-[1px] top-[21px] text-[#E3F654] opacity-50 text-[16px] font-medium leading-6 tracking-[0.5px] whitespace-nowrap">
-              {t('misc.memberSince', { date: '20.01.25' })}
-            </div>
+            {DEMO_MODE && (
+              <div className="absolute left-[1px] top-[21px] text-[#E3F654] opacity-50 text-[16px] font-medium leading-6 tracking-[0.5px] whitespace-nowrap">
+                {t('misc.memberSince', { date: '20.01.25' })}
+              </div>
+            )}
           </div>
 
           <div className="absolute left-[20px] top-[329px] w-[178px] h-[115px] border-2 border-[#E3F654]" />
           <div className="absolute left-[204px] top-[329px] w-[178px] h-[115px] border-2 border-[#E3F654]" />
           <div className="absolute left-[40px] top-[400px] flex items-end gap-2">
-            <span className="block text-[#E3F654] text-[36px] font-medium leading-none tracking-[0.5px]">5234</span>
+            <span className="block text-[#E3F654] text-[36px] font-medium leading-none tracking-[0.5px]">{statWert('5234')}</span>
             <span className="block text-[#E3F654] opacity-50 text-[16px] font-medium leading-none tracking-[0.5px] -translate-y-[2px]">km</span>
           </div>
           <div className="absolute left-[224px] top-[400px] flex items-end gap-2">
-            <span className="block text-[#E3F654] text-[36px] font-medium leading-none tracking-[0.5px]">634</span>
+            <span className="block text-[#E3F654] text-[36px] font-medium leading-none tracking-[0.5px]">{statWert('634')}</span>
             <span className="block text-[#E3F654] opacity-50 text-[16px] font-medium leading-none tracking-[0.5px] -translate-y-[2px]">{t('misc.liters')}</span>
           </div>
           <img src={PROFILE_LIGHTNING_ICON_URL} alt="" className="absolute left-[169px] top-[341px] w-4 h-5 object-contain opacity-50" />
@@ -77,11 +83,11 @@ export default function ProfilFahrerView({ setView, currentDriverName }) {
           <div className="absolute left-[20px] top-[450px] w-[178px] h-[115px] border-2 border-[#E3F654]" />
           <div className="absolute left-[204px] top-[450px] w-[178px] h-[115px] border-2 border-[#E3F654]" />
           <div className="absolute left-[40px] top-[521px] flex items-end gap-2">
-            <span className="block text-[#E3F654] text-[36px] font-medium leading-none tracking-[0.5px]">56</span>
+            <span className="block text-[#E3F654] text-[36px] font-medium leading-none tracking-[0.5px]">{statWert('56')}</span>
             <span className="block text-[#E3F654] opacity-50 text-[16px] font-medium leading-none tracking-[0.5px] -translate-y-[2px]">{t('misc.trips')}</span>
           </div>
           <div className="absolute left-[224px] top-[521px] flex items-end gap-2">
-            <span className="block text-[#E3F654] text-[36px] font-medium leading-none tracking-[0.5px]">51</span>
+            <span className="block text-[#E3F654] text-[36px] font-medium leading-none tracking-[0.5px]">{statWert('51')}</span>
             <span className="block text-[#E3F654] opacity-50 text-[16px] font-medium leading-none tracking-[0.5px] -translate-y-[2px]">{t('misc.hoursUnit')}</span>
           </div>
           <img src={PROFILE_LIGHTNING_ICON_URL} alt="" className="absolute left-[168px] top-[460.71px] w-4 h-5 object-contain opacity-50" />

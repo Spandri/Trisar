@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import TrisarFooter from '../../../components/ui/TrisarFooter';
 import { useI18n } from '../../../i18n';
 import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
+import { DEMO_MODE } from '../../../datenquelle';
 
 const BASE_WIDTH = 402;
 const CONTENT_SHIFT = 43;
@@ -91,24 +92,33 @@ export default function Verlauf({ setView }) {
             {t('misc.history')}
           </h1>
 
-          <StatusRow top={199 + CONTENT_SHIFT} label={t('misc.shiftStart', { time: '15:30' })} color="#E3F654" />
-          <EntryCard top={262 + CONTENT_SHIFT} dateLabel="22.01.2026     16:00 - 18:00" names={['Horst Engel']} />
-          <EntryCard top={364 + CONTENT_SHIFT} dateLabel="22.01.2026     18:30 - 20:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
-          <StatusRow top={FIRST_SHIFT_END_TOP} label={t('misc.shiftEnd', { time: '20:30' })} color="#ff6f63" />
+          {/* Die Dienste unten sind Demo-Beispiele, live gibt es noch keinen echten Verlauf. */}
+          {DEMO_MODE ? (
+            <>
+              <StatusRow top={199 + CONTENT_SHIFT} label={t('misc.shiftStart', { time: '15:30' })} color="#E3F654" />
+              <EntryCard top={262 + CONTENT_SHIFT} dateLabel="22.01.2026     16:00 - 18:00" names={['Horst Engel']} />
+              <EntryCard top={364 + CONTENT_SHIFT} dateLabel="22.01.2026     18:30 - 20:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
+              <StatusRow top={FIRST_SHIFT_END_TOP} label={t('misc.shiftEnd', { time: '20:30' })} color="#ff6f63" />
 
-          <StatusRow top={SECOND_SHIFT_START_TOP} label={t('misc.shiftStart', { time: '17:30' })} color="#E3F654" />
-          <EntryCard top={626 + CONTENT_SHIFT} dateLabel="21.01.2026     18:00 - 22:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
-          <EntryCard top={744 + CONTENT_SHIFT} dateLabel="21.01.2026     18:00 - 22:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
-          <EntryCard top={862 + CONTENT_SHIFT} dateLabel="21.01.2026     18:00 - 22:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
-          <EntryCard top={980 + CONTENT_SHIFT} dateLabel="21.01.2026     18:00 - 22:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
-          <StatusRow top={SECOND_SHIFT_END_TOP} label={t('misc.shiftEnd', { time: '22:30' })} color="#ff6f63" />
+              <StatusRow top={SECOND_SHIFT_START_TOP} label={t('misc.shiftStart', { time: '17:30' })} color="#E3F654" />
+              <EntryCard top={626 + CONTENT_SHIFT} dateLabel="21.01.2026     18:00 - 22:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
+              <EntryCard top={744 + CONTENT_SHIFT} dateLabel="21.01.2026     18:00 - 22:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
+              <EntryCard top={862 + CONTENT_SHIFT} dateLabel="21.01.2026     18:00 - 22:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
+              <EntryCard top={980 + CONTENT_SHIFT} dateLabel="21.01.2026     18:00 - 22:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
+              <StatusRow top={SECOND_SHIFT_END_TOP} label={t('misc.shiftEnd', { time: '22:30' })} color="#ff6f63" />
 
-          <StatusRow top={THIRD_SHIFT_START_TOP} label={t('misc.shiftStart', { time: '17:30' })} color="#E3F654" />
-          <EntryCard top={1242 + CONTENT_SHIFT} dateLabel="20.01.2026     18:00 - 20:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
-          <StatusRow top={1366 + CONTENT_SHIFT} label={t('misc.shiftEnd', { time: '22:30' })} color="#ff6f63" />
+              <StatusRow top={THIRD_SHIFT_START_TOP} label={t('misc.shiftStart', { time: '17:30' })} color="#E3F654" />
+              <EntryCard top={1242 + CONTENT_SHIFT} dateLabel="20.01.2026     18:00 - 20:00" names={['Horst Engel', 'Marknus Müller']} multiLine />
+              <StatusRow top={1366 + CONTENT_SHIFT} label={t('misc.shiftEnd', { time: '22:30' })} color="#ff6f63" />
 
-          <div className="absolute left-[112px] w-44 h-0 border-t border-[#E3F654]" style={{ top: `${FIRST_DIVIDER_TOP}px` }} />
-          <div className="absolute left-[112px] w-44 h-0 border-t border-[#E3F654]" style={{ top: `${SECOND_DIVIDER_TOP}px` }} />
+              <div className="absolute left-[112px] w-44 h-0 border-t border-[#E3F654]" style={{ top: `${FIRST_DIVIDER_TOP}px` }} />
+              <div className="absolute left-[112px] w-44 h-0 border-t border-[#E3F654]" style={{ top: `${SECOND_DIVIDER_TOP}px` }} />
+            </>
+          ) : (
+            <p className="absolute left-[20px] top-[242px] w-[362px] text-white/70 text-[16px] font-medium leading-6 tracking-[0.5px]">
+              {t('misc.historyEmpty')}
+            </p>
+          )}
 
         </div>
       </div>

@@ -179,6 +179,7 @@ export default {
   "misc.endRideQuestion": "Why do you want to end this ride?",
   "misc.getInTouch": "Get in touch",
   "misc.history": "History",
+  "misc.historyEmpty": "No completed shifts yet.",
   "misc.hotlineDesc": "For all questions and urgent cases – breakdown, accident, delay or short-notice changes. Nights and weekends too.",
   "misc.hoursUnit": "Hours",
   "misc.liters": "Litres",

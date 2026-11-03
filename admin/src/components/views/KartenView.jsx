@@ -4,6 +4,7 @@ import { hasSupabaseAdminConfig, supabase, supabaseAdmin } from '../../services/
 import { useI18n } from '../../i18n';
 import { adresseAufloesen, karteBereitstellen } from '../../shared/karte/maplibreKarte';
 import { FahrSimulation } from '../../demo/fahrSimulation';
+import { DEMO_MODE } from '../../datenquelle';
 
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
@@ -205,8 +206,10 @@ const DRIVER_STATE_ACTIVE = 'aktiv';
 const DRIVER_STATE_INACTIVE = 'inaktiv';
 const DRIVER_STATE_FREE = 'frei';
 const ALL_DRIVER_STATES = [DRIVER_STATE_ACTIVE, DRIVER_STATE_INACTIVE, DRIVER_STATE_FREE];
+// Nur in der Demo: feste Zahl aktiver/inaktiver Fahrer mit zugeteilten Fahrten.
+// Im Betrieb gilt der echte Zustand aus den Daten.
 const MAP_DEMO_STATE_OVERRIDE = {
-  enabled: true,
+  enabled: DEMO_MODE,
   activeCount: 40,
   inactiveCount: 50,
 };
@@ -235,6 +238,17 @@ const normalizeDriverActivityState = (value) => {
 // zum Gast und Weg zum Ziel sieht, bekommt er in der Karte eine offene Fahrt von
 // heute zugeteilt. Die Daten selbst bleiben unberuehrt.
 const DEMO_FAHRT_ZUTEILUNG = new Map();
+// Im Betrieb keine simulierte Bewegung: niemand bekommt eine Strecke, jeder
+// Fahrer steht an seinem gespeicherten Standort (driver_live_locations).
+const KEINE_BEWEGUNG = {
+  fahrten: new Map(),
+  fahrerSetzen: () => {},
+  anfordern: () => {},
+  stand: () => null,
+  pfad: () => null,
+  restMinuten: () => null,
+  aufraeumen: () => {},
+};
 const applyMapDemoStateOverride = (drivers, { offeneFahrten = [], t = (key) => key } = {}) => {
   const list = Array.isArray(drivers) ? drivers : [];
   if (!MAP_DEMO_STATE_OVERRIDE.enabled || list.length === 0) return list;
@@ -701,6 +715,7 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
   // im Betrieb die OBD-Werte des Fahrzeugs (heading_deg, speed_mps).
   const bewegungRef = useRef(null);
   const [geplantFuerAuswahl, setGeplantFuerAuswahl] = useState(0);
+  if (!bewegungRef.current && !DEMO_MODE) bewegungRef.current = KEINE_BEWEGUNG;
   if (!bewegungRef.current) {
     bewegungRef.current = new FahrSimulation({
       beiGeplant: (id) => {

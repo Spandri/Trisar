@@ -5,6 +5,8 @@
 // Die Badges rendern in einer 36-px-Basis; über `size` wird der Inhalt
 // proportional skaliert (Admin-Liste 36 px, Fahrer-App 52 px).
 
+import { DEMO_MODE } from '../datenquelle';
+
 const CARD_OUTLINE_URL = '/icon/_Icon_Schwarz/card-outline-52.svg';
 const E10_URL = '/icon/_Icon_Schwarz/E10_Tank_Trisar_Icons_01.svg';
 const E95_URL = '/icon/_Icon_Schwarz/E95_Tank_Trisar_Icons_01.svg?v=1';
@@ -149,26 +151,28 @@ export function SeatBadge({ seatCount, size = BASE_SIZE }) {
 // `battery_fuel_percent`, `fullRangeKm` aus `range_km` (Reichweite bei 100 %).
 // Schreibt später Telematik echte Werte in die Spalten, zeigt die Kachel sie
 // automatisch live an (die Fahrzeuglisten abonnieren `vehicles` via Realtime).
-// Nur wenn die Spalte leer ist, greift der deterministische Demo-Füllstand.
+// Nur wenn die Spalte leer ist, greift in der Demo der deterministische
+// Demo-Füllstand; im Betrieb steht dann "–" (kein erfundener Wert).
 export function EnergyBadge({ fuelType, seed, fillPercent = null, fullRangeKm = null, size = BASE_SIZE }) {
   const parsedFill = Number.parseFloat(fillPercent);
   const fill = Number.isFinite(parsedFill)
     ? Math.max(0, Math.min(100, Math.round(parsedFill)))
-    : demoFillPercent(seed);
+    : (DEMO_MODE ? demoFillPercent(seed) : null);
+  const unbekannt = fill == null;
   const parsedRange = Number.parseFloat(fullRangeKm);
 
   if (isElectricFuel(fuelType)) {
     // Ladezustand sichtbar: Icon nach Fuellstand, darunter Restreichweite
     // und Prozent — wie bei der Tankanzeige der Verbrenner.
-    const icon = fill >= 60 ? BATTERY_FULL_URL : (fill >= 25 ? BATTERY_MID_URL : BATTERY_LOW_URL);
+    const icon = unbekannt ? BATTERY_MID_URL : (fill >= 60 ? BATTERY_FULL_URL : (fill >= 25 ? BATTERY_MID_URL : BATTERY_LOW_URL));
     const evRange = Number.isFinite(parsedRange) && parsedRange > 0 ? parsedRange : 500;
     return (
       <BadgeFrame size={size}>
         <div className="flex flex-col items-center">
-          <img src={icon} alt="" className="w-[13px] h-[13px] object-contain" />
+          <img src={icon} alt="" className={`w-[13px] h-[13px] object-contain${unbekannt ? ' opacity-30' : ''}`} />
           <div className="mt-[3px] text-center text-black font-bold font-['Space_Grotesk'] text-[5px] leading-[6px] whitespace-pre">
-            <p className="m-0">{`${Math.round((fill / 100) * evRange)}km `}</p>
-            <p className="m-0 text-[#060606]">{fill}%</p>
+            <p className="m-0">{unbekannt ? '–' : `${Math.round((fill / 100) * evRange)}km `}</p>
+            <p className="m-0 text-[#060606]">{unbekannt ? '–' : `${fill}%`}</p>
           </div>
         </div>
       </BadgeFrame>
@@ -176,7 +180,7 @@ export function EnergyBadge({ fuelType, seed, fillPercent = null, fullRangeKm = 
   }
 
   const maxRange = Number.isFinite(parsedRange) && parsedRange > 0 ? parsedRange : 650;
-  const rangeKm = Math.round((fill / 100) * maxRange);
+  const rangeKm = unbekannt ? null : Math.round((fill / 100) * maxRange);
   return (
     <BadgeFrame size={size}>
       <div className="flex flex-col items-center">
@@ -184,13 +188,13 @@ export function EnergyBadge({ fuelType, seed, fillPercent = null, fullRangeKm = 
           {/* Füllbalken im Innenraum der Zapfsäule, wächst von unten */}
           <div
             className="absolute bg-[#1a171b]"
-            style={{ left: '25%', width: '50%', bottom: '12%', height: `${(fill / 100) * 76}%` }}
+            style={{ left: '25%', width: '50%', bottom: '12%', height: `${((fill || 0) / 100) * 76}%` }}
           />
           <img src={PUMP_URL} alt="" className="absolute inset-0 w-full h-full" />
         </div>
         <div className="mt-[3px] text-center text-black font-bold font-['Space_Grotesk'] text-[5px] leading-[6px] whitespace-pre">
-          <p className="m-0">{`${rangeKm}km `}</p>
-          <p className="m-0 text-[#060606]">{fill}%</p>
+          <p className="m-0">{unbekannt ? '–' : `${rangeKm}km `}</p>
+          <p className="m-0 text-[#060606]">{unbekannt ? '–' : `${fill}%`}</p>
         </div>
       </div>
     </BadgeFrame>

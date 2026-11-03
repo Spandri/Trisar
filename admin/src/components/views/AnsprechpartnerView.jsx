@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import TrisarFooter from '../ui/TrisarFooter';
 import BackCircleButton from '../ui/BackCircleButton';
 import { useI18n } from '../../i18n';
+import { DEMO_MODE } from '../../datenquelle';
 
 const BASE_WIDTH = 402;
 const CONTACT_CARD_HEIGHT = 543;
@@ -15,9 +16,23 @@ const SECOND_CARD_TOP = FIRST_CARD_TOP + CONTACT_CARD_HEIGHT + CARD_GAP;
 const CONTACT_TO_FOOTER_GAP = 24;
 const FOOTER_TOP = SECOND_CARD_TOP + CONTACT_CARD_HEIGHT + CONTACT_TO_FOOTER_GAP;
 const FOOTER_HEIGHT = 40;
-const BASE_HEIGHT = FOOTER_TOP + FOOTER_HEIGHT + 1;
 const CONTENT_TOP = 206;
+// Im Betrieb nur eine Karte (TRISAR Team) ohne Hotline: Seite entsprechend kuerzer.
+const BASE_HEIGHT = DEMO_MODE
+  ? FOOTER_TOP + FOOTER_HEIGHT + 1
+  : HOTLINE_CARD_TOP + CONTACT_CARD_HEIGHT + CONTACT_TO_FOOTER_GAP + FOOTER_HEIGHT + 1;
 const CONTENT_HEIGHT = BASE_HEIGHT - CONTENT_TOP;
+
+// Echter Kontakt fuer den Betrieb. Keine Telefonnummer, solange es keine gibt.
+const TEAM_KONTAKT = {
+  name: 'TRISAR Team',
+  photo: '',
+  role: '',
+  description: '',
+  hours: '',
+  email: 'team@trisar.de',
+  phone: '',
+};
 
 const screenBg = {
   backgroundImage:
@@ -54,13 +69,16 @@ const ContactCard = ({ person, ctaLabel }) => (
       type="button"
       className="absolute left-[12px] top-[457px] w-[338px] h-[56px] bg-[#E3F654] flex items-center justify-center gap-[10px]"
       onClick={() => {
-        window.location.href = `tel:${person.phone}`;
+        // Ohne Telefonnummer per E-Mail.
+        window.location.href = person.phone ? `tel:${person.phone}` : `mailto:${person.email}`;
       }}
     >
       <span className="text-black text-[24px] font-bold tracking-[-0.5px]">{ctaLabel}</span>
-      <div className="w-[35px] h-[35px] flex items-center justify-center">
-        <img src="/icon/_Icon_Schwarz/contact-phone.svg" alt="" className="w-6 h-6" />
-      </div>
+      {person.phone ? (
+        <div className="w-[35px] h-[35px] flex items-center justify-center">
+          <img src="/icon/_Icon_Schwarz/contact-phone.svg" alt="" className="w-6 h-6" />
+        </div>
+      ) : null}
     </button>
   </div>
 );
@@ -161,17 +179,26 @@ export default function AnsprechpartnerView({ setView, backView = 'profilKoordin
             {t('sonstige.supportTitle')}
           </div>
 
-          <div className="absolute left-[20px]" style={{ top: `${HOTLINE_CARD_TOP}px` }}>
-            <HotlineCard hotline={hotline} title={t('sonstige.zentraleHotline')} ctaLabel={t('sonstige.getInTouch')} />
-          </div>
+          {DEMO_MODE ? (
+            <>
+              <div className="absolute left-[20px]" style={{ top: `${HOTLINE_CARD_TOP}px` }}>
+                <HotlineCard hotline={hotline} title={t('sonstige.zentraleHotline')} ctaLabel={t('sonstige.getInTouch')} />
+              </div>
 
-          <div className="absolute left-[20px]" style={{ top: `${FIRST_CARD_TOP}px` }}>
-            <ContactCard person={contacts[0]} ctaLabel={t('sonstige.getInTouch')} />
-          </div>
+              <div className="absolute left-[20px]" style={{ top: `${FIRST_CARD_TOP}px` }}>
+                <ContactCard person={contacts[0]} ctaLabel={t('sonstige.getInTouch')} />
+              </div>
 
-          <div className="absolute left-[20px]" style={{ top: `${SECOND_CARD_TOP}px` }}>
-            <ContactCard person={contacts[1]} ctaLabel={t('sonstige.getInTouch')} />
-          </div>
+              <div className="absolute left-[20px]" style={{ top: `${SECOND_CARD_TOP}px` }}>
+                <ContactCard person={contacts[1]} ctaLabel={t('sonstige.getInTouch')} />
+              </div>
+            </>
+          ) : (
+            // Im Betrieb nur der echte Kontakt, keine Beispielpersonen und -nummern.
+            <div className="absolute left-[20px]" style={{ top: `${HOTLINE_CARD_TOP}px` }}>
+              <ContactCard person={TEAM_KONTAKT} ctaLabel={t('sonstige.getInTouch')} />
+            </div>
+          )}
 
         </div>
       </div>

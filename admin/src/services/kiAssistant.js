@@ -1,4 +1,5 @@
 import { hasSupabaseAdminConfig, supabase, supabaseAdmin } from './supabase';
+import { DEMO_MODE } from '../datenquelle';
 
 const ADMIN_FALLBACK_ERROR_RE = /invalid jwt|signature is invalid|not allowed|unauthorized|permission denied/i;
 const MISSING_COLUMN_RE = /column .* does not exist|could not find the ['"]?.+['"]? column/i;
@@ -2153,6 +2154,14 @@ const DEMO_FRAGEN = [
 export const askDatabaseAssistant = async ({ prompt, chatHistory = [] }) => {
   const trimmedPrompt = String(prompt || '').trim();
   if (!trimmedPrompt) return 'Bitte stelle eine Frage.';
+
+  // Im Betrieb gibt es noch kein angebundenes Modell. Die Beispielantworten
+  // unten sind fuer die Demo gebaut (Beispielbuchung, feste Fragen), also hier
+  // fuer jede Nachricht nur der Hinweis.
+  if (!DEMO_MODE) {
+    await wait(KI_DEMO_HINWEIS_VERZOEGERUNG_MS);
+    return { answer: 'Der Assistent ist im Testbetrieb noch nicht freigeschaltet.', meta: { testbetrieb: true } };
+  }
 
   // DEMO-VORSCHAU: kein LLM — nur die Beispielanfrage wird beantwortet.
   if (isKiDemoAnfrage(trimmedPrompt)) {

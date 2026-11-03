@@ -4,6 +4,7 @@ import EinsatzDiagramm from './EinsatzDiagramm';
 import { EreignisKacheln } from './RisikoBausteine';
 import { ereignisseFuerTag, useEreignisAenderungen, useRisikoDaten } from '../../demo/risikoErgebnisse';
 import { useI18n } from '../../i18n';
+import { DEMO_MODE } from '../../datenquelle';
 
 // KI Einsatzplanung, Schritt 2: Bedarf pruefen und per Hand anpassen.
 // Zwischen Kalender und Tagesplanung stehen die Diagramme aller gewaehlten Tage
@@ -73,7 +74,8 @@ export default function EinsatzplanungBedarf({
     return () => window.removeEventListener('resize', aktualisieren);
   }, []);
 
-  const ereignisseJeTag = Object.fromEntries(tage.map((iso) => [iso, ereignisseFuerTag(risiko, iso)]));
+  // Ereignisse stammen aus vorab gerechneten Demo-Daten — im Betrieb keine.
+  const ereignisseJeTag = Object.fromEntries(tage.map((iso) => [iso, DEMO_MODE ? ereignisseFuerTag(risiko, iso) : []]));
   const tops = [];
   tage.forEach((iso, i) => {
     tops.push(i === 0 ? ERSTER_TRENNER

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import TrisarFooter from './ui/TrisarFooter';
-import { TRISAR_LOGO_URL } from '../shared/ui/icons';
+import { TOP_RIGHT_TEAM_URL, TRISAR_LOGO_URL } from '../shared/ui/icons';
 import { ColorBadge, EnergyBadge, FuelBadge, SeatBadge } from '../shared/vehicleBadges';
 
 const screenBg = {
@@ -9,7 +9,7 @@ const screenBg = {
 };
 
 
-export default function KeineFahrtTrisar({ currentVehicle, onLogout }) {
+export default function KeineFahrtTrisar({ currentVehicle, onLogout, onOpenProfile, onOpenVehicle }) {
   const [scale, setScale] = useState(1);
   const carName = currentVehicle?.brand_model || 'M PM 3214';
   const vin = currentVehicle?.vin || '12345678910121314';
@@ -38,11 +38,22 @@ export default function KeineFahrtTrisar({ currentVehicle, onLogout }) {
             <img src={TRISAR_LOGO_URL} alt="trisar" className="w-full h-full object-contain" />
           </div>
 
+          {/* Profil-Knopf wie in der Fahrtenliste, nur wenn ein Handler kommt (Live) */}
+          {onOpenProfile && (
+            <button type="button" onClick={onOpenProfile} aria-label="Profil" className="absolute right-5 top-[86px] w-[52px] h-[52px] rounded-full border border-[#8f8f90] flex items-center justify-center">
+              <img src={TOP_RIGHT_TEAM_URL} alt="" className="w-[24px] h-[24px] object-contain opacity-90" />
+            </button>
+          )}
+
           <h1 className="absolute left-5 top-[194px] w-[362px] text-white text-[34px] leading-[1.18] tracking-[-0.5px] font-medium">
             Hey aktuell gibt es keine Fahrt für dich!
           </h1>
 
-          <div className="absolute left-5 top-[462px] w-[362px] h-[268px] bg-white">
+          <div
+            className={`absolute left-5 top-[462px] w-[362px] h-[268px] bg-white${onOpenVehicle ? ' cursor-pointer' : ''}`}
+            onClick={onOpenVehicle}
+            role={onOpenVehicle ? 'button' : undefined}
+          >
             <h2 className="absolute inset-x-0 h-[36.68px] text-center text-[#1c1c1d] text-[30px] leading-none tracking-[-0.5px] font-bold" style={{ top: '15.29px' }}>
               {carName}
             </h2>

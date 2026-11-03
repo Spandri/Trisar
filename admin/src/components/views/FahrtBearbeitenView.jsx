@@ -7,6 +7,7 @@ import { useI18n } from '../../i18n';
 import { demoAlert, demoConfirm, tutorialLaeuft } from '../ui/demoDialoge';
 import RisikoAbschnitt from './RisikoAbschnitt';
 import { fahrerPasst, risikoFahrt, risikoTag, useRisikoDaten } from '../../demo/risikoErgebnisse';
+import { DEMO_MODE } from '../../datenquelle';
 
 const GREEN = '#E3F654';
 // Erstes Feld 24 px unter dem Titel (140 + 42 + 24 = 206), Reihen alle 68 px.
@@ -315,7 +316,8 @@ export default function FahrtBearbeitenView({
     const de = roh.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
     return de ? `${de[3]}-${de[2]}-${de[1]}` : roh;
   })();
-  const risikoDieserFahrt = /^\d{4}-\d{2}-\d{2}$/.test(risikoDatum)
+  // Nur in der Demo: die Risikodaten sind vorab gerechnet, nicht aus dem Betrieb.
+  const risikoDieserFahrt = DEMO_MODE && /^\d{4}-\d{2}-\d{2}$/.test(risikoDatum)
     ? risikoFahrt(risikoDaten, risikoDatum, initialData?.rideId || initialData?.id)
     : null;
   const fahrtGeplant = fahrerPasst(risikoDieserFahrt, Array.isArray(initialData?.fahrerNamen) ? initialData.fahrerNamen : []);

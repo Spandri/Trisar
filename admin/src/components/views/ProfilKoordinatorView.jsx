@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import TrisarFooter from '../ui/TrisarFooter';
 import BackCircleButton from '../ui/BackCircleButton';
 import { useI18n } from '../../i18n';
+import { DEMO_MODE } from '../../datenquelle';
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 875;
@@ -16,7 +17,8 @@ const screenBg = {
 export default function ProfilKoordinatorView({ setView, currentCoordinatorName }) {
   const { t } = useI18n();
   const [scale, setScale] = useState(1);
-  const displayName = (currentCoordinatorName || '').trim() || 'Samira Chengula';
+  // Beispielname nur in der Demo; im Betrieb ohne Namen kein Platzhalter.
+  const displayName = (currentCoordinatorName || '').trim() || (DEMO_MODE ? 'Samira Chengula' : '');
 
   useEffect(() => {
     const updateScale = () => {

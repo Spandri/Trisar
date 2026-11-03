@@ -3,6 +3,7 @@ import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
 import { KLASSE_TEXT, NAH_STUNDEN, liveLage, naheLage, risikoFahrt, useRisikoDaten } from '../../demo/risikoErgebnisse';
 import { KLASSE_FARBE } from './risikoFarben';
+import { DEMO_MODE } from '../../datenquelle';
 import { useI18n } from '../../i18n';
 
 // Fahrten mit hohem Risiko tragen "NEU", bis die Disposition sie einmal geoeffnet hat.
@@ -471,7 +472,8 @@ export default function AnkuenfteView({
     const roh = String(ride?.date || '').slice(0, 10);
     const de = roh.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
     const datum = de ? `${de[3]}-${de[2]}-${de[1]}` : roh;
-    const f = /^\d{4}-\d{2}-\d{2}$/.test(datum) ? risikoFahrt(risikoDaten, datum, ride?.id) : null;
+    // Risiko kommt aus vorab gerechneten Demo-Daten — im Betrieb kein Abzeichen.
+    const f = DEMO_MODE && /^\d{4}-\d{2}-\d{2}$/.test(datum) ? risikoFahrt(risikoDaten, datum, ride?.id) : null;
     if (!f) return null;
     // Laufende Fahrt: was gerade passiert.
     if (String(ride?.aktuellerStatus || '').trim().toLowerCase() === 'unterwegs') {
@@ -747,7 +749,7 @@ export default function AnkuenfteView({
       zugnummer: String(ride.zugnummer || ''),
       anzahlKinder: String(ride.anzahlKinder || '0'),
       aktuellerStatus: statusValue,
-      notes: ride.note || '',
+      notes: ride.dispoNote ?? ride.note ?? '',
       aiBooked: Boolean(ride.aiBooked),
     };
   };
