@@ -168,6 +168,49 @@ const DEMO_ANSCHLUSS_ABSTAND_MIN = 114;
   if (anschluss) setzen(anschluss, new Date(ankunft.getTime() + DEMO_ANSCHLUSS_ABSTAND_MIN * 60000));
 })();
 
+// --- Gastnamen fuer Stadt- und Messetag -------------------------------------
+// Die Fahrten von Stadt- und Messetag tragen in den Rohdaten nur die Anzahl der
+// Gaeste. Ohne Namen zeigt die Fahrtenliste den Abholort als Namen
+// ("R. Arcaden"). Hier bekommen sie erfundene Gastnamen: je Tag nach Uhrzeit
+// reihum aus der Liste, so liegen zwei Fahrten desselben Gasts weit auseinander.
+const DEMO_GAESTE = [
+  'Aisha Rahman', 'Andreas Kofler', 'Anna-Lena Brandt', 'Charlotte Kessler', 'Claire Dubois',
+  'Daniel Brugger', 'Elena Rossi', 'Felix Obermaier', 'Franziska Ebner', 'Georg Wieland',
+  'Hannah Roth', 'Henrik Johansson', 'Ingrid Sommerfeld', 'Isabelle Moreau', 'James Whitfield',
+  'Jonas Weißhaupt', 'Julia Schwarzmann', 'Lukas Steinmetz', 'Marta Kowalska', 'Martin Aldenhoven',
+  'Mateo Álvarez', 'Maximilian Falk', 'Miriam Steinbach', 'Nadia El-Sayed', 'Nils Petersen',
+  'Oliver Bergström', 'Patrick Maier', 'Sarah Lindner', 'Sebastian Nowak', 'Sophie Hartmann',
+  'Stephan Krieger', 'Thomas Egger', 'Tobias Reinhardt', 'Vera Lehmann', 'Yuki Tanaka',
+  'Alexander Brenner', 'Amelie Hofbauer', 'Benedikt Rauch', 'Carla Fontana', 'Christoph Wenger',
+  'David Lindqvist', 'Emma Gruber', 'Fabian Kerschbaum', 'Fatma Yıldız', 'Florian Aigner',
+  'Gabriel Dumont', 'Greta Hansen', 'Hiroshi Sato', 'Ines Carvalho', 'Jakob Pichler',
+  'Johanna Wallner', 'Karim Haddad', 'Klara Novak', 'Laura Bianchi', 'Leon Hartl',
+  'Lina Berger', 'Lucas Martin', 'Magdalena Zieliński', 'Marco Ferrari', 'Maria Huber',
+  'Matthias Leitner', 'Mei Lin', 'Moritz Albrecht', 'Nora Eriksen', 'Omar Benali',
+  'Paul Wimmer', 'Pia Schuster', 'Rafael Ortega', 'Rebecca Stone', 'Robert Lang',
+  'Ruth Kellner', 'Samuel Okafor', 'Simon Hager', 'Sofia Russo', 'Stefanie Moser',
+  'Teresa Baumann', 'Theo Winkler', 'Valentina Costa', 'Viktor Petrov', 'Wolfgang Seidl',
+  'Zoe Andersen', 'Anton Reiter', 'Birgit Hauser', 'Dominik Frank', 'Eva Schreiber',
+  'Hugo Lefèvre', 'Ivana Horvat', 'Jan de Vries', 'Katrin Fuchs', 'Liam O\'Connor',
+  'Mia Kraus', 'Noah Weber', 'Olivia Clarke', 'Priya Sharma', 'Quentin Moreau',
+  'Selin Aydın', 'Tim Vogt', 'Ulrike Brandl', 'Vincent Roux', 'Wiebke Thomsen',
+];
+(() => {
+  const ohneNamen = store.jobs
+    .filter((job) => !Array.isArray(job.passengers) && Number(job.passengers) > 0)
+    .sort((a, b) => String(a.ride_date).localeCompare(String(b.ride_date)) || String(a.etd).localeCompare(String(b.etd)));
+  let tag = null;
+  let naechster = 0;
+  ohneNamen.forEach((job) => {
+    if (job.ride_date !== tag) { tag = job.ride_date; naechster = 0; }
+    job.passengers = Array.from({ length: Number(job.passengers) }, () => {
+      const name = DEMO_GAESTE[naechster % DEMO_GAESTE.length];
+      naechster += 1;
+      return name;
+    });
+  });
+})();
+
 // --- Angenommene Planung nach dem Neuladen ----------------------------------
 // Der KI-Planer merkt sich angenommene Tage im sessionStorage
 // (KiPlanerDemoView, trisar_planer_cache_v1), die Demo-Daten fangen beim
