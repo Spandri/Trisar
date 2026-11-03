@@ -50,7 +50,7 @@ export const risikoGrund = (f) => {
 };
 
 // Puffer gilt nur fuer den Plan der Engine: passt der eingetragene Fahrer dazu?
-// Vergleich ueber den Nachnamen ("D. Schmidt (78)" passt zu "Dennis Schmidt").
+// Vergleich ueber den Nachnamen ("V. Schulte (78)" passt zu "Volker Schulte").
 const nachname = (name) => String(name || '').replace(/\(.*\)/, '').trim().split(/\s+/).pop()?.toLowerCase() || '';
 export const fahrerPasst = (f, eintraege) => {
   const soll = nachname(f?.fahrer);

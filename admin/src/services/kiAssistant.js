@@ -1070,7 +1070,7 @@ const buildDeterministicAnswer = ({ prompt, snapshot, chatHistory = [] }) => {
     }
 
     if (!match) {
-      return 'Bitte nenne den Fahrer eindeutig, z. B. "Telefonnummer von Fahrer #15" oder "Telefonnummer von Felix Meyer".';
+      return 'Bitte nenne den Fahrer eindeutig, z. B. "Telefonnummer von Fahrer #15" oder "Telefonnummer von Anja Werner".';
     }
 
     const driverName = getDriverDisplayName(match) || 'Unbekannter Fahrer';
@@ -1927,7 +1927,7 @@ const KI_DEMO_START = 'Hotel Bayerischer Hof';
 const KI_DEMO_ZIEL = 'MUC Terminal 2';
 // Bevorzugte Fahrer (bekannt aus der Summit-Kolonne, alle mit Fahrzeug).
 // Stefano Spandri ist morgen bereits mehrfach verplant und bleibt aussen vor.
-const KI_DEMO_FAHRER_KANDIDATEN = ['Adrian Meyer', 'Dennis Meyer', 'Matteo Meyer'];
+const KI_DEMO_FAHRER_KANDIDATEN = ['Aaron Adler', 'Simone Schäfer', 'Elif Şahin'];
 // Mindestabstand zu anderen Fahrten des Fahrers am selben Tag.
 const KI_DEMO_KONFLIKT_PUFFER_MIN = 120;
 

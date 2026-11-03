@@ -24,8 +24,8 @@
   // Demo-Daten, auf die sich das Tutorial bezieht (siehe admin-app-demo/src/demo/data)
   var FAHRT_VIP = '19f25ddb-af39-519c-961b-3902848a0671';        // 14:30 MUC Terminal 2 → Hotel Bayerischer Hof, LH 2085, VIP Katharina Vogel
   var FAHRT_OFFEN = '011ac7d9-f03d-5677-a76d-ae2bda3d7bdb';      // 16:24 MUC Terminal 2 → Sophienstraße, Antwort des Fahrers offen
-  var FAHRER_ADRIAN = '40849666-dcd1-5e11-9de1-e90a85a98062';    // Adrian Meyer #36, steht oben in der Fahrerliste
-  var FAHRER_DENNIS = '0c8aa21c-1730-505e-b03b-06607611672e';    // Dennis Meyer #38
+  var FAHRER_ADRIAN = '40849666-dcd1-5e11-9de1-e90a85a98062';    // Aaron Adler #36, steht oben in der Fahrerliste
+  var FAHRER_DENNIS = '0c8aa21c-1730-505e-b03b-06607611672e';    // Simone Schäfer #38
   var FAHRZEUG_STEFANO = '7e6a0245-9821-4265-8ef7-f9dbd26d48a8'; // M ST 2154, 100 %
   var FAHRZEUG_KNAPP = '516bc2b5-c1ef-45fa-b4d5-0763eef4502d';   // M-A 215H, 16 % — knappe Reichweite
   var KUNDIN_VOGEL = '6a208955-2a32-5b1b-9f3b-cd6c436497be';     // Katharina Vogel, VIP
