@@ -4,6 +4,8 @@ import './index.css';
 // Karten laufen auf MapLibre mit dunklem Carto-Stil (siehe shared/karte).
 import { karteBereitstellen } from './shared/karte/maplibreKarte';
 import App from './App.jsx';
+import AnmeldeTor from './components/AnmeldeTor.jsx';
+import { DEMO_MODE } from './datenquelle.js';
 import splashVideo from './assets/loadScreen.mp4';
 
 const BOOT_MAX_MS = 6000;
@@ -38,7 +40,7 @@ function BootSplashGate() {
 
   return (
     <>
-      <App />
+      {DEMO_MODE ? <App /> : <AnmeldeTor><App /></AnmeldeTor>}
       {showSplash ? (
         <div
           style={{

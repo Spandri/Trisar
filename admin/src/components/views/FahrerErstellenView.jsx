@@ -214,20 +214,6 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
         setFeedback(t('erstellen.driverLoadError', { error: error.message }));
       }
 
-      try {
-        const authUser = await supabaseAdmin.auth.admin.getUserById(initialDriver.id);
-        if (!mounted) return;
-        const authEmail = String(authUser?.data?.user?.email || '').trim();
-        if (authEmail) {
-          setEmail(authEmail);
-          setOriginalEmail(authEmail.toLowerCase());
-        }
-      } catch (error) {
-        if (!mounted) return;
-        if (!email.trim()) {
-          setFeedback(t('erstellen.authEmailLoadError', { error: error.message }));
-        }
-      }
     };
 
     hydrateDriver();
@@ -336,53 +322,26 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
       let profileClient = supabaseAdmin;
       const redirectTo = resolveDriverPasswordSetupRedirect();
 
-      const adminCreate = await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail, {
-        redirectTo,
-        data: {
+      // Einladung laeuft ueber die Funktion dispo-admin, der Admin-Schluessel bleibt auf dem Server.
+      const einladung = await supabase.functions.invoke('dispo-admin', {
+        body: {
+          aktion: 'fahrer_einladen',
+          email: normalizedEmail,
+          redirectTo,
           first_name: firstName.trim(),
           last_name: lastName.trim(),
-          role: 'fahrer',
-          password_setup_required: true,
         },
       });
-
-      if (adminCreate.error) {
-        if (/invalid format|unable to validate email address/i.test(adminCreate.error.message || '')) {
+      const einladungsFehler = einladung.error
+        ? String((await einladung.error.context?.json?.().catch(() => null))?.error || einladung.error.message || '')
+        : '';
+      if (einladungsFehler) {
+        if (/invalid format|unable to validate email address/i.test(einladungsFehler)) {
           throw new Error(t('erstellen.errorEmailInvalid'));
         }
-        const jwtOrPermissionIssue = /invalid jwt|signature is invalid|user not allowed|not allowed/i.test(adminCreate.error.message || '');
-        if (!jwtOrPermissionIssue) {
-          throw new Error(t('erstellen.errorInviteMailFailed', { error: adminCreate.error.message }));
-        }
-
-        const fallbackCreate = await supabaseAdmin.auth.admin.createUser({
-          email: normalizedEmail,
-          email_confirm: true,
-          user_metadata: {
-            first_name: firstName.trim(),
-            last_name: lastName.trim(),
-            role: 'fahrer',
-            password_setup_required: true,
-          },
-        });
-        if (fallbackCreate.error) {
-          throw new Error(t('erstellen.errorAuthUserCreateFailed', { error: fallbackCreate.error.message }));
-        }
-        if (!fallbackCreate.data?.user?.id) {
-          throw new Error(t('erstellen.errorAuthUserMissingId'));
-        }
-        userId = fallbackCreate.data.user.id;
-
-        const resetEmail = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
-        if (resetEmail.error) {
-          throw new Error(t('erstellen.errorResetMailFailed', { error: resetEmail.error.message }));
-        }
-      } else {
-        if (!adminCreate.data?.user?.id) {
-          throw new Error(t('erstellen.errorAuthUserMissingId'));
-        }
-        userId = adminCreate.data.user.id;
+        throw new Error(t('erstellen.errorInviteMailFailed', { error: einladungsFehler }));
       }
+      userId = einladung.data?.user_id || null;
 
       if (!userId) {
         throw new Error(t('erstellen.errorAuthUserMissingId'));
