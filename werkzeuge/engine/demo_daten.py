@@ -12,7 +12,7 @@ import daten
 from daten import Ereignis, demo_ort, fahrzeit_min
 from instanz import Gruppe
 
-DATA = Path(__file__).resolve().parents[2] / "admin-app-demo/src/demo/data"
+DATA = Path(__file__).resolve().parents[2] / "admin/src/demo/data"
 DEMO_BASE_DATE = "2026-08-16"
 TAGE = {0: "2026-08-16", 1: "2026-08-17", 2: "2026-08-18"}
 TAG_NAME = {0: "Basistag", 1: "Stadttag", 2: "Messetag"}

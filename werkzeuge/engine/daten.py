@@ -12,7 +12,7 @@ from functools import lru_cache
 from dataclasses import dataclass
 from pathlib import Path
 
-DEMO_DATEN = Path(__file__).resolve().parents[2] / "admin-app-demo/src/demo/data/distances.json"
+DEMO_DATEN = Path(__file__).resolve().parents[2] / "admin/src/demo/data/distances.json"
 _DEMO = json.loads(DEMO_DATEN.read_text())
 _DEMO_COORDS = _DEMO["coords"]
 

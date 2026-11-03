@@ -36,13 +36,22 @@ def quant(werte, q):
     return w[min(len(w) - 1, int(q * len(w)))]
 
 
-def klasse(verzug_p90: float) -> str:
-    """Wie spät kann die Fahrt am Ziel ankommen (9 von 10 Verläufen)?"""
-    if verzug_p90 >= 20:
-        return "hoch"
-    if verzug_p90 > 10:
-        return "mittel"
-    return "niedrig"
+MITTEL_AB = 0.05           # Anteil Verläufe, in denen die nächste Abholung zu spät ist
+HOCH_AB = 0.10
+FLUGHAFEN_ENG_MIN = 15     # ohne Folgefahrt: so spät am Flughafen (9 von 10 Verläufen) wird es eng
+
+
+def klasse(f: dict) -> str:
+    """Was die Fahrt danach gefährdet: Mit Folgefahrt zählt, wie oft der Fahrer
+    zur nächsten Abholung zu spät kommt (mittel ab 1 von 20, hoch ab 1 von 10
+    Verläufen). Ohne Folgefahrt ist nur eine knappe Fahrt zum Flughafen mittel.
+    Früher zählte allein die Ankunft gegenüber Plan, das traf fast jede Stadtfahrt."""
+    luft = f.get("luft")
+    if luft:
+        spaet = 1 - luft["folge_puenktlich"] / luft["verlaeufe"]
+        return "hoch" if spaet >= HOCH_AB else "mittel" if spaet >= MITTEL_AB else "niedrig"
+    flughafen = any(w in (f.get("nach") or "") for w in ("Flughafen", "Terminal"))
+    return "mittel" if flughafen and f["verzug_p90"] >= FLUGHAFEN_ENG_MIN else "niedrig"
 
 
 def ankunftsart(g) -> str:
@@ -92,7 +101,6 @@ def fahrt_risiko(g, t, szen, zeiten):
         hist[min(16, int((min(d, hi) - lo) / breite))] += 1
     v90 = quant(verzug, 0.9)
     return {
-        "klasse": klasse(v90),
         "verzug_p90": round(max(0, v90)),
         "fahrzeit": {"plan": t.ende_zeit - t.start_zeit, "p10": p10, "p50": p50, "p90": p90,
                      "von": round(lo), "bis": round(hi), "hist": hist},
@@ -269,6 +277,7 @@ def main():
                 f["abfahrt"] = dd.hhmm(t.start_zeit)
                 f["von"] = gd_job[rid].start.name.split(",")[0]
                 f["nach"] = gd_job[rid].ziel.name.split(",")[0]
+                f["klasse"] = klasse(f)
                 fahrten[rid] = f
             puffer = [f["luft"]["puffer"] for f in fahrten.values() if f["luft"]]
             hoch = [rid for rid, f in fahrten.items() if f["klasse"] == "hoch"]

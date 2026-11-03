@@ -10,7 +10,7 @@ import demo_daten as dd
 import szenarien
 
 DATEIEN = [Path(__file__).parent / "ergebnisse" / "engine-ergebnisse.json",
-           Path(__file__).resolve().parents[2] / "admin-app-demo" / "src" / "demo" / "data" / "engine-ergebnisse.json"]
+           Path(__file__).resolve().parents[2] / "admin" / "src" / "demo" / "data" / "engine-ergebnisse.json"]
 
 dd.flotte_setzen()
 neu = {}
