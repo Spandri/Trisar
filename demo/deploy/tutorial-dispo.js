@@ -111,7 +111,18 @@
       pfad: ['Startseite', 'Alle Fahrten'],
       ort: 'fahrten',
       fokus: 'fahrt-' + FAHRT_VIP,
-      text: 'Alle Fahrten erscheinen als Karten mit Gästen, Strecke, zugeteiltem Fahrer und Zeit. Verschiebt sich eine Fahrt, steht die ursprüngliche Zeit durchgestrichen daneben.',
+      text: 'Alle Fahrten erscheinen als Karten mit Gästen, Strecke, zugeteiltem Fahrer und Zeit, nach Tagen getrennt. Verschiebt sich eine Fahrt, steht die ursprüngliche Zeit durchgestrichen daneben. Laufende Fahrten stehen als unterwegs, beendete verschwinden aus der Liste.',
+    },
+    {
+      kategorie: 'Risiko je Fahrt',
+      pfad: ['Alle Fahrten', 'Risiko'],
+      ort: 'fahrten',
+      // Die VIP-Fahrt liegt immer 1,5 h voraus: Klasse plus Hinweis "Flug verspaetet".
+      fokus: 'fahrt-' + FAHRT_VIP,
+      aktion: [
+        { umkreisen: '[data-tutorial="fahrt-risiko-' + FAHRT_VIP + '"]', runden: 1, nach: 300 },
+      ],
+      text: 'Jede Fahrt trägt ihr Risiko aus der Vorabplanung, niedrig, mittel oder hoch. Steht sie in den nächsten Stunden an, steht dabei, was sich schon abzeichnet, etwa mehr Verkehr oder ein verspäteter Flug. Läuft die Fahrt, zeigt die Karte live, ob sie im Plan ist.',
     },
     {
       kategorie: 'Fahrerantwort',
@@ -315,7 +326,7 @@
         { klick: 'planer-tag-accept', nach: 900 },
       ],
       fokus: 'planer-tag-accept',
-      text: 'Mit accept wird der ganze Tag übernommen. Jeder Fahrer bekommt seinen Dienst als Anfrage in die Fahrer-App.',
+      text: 'Mit accept wird der ganze Tag übernommen. Jeder Fahrer bekommt seinen Dienst als Anfrage in die Fahrer-App, und in Alle Fahrten steht an jeder Fahrt ihr Fahrer.',
     },
     {
       kategorie: 'Störung am Einsatztag',

@@ -18,12 +18,12 @@ const gesehenMerken = (id) => {
   } catch { /* ohne Speicher bleibt NEU stehen */ }
 };
 
-function RisikoZeile({ risiko }) {
+function RisikoZeile({ risiko, marker }) {
   const farbe = KLASSE_FARBE[risiko.klasse];
   // Ohne Text reicht die Plakette, der gestrichelte Rahmen gehoert nur zur Zeile mit Text.
   if (!risiko.grund) {
     return (
-      <div className="mt-[4px] flex items-center gap-[6px] text-[11px] font-bold font-['Space_Grotesk'] leading-4 text-zinc-900">
+      <div data-tutorial={marker} className="mt-[4px] flex items-center gap-[6px] text-[11px] font-bold font-['Space_Grotesk'] leading-4 text-zinc-900">
         <span className="px-[6px] py-[2px]" style={{ background: farbe }}>{KLASSE_TEXT[risiko.klasse]}</span>
         {risiko.neu ? <span className="px-[6px] py-[2px] text-[10px] tracking-[0.5px] text-black bg-[#ff6f63]">NEU</span> : null}
       </div>
@@ -31,6 +31,7 @@ function RisikoZeile({ risiko }) {
   }
   return (
     <div
+      data-tutorial={marker}
       className="relative mt-[4px] flex items-center gap-[8px] px-[8px] py-[6px] border-2 border-dashed text-[12px] font-medium font-['Space_Grotesk'] leading-4 text-zinc-900"
       style={{ borderColor: farbe }}
     >
@@ -398,7 +399,7 @@ const RideCard = ({
               )}
             </div>
             <div className={`${textColor} opacity-80 text-xs font-medium font-['Space_Grotesk'] leading-4 tracking-wide`}>{route}</div>
-            {risiko && variant !== 'variant2' ? <RisikoZeile risiko={risiko} /> : null}
+            {risiko && variant !== 'variant2' ? <RisikoZeile risiko={risiko} marker={id ? `fahrt-risiko-${id}` : undefined} /> : null}
             <div data-tutorial={id ? `fahrt-fahrer-${id}` : undefined} className="text-base font-bold font-['Space_Grotesk'] leading-6 tracking-wide">
               {fallbackDriverParts.map((part, index) => (
                 <span key={`${part.text}-${index}`} className={part.colorClass}>
