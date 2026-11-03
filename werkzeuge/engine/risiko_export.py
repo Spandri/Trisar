@@ -36,14 +36,14 @@ def quant(werte, q):
     return w[min(len(w) - 1, int(q * len(w)))]
 
 
-MITTEL_AB = 0.05           # Anteil Verläufe, in denen die nächste Abholung zu spät ist
-HOCH_AB = 0.10
+MITTEL_AB = 0.02           # Anteil Verläufe, in denen die nächste Abholung zu spät ist
+HOCH_AB = 0.05
 FLUGHAFEN_ENG_MIN = 15     # ohne Folgefahrt: so spät am Flughafen (9 von 10 Verläufen) wird es eng
 
 
 def klasse(f: dict) -> str:
     """Was die Fahrt danach gefährdet: Mit Folgefahrt zählt, wie oft der Fahrer
-    zur nächsten Abholung zu spät kommt (mittel ab 1 von 20, hoch ab 1 von 10
+    zur nächsten Abholung zu spät kommt (mittel ab 1 von 50, hoch ab 1 von 20
     Verläufen). Ohne Folgefahrt ist nur eine knappe Fahrt zum Flughafen mittel.
     Früher zählte allein die Ankunft gegenüber Plan, das traf fast jede Stadtfahrt."""
     luft = f.get("luft")
