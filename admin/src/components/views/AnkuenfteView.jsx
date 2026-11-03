@@ -20,6 +20,15 @@ const gesehenMerken = (id) => {
 
 function RisikoZeile({ risiko }) {
   const farbe = KLASSE_FARBE[risiko.klasse];
+  // Ohne Text reicht die Plakette, der gestrichelte Rahmen gehoert nur zur Zeile mit Text.
+  if (!risiko.grund) {
+    return (
+      <div className="mt-[4px] flex items-center gap-[6px] text-[11px] font-bold font-['Space_Grotesk'] leading-4 text-zinc-900">
+        <span className="px-[6px] py-[2px]" style={{ background: farbe }}>{KLASSE_TEXT[risiko.klasse]}</span>
+        {risiko.neu ? <span className="px-[6px] py-[2px] text-[10px] tracking-[0.5px] text-black bg-[#ff6f63]">NEU</span> : null}
+      </div>
+    );
+  }
   return (
     <div
       className="relative mt-[4px] flex items-center gap-[8px] px-[8px] py-[6px] border-2 border-dashed text-[12px] font-medium font-['Space_Grotesk'] leading-4 text-zinc-900"
