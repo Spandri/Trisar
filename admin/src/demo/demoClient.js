@@ -168,6 +168,43 @@ const DEMO_ANSCHLUSS_ABSTAND_MIN = 114;
   if (anschluss) setzen(anschluss, new Date(ankunft.getTime() + DEMO_ANSCHLUSS_ABSTAND_MIN * 60000));
 })();
 
+// --- Angenommene Planung nach dem Neuladen ----------------------------------
+// Der KI-Planer merkt sich angenommene Tage im sessionStorage
+// (KiPlanerDemoView, trisar_planer_cache_v1), die Demo-Daten fangen beim
+// Neuladen aber neu an. Damit Planer und Fahrtenliste zusammenpassen, bekommen
+// die Fahrten angenommener Tage hier wieder Fahrer und Fahrzeug, wie beim
+// Annehmen in AlleFahrer.applyAiPlannerSuggestions.
+(() => {
+  let gespeichert = null;
+  try { gespeichert = JSON.parse(window.sessionStorage.getItem('trisar_planer_cache_v1') || 'null'); } catch { return; }
+  const p2 = (n) => String(n).padStart(2, '0');
+  const d = new Date();
+  if (!gespeichert || gespeichert.today !== `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`) return;
+  const jobById = new Map(store.jobs.map((job) => [String(job.id), job]));
+  Object.entries(gespeichert.accepted || {}).forEach(([tag, zeilen]) => {
+    (Array.isArray(zeilen) ? zeilen : []).forEach((zeile) => {
+      if (!zeile?.driverId) return;
+      store.driver_service_requests.push({
+        id: `demo-dienst-${tag}-${zeile.driverId}-${zeile.serviceStart}`,
+        driver_id: zeile.driverId,
+        service_date: tag,
+        service_start_time: zeile.serviceStart,
+        service_end_time: zeile.serviceEnd,
+        status: 'pending',
+        requested_by: 'admin-app-ai-planner',
+      });
+      (zeile.rideIds || []).forEach((id) => {
+        const job = jobById.get(String(id));
+        if (!job || job.ride_date !== tag) return;
+        job.driver_id = zeile.driverId;
+        job.status = 'assigned';
+        job.assigned_by = 'trisar-engine';
+        if (zeile.vehicleId) job.vehicle_id = zeile.vehicleId;
+      });
+    });
+  });
+})();
+
 // --- Fahrten nach der Uhr ---------------------------------------------------
 // Die Demo zeigt den Tag so, wie er gerade läuft: Fahrten von heute, deren
 // Ende vorbei ist, sind beendet, laufende sind unterwegs, spätere bleiben, wie
