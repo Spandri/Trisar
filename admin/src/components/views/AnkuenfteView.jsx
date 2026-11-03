@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
 import { KLASSE_TEXT, NAH_STUNDEN, liveLage, naheLage, risikoFahrt, useRisikoDaten } from '../../demo/risikoErgebnisse';
@@ -39,6 +39,23 @@ function RisikoZeile({ risiko }) {
       {risiko.neu ? (
         <span className="absolute -top-[10px] right-[8px] px-[6px] text-[10px] font-bold tracking-[0.5px] text-black bg-[#ff6f63]">NEU</span>
       ) : null}
+    </div>
+  );
+}
+
+// Trennzeile zwischen den Tagen wie in der Fahrer-App (FahrtenScreen01View):
+// kurze Striche aussen, Wochentag und Datum mittig, z. B. "Dienstag 03.11."
+function TagTrenner({ iso, locale, erster }) {
+  const datum = new Date(`${iso}T12:00:00`);
+  const wochentag = datum.toLocaleDateString(locale, { weekday: 'long' });
+  const tagMonat = datum.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' });
+  return (
+    <div className={`${erster ? '' : 'pt-[20px]'} pb-[4px] flex items-center justify-between`}>
+      <span className="w-[44px] h-[2px] bg-[#e3f754] shrink-0" />
+      <span className="text-[#e3f754] text-[26px] font-bold tracking-[-0.5px] whitespace-nowrap font-['Space_Grotesk']">
+        {`${wochentag} ${tagMonat}`.replace(/\.*$/, '.')}
+      </span>
+      <span className="w-[44px] h-[2px] bg-[#e3f754] shrink-0" />
     </div>
   );
 }
@@ -972,9 +989,13 @@ export default function AnkuenfteView({
         ) : null}
 
         <div className="mt-6 space-y-3">
-          {sortedFilteredRides.map((ride, index) => (
+          {sortedFilteredRides.map((ride, index) => {
+            const tag = toIsoDate(String(ride?.date || '').slice(0, 10));
+            const neuerTag = tag && tag !== toIsoDate(String(sortedFilteredRides[index - 1]?.date || '').slice(0, 10));
+            return (
+            <Fragment key={ride.id || `${ride.name}-${index}`}>
+            {neuerTag ? <TagTrenner iso={tag} locale={locale} erster={index === 0} /> : null}
             <RideCard
-              key={ride.id || `${ride.name}-${index}`}
               {...ride}
               time={ride.displayTime || ride.time}
               enableSwipe={!hasCoordinatorLocation && !showArchiveOnly}
@@ -987,7 +1008,9 @@ export default function AnkuenfteView({
                 onRideSelect(mapRideToEditData(ride));
               }}
             />
-          ))}
+            </Fragment>
+            );
+          })}
           {sortedFilteredRides.length === 0 ? (
             <div className="py-6 text-center text-[#e3f654] text-base font-medium font-['Space_Grotesk']">
               {showArchiveOnly ? t('board.noArchivedRides') : t('board.noMatchingRides')}
