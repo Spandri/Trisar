@@ -1,4 +1,5 @@
 import BackCircleButton from '../ui/BackCircleButton';
+import TrisarFooter from '../ui/TrisarFooter';
 import { demoStore } from '../../demo/demoClient';
 import { GRUEN, LIME, ROT } from './risikoFarben';
 
@@ -147,6 +148,8 @@ export default function NeuplanungView({ tagIso, stoerung: st, bisher, status, f
           )}
         </div>
       </div>
+      {/* Die Seite liegt ueber der Fusszeile der App, deshalb eine eigene. */}
+      <TrisarFooter className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[min(402px,100vw)] h-10 bg-black z-[90]" />
     </div>
   );
 }

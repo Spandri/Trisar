@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import BackCircleButton from '../ui/BackCircleButton';
+import TrisarFooter from '../ui/TrisarFooter';
 import {
   BISHER_PUFFER_MIN, ereignisseFuerTag, risikoGrund, risikoOption, risikoTag, useEreignisAenderungen, useRisikoDaten,
 } from '../../demo/risikoErgebnisse';
@@ -132,6 +133,8 @@ export default function PufferView({ tagIso, option = 'standard', optionTitel = 
           )}
         </div>
       </div>
+      {/* Die Seite liegt ueber der Fusszeile der App, deshalb eine eigene. */}
+      <TrisarFooter className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[min(402px,100vw)] h-10 bg-black z-[90]" />
     </div>
   );
 }
