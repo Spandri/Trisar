@@ -50,7 +50,8 @@ function TagTrenner({ iso, locale, erster }) {
   const wochentag = datum.toLocaleDateString(locale, { weekday: 'long' });
   const tagMonat = datum.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' });
   return (
-    <div className={`${erster ? '' : 'pt-[20px]'} pb-[4px] flex items-center justify-between`}>
+    // Die Liste setzt 12 px zwischen alle Eintraege, oben und unten je 12 px dazu.
+    <div className={`${erster ? '' : 'pt-[12px]'} pb-[12px] flex items-center justify-between`}>
       <span className="w-[44px] h-[2px] bg-[#e3f754] shrink-0" />
       <span className="text-[#e3f754] text-[26px] font-bold tracking-[-0.5px] whitespace-nowrap font-['Space_Grotesk']">
         {`${wochentag} ${tagMonat}`.replace(/\.*$/, '.')}
