@@ -7,7 +7,7 @@ import UIKit
 // Zeilen kommen als [String: AnyJSON], weil das Web mit select('*') liest und Spalten
 // je nach Datenbankstand fehlen koennen (z. B. note_text, is_vip).
 
-typealias DBZeile = [String: AnyJSON]
+// DBZeile liegt in DispoFahrten.swift.
 
 extension Dictionary where Key == String, Value == AnyJSON {
     /// Wie `String(row?.x || '').trim()`.
