@@ -5,6 +5,8 @@ import SwiftUI
 struct DispoHaupt: View {
     @EnvironmentObject private var anmeldung: Anmeldung
     @State private var ziel: DispoZiel = .start
+    /// Fahrt im Editor (Tipp in der Fahrtenliste), wie setView('fahrtBearbeiten') im Web.
+    @State private var bearbeiteteFahrt: UUID?
 
     var body: some View {
         ZStack {
@@ -14,6 +16,11 @@ struct DispoHaupt: View {
                 .transition(.opacity)
         }
         .animation(.easeOut(duration: 0.15), value: ziel)
+        .fullScreenCover(item: Binding(get: { bearbeiteteFahrt.map(FahrtKennung.init) },
+                                       set: { bearbeiteteFahrt = $0?.id })) { k in
+            FahrtFormularAnsicht(fahrtID: k.id, zurueck: { bearbeiteteFahrt = nil })
+                .environmentObject(anmeldung)
+        }
     }
 
     @ViewBuilder private var seite: some View {
@@ -29,9 +36,11 @@ struct DispoHaupt: View {
         case .profil:
             KoordinatorProfilAnsicht(zeigen: zeigen)
         case .fahrten:
-            FahrtenAnsicht(zeigen: zeigen, oeffneFahrt: { _ in })
+            FahrtenAnsicht(zeigen: zeigen, oeffneFahrt: { bearbeiteteFahrt = $0 })
         case .karte:
             DispoKarteAnsicht(zeigen: zeigen)
+        case .fahrtNeu:
+            FahrtFormularAnsicht(fahrtID: nil, zurueck: { zeigen(.start) }, zeigen: zeigen)
         default:
             DispoPlatzhalter(titel: titel(ziel), zeigen: zeigen, aktiv: ziel)
         }
@@ -162,3 +171,5 @@ struct PlanungsKnopf: View {
         }
     }
 }
+
+private struct FahrtKennung: Identifiable { let id: UUID }
