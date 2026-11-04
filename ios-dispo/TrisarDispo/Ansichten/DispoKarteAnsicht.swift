@@ -63,6 +63,12 @@ struct DispoKarteAnsicht: View {
            let eta = KartenRegeln.plusMinuten(f.info.abfahrt, min) {
             f.info.ankunft = eta
         }
+        // Unterwegs ohne Fahrzeit aus der Datenbank: Restfahrzeit der Kartenroute statt "<1 min".
+        if f.info.unterwegs, f.info.fahrMinuten <= 0, let m = fahrtMinuten, m.id == f.id, let min = m.minuten, min > 0 {
+            let k = Calendar.current.dateComponents([.hour, .minute], from: Date().addingTimeInterval(Double(min) * 60))
+            f.info.ankunft = String(format: "%02d:%02d", k.hour ?? 0, k.minute ?? 0)
+            f.info.fahrMinuten = min
+        }
         return f
     }
 

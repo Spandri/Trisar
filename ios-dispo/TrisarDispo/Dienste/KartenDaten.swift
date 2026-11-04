@@ -114,6 +114,9 @@ final class KartenDaten: ObservableObject {
     /// Letzter Zuendungsstand je Fahrer, damit nur ein Wechsel neu laedt.
     private var zuendungStand: [String: Bool] = [:]
     private var laeuft = false
+    /// Aenderung waehrend eines Ladens: danach noch einmal laden statt verwerfen.
+    private var nochmal = false
+    private var aktivBeobachter: NSObjectProtocol?
     private var kanal: RealtimeChannelV2?
     private var beobachter: [Task<Void, Never>] = []
     private var takt: Timer?
@@ -135,6 +138,12 @@ final class KartenDaten: ObservableObject {
         }]
         try? await kanal.subscribeWithError()
         takt = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.laden() }
+        }
+        // Zurueck in die App: sofort frisch laden (Realtime war im Hintergrund weg).
+        aktivBeobachter = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
             Task { @MainActor in await self?.laden() }
         }
     }
@@ -174,9 +183,16 @@ final class KartenDaten: ObservableObject {
     }
 
     func laden() async {
-        guard !laeuft else { return }
+        guard !laeuft else { nochmal = true; return }
         laeuft = true
         defer { laeuft = false }
+        repeat {
+            nochmal = false
+            await einmalLaden()
+        } while nochmal
+    }
+
+    private func einmalLaden() async {
         fehler = ""
         do {
             // Gleiche Rueckfall-Reihe wie im Web, falls eine Spalte fehlt.
@@ -211,11 +227,22 @@ final class KartenDaten: ObservableObject {
                 zuendungStand[id] = z["ignition"] as? Bool
             }
 
-            // Wie im Web (jobsSelectPreference 'base'): ohne route und ext_-Spalten.
-            let jobsDaten = try await Backend.client.from("jobs")
-                .select("id, driver_id, ride_date, etd, status, pickup_name, pickup_address, dropoff_name, dropoff_address")
-                .order("ride_date", ascending: true).order("etd", ascending: true).execute().data
-            let jobs = (try? JSONSerialization.jsonObject(with: jobsDaten)) as? [Zeile] ?? []
+            // Wie im Web (JOBS_SELECT_NO_ROUTE): mit Fahrzeit und Live-Restfahrzeit fuer die ETA.
+            // Fehlen die ext_-Spalten, ohne sie.
+            let jobsBasis = "id, driver_id, ride_date, etd, status, pickup_name, pickup_address, dropoff_name, dropoff_address"
+            let jobsMitZeit = jobsBasis + ", ext_route_duration_mins, ext_route_duration_in_traffic_mins, "
+                + "ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at"
+            var jobs: [Zeile] = []
+            for spalten in [jobsMitZeit, jobsBasis] {
+                do {
+                    let d = try await Backend.client.from("jobs").select(spalten)
+                        .order("ride_date", ascending: true).order("etd", ascending: true).execute().data
+                    jobs = (try? JSONSerialization.jsonObject(with: d)) as? [Zeile] ?? []
+                    break
+                } catch {
+                    if spalten == jobsBasis { throw error }
+                }
+            }
 
             // Kolonnen in Stuecken zu 30 Fahrten (IN_QUERY_BATCH_SIZE). Fehlt die Tabelle: keine Kolonnen.
             let jobIDs = jobs.map { Self.text($0["id"]) }.filter { !$0.isEmpty }
@@ -424,8 +451,41 @@ enum KartenRegeln {
         return uhrzeit(g)
     }
 
-    /// berechneEta. Die Live-Restfahrzeit (ext_driver_to_dropoff_*) laedt die Karte nicht, wie im Web.
+    /// Live-Restfahrzeit (ext_driver_to_dropoff_*), nur unterwegs und hoechstens 10 Minuten alt.
+    private static func liveRest(_ job: [String: Any], _ jetzt: Date) -> Int? {
+        guard unterwegsStatus.contains(status(job["status"])) else { return nil }
+        let verkehr = KartenDaten.zahl(job["ext_driver_to_dropoff_duration_in_traffic_mins"]) ?? 0
+        let rest = verkehr != 0 ? verkehr : (KartenDaten.zahl(job["ext_driver_to_dropoff_duration_mins"]) ?? -1)
+        guard rest >= 0, let sync = isoDatum(KartenDaten.text(job["ext_driver_to_dropoff_last_sync_at"])),
+              jetzt.timeIntervalSince(sync) < 10 * 60 else { return nil }
+        return Int(rest)
+    }
+
+    private static func isoDatum(_ s: String) -> Date? {
+        guard !s.isEmpty else { return nil }
+        let mitBruch = ISO8601DateFormatter()
+        mitBruch.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = mitBruch.date(from: s) { return d }
+        let ohne = ISO8601DateFormatter()
+        return ohne.date(from: s)
+    }
+
+    /// Fahrdauer der Fahrt: mit Verkehr, sonst ohne (toPositiveMinutes).
+    static func routenDauer(_ job: [String: Any]) -> Int {
+        for k in ["ext_route_duration_in_traffic_mins", "ext_route_duration_mins"] {
+            if let z = KartenDaten.zahl(job[k]), z > 0 { return Int(z.rounded()) }
+        }
+        return 0
+    }
+
+    /// restFahrzeit: Live-Rest, sonst Fahrdauer.
+    static func restFahrzeit(_ job: [String: Any], _ jetzt: Date) -> Int {
+        liveRest(job, jetzt) ?? routenDauer(job)
+    }
+
+    /// berechneEta aus etaBerechnung.js.
     static func ankunft(_ job: [String: Any], dauer: Int, _ jetzt: Date) -> String? {
+        if let rest = liveRest(job, jetzt) { return uhrzeit(jetzt.addingTimeInterval(Double(rest) * 60)) }
         guard let g = geplant(job, jetzt) else { return nil }
         let start = g < jetzt && Calendar.current.isDate(g, inSameDayAs: jetzt) ? jetzt : g
         return uhrzeit(start.addingTimeInterval(Double(max(0, dauer)) * 60))
@@ -481,17 +541,16 @@ enum KartenRegeln {
         var info = KartenFahrtInfo()
         let sortiert = alle.compactMap { j in zeitpunkt(j).map { (j, $0) } }.sorted { $0.1 < $1.1 }
         let erster = sortiert.first?.0, letzter = sortiert.last?.0
-        // Ohne ext_route_duration_* ist die Fahrdauer hier 0 wie im Web.
         info.dienststart = uhrText(dienstStart.isEmpty ? erster?["etd"] : dienstStart as Any?)
         let endeBasis: Any? = !dienstEnde.isEmpty ? dienstEnde
-            : (plusMinuten(uhrText(letzter?["etd"]), 0) ?? letzter?["etd"])
+            : (plusMinuten(uhrText(letzter?["etd"]), letzter.map(routenDauer) ?? 0) ?? letzter?["etd"])
         info.dienstende = uhrText(endeBasis)
 
         guard let job = aktiv ?? naechster else { return info }
         let geplanteAbfahrt = uhrText(job["etd"])
         info.abfahrt = abfahrt(job, jetzt) ?? geplanteAbfahrt
-        info.ankunft = ankunft(job, dauer: 0, jetzt) ?? "--:--"
-        info.fahrMinuten = 0
+        info.ankunft = ankunft(job, dauer: routenDauer(job), jetzt) ?? "--:--"
+        info.fahrMinuten = restFahrzeit(job, jetzt)
         info.unterwegs = unterwegsStatus.contains(status(job["status"]))
         let (vn, va) = abholung(job), (zn, za) = ziel(job)
         let s = ortsArt(vn, va, start: true), z = ortsArt(zn, za, start: false)
