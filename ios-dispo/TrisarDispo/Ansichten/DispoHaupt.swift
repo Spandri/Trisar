@@ -30,6 +30,8 @@ struct DispoHaupt: View {
             KoordinatorProfilAnsicht(zeigen: zeigen)
         case .fahrten:
             FahrtenAnsicht(zeigen: zeigen, oeffneFahrt: { _ in })
+        case .karte:
+            DispoKarteAnsicht(zeigen: zeigen)
         default:
             DispoPlatzhalter(titel: titel(ziel), zeigen: zeigen, aktiv: ziel)
         }

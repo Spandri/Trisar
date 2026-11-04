@@ -38,6 +38,7 @@ targets:
       - ../ios-fahrer/TrisarFahrer/Dienste/Chat.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/FahrtDetails.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Routen.swift
+      - ../ios-fahrer/TrisarFahrer/Dienste/FahrzeugDaten.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/Stil.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/Raster.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/WebText.swift
