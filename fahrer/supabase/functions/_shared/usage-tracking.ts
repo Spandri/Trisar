@@ -23,6 +23,9 @@ type ProviderPrice = {
 const PROVIDER_PRICE_FALLBACK: Record<string, ProviderPrice> = {
   'google-places': { unit_name: 'request', unit_price_eur: 0.0028 },
   'google-routes': { unit_name: 'request', unit_price_eur: 0.0048 },
+  // TomTom: 2.500 Abfragen am Tag frei, danach etwa 0,50 EUR je 1.000.
+  tomtom: { unit_name: 'request', unit_price_eur: 0 },
+  tomtom_geocode: { unit_name: 'request', unit_price_eur: 0 },
   opensky: { unit_name: 'request', unit_price_eur: 0 },
   aviationstack: { unit_name: 'request', unit_price_eur: 0 },
 };

@@ -2,8 +2,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { providerConfig } from '../_shared/provider-config.ts';
 import { recordUsageWithCost } from '../_shared/usage-tracking.ts';
+import { TOMTOM_PROVIDER, tomtomRoute, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
 
 type SyncReason = 'create' | 'manual_refresh' | 'live_view';
+
+// Route Fahrer -> Abholung/Ziel hoechstens so oft je Fahrt neu rechnen.
+const DRIVER_ROUTE_MIN_INTERVAL_MS = 45_000;
 type FlightProviderName = 'lufthansa_open_api' | 'aviationstack';
 
 type FlightSummary = {
@@ -2517,7 +2521,7 @@ Deno.serve(async (req) => {
     const { data: jobs, error: jobsError } = await admin
       .from('jobs')
       .select(
-        'id,driver_id,trip_type,pickup_address,dropoff_address,flight_number,flight_origin,ride_date,ext_last_enriched_at,ext_driver_to_pickup_polyline,ext_flight_payload',
+        'id,driver_id,trip_type,pickup_address,dropoff_address,flight_number,flight_origin,ride_date,ext_last_enriched_at,ext_driver_to_pickup_polyline,ext_flight_payload,ext_driver_to_pickup_last_sync_at,ext_driver_to_dropoff_last_sync_at',
       )
       .in('id', jobIds);
 
@@ -3046,82 +3050,61 @@ Deno.serve(async (req) => {
             };
             await recordUsage(admin, {
               job_id: jobId,
-              provider: 'google_routes',
+              provider: cachedRoute.provider === TOMTOM_PROVIDER ? TOMTOM_PROVIDER : 'google_routes',
               action: 'route_lookup',
               reason,
               cache_hit: true,
               requested_by: usageRequestedBy,
             });
           } else {
-            const googleRoutesServerKey = Deno.env.get(providerConfig.googleRoutes.envKey);
-            if (!googleRoutesServerKey) {
-              routeErrorText = `Missing ${providerConfig.googleRoutes.envKey}`;
+            // Fahrtroute Abholung -> Ziel ueber TomTom (frueher Google Directions).
+            const tomtomKey = await tomtomSchluessel(admin);
+            if (!tomtomKey) {
+              routeErrorText = 'Missing tomtom_routing_key';
             } else {
               routeStatus = 'miss';
               externalCalls += 1;
-              const routeUrl = new URL(providerConfig.googleRoutes.url);
-              routeUrl.searchParams.set('origin', job.pickup_address);
-              routeUrl.searchParams.set('destination', job.dropoff_address);
-              routeUrl.searchParams.set('departure_time', 'now');
-              routeUrl.searchParams.set('traffic_model', 'best_guess');
-              routeUrl.searchParams.set('key', googleRoutesServerKey);
-
-              const response = await fetch(routeUrl.toString());
-              const payload = await response.json().catch(() => ({}));
-
+              const tt = await tomtomRoute(admin, tomtomKey, job.pickup_address, job.dropoff_address);
               await recordUsage(admin, {
                 job_id: jobId,
-                provider: 'google_routes',
+                provider: TOMTOM_PROVIDER,
                 action: 'route_lookup',
                 reason,
                 cache_hit: false,
                 requested_by: usageRequestedBy,
-                http_status: response.status,
-                error_text: response.ok ? null : `HTTP ${response.status}`,
+                http_status: tt.httpStatus || null,
+                error_text: tt.fehler,
               });
-
-              if (response.ok) {
-                const route = payload?.routes?.[0];
-                const leg = route?.legs?.[0];
-                if (route && leg) {
-                  const distanceM = Number(leg?.distance?.value || 0);
-                  const durationMins = Math.ceil(Number(leg?.duration?.value || 0) / 60);
-                  const durationInTrafficMins = Math.ceil(Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60);
-                  const polyline = route?.overview_polyline?.points || null;
-                  const expiresAt = new Date(Date.now() + settings.routeCacheTtlMinutes * 60 * 1000).toISOString();
-
-                  await admin.from('api_route_cache').upsert(
-                    [
-                      {
-                        route_key: routeKey,
-                        provider: 'google_routes',
-                        origin_address: job.pickup_address,
-                        destination_address: job.dropoff_address,
-                        departure_bucket: bucketIso,
-                        distance_m: distanceM,
-                        duration_mins: durationMins,
-                        duration_in_traffic_mins: durationInTrafficMins,
-                        polyline,
-                        payload,
-                        expires_at: expiresAt,
-                      },
-                    ],
-                    { onConflict: 'route_key' },
-                  );
-
-                  routePatch = {
-                    ext_route_provider: 'google_routes',
-                    ext_route_distance_m: distanceM,
-                    ext_route_duration_mins: durationMins,
-                    ext_route_duration_in_traffic_mins: durationInTrafficMins,
-                    ext_route_polyline: polyline,
-                    ext_route_payload: payload,
-                  };
-                } else {
-                  routeErrorText = 'route_not_found';
-                }
+              if (tt.ok) {
+                const expiresAt = new Date(Date.now() + settings.routeCacheTtlMinutes * 60 * 1000).toISOString();
+                await admin.from('api_route_cache').upsert(
+                  [
+                    {
+                      route_key: routeKey,
+                      provider: TOMTOM_PROVIDER,
+                      origin_address: job.pickup_address,
+                      destination_address: job.dropoff_address,
+                      departure_bucket: bucketIso,
+                      distance_m: tt.distanceM,
+                      duration_mins: tt.durationMins,
+                      duration_in_traffic_mins: tt.durationInTrafficMins,
+                      polyline: tt.polyline,
+                      payload: tt.payload,
+                      expires_at: expiresAt,
+                    },
+                  ],
+                  { onConflict: 'route_key' },
+                );
+                routePatch = {
+                  ext_route_provider: TOMTOM_PROVIDER,
+                  ext_route_distance_m: tt.distanceM,
+                  ext_route_duration_mins: tt.durationMins,
+                  ext_route_duration_in_traffic_mins: tt.durationInTrafficMins,
+                  ext_route_polyline: tt.polyline,
+                  ext_route_payload: tt.payload,
+                };
               } else {
-                routeErrorText = `route_http_${response.status}`;
+                routeErrorText = tt.httpStatus ? `route_http_${tt.httpStatus}` : (tt.fehler || 'route_not_found');
               }
             }
           }
@@ -3154,11 +3137,22 @@ Deno.serve(async (req) => {
             return { patch: {}, errorText: 'driver_location_missing' };
           }
 
+          // Drossel: dieselbe Fahrt hoechstens alle 45 s neu rechnen. Die App fragt waehrend der
+          // Fahrt alle paar Sekunden, die alten Werte bleiben so lange stehen.
+          const letzterSync = Date.parse(String(
+            patchType === 'pickup' ? job.ext_driver_to_pickup_last_sync_at || '' : job.ext_driver_to_dropoff_last_sync_at || '',
+          ));
+          if (Number.isFinite(letzterSync) && Date.now() - letzterSync < DRIVER_ROUTE_MIN_INTERVAL_MS) {
+            return { patch: {}, errorText: null };
+          }
+
           const departureBucket = new Date();
           departureBucket.setUTCMinutes(Math.floor(departureBucket.getUTCMinutes() / 5) * 5, 0, 0);
           const bucketIso = departureBucket.toISOString();
           const origin = `${liveLat},${liveLng}`;
-          const routeRawKey = `${origin}|${destinationAddress.trim().toLowerCase()}|${bucketIso}`;
+          // Schluessel auf etwa 100 m gerundet, damit nahe Positionen den Speicher teilen.
+          const originGerundet = `${Number(liveLat).toFixed(3)},${Number(liveLng).toFixed(3)}`;
+          const routeRawKey = `${originGerundet}|${destinationAddress.trim().toLowerCase()}|${bucketIso}`;
           const routeKey = await sha256(routeRawKey);
 
           const { data: cachedRoute } = await admin
@@ -3172,7 +3166,7 @@ Deno.serve(async (req) => {
             cacheHits += 1;
             await recordUsage(admin, {
               job_id: jobId,
-              provider: 'google_routes',
+              provider: cachedRoute.provider === TOMTOM_PROVIDER ? TOMTOM_PROVIDER : 'google_routes',
               action,
               reason,
               cache_hit: true,
@@ -3206,58 +3200,39 @@ Deno.serve(async (req) => {
             };
           }
 
-          const googleRoutesServerKey = Deno.env.get(providerConfig.googleRoutes.envKey);
-          if (!googleRoutesServerKey) {
-            return { patch: {}, errorText: `Missing ${providerConfig.googleRoutes.envKey}` };
-          }
+          const tomtomKey = await tomtomSchluessel(admin);
+          if (!tomtomKey) return { patch: {}, errorText: 'Missing tomtom_routing_key' };
 
           externalCalls += 1;
-          const routeUrl = new URL(providerConfig.googleRoutes.url);
-          routeUrl.searchParams.set('origin', origin);
-          routeUrl.searchParams.set('destination', destinationAddress);
-          routeUrl.searchParams.set('departure_time', 'now');
-          routeUrl.searchParams.set('traffic_model', 'best_guess');
-          routeUrl.searchParams.set('key', googleRoutesServerKey);
-
-          const response = await fetch(routeUrl.toString());
-          const payload = await response.json().catch(() => ({}));
+          const tt = await tomtomRoute(admin, tomtomKey, origin, destinationAddress);
           await recordUsage(admin, {
             job_id: jobId,
-            provider: 'google_routes',
+            provider: TOMTOM_PROVIDER,
             action,
             reason,
             cache_hit: false,
             requested_by: driverId,
-            http_status: response.status,
-            error_text: response.ok ? null : `HTTP ${response.status}`,
+            http_status: tt.httpStatus || null,
+            error_text: tt.fehler,
           });
-          if (!response.ok) return { patch: {}, errorText: `${action}_http_${response.status}` };
+          if (!tt.ok) {
+            return { patch: {}, errorText: tt.httpStatus ? `${action}_http_${tt.httpStatus}` : `${action}_${tt.fehler}` };
+          }
 
-          const route = payload?.routes?.[0];
-          const leg = route?.legs?.[0];
-          if (!route || !leg) return { patch: {}, errorText: `${action}_route_not_found` };
-
-          const distanceM = Number(leg?.distance?.value || 0);
-          const durationMins = Math.ceil(Number(leg?.duration?.value || 0) / 60);
-          const durationInTrafficMins = Math.ceil(
-            Number(leg?.duration_in_traffic?.value || leg?.duration?.value || 0) / 60,
-          );
-          const polyline = route?.overview_polyline?.points || null;
           const expiresAt = new Date(Date.now() + settings.routeCacheTtlMinutes * 60 * 1000).toISOString();
-
           await admin.from('api_route_cache').upsert(
             [
               {
                 route_key: routeKey,
-                provider: 'google_routes',
+                provider: TOMTOM_PROVIDER,
                 origin_address: origin,
                 destination_address: destinationAddress,
                 departure_bucket: bucketIso,
-                distance_m: distanceM,
-                duration_mins: durationMins,
-                duration_in_traffic_mins: durationInTrafficMins,
-                polyline,
-                payload,
+                distance_m: tt.distanceM,
+                duration_mins: tt.durationMins,
+                duration_in_traffic_mins: tt.durationInTrafficMins,
+                polyline: tt.polyline,
+                payload: tt.payload,
                 expires_at: expiresAt,
               },
             ],
@@ -3267,12 +3242,12 @@ Deno.serve(async (req) => {
           if (patchType === 'pickup') {
             return {
               patch: {
-                ext_driver_to_pickup_provider: 'google_routes',
-                ext_driver_to_pickup_distance_m: distanceM,
-                ext_driver_to_pickup_duration_mins: durationMins,
-                ext_driver_to_pickup_duration_in_traffic_mins: durationInTrafficMins,
-                ext_driver_to_pickup_polyline: polyline,
-                ext_driver_to_pickup_payload: payload,
+                ext_driver_to_pickup_provider: TOMTOM_PROVIDER,
+                ext_driver_to_pickup_distance_m: tt.distanceM,
+                ext_driver_to_pickup_duration_mins: tt.durationMins,
+                ext_driver_to_pickup_duration_in_traffic_mins: tt.durationInTrafficMins,
+                ext_driver_to_pickup_polyline: tt.polyline,
+                ext_driver_to_pickup_payload: tt.payload,
                 ext_driver_to_pickup_last_sync_at: nowIso,
               },
               errorText: null,
@@ -3280,12 +3255,12 @@ Deno.serve(async (req) => {
           }
           return {
             patch: {
-              ext_driver_to_dropoff_provider: 'google_routes',
-              ext_driver_to_dropoff_distance_m: distanceM,
-              ext_driver_to_dropoff_duration_mins: durationMins,
-              ext_driver_to_dropoff_duration_in_traffic_mins: durationInTrafficMins,
-              ext_driver_to_dropoff_polyline: polyline,
-              ext_driver_to_dropoff_payload: payload,
+              ext_driver_to_dropoff_provider: TOMTOM_PROVIDER,
+              ext_driver_to_dropoff_distance_m: tt.distanceM,
+              ext_driver_to_dropoff_duration_mins: tt.durationMins,
+              ext_driver_to_dropoff_duration_in_traffic_mins: tt.durationInTrafficMins,
+              ext_driver_to_dropoff_polyline: tt.polyline,
+              ext_driver_to_dropoff_payload: tt.payload,
               ext_driver_to_dropoff_last_sync_at: nowIso,
             },
             errorText: null,
