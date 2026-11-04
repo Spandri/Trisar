@@ -104,6 +104,8 @@ private struct FahrtFormularInhalt: View {
     /// Sammel-Import (setView('importFahrten')), als Vollbild ueber dem Formular.
     @State private var importOffen = false
     @FocusState private var fokus: String?
+    /// Hoehe des unsichtbaren Rollankers (siehe zumFeldRollen).
+    @State private var rollAnker: CGFloat = 1
     // Risiko je Fahrt (nur an Tagen, die die Engine gerechnet hat, siehe NebenRisikoSpeicher).
     @ObservedObject private var risiko = NebenRisikoSpeicher.geteilt
     @State private var risikoHoehe: CGFloat = 0
@@ -187,6 +189,10 @@ private struct FahrtFormularInhalt: View {
                 ScrollViewReader { rollen in
                     ZStack(alignment: .topLeading) {
                         DispoHintergrund().frame(width: 402, height: inhaltHoehe)
+                        // Rollanker: beginnt oben bei 0, die Unterkante wird aufs Ziel gesetzt.
+                        // scrollTo auf die Felder selbst misst wegen .platz (Abstand statt Versatz)
+                        // ab Oberkante 0 und landet deshalb zu weit oben.
+                        Color.clear.frame(width: 1, height: rollAnker).allowsHitTesting(false).id("rollAnker")
                         kopf
                         datumZeile.id("datum").platz(20, 206, 362, 56)
                         zeitZeile.id("startZeit").platz(20, 274, 362, 56)
@@ -213,8 +219,16 @@ private struct FahrtFormularInhalt: View {
                     .onChange(of: fokus) { alt, neu in
                         fokusGewechselt(alt, neu)
                         guard let neu else { return }
+                        var tops: [String: CGFloat] = ["start": 342, "notiz": notizTop + 40]
+                        for (i, z) in reihen.enumerated() { tops[z.id] = reihenStart + CGFloat(i) * schritt }
+                        guard let feldTop = tops[neu] else { return }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            withAnimation(.easeOut(duration: 0.2)) { rollen.scrollTo(neu, anchor: UnitPoint(x: 0.5, y: 0.35)) }
+                            // Feld bei 35 % der sichtbaren Hoehe ueber der Tastatur.
+                            let sichtbar = 874 - tastatur
+                            rollAnker = max(1, feldTop + 874 - 0.35 * sichtbar)
+                            DispatchQueue.main.async {
+                                withAnimation(.easeOut(duration: 0.2)) { rollen.scrollTo("rollAnker", anchor: .bottom) }
+                            }
                         }
                     }
                 }
