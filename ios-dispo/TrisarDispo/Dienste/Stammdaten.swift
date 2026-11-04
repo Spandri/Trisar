@@ -56,10 +56,7 @@ extension Dictionary where Key == String, Value == AnyJSON {
 }
 
 /// Lesbare Fehlermeldung wie `error.message` im Web.
-func dbMeldung(_ error: Error) -> String {
-    if let p = error as? PostgrestError { return p.message }
-    return error.localizedDescription
-}
+// dbMeldung(_:) liegt in FahrerVerwaltung.swift (gleiche Funktion).
 
 // MARK: - Fahrzeuge
 
