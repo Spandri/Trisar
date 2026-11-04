@@ -7,6 +7,8 @@ struct DispoHaupt: View {
     @State private var ziel: DispoZiel = .start
     /// Fahrt im Editor (Tipp in der Fahrtenliste), wie setView('fahrtBearbeiten') im Web.
     @State private var bearbeiteteFahrt: UUID?
+    /// Unterseite der Planung (Einstellungen, Simulation, Ereignisse, Puffer), wie die Overlays in KiPlanerDemoView.
+    @State private var planungsSeite: PlanungsSeite?
 
     var body: some View {
         ZStack {
@@ -20,6 +22,23 @@ struct DispoHaupt: View {
                                        set: { bearbeiteteFahrt = $0?.id })) { k in
             FahrtFormularAnsicht(fahrtID: k.id, zurueck: { bearbeiteteFahrt = nil })
                 .environmentObject(anmeldung)
+        }
+        .fullScreenCover(item: $planungsSeite) { seite in
+            planungsUnterseite(seite)
+        }
+    }
+
+    @ViewBuilder private func planungsUnterseite(_ seite: PlanungsSeite) -> some View {
+        let schliessen = { planungsSeite = nil }
+        switch seite {
+        case .einstellungen(let anzahl):
+            PlanerEinstellungenSeite(fahrerAnzahl: anzahl, zurueck: schliessen)
+        case .simulation(let eintrag):
+            FahrtSimulationAnsicht(entry: eintrag, zurueck: schliessen)
+        case .ereignisse(let tag):
+            EreignisseAnsicht(tagIso: tag, zurueck: schliessen)
+        case .puffer(let tag, let option, let titel):
+            PufferAnsicht(tagIso: tag, option: option, optionTitel: titel, zurueck: schliessen)
         }
     }
 
@@ -39,6 +58,16 @@ struct DispoHaupt: View {
             FahrtenAnsicht(zeigen: zeigen, oeffneFahrt: { bearbeiteteFahrt = $0 })
         case .karte:
             DispoKarteAnsicht(zeigen: zeigen)
+        case .planung:
+            PlanungAnsicht(
+                zeigen: zeigen,
+                oeffneEinstellungen: { planungsSeite = .einstellungen($0) },
+                oeffneSimulation: { vorschlag, _, dauer in
+                    planungsSeite = .simulation(PlanungsSeite.simEintrag(vorschlag, dauer))
+                },
+                oeffneEreignisse: { planungsSeite = .ereignisse($0) },
+                oeffnePuffer: { planungsSeite = .puffer($0, $1, $2) }
+            )
         case .kiAssistent:
             KiAssistentAnsicht(zeigen: zeigen,
                                oeffneFahrt: { id in bearbeiteteFahrt = UUID(uuidString: id) })
@@ -176,3 +205,36 @@ struct PlanungsKnopf: View {
 }
 
 private struct FahrtKennung: Identifiable { let id: UUID }
+
+/// Unterseiten der Planung, die ueber der Planung liegen.
+private enum PlanungsSeite: Identifiable {
+    case einstellungen(Int)
+    case simulation(NebenSimEintrag)
+    case ereignisse(String)
+    case puffer(String, String, String)
+
+    var id: String {
+        switch self {
+        case .einstellungen: return "einstellungen"
+        case .simulation(let e): return "sim-\(e.dayIso)-\(e.driverId)"
+        case .ereignisse(let t): return "ereignisse-\(t)"
+        case .puffer(let t, let o, _): return "puffer-\(t)-\(o)"
+        }
+    }
+
+    /// Vorschlag aus dem Planer in den Eintrag der Fahrt-Simulation uebersetzen (entry im Web).
+    static func simEintrag(_ v: EinsatzVorschlag, _ dauer: Int) -> NebenSimEintrag {
+        let fahrten = v.rides.map { NebenSimFahrt(etd: $0.etd, pickup: $0.pickup, dropoff: $0.dropoff,
+                                                  durationMinutes: $0.durationMinutes) }
+        let ladestopps: [NebenSimLadestopp] = v.chargeStops.compactMap { stopp in
+            guard case .object(let o) = stopp else { return nil }
+            return NebenSimLadestopp(start: o["start"]?.planText ?? "", end: o["end"]?.planText ?? "",
+                                     stationName: o["stationName"]?.planText ?? "",
+                                     kmGained: o["kmGained"]?.planZahl ?? 0)
+        }
+        return NebenSimEintrag(dayIso: v.dayIso, driverId: v.driverId, name: v.name, start: v.start, end: v.end,
+                               rides: fahrten, chargeStops: ladestopps, rideDurationMinutes: Double(dauer),
+                               vehicleId: v.vehicleId, vehicleIsEv: v.vehicleIsEv, vehicleLabel: v.vehicleLabel,
+                               shiftKm: v.shiftKm)
+    }
+}
