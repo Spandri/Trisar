@@ -1,0 +1,124 @@
+import SwiftUI
+
+/// Die Web-App ist in einem festen Raster gebaut (402 x 874, absolute Positionen, skaliert
+/// auf die Bildschirmbreite). Damit die native App gleich aussieht, nutzen die Bildschirme
+/// dasselbe Raster: Masse aus dem Web-Code direkt uebernehmen.
+struct Leinwand<Inhalt: View>: View {
+    var breite: CGFloat = 402
+    var basisHoehe: CGFloat = 874
+    /// Hoehe des Inhalts im Raster. Groesser als der Bildschirm = scrollbar.
+    var inhaltHoehe: CGFloat = 0
+    var mitHintergrund = true
+    var beimZiehen: (() async -> Void)?
+    @ViewBuilder let inhalt: (_ rahmenHoehe: CGFloat) -> Inhalt
+
+    var body: some View {
+        GeometryReader { geo in
+            let s = min(geo.size.width / breite, geo.size.height / basisHoehe, 1)
+            let rahmen = max(basisHoehe, geo.size.height / max(s, 0.01))
+            let hoehe = max(rahmen, inhaltHoehe)
+            let feld = ZStack(alignment: .topLeading) {
+                if mitHintergrund {
+                    TrisarHintergrund().frame(width: breite, height: rahmen)
+                }
+                inhalt(rahmen)
+            }
+            .frame(width: breite, height: hoehe, alignment: .topLeading)
+            .scaleEffect(s, anchor: .topLeading)
+            .frame(width: breite * s, height: hoehe * s, alignment: .topLeading)
+            .frame(maxWidth: .infinity)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                feld
+            }
+            .scrollDisabled(hoehe <= rahmen && beimZiehen == nil)
+            .scrollBounceBehavior(.basedOnSize)
+            .refreshable { await beimZiehen?() }
+            // Das Web-Raster beginnt an der Bildschirmkante. Ohne diese Zeilen schiebt die
+            // ScrollView den Inhalt um die Statusleiste (59 pt), und Tipps landen daneben.
+            .contentMargins(.vertical, 0, for: .scrollContent)
+            .ignoresSafeArea()
+            .background(Color.black)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+extension View {
+    /// Absolut platzieren wie `position: absolute; left: x; top: y; width: w; height: h`.
+    func platz(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat? = nil, _ h: CGFloat? = nil,
+               _ ausrichtung: Alignment = .topLeading) -> some View {
+        // Ueber Layout-Abstand statt .offset: so liegt die Tipp-Flaeche genau unter der Zeichnung.
+        frame(width: w, height: h, alignment: ausrichtung)
+            .padding(.leading, x)
+            .padding(.top, y)
+    }
+
+    /// Wie `left: 50%; transform: translateX(-50%)` bei Mitte x.
+    func mittig(_ mitteX: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat? = nil,
+                _ ausrichtung: Alignment = .top) -> some View {
+        frame(width: w, height: h, alignment: ausrichtung)
+            .padding(.leading, mitteX - w / 2)
+            .padding(.top, y)
+    }
+}
+
+/// Fussleiste unten am Bildschirm, wie `fixed bottom-0 h-10` in der Web-App.
+struct FussleisteUnten: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            TrisarFussleiste()
+        }
+        .ignoresSafeArea()
+    }
+}
+
+/// Runder Knopf oben rechts (Profil), wie in der Fahrtenliste.
+struct ProfilKnopf: View {
+    let aktion: () -> Void
+    var body: some View {
+        Button(action: aktion) {
+            ZStack {
+                Circle().stroke(Color(hex: 0x8F8F90), lineWidth: 1)
+                Image("Person_Trisar_Icons_01_grau")
+                    .resizable().scaledToFit()
+                    .frame(width: 24, height: 24)
+                    .opacity(0.9)
+            }
+            .frame(width: 52, height: 52)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Profil")
+    }
+}
+
+/// Zurueck-Knopf oben links (ZurueckKnopf.jsx): 50er Kreis, grauer Rand, gedrehter Pfeil.
+struct ZurueckKnopf: View {
+    let aktion: () -> Void
+    var body: some View {
+        Button(action: aktion) {
+            ZStack(alignment: .topLeading) {
+                Circle().stroke(Color(hex: 0x747474), lineWidth: 1).frame(width: 50, height: 50)
+                Image("Arrow_Trisar_Icons_01_grau")
+                    .resizable().scaledToFit()
+                    .frame(width: 26.14, height: 15.91)
+                    .rotationEffect(.degrees(180))
+                    .scaleEffect(1.2)
+                    .padding(.leading, 12.5).padding(.top, 17.05)
+            }
+            .frame(width: 50, height: 50, alignment: .topLeading)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Zurück")
+    }
+}
+
+/// Schrift mit Zeilenhoehe wie `leading-none`/`leading-[20px]`: Text ohne Extra-Abstand.
+extension Text {
+    func grotesk(_ groesse: CGFloat, _ gewicht: Font.Weight = .regular, abstand: CGFloat = 0) -> some View {
+        font(.grotesk(groesse, gewicht)).tracking(abstand)
+    }
+}

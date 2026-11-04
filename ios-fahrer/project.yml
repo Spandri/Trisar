@@ -1,0 +1,60 @@
+# Xcode-Projekt fuer die native TRISAR Fahrer-App.
+# Projekt erzeugen: `xcodegen` in diesem Ordner, dann TrisarFahrer.xcodeproj oeffnen.
+# Die .xcodeproj ist abgeleitet und wird nicht von Hand bearbeitet.
+name: TrisarFahrer
+options:
+  bundleIdPrefix: de.trisar
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: 2.0.0
+  MapLibre:
+    # Gleiche Kartenbibliothek wie die Web-App (maplibre-gl), Stil CARTO Dark Matter.
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    from: 6.0.0
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.10"
+    CODE_SIGN_STYLE: Automatic
+    # Team-ID der TRISAR-Apple-ID. Leer lassen = in Xcode unter Signing waehlen.
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  TrisarFahrer:
+    type: application
+    platform: iOS
+    sources:
+      - path: TrisarFahrer
+    dependencies:
+      - package: Supabase
+      - package: MapLibre
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.trisar.fahrer
+        PRODUCT_NAME: TRISAR
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_CFBundleDisplayName: TRISAR
+        GENERATE_INFOPLIST_FILE: YES
+    info:
+      path: TrisarFahrer/Info.plist
+      properties:
+        CFBundleDisplayName: TRISAR
+        UILaunchScreen: {}
+        UIUserInterfaceStyle: Dark
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIBackgroundModes:
+          - location
+        NSLocationWhenInUseUsageDescription: "TRISAR nutzt deinen Standort, damit die Disposition sieht, wo du bist, und Fahrten automatisch starten und beenden kann."
+        NSLocationAlwaysAndWhenInUseUsageDescription: "Damit dein Standort auch weiter gesendet wird, während Google Maps navigiert oder der Bildschirm aus ist, wähle bitte „Immer“."
+        ITSAppUsesNonExemptEncryption: false
+        UIAppFonts:
+          - SpaceGrotesk.ttf
