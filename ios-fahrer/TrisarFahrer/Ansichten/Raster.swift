@@ -38,7 +38,8 @@ struct Leinwand<Inhalt: View>: View {
             // ScrollView den Inhalt um die Statusleiste (59 pt), und Tipps landen daneben.
             .contentMargins(.vertical, 0, for: .scrollContent)
             .ignoresSafeArea()
-            .background(Color.black)
+            // Ohne eigenen Hintergrund durchsichtig, damit ein Verlauf dahinter sichtbar bleibt (Dispo).
+            .background(mitHintergrund ? Color.black : Color.clear)
         }
         .ignoresSafeArea()
     }
