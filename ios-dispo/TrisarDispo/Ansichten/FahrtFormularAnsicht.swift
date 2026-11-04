@@ -101,6 +101,8 @@ private struct FahrtFormularInhalt: View {
     @State private var meldung: String?
     @State private var stornoFrage = false
     @State private var tastatur: CGFloat = 0
+    /// Sammel-Import (setView('importFahrten')), als Vollbild ueber dem Formular.
+    @State private var importOffen = false
     @FocusState private var fokus: String?
 
     init(geladen: GeladeneFahrt?, zurueck: @escaping () -> Void, zeigen: ((DispoZiel) -> Void)?) {
@@ -239,6 +241,12 @@ private struct FahrtFormularInhalt: View {
             Button("Abbrechen", role: .cancel) {}
             Button("OK") { Task { await stornieren() } }
         }
+        .fullScreenCover(isPresented: $importOffen) {
+            ImportAnsicht(modus: .fahrten, zurueck: { importOffen = false }, zumZiel: {
+                importOffen = false
+                zeigen?(.fahrten)
+            })
+        }
     }
 
     // MARK: Kopf
@@ -247,9 +255,13 @@ private struct FahrtFormularInhalt: View {
         ZStack(alignment: .topLeading) {
             ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
             if !bearbeiten {
-                // Sammel-Import (setView('importFahrten')): die Import-Ansicht gibt es nativ noch nicht.
-                Image("import-fahrten").resizable().platz(402 - 20 - 42, 65, 42, 40)
-                    .accessibilityLabel("Fahrten importieren")
+                // Sammel-Import aus Excel/CSV statt Einzelanlage (setView('importFahrten')).
+                Button { importOffen = true } label: {
+                    Image("import-fahrten").resizable().frame(width: 42, height: 40).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Fahrten importieren")
+                .platz(402 - 20 - 42, 65, 42, 40)
             }
             WebText(text: t(bearbeiten ? "fahrt.editTitle" : "fahrt.createTitle"), groesse: 42, gewicht: .bold,
                     zeilenHoehe: 42, farbe: UIColor(hex: 0xE3F654))

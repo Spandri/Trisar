@@ -8,17 +8,21 @@ struct KundenBereichAnsicht: View {
     let zeigen: (DispoZiel) -> Void
     @State private var seite: Seite = .liste
 
-    enum Seite: Hashable { case liste, erstellen, bearbeiten(StammFahrgast) }
+    enum Seite: Hashable { case liste, erstellen, bearbeiten(StammFahrgast), importieren }
 
     var body: some View {
         Group {
             switch seite {
             case .liste:
-                KundenListeSeite(zeigen: zeigen, erstellen: { seite = .erstellen }, bearbeiten: { seite = .bearbeiten($0) })
+                KundenListeSeite(zeigen: zeigen, erstellen: { seite = .erstellen }, bearbeiten: { seite = .bearbeiten($0) },
+                                 importieren: { seite = .importieren })
             case .erstellen:
                 FahrgastFormularSeite(gast: nil, zurueck: { seite = .liste })
             case let .bearbeiten(g):
                 FahrgastFormularSeite(gast: g, zurueck: { seite = .liste })
+            case .importieren:
+                // ImportView mode guests: zurueck und "Zu den Fahrgästen" fuehren beide in die Liste.
+                ImportAnsicht(modus: .gaeste, zurueck: { seite = .liste }, zumZiel: { seite = .liste })
             }
         }
         .id(seite)
@@ -33,6 +37,7 @@ struct KundenListeSeite: View {
     let zeigen: (DispoZiel) -> Void
     let erstellen: () -> Void
     let bearbeiten: (StammFahrgast) -> Void
+    let importieren: () -> Void
     @StateObject private var dienst = FahrgaesteDienst()
     @State private var suche = ""
 
@@ -52,15 +57,18 @@ struct KundenListeSeite: View {
                     ZurueckKnopf { zeigen(.start) }.platz(20, 60, 50, 50)
                     StammTitel(text: "Fahrgäste").platz(20, 140)
 
-                    // Import ist eine eigene Seite (ImportView), in der App noch nicht nachgebaut.
-                    HStack(spacing: 0) {
-                        Text("Kunden importieren").font(.grotesk(16, .medium)).tracking(0.5).foregroundStyle(Color(hex: 0xE3F654))
-                        Spacer(minLength: 0)
-                        Image("Import_Trisar_Icons_01_Lime").resizable().frame(width: 24, height: 24)
+                    Button(action: importieren) {
+                        HStack(spacing: 0) {
+                            Text("Kunden importieren").font(.grotesk(16, .medium)).tracking(0.5).foregroundStyle(Color(hex: 0xE3F654))
+                            Spacer(minLength: 0)
+                            Image("Import_Trisar_Icons_01_Lime").resizable().frame(width: 24, height: 24)
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(width: 362, height: 56)
+                        .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, 16)
-                    .frame(width: 362, height: 56)
-                    .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
+                    .buttonStyle(.plain)
                     .platz(20, 206, 362, 56)
 
                     HStack(spacing: 0) {
