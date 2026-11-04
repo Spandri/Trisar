@@ -23,7 +23,8 @@ struct Navileiste: View {
             }
             .frame(width: 402, height: 131)
             .frame(maxWidth: .infinity)
-            .padding(.bottom, 39)
+            // Web: Leiste bottom 39px, Footer 40px hoch -> Leiste sitzt direkt auf dem Footer.
+            .padding(.bottom, -1)
             TrisarFussleiste()
         }
         .ignoresSafeArea()

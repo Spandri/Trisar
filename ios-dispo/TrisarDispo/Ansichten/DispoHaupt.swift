@@ -176,7 +176,15 @@ struct PlanungsKnopf: View {
     @State private var winkel: Double = 22.66
     var body: some View {
         Button(action: aktion) {
-            ZStack {
+            HStack {
+                Text("Planung").font(.grotesk(16, .medium)).tracking(0.5).foregroundStyle(Color(hex: 0xE3F654))
+                Spacer()
+                Image("Planen_Sparkle_Lime").resizable().frame(width: 24, height: 24.14)
+            }
+            .padding(.leading, 22).padding(.trailing, 26)
+            .frame(width: 362, height: 56)
+            // Verlauf als Hintergrund, damit das 420er-Quadrat die Knopfbreite nicht aufbläht.
+            .background {
                 LinearGradient(stops: [
                     .init(color: Color(red: 0, green: 89 / 255, blue: 1, opacity: 0.78), location: 0),
                     .init(color: Color(red: 0, green: 89 / 255, blue: 1, opacity: 0.78), location: 0.314),
@@ -185,14 +193,8 @@ struct PlanungsKnopf: View {
                 ], startPoint: .leading, endPoint: .trailing)
                 .frame(width: 420, height: 420)
                 .rotationEffect(.degrees(winkel))
-                HStack {
-                    Text("Planung").font(.grotesk(16, .medium)).tracking(0.5).foregroundStyle(Color(hex: 0xE3F654))
-                    Spacer()
-                    Image("Planen_Sparkle_Lime").resizable().frame(width: 24, height: 24.14)
-                }
-                .padding(.leading, 22).padding(.trailing, 26)
+                .frame(width: 362, height: 56)
             }
-            .frame(width: 362, height: 56)
             .background(Color.black)
             .clipped()
             .overlay(Rectangle().strokeBorder(Color(hex: 0xE2F754), lineWidth: 2))
