@@ -39,6 +39,9 @@ struct DispoHaupt: View {
             FahrtenAnsicht(zeigen: zeigen, oeffneFahrt: { bearbeiteteFahrt = $0 })
         case .karte:
             DispoKarteAnsicht(zeigen: zeigen)
+        case .kiAssistent:
+            KiAssistentAnsicht(zeigen: zeigen,
+                               oeffneFahrt: { id in bearbeiteteFahrt = UUID(uuidString: id) })
         case .fahrtNeu:
             FahrtFormularAnsicht(fahrtID: nil, zurueck: { zeigen(.start) }, zeigen: zeigen)
         default:
