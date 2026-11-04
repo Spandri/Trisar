@@ -104,6 +104,9 @@ private struct FahrtFormularInhalt: View {
     /// Sammel-Import (setView('importFahrten')), als Vollbild ueber dem Formular.
     @State private var importOffen = false
     @FocusState private var fokus: String?
+    // Risiko je Fahrt (nur an Tagen, die die Engine gerechnet hat, siehe NebenRisikoSpeicher).
+    @ObservedObject private var risiko = NebenRisikoSpeicher.geteilt
+    @State private var risikoHoehe: CGFloat = 0
 
     init(geladen: GeladeneFahrt?, zurueck: @escaping () -> Void, zeigen: ((DispoZiel) -> Void)?) {
         self.geladen = geladen
@@ -117,6 +120,16 @@ private struct FahrtFormularInhalt: View {
     }
 
     private var bearbeiten: Bool { geladen != nil }
+
+    /// Datum der geladenen Fahrt (wie initialData.datum im Web, nicht der Formularwert).
+    private var risikoDatum: String { FahrtText.fahrtDatum(geladen?.werte.datum) }
+
+    /// Wie risikoFahrt(risikoDaten, risikoDatum, rideId) in FahrtBearbeitenView. Im Web nur in
+    /// der Demo, hier nur wenn risiko-ergebnisse.json im Bundle liegt, live also nie.
+    private var risikoFahrt: NebenRisikoFahrt? {
+        guard let geladen, !risikoDatum.isEmpty else { return nil }
+        return risiko.fahrt(risikoDatum, rideID: geladen.id.uuidString.lowercased())
+    }
     private func t(_ k: String, _ w: [String: String] = [:]) -> String { FahrtText.tr(k, w) }
 
     // MARK: Abgeleitete Werte
@@ -160,7 +173,9 @@ private struct FahrtFormularInhalt: View {
     var body: some View {
         let reihen = zeilen
         let letzteReihe = reihenStart + CGFloat(reihen.count - 1) * schritt
-        let notizTop = letzteReihe + zeilenHoehe + 24
+        let risikoTop = letzteReihe + zeilenHoehe + 24
+        let risikoDieserFahrt = risikoFahrt
+        let notizTop = risikoTop + (risikoDieserFahrt != nil && risikoHoehe > 0 ? risikoHoehe + 24 : 0)
         let knopfTop = notizTop + 224 + 24
         let stornoTop = knopfTop + zeilenHoehe + 12
         let inhaltHoehe = bearbeiten ? stornoTop + zeilenHoehe + 30 + 40 : knopfTop + zeilenHoehe + 30
@@ -178,6 +193,13 @@ private struct FahrtFormularInhalt: View {
                         startZeile.id("start").platz(20, 342, 362, 56)
                         ForEach(Array(reihen.enumerated()), id: \.element.id) { i, z in
                             zeileAnsicht(z).id(z.id).platz(20, reihenStart + CGFloat(i) * schritt, 362, 56)
+                        }
+                        if let risikoDieserFahrt {
+                            RisikoAbschnitt(fahrt: risikoDieserFahrt,
+                                            geplant: NebenRisiko.fahrerPasst(risikoDieserFahrt, geladen?.fahrerNamen ?? []),
+                                            verlaeufe: risiko.tag(risikoDatum)?.verlaeufe ?? 500,
+                                            hoehe: { risikoHoehe = $0 })
+                                .platz(0, risikoTop, 402, nil)
                         }
                         notizBlock.platz(0, notizTop, 402, 224)
                         FormularSpeichernKnopf(text: speichert ? t("fahrt.saving") : t(bearbeiten ? "fahrt.submitEdit" : "fahrt.submitCreate"),
