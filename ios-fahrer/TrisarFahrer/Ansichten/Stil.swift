@@ -76,13 +76,17 @@ struct TrisarFussleiste: View {
                 .scaledToFit()
                 .frame(width: 73, height: 10.83)
             Spacer(minLength: 0)
-            Link(destination: URL(string: "https://fahrer.trisar.de/support")!) {
+            // Wie im Web (trisar:support-oeffnen): die gerade sichtbare Ansicht oeffnet den Support.
+            Button {
+                NotificationCenter.default.post(name: .supportOeffnen, object: nil)
+            } label: {
                 Text("support")
                     .font(.grotesk(10, .medium))
                     .tracking(-0.5)
                     .foregroundStyle(Farbe.limeIcon)
-                    .frame(width: 116)
+                    .frame(width: 116, height: 40)
             }
+            .buttonStyle(.plain)
         }
         .frame(height: 40)
         .frame(maxWidth: .infinity)
@@ -136,4 +140,8 @@ struct LimeKnopfStil: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
+}
+
+extension Notification.Name {
+    static let supportOeffnen = Notification.Name("trisar-support-oeffnen")
 }

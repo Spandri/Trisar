@@ -7,6 +7,8 @@ struct HauptAnsicht: View {
     @EnvironmentObject private var speicher: FahrtenSpeicher
     @State private var profilOffen = false
     @State private var offeneFahrt: Fahrt?
+    @State private var supportOffen = false
+    @State private var fahrzeugOffen = false
 
     var body: some View {
         Group {
@@ -16,20 +18,29 @@ struct HauptAnsicht: View {
                 KeineFahrtAnsicht(
                     fahrzeug: speicher.fahrzeug,
                     oeffneProfil: { profilOffen = true },
-                    oeffneFahrzeug: {},
+                    oeffneFahrzeug: { fahrzeugOffen = true },
                     abmelden: { Task { await anmeldung.abmelden() } }
                 )
             } else {
                 FahrtenListeAnsicht(
                     oeffneProfil: { profilOffen = true },
-                    oeffneFahrzeug: {},
+                    oeffneFahrzeug: { fahrzeugOffen = true },
                     oeffneFahrt: { offeneFahrt = $0 }
                 )
             }
         }
-        // Profil kommt in einem spaeteren Schritt. Bis dahin: Ortungsstatus und Abmelden.
-        .sheet(isPresented: $profilOffen) {
-            OrtungAnsicht()
+        .fullScreenCover(isPresented: $profilOffen) {
+            ProfilFluss { profilOffen = false }
+                .environmentObject(anmeldung)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .supportOeffnen)) { _ in
+            if offeneFahrt == nil && !profilOffen && !fahrzeugOffen { supportOffen = true }
+        }
+        .fullScreenCover(isPresented: $supportOffen) { SupportAnsicht { supportOffen = false } }
+        .fullScreenCover(isPresented: $fahrzeugOffen) {
+            FahrzeugAnsicht { fahrzeugOffen = false }
+                .environmentObject(anmeldung)
+                .environmentObject(speicher)
         }
         .fullScreenCover(item: $offeneFahrt) { fahrt in
             if let fahrer = anmeldung.fahrerID {
@@ -40,3 +51,29 @@ struct HauptAnsicht: View {
     }
 }
 
+
+/// Profil mit Unterseiten (wie setView in der Web-App: profilFahrer -> verlauf / settingsFahrer / ansprechpartner).
+private struct ProfilFluss: View {
+    let schliessen: () -> Void
+    @State private var seite: Seite = .profil
+    private enum Seite { case profil, verlauf, einstellungen, support }
+
+    var body: some View {
+        ZStack {
+            switch seite {
+            case .profil:
+                ProfilAnsicht(zurueck: schliessen,
+                              oeffneAnsprechpartner: { seite = .support },
+                              oeffneVerlauf: { seite = .verlauf },
+                              oeffneEinstellungen: { seite = .einstellungen })
+            case .verlauf:
+                VerlaufAnsicht { seite = .profil }
+            case .einstellungen:
+                EinstellungenAnsicht { seite = .profil }
+            case .support:
+                SupportAnsicht { seite = .profil }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .supportOeffnen)) { _ in seite = .support }
+    }
+}

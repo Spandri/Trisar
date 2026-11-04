@@ -56,5 +56,7 @@ targets:
         NSLocationWhenInUseUsageDescription: "TRISAR nutzt deinen Standort, damit die Disposition sieht, wo du bist, und Fahrten automatisch starten und beenden kann."
         NSLocationAlwaysAndWhenInUseUsageDescription: "Damit dein Standort auch weiter gesendet wird, während Google Maps navigiert oder der Bildschirm aus ist, wähle bitte „Immer“."
         ITSAppUsesNonExemptEncryption: false
+        NSCameraUsageDescription: "TRISAR braucht die Kamera, damit du Schäden am Fahrzeug fotografieren kannst."
+        NSPhotoLibraryUsageDescription: "TRISAR braucht Zugriff auf deine Fotos, damit du Bilder eines Schadens anhängen kannst."
         UIAppFonts:
           - SpaceGrotesk.ttf

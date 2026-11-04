@@ -24,6 +24,7 @@ struct SoloNormalAnsicht: View {
     @State private var jetzt = Date()
     @State private var gewaehlterKollege: FahrtDetails.KolonnenFahrer?
     @State private var chatOffen = false
+    @State private var supportOffen = false
 
     private enum Blatt: String, Identifiable {
         case beenden, stornieren, notiz, schild
@@ -118,6 +119,10 @@ struct SoloNormalAnsicht: View {
                 KollegenKarte(fahrer: k) { gewaehlterKollege = nil }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .supportOeffnen)) { _ in
+            if offenesBlatt == nil && !chatOffen { supportOffen = true }
+        }
+        .fullScreenCover(isPresented: $supportOffen) { SupportAnsicht { supportOffen = false } }
         .fullScreenCover(isPresented: $chatOffen, onDismiss: { Task { await speicher.ungelesenAktualisieren() } }) {
             if let k = fahrt?.kolonnenID, let fahrer = anmeldung.fahrerID {
                 KolonnenChatAnsicht(chatID: k, fahrerID: fahrer, titel: kolonnenKurz) { chatOffen = false }
@@ -334,7 +339,7 @@ struct SoloNormalAnsicht: View {
                 AktionsKnopf(text: "Fahrt beenden", farbe: Color(hex: 0xFF6F63)) { offenesBlatt = .beenden }
                 AktionsKnopf(text: "Stornieren", farbe: Color(hex: 0xE2F754)) { offenesBlatt = .stornieren }
                 AktionsKnopf(text: "Notiz zur Fahrt", farbe: Color(hex: 0xE2F754)) { offenesBlatt = .notiz }
-                Button {} label: {
+                Button { supportOffen = true } label: {
                     Text("Support").font(.grotesk(16, .medium)).tracking(0.5)
                         .foregroundStyle(Color(hex: 0xE2F754).opacity(0.5))
                         .frame(maxWidth: .infinity).frame(height: 56)
