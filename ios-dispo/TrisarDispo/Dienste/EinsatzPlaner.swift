@@ -517,6 +517,8 @@ enum EinsatzPlanerDienst {
             "maxWorkHours": .double(maxH), "minWorkHours": .double(minH), "minPauseHours": .double(pauseH),
             "bufferMinutes": .integer(puffer), "rideDurationMinutes": .integer(dauer), "mode": .string(modus),
             "qualityGapPercent": .double(guete),
+            // Leerfahrten: "osrm" (Standard) oder "osrm_raum" (Faktor je Gegend/Tag/Stunde).
+            "travelModel": .string(settings["travelModel"]?.planText == "osrm_raum" ? "osrm_raum" : "osrm"),
         ]
         let rueckfall = heuristik(drivers: drivers, rides: rides, bedarf: bedarf, maxM: Int(maxH * 60), minM: Int(minH * 60),
                                   pauseM: Int(pauseH * 60), puffer: puffer, dauer: dauer)

@@ -98,6 +98,9 @@ class Ride:
     # Kilometer realistisch zu schaetzen).
     start_place: str = ""
     end_place: str = ""
+    # Adressen fuer die Geokodierung der Leerfahrten (verkehr.py).
+    start_address: str = ""
+    end_address: str = ""
 
     @property
     def end_time(self) -> datetime:

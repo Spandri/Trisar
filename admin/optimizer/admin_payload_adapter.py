@@ -476,6 +476,8 @@ def adapt_rides(
                 # Klartext-Orte fuer die echte Distanztabelle.
                 start_place=str(row.get("pickup_name") or row.get("pickup_address") or "").strip(),
                 end_place=str(row.get("dropoff_name") or row.get("dropoff_address") or "").strip(),
+                start_address=pickup_address,
+                end_address=dropoff_address,
             )
         )
 
@@ -512,6 +514,7 @@ def adapt_admin_payload_to_solver_inputs(
     options: Optional[AdapterOptions] = None,
     place_minutes: Optional[Dict[str, float]] = None,
     depot_place: Optional[str] = None,
+    travel_model: Optional[str] = None,
 ) -> Tuple[List[Driver], List[Ride], ZoneMatrix, List[str]]:
     """
     Main adapter entrypoint.
@@ -532,6 +535,14 @@ def adapt_admin_payload_to_solver_inputs(
         zone_provider=provider,
         options=opts,
     )
+    modell = str(travel_model or "").strip().lower()
+    if modell in ("osrm", "osrm_raum"):
+        ergebnis = _with_osrm_travel_times(drivers, rides, zone_minutes, depot_place, provider, opts,
+                                           warnings, service_day, modell)
+        if ergebnis is not None:
+            drivers, rides, zone_matrix = ergebnis
+            return drivers, rides, zone_matrix, warnings
+        warnings.append("OSRM nicht erreichbar -> Zonenschaetzung fuer die Leerfahrten.")
     if place_minutes:
         drivers, rides, zone_matrix = _with_place_travel_times(
             drivers, rides, zone_minutes, place_minutes, depot_place, provider, opts, warnings,
@@ -641,3 +652,109 @@ def solve_schedule_from_admin_payload(
     )
     result = solve_schedule(rides=rides, drivers=drivers, zone_matrix=zone_matrix, mode=mode)
     return result, warnings
+
+
+def _with_osrm_travel_times(
+    drivers: List[Driver],
+    rides: List[Ride],
+    zone_minutes: Dict[str, int],
+    depot_place: Optional[str],
+    provider: Optional[TravelTimeProvider],
+    opts: AdapterOptions,
+    warnings: List[str],
+    service_day: date,
+    modell: str,
+) -> Optional[Tuple[List[Driver], List[Ride], ZoneMatrix]]:
+    """
+    Leerfahrten mit echten Strassenzeiten aus dem eigenen OSRM, mal Verkehrsfaktor (verkehr.py).
+
+    Jede Fahrt bekommt eigene Start- und Endzonen. So haengt eine Leerfahrt von der Uhrzeit
+    ab: Umsetzen nach einer Fahrt rechnet mit der Stunde, in der die Fahrt endet, die
+    Anfahrt ab der Zentrale mit der Stunde, in der die naechste Fahrt beginnt.
+    Orte ohne Koordinaten behalten die Zonenregel. None = OSRM nicht erreichbar.
+    """
+    from optimizer import verkehr
+
+    geocode = getattr(provider, "_geocode", None)
+    osrm_url = getattr(provider, "osrm_base_url", None)
+    if not callable(geocode) or not osrm_url:
+        return None
+
+    punkte: List[Tuple[float, float]] = []
+    punkt_index: Dict[Tuple[float, float], int] = {}
+
+    def index_fuer(adresse: str) -> Optional[int]:
+        pos = geocode(adresse) if adresse else None
+        if not pos:
+            return None
+        key = (round(pos[0], 5), round(pos[1], 5))
+        if key not in punkt_index:
+            punkt_index[key] = len(punkte)
+            punkte.append(key)
+        return punkt_index[key]
+
+    # Zone -> (Punktindex oder None, Stunde oder None, Rueckfallzone)
+    zonen: Dict[str, Tuple[Optional[int], Optional[int], str]] = {}
+    neue_rides: List[Ride] = []
+    fehlend = 0
+    for k, ride in enumerate(rides):
+        start_z, end_z = f"R{k}S", f"R{k}E"
+        si = index_fuer(ride.start_address or ride.start_place)
+        ei = index_fuer(ride.end_address or ride.end_place)
+        fehlend += (si is None) + (ei is None)
+        zonen[start_z] = (si, ride.start_time.hour, ride.start_zone)
+        zonen[end_z] = (ei, ride.end_time.hour, ride.end_zone)
+        neue_rides.append(dataclass_replace(ride, start_zone=start_z, end_zone=end_z))
+
+    depot = str(depot_place or "").strip()
+    depot_i = index_fuer(depot) if depot else None
+    depot_rueckfall = opts.default_driver_start_zone
+    if depot:
+        depot_rueckfall, depot_min = _infer_zone_from_address(depot, provider=provider, options=opts, warnings=warnings)
+        zone_minutes.setdefault(depot_rueckfall, int(depot_min))
+    zonen["DEPOT"] = (depot_i, None, depot_rueckfall)
+    for drv in drivers:
+        for z in (drv.start_zone, drv.end_zone):
+            if z not in zonen:
+                zonen[z] = (depot_i if z == opts.default_driver_start_zone else None, None, z)
+    neue_fahrer = [
+        dataclass_replace(
+            drv,
+            start_zone="DEPOT" if drv.start_zone == opts.default_driver_start_zone else drv.start_zone,
+            end_zone="DEPOT" if drv.end_zone == opts.default_driver_end_zone else drv.end_zone,
+        )
+        for drv in drivers
+    ]
+
+    matrix = verkehr.osrm_tabelle(osrm_url, punkte)
+    if matrix is None:
+        return None
+    if fehlend:
+        warnings.append(f"{fehlend} Orte ohne Koordinaten -> Zonenschaetzung fuer diese Leerfahrten.")
+    if modell == "osrm_raum" and not verkehr.raum_faktoren_vorhanden():
+        warnings.append("Keine Verkehrsfaktoren je Gegend vorhanden -> Stundenfaktor.")
+
+    def rueckfall(za: str, zb: str) -> int:
+        if za == zb:
+            return 0
+        return max(30, int(zone_minutes.get(za, 30)), int(zone_minutes.get(zb, 30)))
+
+    travel: Dict[Tuple[str, str], int] = {}
+    namen = list(zonen.keys())
+    for a in namen:
+        ia, ha, ra = zonen[a]
+        for b in namen:
+            if a == b:
+                travel[(a, b)] = 0
+                continue
+            ib, hb, rb = zonen[b]
+            if ia is None or ib is None or matrix[ia][ib] is None:
+                travel[(a, b)] = rueckfall(ra, rb)
+                continue
+            if ia == ib:
+                travel[(a, b)] = 0
+                continue
+            stunde = ha if ha is not None else (hb if hb is not None else 12)
+            f = verkehr.faktor(modell, stunde, service_day, punkte[ia], punkte[ib])
+            travel[(a, b)] = max(1, int(math.ceil(float(matrix[ia][ib]) * f)))
+    return neue_fahrer, neue_rides, ZoneMatrix(travel_minutes=travel, default_between_distinct_zones=30)

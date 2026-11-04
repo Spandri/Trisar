@@ -84,6 +84,7 @@ struct PlanerEinstellungenAnsicht: View {
                         }
                     }
                     .padding(.top, 24)
+                    verkehrWahl.padding(.top, 42)
                     knopf("Einstellungen übernehmen", voll: true, aktion: zurueck).padding(.top, 40)
                     knopf("Auf Standard zurücksetzen", voll: false) { aendern(.standard) }.padding(.top, 10)
                 }
@@ -95,6 +96,39 @@ struct PlanerEinstellungenAnsicht: View {
             FussleisteUnten()
         }
         .background(Color.black.ignoresSafeArea())
+    }
+
+    /// Verkehrsmodell der Leerfahrten (travelModel), wie im Web zwei Felder nebeneinander.
+    private var verkehrWahl: some View {
+        let lime = Color(hex: 0xE3F654)
+        return VStack(spacing: 0) {
+            WebText(text: "Verkehr bei Leerfahrten", groesse: 20, gewicht: .bold, zeilenHoehe: 26,
+                    abstand: -0.3, farbe: UIColor(lime), ausrichtung: .center)
+            HStack(spacing: 10) {
+                ForEach([("osrm", "Standard"), ("osrm_raum", "Nach Gegend")], id: \.0) { wert, text in
+                    let aktiv = einstellungen.travelModel == wert
+                    Button {
+                        var neu = einstellungen
+                        neu.travelModel = wert
+                        aendern(neu)
+                    } label: {
+                        Text(text).font(.grotesk(16, .medium)).tracking(0.4)
+                            .foregroundStyle(aktiv ? Color(hex: 0x1D1C1D) : lime)
+                            .frame(maxWidth: .infinity).frame(height: 52)
+                            .background(aktiv ? lime : Color.clear)
+                            .overlay(Rectangle().strokeBorder(lime, lineWidth: 2))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(aktiv ? .isSelected : [])
+                }
+            }
+            .padding(.top, 12)
+            WebText(text: "Standard: echte Straßenzeit mal Tageszeit-Faktor für ganz München. Nach Gegend: Faktor je Innenstadt, Stadt, Umland, Flughafen, Wochentag und Stunde, genauer (im Test 2,7 statt 4,6 min Abweichung).",
+                    groesse: 11, gewicht: .medium, zeilenHoehe: 15,
+                    farbe: UIColor.white.withAlphaComponent(0.45), ausrichtung: .center)
+                .padding(.top, 6)
+        }
     }
 
     private func knopf(_ text: String, voll: Bool, aktion: @escaping () -> Void) -> some View {

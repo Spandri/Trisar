@@ -41,6 +41,9 @@ class PlannerSettings(BaseModel):
     # Abbruchkriterium ist die Lösungsgüte (max. Abstand zum Optimum in %),
     # nicht die Rechenzeit.
     qualityGapPercent: Optional[float] = 0.0
+    # Leerfahrten: "osrm" (Standard, OSRM x Stundenfaktor) oder "osrm_raum"
+    # (OSRM x Faktor je Gegend/Tag/Stunde). "zonen" = alte Zonenschaetzung.
+    travelModel: Optional[str] = "osrm"
 
 
 class PlannerRequest(BaseModel):
@@ -120,6 +123,7 @@ def solve(payload: PlannerRequest) -> Dict[str, Any]:
         options=options,
         place_minutes=payload.travelMinutes or None,
         depot_place=payload.depot,
+        travel_model=payload.settings.travelModel,
     )
     # Geteilte Dienste: jede*r Fahrer*in bekommt eine Spaetblock-Kopie. Die
     # Kopie ist minimal verfuegbarkeitslimitiert markiert, damit sie aus den

@@ -20,6 +20,9 @@ struct PlanerEinstellungen: Codable, Equatable {
     var restHours: Double = 11
     /// Abbruch nach Loesungsguete (max. Abstand zum Optimum in %), 0 = bis beweisbar optimal.
     var qualityGapPercent: Double = 5
+    /// Leerfahrten der Engine: "osrm" = Strassenzeit x Stundenfaktor (Standard),
+    /// "osrm_raum" = Strassenzeit x Faktor je Gegend, Wochentag und Stunde.
+    var travelModel = "osrm"
 
     static let standard = PlanerEinstellungen()
     static let speicherSchluessel = "trisar_planner_settings_v1"
@@ -44,6 +47,7 @@ struct PlanerEinstellungen: Codable, Equatable {
         minPauseHours = zahl(.minPauseHours, s.minPauseHours)
         restHours = zahl(.restHours, s.restHours)
         qualityGapPercent = zahl(.qualityGapPercent, s.qualityGapPercent)
+        travelModel = (try? c.decodeIfPresent(String.self, forKey: .travelModel)) == "osrm_raum" ? "osrm_raum" : "osrm"
     }
 
     static func laden() -> PlanerEinstellungen {
