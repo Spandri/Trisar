@@ -20,6 +20,12 @@ struct DispoHaupt: View {
         switch ziel {
         case .start:
             DispoStartseite(zeigen: zeigen)
+        case .fahrzeuge:
+            FahrzeugBereichAnsicht(zeigen: zeigen)
+        case .kunden:
+            KundenBereichAnsicht(zeigen: zeigen)
+        case .profil:
+            KoordinatorProfilAnsicht(zeigen: zeigen)
         default:
             DispoPlatzhalter(titel: titel(ziel), zeigen: zeigen, aktiv: ziel)
         }
