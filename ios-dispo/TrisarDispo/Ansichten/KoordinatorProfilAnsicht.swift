@@ -2,13 +2,13 @@ import PhotosUI
 import SwiftUI
 
 /// Profil der Disposition: Profil (ProfilKoordinatorView.jsx), Ansprechpartner (AnsprechpartnerView.jsx,
-/// Live-Zweig) und Einstellungen (SettingsViewKo.jsx).
+/// Live-Zweig), Verlauf (VerlaufView.jsx) und Einstellungen (SettingsViewKo.jsx).
 struct KoordinatorProfilAnsicht: View {
     let zeigen: (DispoZiel) -> Void
     @State private var seite: Seite = .profil
     @StateObject private var dienst = KoordinatorProfilDienst()
 
-    enum Seite: Hashable { case profil, ansprechpartner, einstellungen }
+    enum Seite: Hashable { case profil, ansprechpartner, verlauf, einstellungen }
 
     var body: some View {
         Group {
@@ -16,9 +16,12 @@ struct KoordinatorProfilAnsicht: View {
             case .profil:
                 KoordinatorProfilSeite(name: dienst.profil.name, zurueck: { zeigen(.start) },
                                        ansprechpartner: { seite = .ansprechpartner },
+                                       verlauf: { seite = .verlauf },
                                        einstellungen: { seite = .einstellungen })
             case .ansprechpartner:
                 AnsprechpartnerSeite(zurueck: { seite = .profil })
+            case .verlauf:
+                VerlaufAnsicht(zurueck: { seite = .profil })
             case .einstellungen:
                 KoordinatorEinstellungenSeite(dienst: dienst, zurueck: { seite = .profil })
             }
@@ -36,6 +39,7 @@ struct KoordinatorProfilSeite: View {
     let name: String
     let zurueck: () -> Void
     let ansprechpartner: () -> Void
+    let verlauf: () -> Void
     let einstellungen: () -> Void
 
     var body: some View {
@@ -62,8 +66,7 @@ struct KoordinatorProfilSeite: View {
                 kachel(204, 450, "51", "Stunden", blitz: CGPoint(x: 353, y: 462))
 
                 zeile("Ansprechpartner", aktion: ansprechpartner).platz(21, 589, 360, 56)
-                // Verlauf ist eine eigene Seite (VerlaufView), in der App noch nicht nachgebaut.
-                zeile("Verlauf", aktion: {}).platz(21, 657, 360, 56)
+                zeile("Verlauf", aktion: verlauf).platz(21, 657, 360, 56)
 
                 Button(action: einstellungen) {
                     Text("Einstellungen").font(.grotesk(16, .medium)).tracking(0.5)
