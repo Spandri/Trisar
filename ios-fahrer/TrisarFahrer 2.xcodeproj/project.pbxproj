@@ -1,0 +1,419 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0F9CCAFC7A1E5F398B93DEA6 /* OrtungAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 433DE1F2A13E932C15243932 /* OrtungAnsicht.swift */; };
+		26A069E776D926F0F5E3A915 /* Ortung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F9DA955D8BC4470B0CE4EB /* Ortung.swift */; };
+		68949569793B99D866860ECA /* TrisarFahrerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD39DD47EA9A24B5E4257F60 /* TrisarFahrerApp.swift */; };
+		78ABF37A0DAA01999FAB1500 /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = F0367CA0CCA001C40D9D6ED3 /* OFL.txt */; };
+		8A49F48FCB7998C83FC83BAC /* Backend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1948215C34DC01CB7C4A971D /* Backend.swift */; };
+		A7CE02FF50C54C432C877456 /* Stil.swift in Sources */ = {isa = PBXBuildFile; fileRef = C454F70458C953E9566766FD /* Stil.swift */; };
+		B17A845076E45CA1A28375C2 /* SpaceGrotesk.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5BD82C84E39A6594C2F10F56 /* SpaceGrotesk.ttf */; };
+		B2941EC7C7DEF2DB81F11E03 /* Anmeldung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668DEF83CA953AE5C54136D7 /* Anmeldung.swift */; };
+		BCA921F2A3F9B988A7CA2EF4 /* LoginAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9608472CAA30A9F9C18837C2 /* LoginAnsicht.swift */; };
+		C252078A783D9F8BAD1D49A9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 26A99E8DCE9A5294BA57E8CD /* Assets.xcassets */; };
+		EA45AF3988367F93D855DCAB /* Konfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787478CE4142338A85BD7D90 /* Konfig.swift */; };
+		F3572C2F11AB5C2D9F04A9B5 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 2C65B91DD76E29259C4C4AE6 /* Supabase */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1948215C34DC01CB7C4A971D /* Backend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend.swift; sourceTree = "<group>"; };
+		26A99E8DCE9A5294BA57E8CD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		433DE1F2A13E932C15243932 /* OrtungAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrtungAnsicht.swift; sourceTree = "<group>"; };
+		504E787D8590C4990A8A96EA /* TrisarFahrer.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TrisarFahrer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5BD82C84E39A6594C2F10F56 /* SpaceGrotesk.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = SpaceGrotesk.ttf; sourceTree = "<group>"; };
+		668DEF83CA953AE5C54136D7 /* Anmeldung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Anmeldung.swift; sourceTree = "<group>"; };
+		787478CE4142338A85BD7D90 /* Konfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Konfig.swift; sourceTree = "<group>"; };
+		9608472CAA30A9F9C18837C2 /* LoginAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginAnsicht.swift; sourceTree = "<group>"; };
+		99F9DA955D8BC4470B0CE4EB /* Ortung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ortung.swift; sourceTree = "<group>"; };
+		C454F70458C953E9566766FD /* Stil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stil.swift; sourceTree = "<group>"; };
+		DD39DD47EA9A24B5E4257F60 /* TrisarFahrerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrisarFahrerApp.swift; sourceTree = "<group>"; };
+		DD4C3F7DA26B43A3FF351A5A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F0367CA0CCA001C40D9D6ED3 /* OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OFL.txt; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		EE52041B1C04927394C30027 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F3572C2F11AB5C2D9F04A9B5 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0EB71D12C47D85570338E280 = {
+			isa = PBXGroup;
+			children = (
+				241424D58DABD99C5EC6A03B /* TrisarFahrer */,
+				1044A4AA777942D25A971AE6 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1044A4AA777942D25A971AE6 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				504E787D8590C4990A8A96EA /* TrisarFahrer.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		241424D58DABD99C5EC6A03B /* TrisarFahrer */ = {
+			isa = PBXGroup;
+			children = (
+				26A99E8DCE9A5294BA57E8CD /* Assets.xcassets */,
+				DD4C3F7DA26B43A3FF351A5A /* Info.plist */,
+				527FC01668BC6F905DFC6512 /* Ansichten */,
+				C019D13DBDCB3CE320EC8A86 /* App */,
+				C7892832F9172E908D9DD094 /* Dienste */,
+				85ABB32DD79802A9F277F161 /* Schrift */,
+			);
+			path = TrisarFahrer;
+			sourceTree = "<group>";
+		};
+		527FC01668BC6F905DFC6512 /* Ansichten */ = {
+			isa = PBXGroup;
+			children = (
+				9608472CAA30A9F9C18837C2 /* LoginAnsicht.swift */,
+				433DE1F2A13E932C15243932 /* OrtungAnsicht.swift */,
+				C454F70458C953E9566766FD /* Stil.swift */,
+			);
+			path = Ansichten;
+			sourceTree = "<group>";
+		};
+		85ABB32DD79802A9F277F161 /* Schrift */ = {
+			isa = PBXGroup;
+			children = (
+				F0367CA0CCA001C40D9D6ED3 /* OFL.txt */,
+				5BD82C84E39A6594C2F10F56 /* SpaceGrotesk.ttf */,
+			);
+			path = Schrift;
+			sourceTree = "<group>";
+		};
+		C019D13DBDCB3CE320EC8A86 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				787478CE4142338A85BD7D90 /* Konfig.swift */,
+				DD39DD47EA9A24B5E4257F60 /* TrisarFahrerApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		C7892832F9172E908D9DD094 /* Dienste */ = {
+			isa = PBXGroup;
+			children = (
+				668DEF83CA953AE5C54136D7 /* Anmeldung.swift */,
+				1948215C34DC01CB7C4A971D /* Backend.swift */,
+				99F9DA955D8BC4470B0CE4EB /* Ortung.swift */,
+			);
+			path = Dienste;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		CE1335AFB43ECEA55FDB53B6 /* TrisarFahrer */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AFADF22E3086ADDEA04148B7 /* Build configuration list for PBXNativeTarget "TrisarFahrer" */;
+			buildPhases = (
+				D8D32D9C57CEB93527ACB9CA /* Sources */,
+				E48E26A87613363E322FC3E4 /* Resources */,
+				EE52041B1C04927394C30027 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TrisarFahrer;
+			packageProductDependencies = (
+				2C65B91DD76E29259C4C4AE6 /* Supabase */,
+			);
+			productName = TrisarFahrer;
+			productReference = 504E787D8590C4990A8A96EA /* TrisarFahrer.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4B31B02152F26A326B616662 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					CE1335AFB43ECEA55FDB53B6 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 7DF7DE8E14319967D0D8C34A /* Build configuration list for PBXProject "TrisarFahrer" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 0EB71D12C47D85570338E280;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				4191F18A61F6E642E75A0A29 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 1044A4AA777942D25A971AE6 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				CE1335AFB43ECEA55FDB53B6 /* TrisarFahrer */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E48E26A87613363E322FC3E4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C252078A783D9F8BAD1D49A9 /* Assets.xcassets in Resources */,
+				78ABF37A0DAA01999FAB1500 /* OFL.txt in Resources */,
+				B17A845076E45CA1A28375C2 /* SpaceGrotesk.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D8D32D9C57CEB93527ACB9CA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B2941EC7C7DEF2DB81F11E03 /* Anmeldung.swift in Sources */,
+				8A49F48FCB7998C83FC83BAC /* Backend.swift in Sources */,
+				EA45AF3988367F93D855DCAB /* Konfig.swift in Sources */,
+				BCA921F2A3F9B988A7CA2EF4 /* LoginAnsicht.swift in Sources */,
+				26A069E776D926F0F5E3A915 /* Ortung.swift in Sources */,
+				0F9CCAFC7A1E5F398B93DEA6 /* OrtungAnsicht.swift in Sources */,
+				A7CE02FF50C54C432C877456 /* Stil.swift in Sources */,
+				68949569793B99D866860ECA /* TrisarFahrerApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		7412E72148D224F294E49E3E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+		A89AEEB7B7AFFB90CDF9979C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrisarFahrer/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TRISAR;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = de.trisar.fahrer;
+				PRODUCT_NAME = TRISAR;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		AA57783CD7DF6B46BFFCAD3C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrisarFahrer/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TRISAR;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = de.trisar.fahrer;
+				PRODUCT_NAME = TRISAR;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		B69C4527D2DC44BB7C9368EF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7DF7DE8E14319967D0D8C34A /* Build configuration list for PBXProject "TrisarFahrer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B69C4527D2DC44BB7C9368EF /* Debug */,
+				7412E72148D224F294E49E3E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AFADF22E3086ADDEA04148B7 /* Build configuration list for PBXNativeTarget "TrisarFahrer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA57783CD7DF6B46BFFCAD3C /* Debug */,
+				A89AEEB7B7AFFB90CDF9979C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4191F18A61F6E642E75A0A29 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2C65B91DD76E29259C4C4AE6 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4191F18A61F6E642E75A0A29 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 4B31B02152F26A326B616662 /* Project object */;
+}

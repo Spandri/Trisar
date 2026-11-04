@@ -50,8 +50,8 @@ struct EinsatzTagAnsicht: View {
             EinsatzHintergrund()
             Leinwand(basisHoehe: 873, inhaltHoehe: hoehe, mitHintergrund: false) { _ in
                 ZStack(alignment: .topLeading) {
-                    ZurueckKnopf { modell.tagZurueck() }.platz(20, 40, 50, 50)
-                    EinsatzPunkte(anzahl: tage.count, aktiv: index).mittig(201, 61, CGFloat(max(1, tage.count) - 1) * 17 + 7, 7)
+                    ZurueckKnopf { modell.tagZurueck() }.platz(20, 60, 50, 50)
+                    EinsatzPunkte(anzahl: tage.count, aktiv: index).mittig(201, 81, CGFloat(max(1, tage.count) - 1) * 17 + 7, 7)
                     Text(titel).font(.grotesk(24, .bold)).tracking(0.5).foregroundStyle(EinsatzFarbe.lime).lineLimit(1).fixedSize()
                         .mittig(201, 122, 380, 24, .center)
 

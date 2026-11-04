@@ -16,16 +16,22 @@ struct DispoHaupt: View {
             seite
                 .id(ziel)
                 .transition(.opacity)
+            // Unterseiten liegen als eigene Seite darueber, ohne Hochschieben (wie setView im Web).
+            if let id = bearbeiteteFahrt {
+                FahrtFormularAnsicht(fahrtID: id, zurueck: { bearbeiteteFahrt = nil })
+                    .environmentObject(anmeldung)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+            if let seite = planungsSeite {
+                planungsUnterseite(seite)
+                    .transition(.opacity)
+                    .zIndex(2)
+            }
         }
         .animation(.easeOut(duration: 0.15), value: ziel)
-        .fullScreenCover(item: Binding(get: { bearbeiteteFahrt.map(FahrtKennung.init) },
-                                       set: { bearbeiteteFahrt = $0?.id })) { k in
-            FahrtFormularAnsicht(fahrtID: k.id, zurueck: { bearbeiteteFahrt = nil })
-                .environmentObject(anmeldung)
-        }
-        .fullScreenCover(item: $planungsSeite) { seite in
-            planungsUnterseite(seite)
-        }
+        .animation(.easeOut(duration: 0.15), value: bearbeiteteFahrt)
+        .animation(.easeOut(duration: 0.15), value: planungsSeite?.id)
     }
 
     @ViewBuilder private func planungsUnterseite(_ seite: PlanungsSeite) -> some View {
@@ -206,7 +212,6 @@ struct PlanungsKnopf: View {
     }
 }
 
-private struct FahrtKennung: Identifiable { let id: UUID }
 
 /// Unterseiten der Planung, die ueber der Planung liegen.
 private enum PlanungsSeite: Identifiable {

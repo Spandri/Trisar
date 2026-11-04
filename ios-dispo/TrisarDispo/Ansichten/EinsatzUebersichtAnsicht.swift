@@ -52,7 +52,7 @@ struct EinsatzUebersichtAnsicht: View {
                 ZStack(alignment: .topLeading) {
                     karussell.platz(0, Self.wischOben, 402, 500)
 
-                    ZurueckKnopf(aktion: zurueck).platz(20, 40, 50, 50)
+                    ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
                     Button(action: teilen) {
                         ZStack(alignment: .topLeading) {
                             Image("teilen_pfeil").resizable().platz(18, 12, 13, 17)
@@ -62,7 +62,7 @@ struct EinsatzUebersichtAnsicht: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(gesamtAktiv ? "Einsatz als Bild teilen" : "Planung für \(aktiv < tagesTitel.count ? tagesTitel[aktiv] : "") als Bild teilen")
-                    .platz(324, 40, 50, 50)
+                    .platz(324, 60, 50, 50)
 
                     punkte.mittig(201, gesamtAktiv ? 568 : 580, CGFloat(letzte) * 17 + 7, 7)
                         .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.42), value: gesamtAktiv)

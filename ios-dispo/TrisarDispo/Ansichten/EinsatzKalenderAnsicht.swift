@@ -82,11 +82,11 @@ struct EinsatzKalenderAnsicht: View {
             EinsatzHintergrund()
             Leinwand(basisHoehe: 873, mitHintergrund: false) { _ in
                 ZStack(alignment: .topLeading) {
-                    ZurueckKnopf(aktion: zurueck).platz(20, 40, 50, 50)
+                    ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
                     Button(action: einstellungen) {
                         Image("filter").resizable().frame(width: 50, height: 50)
                     }
-                    .buttonStyle(.plain).accessibilityLabel("Planungseinstellungen").platz(332, 40, 50, 50)
+                    .buttonStyle(.plain).accessibilityLabel("Planungseinstellungen").platz(332, 60, 50, 50)
 
                     zeitfeld(links: 20, platzhalter: "Start Zeit", wert: startZeit) { zeitOffen = .start }
                     zeitfeld(links: 204, platzhalter: "End Zeit", wert: endZeit) { zeitOffen = .ende }

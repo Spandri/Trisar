@@ -8,6 +8,11 @@ struct TrisarDispoApp: App {
         zugangVerweigert: "Dieses Konto hat keinen Zugang zur Disposition."
     )
 
+    init() {
+        // Wie overscroll-none im Web: Seiten federn oben und unten nicht nach.
+        UIScrollView.appearance().bounces = false
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {

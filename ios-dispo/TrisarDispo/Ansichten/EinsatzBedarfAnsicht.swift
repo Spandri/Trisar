@@ -30,7 +30,7 @@ struct EinsatzBedarfAnsicht: View {
             EinsatzHintergrund()
             Leinwand(basisHoehe: 873, inhaltHoehe: hoehe, mitHintergrund: false) { _ in
                 ZStack(alignment: .topLeading) {
-                    ZurueckKnopf { modell.ablauf = .kalender }.platz(20, 40, 50, 50)
+                    ZurueckKnopf { modell.ablauf = .kalender }.platz(20, 60, 50, 50)
 
                     ForEach(Array(tage.enumerated()), id: \.element) { position, iso in
                         let y = top(position)

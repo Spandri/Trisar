@@ -7,6 +7,11 @@ struct TrisarFahrerApp: App {
     @StateObject private var fahrten = FahrtenSpeicher()
     @Environment(\.scenePhase) private var phase
 
+    init() {
+        // Wie overscroll-none im Web: Seiten federn oben und unten nicht nach.
+        UIScrollView.appearance().bounces = false
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {

@@ -27,7 +27,7 @@ struct FahrtenListeAnsicht: View {
 
     var body: some View {
         let raster = rasterBerechnen()
-        Leinwand(inhaltHoehe: raster.unterkante + versatz + nachKnopf + 64 + 40, beimZiehen: { await speicher.laden() }) { _ in
+        Leinwand(inhaltHoehe: raster.unterkante + versatz + nachKnopf + 64 + 40) { _ in
             ZStack(alignment: .topLeading) {
                 Image("trisar_logo").resizable().scaledToFit()
                     .platz(20, versatz + 70, 162, 24)
