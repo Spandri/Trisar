@@ -397,7 +397,7 @@ struct FahrtenListeDispo: View {
 
 // MARK: - Fahrer-Texte (RideCard-Hilfen)
 
-enum FahrtText {
+extension FahrtText {
     static let fahrerFehlt = "Fahrer fehlt"
 
     /// getRideDriverEntries
