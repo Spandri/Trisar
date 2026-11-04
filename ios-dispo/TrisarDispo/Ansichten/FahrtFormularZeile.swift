@@ -61,7 +61,8 @@ struct FormularZeile<Feld: View>: View {
                             case .pfeil: Image("Arrow-kurz_Trisar_Icons_01_Lime").resizable().frame(width: 10, height: 13)
                             }
                         }
-                        .frame(width: 20, height: 20)
+                        // Pfeil buendig rechts wie in den Zeilen ohne Knopf, Haken/Kreuz mittig.
+                        .frame(width: 20, height: 20, alignment: rechts == .pfeil ? .trailing : .center)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
