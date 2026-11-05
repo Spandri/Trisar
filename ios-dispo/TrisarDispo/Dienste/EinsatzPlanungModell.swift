@@ -371,7 +371,7 @@ final class EinsatzPlanungModell: ObservableObject {
         let pool = Int(regeln["driverPool"]?.planZahl ?? 101)
         let zeilen = fahrerListe.prefix(max(0, pool)).map { fahrerZeile($0, ruhe[$0.id]) }
         var einstellung: PlanerZeile = [:]
-        for k in ["maxWorkHours", "minWorkHours", "bufferMinutes", "rideDurationMinutes", "qualityGapPercent", "mode"] {
+        for k in ["maxWorkHours", "minWorkHours", "bufferMinutes", "rideDurationMinutes", "qualityGapPercent", "mode", "travelModel"] {
             if let w = regeln[k] { einstellung[k] = w }
         }
         let tagText = EinsatzUhr.tagLang(iso)

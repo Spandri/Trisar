@@ -595,6 +595,8 @@ export default function KiPlanerDemoView({
         rideDurationMinutes: activeSettings.rideDurationMinutes,
         qualityGapPercent: activeSettings.qualityGapPercent,
         mode: activeSettings.mode,
+        // Leerfahrten: "osrm" (Standard) oder "osrm_raum" (Schalter in den Planer-Einstellungen).
+        travelModel: activeSettings.travelModel,
       },
       demandProfile: demandOfDay,
       onProgress: (text) => {

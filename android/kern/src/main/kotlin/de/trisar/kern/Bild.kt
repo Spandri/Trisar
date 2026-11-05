@@ -16,7 +16,7 @@ import coil3.svg.SvgDecoder
 @Composable
 fun Icon(name: String, modifier: Modifier = Modifier, farbe: ColorFilter? = null, skalierung: ContentScale = ContentScale.Fit) {
     val ctx = LocalContext.current
-    val pfad = if (IconIndex.bilder(ctx).contains(name)) "bild/$name.svg" else "icon/$name.svg"
+    val pfad = IconIndex.pfad(ctx, name)
     AsyncImage(
         model = ImageRequest.Builder(ctx)
             .data("file:///android_asset/$pfad")
@@ -29,8 +29,30 @@ fun Icon(name: String, modifier: Modifier = Modifier, farbe: ColorFilter? = null
     )
 }
 
+/**
+ * Sucht ein Bild in assets/bild und assets/icon. iOS-Asset-Namen sind ohne Gross-/Kleinschreibung,
+ * Android-Assets nicht. Darum zuerst exakt, dann ohne Gross-/Kleinschreibung.
+ */
 private object IconIndex {
-    @Volatile private var cache: Set<String>? = null
-    fun bilder(ctx: android.content.Context): Set<String> =
-        cache ?: (ctx.assets.list("bild")?.map { it.substringBeforeLast('.') }?.toSet() ?: emptySet()).also { cache = it }
+    @Volatile private var cache: Map<String, String>? = null
+
+    private fun index(ctx: android.content.Context): Map<String, String> = cache ?: run {
+        val m = HashMap<String, String>()
+        for (ordner in listOf("icon", "bild")) {
+            ctx.assets.list(ordner)?.forEach { datei ->
+                if (datei.endsWith(".svg")) {
+                    val name = datei.substringBeforeLast('.')
+                    m["$ordner/$name"] = "$ordner/$datei"
+                    m.putIfAbsent(name, "$ordner/$datei")
+                    m.putIfAbsent(name.lowercase(), "$ordner/$datei")
+                }
+            }
+        }
+        m.also { cache = it }
+    }
+
+    fun pfad(ctx: android.content.Context, name: String): String {
+        val i = index(ctx)
+        return i["bild/$name"] ?: i["icon/$name"] ?: i[name.lowercase()] ?: "icon/$name.svg"
+    }
 }

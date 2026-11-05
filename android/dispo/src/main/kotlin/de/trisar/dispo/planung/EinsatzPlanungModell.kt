@@ -400,10 +400,9 @@ internal class EinsatzPlanungModell {
         val pool = (regeln["driverPool"].planZahl ?: 101.0).toInt()
         val zeilen = fahrerListe.take(max(0, pool)).map { fahrerZeile(it, ruhe[it.id]) }
         val einstellung = linkedMapOf<String, JsonElement>()
-        for (k in listOf("maxWorkHours", "minWorkHours", "bufferMinutes", "rideDurationMinutes", "qualityGapPercent", "mode")) {
+        for (k in listOf("maxWorkHours", "minWorkHours", "bufferMinutes", "rideDurationMinutes", "qualityGapPercent", "mode", "travelModel")) {
             regeln[k]?.let { einstellung[k] = it }
         }
-        // Wie Web und iOS: travelModel steht nicht in dieser Liste, der Planer bekommt darum immer "osrm".
         val tagText = EinsatzUhr.tagLang(iso)
         val eingabe = Regex("""^Input: Fahrer=(\d+), Fahrten=(\d+)""")
         val schicht = Regex("Heuristik|Plan erstellt|Vorschläge", RegexOption.IGNORE_CASE)

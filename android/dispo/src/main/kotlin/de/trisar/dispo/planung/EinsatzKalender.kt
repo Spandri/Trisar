@@ -105,7 +105,7 @@ internal fun EinsatzKalenderAnsicht(
         EinsatzHintergrund()
         PlanLeinwand(basisHoehe = 873f) {
             ZurueckKnopf(Modifier.platz(20f, 60f), zurueck)
-            Icon("filter", Modifier.platz(332f, 60f, 50f, 50f).tippen(einstellungen), skalierung = ContentScale.FillBounds)
+            Icon("filter_dispo", Modifier.platz(332f, 60f, 50f, 50f).tippen(einstellungen), skalierung = ContentScale.FillBounds)
 
             ZeitFeld(20f, "Start Zeit", startZeit) { zeitOffen = "start" }
             ZeitFeld(204f, "End Zeit", endZeit) { zeitOffen = "ende" }
@@ -204,6 +204,11 @@ internal fun ZeitBlatt(wert: String, setzen: (String) -> Unit, schliessen: () ->
     val stunden = rememberLazyListState(anfang / 60)
     val minuten = rememberLazyListState(anfang % 60)
     val lime = EinsatzFarbe.lime
+    // Eigenes Fenster ueber allem (auch ueber der Navileiste) wie das Blatt in iOS. Zurueck schliesst nur das Blatt.
+    androidx.compose.ui.window.Popup(
+        onDismissRequest = schliessen,
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true, clippingEnabled = false),
+    ) {
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).tippen(schliessen), contentAlignment = Alignment.BottomCenter) {
         Column(
             Modifier.fillMaxWidth().background(hex(0x1C1C1D), RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
@@ -227,6 +232,7 @@ internal fun ZeitBlatt(wert: String, setzen: (String) -> Unit, schliessen: () ->
             }
         }
     }
+}
 }
 
 private const val WALZE_ZEILE = 34f
