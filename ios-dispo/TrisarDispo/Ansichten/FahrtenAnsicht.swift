@@ -489,28 +489,14 @@ struct DispoFahrtKarte: View {
             .frame(width: breite, alignment: .leading)
             .background(alignment: .leading) { if wischen { aktionen } }
             .clipped()
-            .simultaneousGesture(ziehen, including: wischen ? .all : .subviews)
+            .waagerechtWischen(aktiv: wischen, geaendert: { dx in
+                if achse == nil { achse = .x; startVersatz = versatz }
+                versatz = max(-aktionBreite, min(aktionBreite, startVersatz + dx))
+            }, beendet: { _ in
+                achse = nil
+                versatz = versatz > 36 ? aktionBreite : (versatz < -36 ? -aktionBreite : 0)
+            })
             .animation(achse == nil ? .easeOut(duration: 0.18) : nil, value: versatz)
-    }
-
-    private var ziehen: some Gesture {
-        DragGesture(minimumDistance: 8)
-            .onChanged { w in
-                if achse == nil {
-                    achse = abs(w.translation.width) >= abs(w.translation.height) ? .x : .y
-                    startVersatz = versatz
-                }
-                guard achse == .x else { return }
-                versatz = max(-aktionBreite, min(aktionBreite, startVersatz + w.translation.width))
-            }
-            .onEnded { _ in
-                if achse == .x {
-                    achse = nil
-                    versatz = versatz > 36 ? aktionBreite : (versatz < -36 ? -aktionBreite : 0)
-                } else {
-                    achse = nil
-                }
-            }
     }
 
     private var aktionen: some View {

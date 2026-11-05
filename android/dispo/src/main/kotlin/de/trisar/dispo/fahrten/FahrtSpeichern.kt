@@ -144,8 +144,8 @@ object FahrtSpeichern {
         val c = Backend.client
         val job = c.from("jobs").select(Columns.raw("id, driver_id, convoy_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, passengers, anonymous_guests, flight_number, train_number, train_planned_time, train_predicted_time, ext_flight_payload, ai_booked")) {
             filter { eq("id", id) }
-            single()
-        }.decodeSingle<JsonObject>()
+            limit(1)
+        }.decodeList<JsonObject>().firstOrNull() ?: error("Fahrt nicht gefunden.")
 
         val archiv = still(emptyList()) { c.from("jobs_archive").select(Columns.raw("job_id")) { filter { eq("job_id", id) } }.decodeList<JsonObject>() }
         val zuordnungen = still(emptyList()) { c.from("convoy_assignments").select(Columns.raw("driver_id, response_status")) { filter { eq("job_id", id) } }.decodeList<JsonObject>() }
@@ -373,8 +373,7 @@ object FahrtSpeichern {
             val zeile = JsonObject(jobSpalten(v, FahrtText.jobStatus(e.werte.aktuellerStatus), kolonne, fahrerIDs.firstOrNull(), false))
             val neu = Backend.client.from("jobs").insert(zeile) {
                 select(Columns.raw("id"))
-                single()
-            }.decodeSingle<JsonObject>()
+            }.decodeList<JsonObject>().first()
             val neuID = W.t(neu["id"])
 
             kolonneAbgleichen(neuID, if (kolonnenSync) fahrerIDs else emptyList())
@@ -413,8 +412,8 @@ object FahrtSpeichern {
             val bisher = still<JsonObject?>(null) {
                 c.from("jobs").select(Columns.raw("driver_id, status, ride_date, etd, pickup_address, dropoff_address")) {
                     filter { eq("id", fahrtID) }
-                    single()
-                }.decodeSingle<JsonObject>()
+                    limit(1)
+                }.decodeList<JsonObject>().first()
             }
             val bisherFahrer = bisher?.let { W.t(it["driver_id"]).ifEmpty { null } }
             val fahrerNeu = fahrerIDs.firstOrNull() ?: bisherFahrer

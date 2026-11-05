@@ -521,13 +521,12 @@ object DispoFahrtenSpeicher {
         try {
             val original = Backend.client.from("jobs").select(Columns.ALL) {
                 filter { eq("id", fahrt.id) }
-                single()
-            }.decodeSingle<JsonObject>()
+                limit(1)
+            }.decodeList<JsonObject>().first()
             val kopie = JsonObject(original.filterKeys { it !in setOf("id", "created_at", "updated_at") })
             val neu = Backend.client.from("jobs").insert(kopie) {
                 select(Columns.raw("id"))
-                single()
-            }.decodeSingle<JsonObject>()
+            }.decodeList<JsonObject>().first()
             val neueID = W.t(neu["id"])
             if (neueID.isEmpty()) throw IllegalStateException("Duplizierte Fahrt konnte nicht angelegt werden.")
 

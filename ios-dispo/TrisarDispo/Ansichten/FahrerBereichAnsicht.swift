@@ -355,14 +355,12 @@ struct PlanungsUebersicht: View {
 
             // Wischflaeche ueber dem Plot.
             Color.clear.contentShape(Rectangle())
-                .simultaneousGesture(DragGesture(minimumDistance: 8)
-                    .onChanged { w in
-                        if zugStart == nil { zugStart = anfang }
-                        let schritt = plotBreite / CGFloat(fenster)
-                        let neu = max(0, min(maxStart, (zugStart ?? anfang) + Int((-w.translation.width / schritt).rounded())))
-                        if neu != anfang { start = neu }
-                    }
-                    .onEnded { _ in zugStart = nil })
+                .waagerechtWischen(geaendert: { dx in
+                    if zugStart == nil { zugStart = anfang }
+                    let schritt = plotBreite / CGFloat(fenster)
+                    let neu = max(0, min(maxStart, (zugStart ?? anfang) + Int((-dx / schritt).rounded())))
+                    if neu != anfang { start = neu }
+                }, beendet: { _ in zugStart = nil })
                 .platz(links, oben, plotBreite, plotHoehe + unten)
 
             HStack(spacing: 10) {

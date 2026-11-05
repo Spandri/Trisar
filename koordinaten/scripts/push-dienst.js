@@ -184,11 +184,12 @@ const anAndroid = async (z, geraet, nachricht) => {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      // Nur Daten: die App baut die Mitteilung selbst (Farbe und App-Symbol wie iOS),
+      // auch wenn sie im Hintergrund ist.
       message: {
         token: geraet.token,
-        notification: { title: nachricht.titel, body: nachricht.text },
         data: daten,
-        android: { priority: 'HIGH', notification: { channel_id: 'trisar', tag: nachricht.art } },
+        android: { priority: 'HIGH' },
       },
     }),
   });

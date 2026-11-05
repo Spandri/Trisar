@@ -79,5 +79,5 @@ print('push-dienst in docker-compose.yml eingetragen')
 PY"
 
 echo "4/4 Dienst starten"
-ssh "$SERVER" "cd $R/fahrer-app-lokal && $DOCKER compose up -d push-dienst && sleep 6 && $DOCKER logs --tail 15 fahrer-app-lokal-push-dienst-1"
+ssh "$SERVER" "cd $R/fahrer-app-lokal && $DOCKER compose up -d push-dienst && $DOCKER restart fahrer-app-lokal-push-dienst-1 >/dev/null && sleep 6 && $DOCKER logs --tail 15 fahrer-app-lokal-push-dienst-1"
 echo "Fertig."

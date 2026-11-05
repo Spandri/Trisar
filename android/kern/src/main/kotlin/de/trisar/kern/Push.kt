@@ -47,6 +47,8 @@ object Push {
     val ziel = MutableStateFlow<Map<String, String>?>(null)
 
     private var app = "fahrer"
+    /** Kreisfarbe der Mitteilung wie das App-Symbol: Dispo blau, Fahrer lime. */
+    private val farbe get() = if (app == "dispo") 0xFF0048CF.toInt() else 0xFFE3F754.toInt()
     private var aktiv = false
     private var token: String? = null
     private var angemeldet = false
@@ -108,6 +110,19 @@ object Push {
         ziel.value = extras.keySet().mapNotNull { k -> extras.getString(k)?.let { k to it } }.toMap()
     }
 
+    /** Rundes App-Symbol fuer die rechte Seite der Mitteilung. */
+    private fun appSymbol(ctx: Context): android.graphics.Bitmap? = runCatching {
+        val bild = ctx.packageManager.getApplicationIcon(ctx.packageName)
+        val groesse = (64 * ctx.resources.displayMetrics.density).toInt()
+        val bmp = android.graphics.Bitmap.createBitmap(groesse, groesse, android.graphics.Bitmap.Config.ARGB_8888)
+        val leinwand = android.graphics.Canvas(bmp)
+        val pfad = android.graphics.Path().apply { addCircle(groesse / 2f, groesse / 2f, groesse / 2f, android.graphics.Path.Direction.CW) }
+        leinwand.clipPath(pfad)
+        bild.setBounds(0, 0, groesse, groesse)
+        bild.draw(leinwand)
+        bmp
+    }.getOrNull()
+
     /** Mitteilung selbst zeigen (App im Vordergrund oder reine Daten-Nachricht). */
     internal fun zeigen(ctx: Context, titel: String, text: String, daten: Map<String, String>) {
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -119,7 +134,9 @@ object Push {
         val tippen = PendingIntent.getActivity(ctx, (System.currentTimeMillis() % Int.MAX_VALUE).toInt(), start,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val mitteilung = NotificationCompat.Builder(ctx, KANAL)
-            .setSmallIcon(ctx.applicationInfo.icon)
+            .setSmallIcon(R.drawable.ic_mitteilung)
+            .setColor(farbe)
+            .setLargeIcon(appSymbol(ctx))
             .setContentTitle(titel)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))

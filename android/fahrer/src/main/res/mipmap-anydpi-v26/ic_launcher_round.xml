@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gleiches Symbol wie in iOS. Android schneidet es je nach Handy rund, eckig oder abgerundet zu. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_hintergrund" />
+    <foreground android:drawable="@android:color/transparent" />
+    <monochrome android:drawable="@drawable/ic_mitteilung" />
+</adaptive-icon>

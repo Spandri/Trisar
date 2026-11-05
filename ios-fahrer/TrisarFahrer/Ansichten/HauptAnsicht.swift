@@ -42,34 +42,48 @@ struct HauptAnsicht: View {
                 .environmentObject(anmeldung)
                 .environmentObject(speicher)
         }
-        .onReceive(Push.shared.$ziel.compactMap { $0 }) { ziel in
-            Push.shared.ziel = nil
-            switch ziel["ziel"] {
-            case "fahrt":
-                if let id = ziel["job_id"].flatMap(UUID.init(uuidString:)),
-                   let fahrt = speicher.fahrten.first(where: { $0.id == id }) {
-                    profilOffen = false; supportOffen = false; fahrzeugOffen = false
-                    offeneFahrt = fahrt
-                }
-            case "chat":
-                if let id = ziel["kolonne_id"].flatMap(UUID.init(uuidString:)),
-                   let fahrt = speicher.fahrten.first(where: { $0.kolonnenID == id }) {
-                    profilOffen = false; supportOffen = false; fahrzeugOffen = false
-                    offeneFahrt = fahrt
-                }
-            case "fahrzeug":
-                profilOffen = false; supportOffen = false; offeneFahrt = nil
-                fahrzeugOffen = true
-            default:
-                profilOffen = false; supportOffen = false; fahrzeugOffen = false; offeneFahrt = nil
-            }
-        }
+        .onReceive(Push.shared.$ziel.compactMap { $0 }) { _ in pushZielOeffnen() }
+        // Kalter Start: Ziel erst einloesen, wenn die Fahrten da sind.
+        .onChange(of: speicher.fahrten.map(\.id)) { _, _ in pushZielOeffnen() }
         .webVollbild(item: $offeneFahrt) { fahrt in
             if let fahrer = anmeldung.fahrerID {
                 SoloNormalAnsicht(fahrtID: fahrt.id, fahrerID: fahrer) { offeneFahrt = nil }
                     .environmentObject(anmeldung)
             }
         }
+    }
+
+    /// Tipp auf eine Mitteilung: Fahrt, Chat (Fahrt der Kolonne) oder Fahrzeug oeffnen.
+    private func pushZielOeffnen() {
+        guard let ziel = Push.shared.ziel else { return }
+        let fahrtID: UUID?
+        switch ziel["ziel"] {
+        case "fahrt":
+            fahrtID = ziel["job_id"].flatMap(UUID.init(uuidString:))
+        case "chat":
+            let kolonne = ziel["kolonne_id"].flatMap(UUID.init(uuidString:))
+            fahrtID = speicher.fahrten.first(where: { $0.kolonnenID != nil && $0.kolonnenID == kolonne })?.id
+            if fahrtID == nil && speicher.fahrten.isEmpty { return }
+        case "fahrzeug":
+            Push.shared.ziel = nil
+            profilOffen = false; supportOffen = false; offeneFahrt = nil
+            fahrzeugOffen = true
+            return
+        default:
+            Push.shared.ziel = nil
+            profilOffen = false; supportOffen = false; fahrzeugOffen = false; offeneFahrt = nil
+            return
+        }
+        guard let id = fahrtID else { Push.shared.ziel = nil; return }
+        // Fahrten noch nicht geladen: spaeter nochmal (onChange oben).
+        guard let fahrt = speicher.fahrten.first(where: { $0.id == id }) else {
+            if speicher.fahrten.isEmpty { return }
+            Push.shared.ziel = nil
+            return
+        }
+        Push.shared.ziel = nil
+        profilOffen = false; supportOffen = false; fahrzeugOffen = false
+        offeneFahrt = fahrt
     }
 }
 
