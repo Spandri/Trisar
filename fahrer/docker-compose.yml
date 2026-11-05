@@ -151,6 +151,18 @@ services:
       - TELTONIKA_SOURCE=teltonika_fmb010
       - LOG_LEVEL=info
 
+  # Push-Mitteilungen (APNs/FCM) aus push_ausgang, plus Erinnerungen jede Minute.
+  # Ohne Zusatzpakete, darum kein npm install und kein node_modules-Volume.
+  push-dienst:
+    image: node:22
+    restart: unless-stopped
+    working_dir: /app
+    command: ["node", "scripts/push-dienst.js"]
+    volumes:
+      - ./.docker-sync/koordinaten:/app:ro
+    env_file:
+      - ../koordinaten-app-lokal/.env.local
+
   osm-osrm:
     image: ghcr.io/project-osrm/osrm-backend:v6.0.0
     profiles: ["osm"]

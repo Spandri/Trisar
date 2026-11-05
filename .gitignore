@@ -33,3 +33,4 @@ demo/deploy/fahrer 2/
 # DB-Sicherungen koennen echte Personendaten enthalten
 **/db/backups/
 android-apk/
+push-schluessel/
