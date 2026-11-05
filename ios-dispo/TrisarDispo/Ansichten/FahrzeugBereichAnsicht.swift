@@ -33,6 +33,9 @@ struct FahrzeugBereichAnsicht: View {
 
 // MARK: - Liste
 
+/// Fahrzeug, das nach einem Tipp auf eine Mitteilung direkt geoeffnet werden soll.
+@MainActor enum FahrzeugSprung { static var id: String? }
+
 struct FahrzeugListeSeite: View {
     let zeigen: (DispoZiel) -> Void
     @ObservedObject var filter: FahrzeugFilterAblage
@@ -57,6 +60,12 @@ struct FahrzeugListeSeite: View {
                     .platz(332, 60, 50, 50)
 
                     StammTitel(text: "Fahrzeuge").platz(20, 140)
+                        .onChange(of: dienst.fahrzeuge.map(\.id), initial: true) { _, _ in
+                            guard let ziel = FahrzeugSprung.id,
+                                  let f = dienst.fahrzeuge.first(where: { $0.id == ziel }) else { return }
+                            FahrzeugSprung.id = nil
+                            bearbeiten(f)
+                        }
 
                     StammZeilenKnopf(text: "Fahrzeug erstellen", icon: "vehicle-car-small", aktion: erstellen)
                         .platz(20, 206, 362, 56)
@@ -73,7 +82,7 @@ struct FahrzeugListeSeite: View {
                                 .padding(16)
                                 .frame(width: 362, alignment: .leading)
                                 .background(Color(hex: 0x171717))
-                                .overlay(Rectangle().strokeBorder(Color(hex: 0x3A3A3A), lineWidth: 1))
+        .overlay(Rectangle().strokeBorder(Color(hex: 0x3A3A3A), lineWidth: 1))
                         }
                         if !dienst.laedt && dienst.fehler.isEmpty && liste.isEmpty {
                             Text("Keine Fahrzeuge gefunden.").font(.grotesk(16, .medium)).foregroundStyle(Color(hex: 0xE3F654))
@@ -249,6 +258,8 @@ struct FahrzeugFormularSeite: View {
     @State private var bildWaehlen = false
     @State private var bildAuswahl: PhotosPickerItem?
     @FocusState private var fokus: Feld?
+    /// Hoehe des Schadensberichts (nur beim Bearbeiten), die Seite waechst mit.
+    @State private var schadenHoehe: CGFloat = 0
 
     private enum Feld: Hashable { case markeModell, variante, vin, kennzeichen, farbe, sitze }
 
@@ -258,7 +269,7 @@ struct FahrzeugFormularSeite: View {
     private var bearbeiten: Bool { !(fahrzeug?.id ?? "").isEmpty }
 
     var body: some View {
-        Leinwand(basisHoehe: 874, inhaltHoehe: 913, mitHintergrund: false) { rahmen in
+        Leinwand(basisHoehe: 874, inhaltHoehe: bearbeiten ? max(913, 842 + schadenHoehe + 70) : 913, mitHintergrund: false) { rahmen in
             ZStack(alignment: .topLeading) {
                 DispoHintergrund().frame(width: 402, height: max(rahmen, 913))
                 ZurueckKnopf(aktion: zurListe).platz(20, 60, 50, 50)
@@ -307,6 +318,12 @@ struct FahrzeugFormularSeite: View {
                     .frame(minHeight: 56, alignment: .topLeading)
                     .overlay(Rectangle().strokeBorder(Color(hex: 0x7F8A2B), lineWidth: 1))
                     .platz(20, 762, 362, nil)
+
+                if bearbeiten, let id = fahrzeug?.id {
+                    SchadensBerichtDispo(fahrzeugID: id)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { schadenHoehe = $0 }
+                        .platz(20, 842, 362, nil)
+                }
             }
         }
         .overlay { FussleisteUnten() }
@@ -450,6 +467,105 @@ struct FahrzeugFormularSeite: View {
                     : "Fahrzeug konnte nicht gespeichert werden: \(dbMeldung(error))"
             }
             speichert = false
+        }
+    }
+}
+
+
+// MARK: - Schadensbericht (nur lesen)
+
+/// Gemeldete Schaeden eines Fahrzeugs wie in der Fahrer-App (VehicleView / FahrzeugAnsicht).
+/// Fotos oeffnen sich gross im Browser.
+struct SchadensBerichtDispo: View {
+    let fahrzeugID: String
+    @State private var schaeden: [Schaden] = []
+    @State private var geladen = false
+    @State private var namen: [String: String] = [:]
+
+    private struct Person: Decodable { let id: String; let first_name: String?; let last_name: String? }
+
+    struct Schaden: Decodable, Identifiable {
+        let id: String
+        let report_date: String?
+        let part_name: String?
+        let description: String?
+        let image_url: String?
+        let image_urls: [String]?
+        let reported_by_driver: Bool?
+        let reported_by: String?
+        /// blob:-Adressen stammen aus einem alten Fehler der Web-App, das Bild gibt es nicht.
+        var bilder: [String] { (image_urls?.isEmpty == false ? image_urls! : [image_url].compactMap { $0 }).filter { !$0.isEmpty && !$0.hasPrefix("blob:") } }
+        var datum: String {
+            let t = (report_date ?? "").prefix(10).split(separator: "-")
+            return t.count == 3 ? "\(t[2]).\(t[1]).\(t[0])" : ""
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(schaeden.isEmpty ? "Schadensbericht" : "Schadensbericht (\(schaeden.count))")
+                .font(.grotesk(18, .bold)).tracking(-0.5).foregroundStyle(Color(hex: 0x1D1C1C))
+                .padding(.bottom, 10)
+            Rectangle().fill(Color(hex: 0xDDDCDC)).frame(height: 1).padding(.bottom, 10)
+            if geladen && schaeden.isEmpty {
+                Text("Keine Schäden gemeldet.").font(.grotesk(14)).foregroundStyle(Color(hex: 0x71717B))
+            }
+            ForEach(Array(schaeden.enumerated()), id: \.element.id) { i, s in
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(s.datum).font(.grotesk(15, .bold)).tracking(-0.5).foregroundStyle(Color(hex: 0x1D1C1C))
+                        Spacer()
+                        if let name = s.reported_by.flatMap({ namen[$0] }), !name.isEmpty {
+                            Text("gemeldet von \(name)").font(.grotesk(11)).foregroundStyle(Color(hex: 0x71717B))
+                        } else if s.reported_by_driver == true {
+                            Text("vom Fahrer gemeldet").font(.grotesk(11)).foregroundStyle(Color(hex: 0x71717B))
+                        }
+                    }
+                    .padding(.bottom, 6)
+                    Text((s.part_name ?? "").uppercased()).font(.grotesk(11, .bold)).tracking(-0.5)
+                        .foregroundStyle(Color(hex: 0x1D1C1C)).padding(.bottom, 4)
+                    Text(s.description ?? "").font(.grotesk(14, .bold)).tracking(-0.5)
+                        .foregroundStyle(Color(hex: 0x1D1C1C))
+                        .fixedSize(horizontal: false, vertical: true).padding(.bottom, 10)
+                    if !s.bilder.isEmpty {
+                        HStack(spacing: 4) {
+                            ForEach(s.bilder, id: \.self) { url in
+                                if let ziel = URL(string: url) {
+                                    Link(destination: ziel) {
+                                        AsyncImage(url: ziel) { bild in bild.resizable().scaledToFill() }
+                                            placeholder: { Color(hex: 0xF4F4F4) }
+                                            .frame(maxWidth: .infinity).frame(height: 96).clipped()
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.bottom, 10)
+                    }
+                    if i < schaeden.count - 1 {
+                        Rectangle().fill(Color(hex: 0xDDDCDC)).frame(height: 1).padding(.bottom, 10)
+                    }
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: 362, alignment: .topLeading)
+        .background(Color.white)
+        .task {
+            schaeden = (try? await Backend.client.from("vehicle_damages")
+                .select("*")
+                .eq("vehicle_id", value: fahrzeugID)
+                .order("report_date", ascending: false)
+                .order("created_at", ascending: false)
+                .execute().value) ?? []
+            let ids = Array(Set(schaeden.compactMap(\.reported_by)))
+            if !ids.isEmpty {
+                let leute: [Person] = (try? await Backend.client.from("profiles").select("id,first_name,last_name")
+                    .in("id", values: ids).execute().value) ?? []
+                namen = Dictionary(uniqueKeysWithValues: leute.map { p in
+                    (p.id, [p.first_name, p.last_name].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " "))
+                })
+            }
+            geladen = true
         }
     }
 }

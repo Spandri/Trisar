@@ -80,7 +80,10 @@ fun DispoHaupt(anmeldung: Anmeldung) {
         gaesteImport = false
         when (z["ziel"]) {
             "fahrt" -> z["job_id"]?.let { bearbeiteteFahrt = it }
-            "fahrzeug" -> ziel = DispoZiel.FAHRZEUGE
+            "fahrzeug" -> {
+                de.trisar.dispo.stamm.FahrzeugSprung.id = z["vehicle_id"]
+                ziel = DispoZiel.FAHRZEUGE
+            }
             "fahrer" -> ziel = DispoZiel.FAHRER
             "chat" -> ziel = DispoZiel.FAHRTEN
             else -> ziel = DispoZiel.START

@@ -63,11 +63,63 @@ const Box = ({ x, y, w, h = 56, children, className = '' }) => (
   </div>
 );
 
+const datumKurz = (wert) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(wert || ''));
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
+};
+
+// Schadensbericht wie in der Fahrer-App (VehicleView), fuer die Dispo nur zum Lesen.
+// Fotos oeffnen sich gross in einem neuen Tab.
+function SchadensBericht({ schaeden, blockRef }) {
+  return (
+    <div ref={blockRef} className="absolute left-5 w-[362px] bg-white p-[24px]" style={{ top: '822px' }}>
+      <h3 className="text-[#1d1c1c] text-[18px] font-bold tracking-[-0.5px] mb-[10px]">
+        Schadensbericht{schaeden.length ? ` (${schaeden.length})` : ''}
+      </h3>
+      <div className="w-full h-[1px] bg-[#dddcdc] mb-[10px]" />
+      {!schaeden.length && (
+        <div className="text-[#71717b] text-[14px] tracking-[-0.5px]">Keine Schäden gemeldet.</div>
+      )}
+      {schaeden.map((schaden, index) => {
+        const bilder = (schaden.image_urls?.length ? schaden.image_urls : [schaden.image_url]).filter((u) => u && !String(u).startsWith('blob:'));
+        return (
+          <div key={schaden.id || index} className="mb-[10px]">
+            <div className="flex items-baseline justify-between mb-[6px]">
+              <span className="text-[#1d1c1c] text-[15px] font-bold tracking-[-0.5px]">{datumKurz(schaden.report_date)}</span>
+              {(schaden.melder || schaden.reported_by_driver) && (
+                <span className="text-[#71717b] text-[11px] tracking-[-0.3px]">
+                  {schaden.melder ? `gemeldet von ${schaden.melder}` : 'vom Fahrer gemeldet'}
+                </span>
+              )}
+            </div>
+            <div className="text-[#1d1c1c] text-[11px] font-bold tracking-[-0.5px] mb-[4px] uppercase">{schaden.part_name || ''}</div>
+            <div className="text-[#1d1c1c] text-[14px] font-bold tracking-[-0.5px] mb-[10px] whitespace-pre-wrap">{schaden.description}</div>
+            {bilder.length > 0 && (
+              <div className="flex gap-[4px] mb-[10px]">
+                {bilder.map((url) => (
+                  <a key={url} href={url} target="_blank" rel="noreferrer" className="flex-1 min-w-0">
+                    <img src={url} alt="Schadensfoto" className="w-full h-[96px] object-cover bg-[#f4f4f4]" />
+                  </a>
+                ))}
+              </div>
+            )}
+            {index < schaeden.length - 1 && <div className="w-full h-[1px] bg-[#dddcdc] mb-[10px]" />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function FahrzeugErstellenView({ setView, initialVehicle = null, onSaved = null }) {
   const { t } = useI18n();
   const [scale, setScale] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState('');
+  // Gemeldete Schaeden dieses Fahrzeugs (nur beim Bearbeiten).
+  const [schaeden, setSchaeden] = useState([]);
+  const [schadenHoehe, setSchadenHoehe] = useState(0);
+  const schadenRef = useRef(null);
 
   const [brandModel, setBrandModel] = useState('');
   const [trim, setTrim] = useState('');
@@ -88,6 +140,36 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   const imageFileRef = useRef(null);
 
   const isEditMode = Boolean(initialVehicle?.id);
+
+  useEffect(() => {
+    if (!initialVehicle?.id) { setSchaeden([]); return undefined; }
+    let aktiv = true;
+    supabase.from('vehicle_damages').select('*').eq('vehicle_id', initialVehicle.id)
+      .order('report_date', { ascending: false }).order('created_at', { ascending: false })
+      .then(async ({ data }) => {
+        const liste = data || [];
+        // Namen der meldenden Fahrer dazuholen (reported_by -> profiles).
+        const ids = [...new Set(liste.map((d) => d.reported_by).filter(Boolean))];
+        let namen = {};
+        if (ids.length) {
+          const { data: profile } = await supabase.from('profiles').select('id,first_name,last_name').in('id', ids);
+          namen = Object.fromEntries((profile || []).map((p) => [p.id, [p.first_name, p.last_name].filter(Boolean).join(' ')]));
+        }
+        if (aktiv) setSchaeden(liste.map((d) => ({ ...d, melder: namen[d.reported_by] || '' })));
+      });
+    return () => { aktiv = false; };
+  }, [initialVehicle?.id]);
+
+  useEffect(() => {
+    const el = schadenRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const beobachter = new ResizeObserver(() => setSchadenHoehe(el.offsetHeight));
+    beobachter.observe(el);
+    setSchadenHoehe(el.offsetHeight);
+    return () => beobachter.disconnect();
+  }, [isEditMode, schaeden]);
+  // Seite waechst mit dem Schadensbericht (beginnt bei 20 + 822).
+  const seitenHoehe = isEditMode ? Math.max(BASE_HEIGHT, 20 + 822 + schadenHoehe + 70) : BASE_HEIGHT;
 
   useEffect(() => {
     const updateScale = () => setScale(Math.min(window.innerWidth / BASE_WIDTH, 1));
@@ -213,8 +295,8 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
       className="h-dvh w-full bg-black overflow-y-auto overflow-x-hidden flex justify-center overscroll-none"
       style={{ WebkitTextSizeAdjust: 'none', WebkitOverflowScrolling: 'touch', textSizeAdjust: 'none', fontFamily: 'Space Grotesk, sans-serif' }}
     >
-      <div className="relative shrink-0" style={{ width: `${BASE_WIDTH * scale}px`, height: `${BASE_HEIGHT * scale}px` }}>
-        <div className="absolute left-0 top-0 w-[402px] origin-top-left" style={{ ...screenBg, transform: `scale(${scale})`, height: `${BASE_HEIGHT}px` }}>
+      <div className="relative shrink-0" style={{ width: `${BASE_WIDTH * scale}px`, height: `${seitenHoehe * scale}px` }}>
+        <div className="absolute left-0 top-0 w-[402px] origin-top-left" style={{ ...screenBg, transform: `scale(${scale})`, height: `${seitenHoehe}px` }}>
           <BackCircleButton onClick={() => setView('fahrzeugListe')} className="absolute left-5 top-[60px]" />
 
           <div className="absolute left-0 top-[20px] w-[402px]">
@@ -381,6 +463,10 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
             <div className="absolute left-5 top-[742px] w-[362px] min-h-[56px] px-3 py-2 border border-[#7f8a2b] text-[#c8d85d] text-[12px] leading-[1.3]">
               {feedback || (isEditMode ? t('erstellen.vehicleEditHint') : t('erstellen.vehicleCreateHint'))}
             </div>
+
+            {isEditMode && (
+              <SchadensBericht schaeden={schaeden} blockRef={schadenRef} />
+            )}
 
           </div>
         </div>

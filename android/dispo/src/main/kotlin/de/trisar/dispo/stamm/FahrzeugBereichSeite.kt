@@ -1,5 +1,8 @@
 package de.trisar.dispo.stamm
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.layout.onSizeChanged
+import io.github.jan.supabase.postgrest.from
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -64,6 +67,9 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+/** Fahrzeug, das nach einem Tipp auf eine Mitteilung direkt geoeffnet werden soll. */
+internal object FahrzeugSprung { var id: String? = null }
+
 private sealed interface FahrzeugSeite {
     data object Liste : FahrzeugSeite
     data object Filter : FahrzeugSeite
@@ -109,6 +115,12 @@ private fun FahrzeugListeSeite(
         onDispose { dienst.beenden() }
     }
     val liste = filter.anwenden(dienst.fahrzeuge)
+    androidx.compose.runtime.LaunchedEffect(dienst.fahrzeuge) {
+        val ziel = FahrzeugSprung.id ?: return@LaunchedEffect
+        val f = dienst.fahrzeuge.firstOrNull { it.id == ziel } ?: return@LaunchedEffect
+        FahrzeugSprung.id = null
+        bearbeiten(f)
+    }
 
     /** Hoehe der Liste im Raster, damit die Leinwand weit genug scrollt. */
     val bloecke = buildList {
@@ -416,9 +428,11 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
         }
     }
 
+    var schadenHoehe by remember { mutableStateOf(0f) }
+    val inhalt = if (bearbeiten) max(913f, 842f + schadenHoehe + 70f) else 913f
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        Leinwand(874f, 913f) { rahmen ->
-            DispoHintergrund(Modifier.platz(0f, 0f, 402f, max(rahmen, 913f)))
+        Leinwand(874f, inhalt) { rahmen ->
+            DispoHintergrund(Modifier.platz(0f, 0f, 402f, max(rahmen, inhalt)))
             ZurueckKnopf(Modifier.platz(20f, 60f), zurListe)
             StammTitel(if (bearbeiten) "Fahrzeug bearbeiten" else "Fahrzeug erstellen", Modifier.platz(20f, 140f),
                 groesse = if (bearbeiten) 36f else 42f, abstand = -0.5f, farbe = 0xE2F754)
@@ -471,8 +485,94 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
                 Text(rueckmeldung.ifEmpty { if (bearbeiten) "Fahrzeugdaten ändern und speichern." else "Fahrzeugdaten eintragen und speichern." },
                     style = grotesk(12f, 400, 12f * 1.3f, farbe = hex(0xC8D85D)))
             }
+
+            val fid = fahrzeug?.id
+            if (bearbeiten && fid != null) {
+                val dichte = androidx.compose.ui.platform.LocalDensity.current
+                SchadensBerichtDispo(fid, Modifier.platz(20f, 842f, 362f)
+                    .then(Modifier.onSizeChanged { schadenHoehe = with(dichte) { it.height.toDp().value } }))
+            }
         }
         FussleisteUnten()
     }
 }
 
+
+
+// MARK: - Schadensbericht (nur lesen)
+
+/** Gemeldete Schaeden wie SchadensBerichtDispo in iOS. Tipp auf ein Foto zeigt es gross. */
+@Composable
+private fun SchadensBerichtDispo(fahrzeugID: String, modifier: Modifier) {
+    var schaeden by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
+    var geladen by remember { mutableStateOf(false) }
+    var gross by remember { mutableStateOf<String?>(null) }
+    var namen by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    androidx.compose.runtime.LaunchedEffect(fahrzeugID) {
+        schaeden = runCatching {
+            de.trisar.kern.Backend.client.from("vehicle_damages").select(
+                io.github.jan.supabase.postgrest.query.Columns.ALL
+            ) {
+                filter { eq("vehicle_id", fahrzeugID) }
+                order("report_date", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+                order("created_at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+            }.decodeList<JsonObject>()
+        }.getOrDefault(emptyList())
+        val ids = schaeden.mapNotNull { (it["reported_by"] as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content }.distinct()
+        if (ids.isNotEmpty()) {
+            namen = runCatching {
+                de.trisar.kern.Backend.client.from("profiles").select(
+                    io.github.jan.supabase.postgrest.query.Columns.raw("id,first_name,last_name")) { filter { isIn("id", ids) } }
+                    .decodeList<JsonObject>().associate { p ->
+                        val t = { k: String -> (p[k] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content.orEmpty() }
+                        t("id") to listOf(t("first_name"), t("last_name")).filter { it.isNotEmpty() }.joinToString(" ")
+                    }
+            }.getOrDefault(emptyMap())
+        }
+        geladen = true
+    }
+    fun text(o: JsonObject, k: String) = (o[k] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content.orEmpty()
+    fun bilder(o: JsonObject): List<String> {
+        val liste = (o["image_urls"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content }.orEmpty()
+        return (liste.ifEmpty { listOf(text(o, "image_url")) }).filter { it.isNotEmpty() && !it.startsWith("blob:") }
+    }
+    val dunkel = hex(0x1D1C1C)
+    val grau = hex(0x71717B)
+    Column(modifier.background(Color.White).padding(24.dp)) {
+        Text(if (schaeden.isEmpty()) "Schadensbericht" else "Schadensbericht (${schaeden.size})",
+            style = grotesk(18f, 700, abstand = -0.5f, farbe = dunkel))
+        Box(Modifier.padding(vertical = 10.dp).fillMaxWidth().height(1.dp).background(hex(0xDDDCDC)))
+        if (geladen && schaeden.isEmpty()) Text("Keine Schäden gemeldet.", style = grotesk(14f, 400, farbe = grau))
+        schaeden.forEachIndexed { i, s ->
+            val tag = text(s, "report_date").take(10).split("-").let { if (it.size == 3) "${it[2]}.${it[1]}.${it[0]}" else "" }
+            Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
+                Text(tag, style = grotesk(15f, 700, abstand = -0.5f, farbe = dunkel), modifier = Modifier.weight(1f))
+                val melder = namen[text(s, "reported_by")].orEmpty()
+                if (melder.isNotEmpty()) Text("gemeldet von $melder", style = grotesk(11f, 400, farbe = grau))
+                else if (text(s, "reported_by_driver") == "true") Text("vom Fahrer gemeldet", style = grotesk(11f, 400, farbe = grau))
+            }
+            Text(text(s, "part_name").uppercase(), style = grotesk(11f, 700, abstand = -0.5f, farbe = dunkel), modifier = Modifier.padding(bottom = 4.dp))
+            Text(text(s, "description"), style = grotesk(14f, 700, abstand = -0.5f, farbe = dunkel), modifier = Modifier.padding(bottom = 10.dp))
+            val b = bilder(s)
+            if (b.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for (url in b) {
+                        coil3.compose.AsyncImage(model = url, contentDescription = "Schadensfoto",
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.weight(1f).height(96.dp).background(hex(0xF4F4F4)).clipToBounds().tippen { gross = url })
+                    }
+                }
+            }
+            if (i < schaeden.size - 1) Box(Modifier.padding(bottom = 10.dp).fillMaxWidth().height(1.dp).background(hex(0xDDDCDC)))
+        }
+    }
+    gross?.let { url ->
+        androidx.compose.ui.window.Dialog(onDismissRequest = { gross = null },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+            Box(Modifier.fillMaxSize().background(Color.Black).tippen { gross = null }, contentAlignment = Alignment.Center) {
+                coil3.compose.AsyncImage(model = url, contentDescription = "Schadensfoto",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}

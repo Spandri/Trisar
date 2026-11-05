@@ -21,7 +21,10 @@ struct DispoHaupt: View {
                     switch tipp["ziel"] {
                     case "fahrt":
                         if let id = tipp["job_id"].flatMap(UUID.init(uuidString:)) { bearbeiteteFahrt = id }
-                    case "fahrzeug": zeigen(.fahrzeuge)
+                    case "fahrzeug":
+                        // Schaden gemeldet: genau dieses Fahrzeug oeffnen (FahrzeugListeSeite loest es ein).
+                        FahrzeugSprung.id = tipp["vehicle_id"]
+                        zeigen(.fahrzeuge)
                     case "fahrer": zeigen(.fahrer)
                     case "chat": zeigen(.fahrten)
                     default: zeigen(.start)

@@ -279,9 +279,29 @@ const SchadenMelden = ({ onClose, onConfirm }) => {
     dateiRef.current?.click();
   };
 
-  const dateiGewaehlt = (e) => {
+  // Fotos verkleinert als data-URL speichern (wie die iOS- und Android-App). Eine blob:-Adresse
+  // gibt es nur in diesem Browser, die Dispo saehe sonst nie ein Bild.
+  const alsDatenURL = (datei) => new Promise((fertig) => {
+    const bild = new Image();
+    const adresse = URL.createObjectURL(datei);
+    bild.onload = () => {
+      const s = Math.min(1, 900 / Math.max(bild.width, bild.height));
+      const leinwand = document.createElement('canvas');
+      leinwand.width = Math.round(bild.width * s);
+      leinwand.height = Math.round(bild.height * s);
+      leinwand.getContext('2d').drawImage(bild, 0, 0, leinwand.width, leinwand.height);
+      URL.revokeObjectURL(adresse);
+      fertig(leinwand.toDataURL('image/jpeg', 0.6));
+    };
+    bild.onerror = () => { URL.revokeObjectURL(adresse); fertig(null); };
+    bild.src = adresse;
+  });
+
+  const dateiGewaehlt = async (e) => {
     const dateien = [...(e.target.files || [])].slice(0, MAX_FOTOS);
-    if (dateien.length) setFotos(dateien.map((d) => URL.createObjectURL(d)));
+    if (!dateien.length) return;
+    const bilder = (await Promise.all(dateien.map(alsDatenURL))).filter(Boolean);
+    if (bilder.length) setFotos(bilder);
   };
 
   // "VL", mit gewaehltem Bauteil "VL – Felge".
