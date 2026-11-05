@@ -289,7 +289,12 @@ Deno.serve(async (req) => {
 
     const bearerToken = getBearerToken(authHeader);
     const tokenPayload = bearerToken ? parseJwtPayload(bearerToken) : null;
-    const tokenRole = typeof tokenPayload?.role === 'string' ? tokenPayload.role : null;
+    // Rolle nur, wenn es wirklich der Server-Schluessel ist. Die Rolle im Token selbst ist ohne
+    // Signaturpruefung faelschbar (verify_jwt ist aus, weil das Gateway ES256-Tokens nicht lesen kann).
+    const tokenRole = bearerToken && bearerToken === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      ? 'service_role'
+      : bearerToken && bearerToken === Deno.env.get('SUPABASE_ANON_KEY') ? 'anon' : null;
+    void tokenPayload;
 
     let user: { id: string } | null = null;
     try {

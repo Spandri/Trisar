@@ -1,4 +1,5 @@
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const ensureEnv = (name: string) => {
   const value = Deno.env.get(name);
@@ -282,6 +283,16 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse(405, { error: 'Method not allowed' });
 
   try {
+    // Eigene Anmeldepruefung (verify_jwt ist aus, weil das Gateway ES256-Tokens nicht lesen kann).
+    const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
+    if (!token) return jsonResponse(401, { error: 'Missing authorization header' });
+    const istServer = token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || token === Deno.env.get('SUPABASE_ANON_KEY');
+    if (!istServer) {
+      const pruefer = createClient(ensureEnv('SUPABASE_URL'), ensureEnv('SUPABASE_ANON_KEY'));
+      const { data, error } = await pruefer.auth.getUser(token);
+      if (error || !data?.user) return jsonResponse(401, { error: 'Unauthorized' });
+    }
+
     const body = await req.json().catch(() => ({}));
     const trainNumberRaw = normalizeText(body?.train_number);
     const rideDate = normalizeRideDate(body?.ride_date);

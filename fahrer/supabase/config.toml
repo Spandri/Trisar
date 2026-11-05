@@ -412,3 +412,19 @@ verify_jwt = false
 # Anmeldung mit Benutzername oder E-Mail, laeuft vor jeder Sitzung, siehe functions/anmelden.
 [functions.anmelden]
 verify_jwt = false
+
+[functions.places-proxy]
+# Prueft die Anmeldung selbst. Das Gateway kann die ES256-Tokens nicht lesen.
+verify_jwt = false
+
+[functions.flight-validate]
+# Prueft die Anmeldung selbst. Das Gateway kann die ES256-Tokens nicht lesen.
+verify_jwt = false
+
+[functions.train-validate]
+# Prueft die Anmeldung selbst. Das Gateway kann die ES256-Tokens nicht lesen.
+verify_jwt = false
+
+[functions.airport-board]
+# Prueft die Anmeldung selbst. Das Gateway kann die ES256-Tokens nicht lesen.
+verify_jwt = false
