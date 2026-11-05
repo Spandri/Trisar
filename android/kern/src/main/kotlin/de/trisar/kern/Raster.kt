@@ -27,7 +27,12 @@ fun WebMassstab(inhalt: @Composable () -> Unit) {
         val dichte = LocalDensity.current
         val breitePx = with(dichte) { maxWidth.toPx() }
         val neu = Density(density = breitePx / RASTER_BREITE, fontScale = 1f)
-        CompositionLocalProvider(LocalDensity provides neu) { inhalt() }
+        // Kein Nachfedern/Leuchten am Listenende, wie overscroll-none im Web.
+        @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+        CompositionLocalProvider(
+            LocalDensity provides neu,
+            androidx.compose.foundation.LocalOverscrollConfiguration provides null,
+        ) { inhalt() }
     }
 }
 
