@@ -44,7 +44,7 @@ struct BoxFeld<Fokus: Hashable>: View {
                     Image("Arrow-kurz_Trisar_Icons_01_Lime").resizable().frame(width: 10, height: 13)
                         .frame(width: 34, height: 44).contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
@@ -74,6 +74,6 @@ struct StammZeilenKnopf: View {
             .background(Color(hex: hintergrund))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }

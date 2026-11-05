@@ -169,7 +169,7 @@ struct NeuplanungAnsicht: View {
                         .overlay(Rectangle().strokeBorder(RF.rot, lineWidth: 2))
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .disabled(laeuft)
                 Button(action: uebernehmen) {
                     Text("Übernehmen").font(.grotesk(24, .bold)).tracking(-0.5).foregroundStyle(.black)
@@ -177,7 +177,7 @@ struct NeuplanungAnsicht: View {
                         .background(RF.lime)
                         .opacity(laeuft ? 0.5 : 1)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .disabled(laeuft)
             }
             .padding(.top, 20)

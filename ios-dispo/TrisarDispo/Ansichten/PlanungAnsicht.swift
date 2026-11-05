@@ -28,7 +28,6 @@ struct PlanungAnsicht: View {
                 EinsatzTagKarteAnsicht(tagIso: iso, vorschlaege: modell.sichtbar(iso), fahrer: modell.fahrerListe,
                                        kameraSignal: modell.tagesKarteSignal) { modell.tagesKarte = false }
                     .id(iso)
-                    .transition(.opacity)
             }
             Navileiste(aktiv: modell.tagesKarte ? .karte : .planung) { ziel in
                 if ziel == .karte && modell.ablauf == .tag {

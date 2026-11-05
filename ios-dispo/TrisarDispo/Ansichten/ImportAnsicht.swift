@@ -93,7 +93,7 @@ struct ImportAnsicht: View {
                 .background(lime)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .padding(.top, 24)
         }
     }
@@ -124,7 +124,7 @@ struct ImportAnsicht: View {
                     Button(action: neuStarten) {
                         Text(t("imp.andereDatei")).font(.grotesk(12, .medium)).underline().foregroundStyle(lime)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                 }
                 .padding(.top, 20)
 
@@ -181,7 +181,7 @@ struct ImportAnsicht: View {
                     .background(lime)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .disabled(beschaeftigt || erg.fertig.isEmpty)
                 .opacity(beschaeftigt || erg.fertig.isEmpty ? 0.4 : 1)
                 .padding(.top, 16)
@@ -277,7 +277,7 @@ struct ImportAnsicht: View {
                 .background(lime)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .padding(.top, 20)
             Button(action: neuStarten) {
                 Text(t("imp.weitereDatei")).font(.grotesk(14, .medium)).foregroundStyle(lime)
@@ -286,7 +286,7 @@ struct ImportAnsicht: View {
                     .overlay(Rectangle().strokeBorder(lime, lineWidth: 2))
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .padding(.top, 10)
         }
     }

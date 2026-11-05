@@ -47,7 +47,7 @@ struct FormularZeile<Feld: View>: View {
                         Button(action: etaAktion) {
                             Text(eta.text).font(.grotesk(12, .bold)).underline().foregroundStyle(Color(hex: eta.farbe))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.web)
                     } else {
                         Text(eta.text).font(.grotesk(12, .bold)).foregroundStyle(Color(hex: eta.farbe))
                     }
@@ -65,12 +65,12 @@ struct FormularZeile<Feld: View>: View {
                         .frame(width: 20, height: 20, alignment: rechts == .pfeil ? .trailing : .center)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                 } else if gefuellt {
                     Button(action: zuruecksetzen) {
                         Image("clear-field-green").resizable().frame(width: 20, height: 20).contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .accessibilityLabel("\(beschriftung) zurücksetzen")
                 } else {
                     Image("Arrow-kurz_Trisar_Icons_01_Lime").resizable().frame(width: 10, height: 13)
@@ -156,7 +156,7 @@ struct VorschlagListe: View {
                         .padding(12)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 if i < eintraege.count - 1 {
                     Rectangle().fill(Color(hex: 0x2A2D15)).frame(height: 1)
                 }
@@ -183,7 +183,7 @@ struct FormularSpeichernKnopf: View {
             .overlay(Rectangle().strokeBorder(formularLime, lineWidth: 2))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .disabled(gesperrt)
         .opacity(gesperrt ? 0.7 : 1)
     }

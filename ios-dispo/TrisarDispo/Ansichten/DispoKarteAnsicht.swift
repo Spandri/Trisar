@@ -99,7 +99,6 @@ struct DispoKarteAnsicht: View {
                         .frame(width: 402 * s, height: geo.size.height, alignment: .topLeading)
                         .frame(maxWidth: .infinity)
                         .background(Color.black.opacity(0.95))
-                        .transition(.opacity)
                 }
 
                 Navileiste(aktiv: .karte) { ziel in
@@ -108,15 +107,12 @@ struct DispoKarteAnsicht: View {
 
                 if filterOffen {
                     KartenFilterAnsicht(filter: filter, zurueck: { filterOffen = false })
-                        .transition(.opacity)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
         .ignoresSafeArea()
         .background(Color(hex: 0x0E0E0E).ignoresSafeArea())
-        .animation(.easeOut(duration: 0.15), value: filterOffen)
-        .animation(.easeOut(duration: 0.15), value: profilOffen)
         .task { await daten.starten() }
         .onDisappear { Task { await daten.beenden() } }
         .task(id: routenAufgabe) { await routeBerechnen() }
@@ -147,14 +143,14 @@ struct DispoKarteAnsicht: View {
                     .background(Circle().fill(.black))
                     .clipShape(Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .accessibilityLabel("Zurück")
             .platz(20, 60, 50, 50)
 
             Button { filterOffen = true } label: {
                 Image("karten-layer-button").resizable().frame(width: 50, height: 50)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .accessibilityLabel("Filter")
             .platz(402 - 20 - 50, 60, 50, 50)
 
@@ -324,7 +320,7 @@ private struct InaktivFenster: View {
             Button(action: schliessen) {
                 Text("×").font(.grotesk(20, .bold)).foregroundStyle(Color(hex: 0xE3F654)).frame(width: 28, height: 28)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .accessibilityLabel("Inaktiv-Slider schließen")
             .padding(.top, 2).padding(.trailing, 2)
         }
@@ -413,11 +409,11 @@ private struct FahrerBlatt: View {
                         .lineLimit(1).truncationMode(.tail).frame(height: 30)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 Button { anrufen(fahrer.telefon) } label: {
                     Text(fahrer.telefon).grotesk(16, .bold, abstand: 0.4).foregroundStyle(Color(hex: 0x1D1C1D)).frame(height: 24)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
             }
             .padding(.horizontal, 18)
             .frame(width: 362, height: 96, alignment: .leading)
@@ -520,7 +516,7 @@ private struct FahrerProfilFenster: View {
                         .background(Circle().fill(Color.black.opacity(0.85)))
                         .overlay(Circle().strokeBorder(Self.lime, lineWidth: 2))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .accessibilityLabel("Zurück")
                 .padding(.bottom, 18)
 
@@ -548,7 +544,7 @@ private struct FahrerProfilFenster: View {
                     .frame(width: 362, height: 48)
                     .background(Self.lime)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .disabled(!hatTelefon)
                 .padding(.top, 18)
             }

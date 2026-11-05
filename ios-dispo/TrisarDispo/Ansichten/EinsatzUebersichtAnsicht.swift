@@ -60,7 +60,7 @@ struct EinsatzUebersichtAnsicht: View {
                         }
                         .frame(width: 50, height: 50, alignment: .topLeading).contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .accessibilityLabel(gesamtAktiv ? "Einsatz als Bild teilen" : "Planung für \(aktiv < tagesTitel.count ? tagesTitel[aktiv] : "") als Bild teilen")
                     .platz(324, 60, 50, 50)
 
@@ -72,7 +72,7 @@ struct EinsatzUebersichtAnsicht: View {
                             .frame(width: 178, height: 51)
                             .overlay(Rectangle().strokeBorder(EinsatzFarbe.lime, lineWidth: 2)).contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain).platz(112, 629, 178, 51)
+                    .buttonStyle(.web).platz(112, 629, 178, 51)
                 }
             }
         }
@@ -92,7 +92,7 @@ struct EinsatzUebersichtAnsicht: View {
                         Button { tagOeffnen(i) } label: {
                             TagesWalletKarte(titel: tagesTitel[i], wallet: tagesWallets[i]).contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.web)
                         .accessibilityLabel("Planung für \(tagesTitel[i]) öffnen")
                     } else {
                         GesamtWalletKarte(titel: gesamtTitel, wallet: gesamtWallet)
@@ -148,7 +148,7 @@ struct EinsatzUebersichtAnsicht: View {
                         .frame(width: 7, height: 7).frame(width: 17, height: 23).contentShape(Rectangle())
                         .animation(.easeInOut(duration: 0.26), value: aktiv)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .accessibilityLabel(i == letzte ? "Gesamter Einsatz" : "Tag \(i + 1)")
                 .platz(CGFloat(i) * 17 - 5, -8, 17, 23)
             }

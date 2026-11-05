@@ -86,7 +86,7 @@ struct EinsatzKalenderAnsicht: View {
                     Button(action: einstellungen) {
                         Image("filter").resizable().frame(width: 50, height: 50)
                     }
-                    .buttonStyle(.plain).accessibilityLabel("Planungseinstellungen").platz(332, 60, 50, 50)
+                    .buttonStyle(.web).accessibilityLabel("Planungseinstellungen").platz(332, 60, 50, 50)
 
                     zeitfeld(links: 20, platzhalter: "Start Zeit", wert: startZeit) { zeitOffen = .start }
                     zeitfeld(links: 204, platzhalter: "End Zeit", wert: endZeit) { zeitOffen = .ende }
@@ -94,14 +94,14 @@ struct EinsatzKalenderAnsicht: View {
                     Button { monatWechseln(-1) } label: {
                         Image("kal_pfeil_links").resizable().frame(width: 26.136, height: 15.909).frame(width: 46, height: 36)
                     }
-                    .buttonStyle(.plain).disabled(vorMonatGesperrt).opacity(vorMonatGesperrt ? 0.5 : 1).platz(53, 261, 46, 36)
+                    .buttonStyle(.web).disabled(vorMonatGesperrt).opacity(vorMonatGesperrt ? 0.5 : 1).platz(53, 261, 46, 36)
                     Text(monatsName).font(.grotesk(30, .bold)).tracking(-0.5).foregroundStyle(EinsatzFarbe.titel)
                         .fixedSize().frame(width: 362, height: 30).platz(20, 262)
                     Button { monatWechseln(1) } label: {
                         Image("kal_pfeil_links").resizable().frame(width: 26.136, height: 15.909).rotationEffect(.degrees(180))
                             .frame(width: 46, height: 36)
                     }
-                    .buttonStyle(.plain).platz(314, 261, 46, 36)
+                    .buttonStyle(.web).platz(314, 261, 46, 36)
 
                     ForEach(0..<7, id: \.self) { i in
                         Text(["M", "D", "M", "D", "F", "S", "S"][i]).font(.grotesk(16, .medium)).tracking(0.5).foregroundStyle(limeHalb)
@@ -121,7 +121,7 @@ struct EinsatzKalenderAnsicht: View {
                                 .foregroundStyle(aktiv ? EinsatzFarbe.lime : EinsatzFarbe.lime.opacity(0.25))
                                 .frame(width: 44, height: 44).contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain).disabled(!aktiv)
+                        .buttonStyle(.web).disabled(!aktiv)
                         .platz(Self.spaltenX[t.spalte] - 22, zeileY(t.zeile) - 22, 44, 44)
                     }
 
@@ -130,7 +130,7 @@ struct EinsatzKalenderAnsicht: View {
                     } label: {
                         Text("Zurücksetzen").font(.grotesk(14, .medium)).tracking(0.5).foregroundStyle(limeHalb).fixedSize()
                     }
-                    .buttonStyle(.plain).mittig(201, 689 - 12, 160, 24, .center)
+                    .buttonStyle(.web).mittig(201, 689 - 12, 160, 24, .center)
 
                     Button {
                         guard let von else { return }
@@ -139,7 +139,7 @@ struct EinsatzKalenderAnsicht: View {
                         Image("weiter_gross").resizable().frame(width: 45, height: 28).rotationEffect(.degrees(180))
                             .frame(width: 65, height: 48).contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain).disabled(von == nil).opacity(von == nil ? 0.5 : 1)
+                    .buttonStyle(.web).disabled(von == nil).opacity(von == nil ? 0.5 : 1)
                     .accessibilityLabel("Planung starten").platz(309, 665, 65, 48)
                 }
             }
@@ -166,7 +166,7 @@ struct EinsatzKalenderAnsicht: View {
             .overlay(Rectangle().strokeBorder(EinsatzFarbe.lime, lineWidth: 2))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .platz(links, 158, 178, 56)
     }
 

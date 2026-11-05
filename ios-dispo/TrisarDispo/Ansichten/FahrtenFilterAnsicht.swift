@@ -50,7 +50,7 @@ struct FahrtenFilterAnsicht: View {
                         .background(lime)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .platz(20, block + knopfOben, 362, 56)
                 }
                 .frame(width: 402, height: inhaltHoehe, alignment: .topLeading)
@@ -83,7 +83,7 @@ private struct FilterRahmen<Inhalt: View>: View {
                     Image("clear-field-green").resizable().frame(width: 20, height: 20)
                         .frame(width: 32, height: 40).contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .padding(.trailing, 2 + 4 + 12 - 6)
                 .accessibilityLabel("\(titel) zurücksetzen")
             } else {
@@ -151,8 +151,7 @@ private struct FilterSchalter: View {
                 .background(an ? lime : .clear)
                 .overlay(Rectangle().strokeBorder(lime, lineWidth: 2))
                 .contentShape(Rectangle())
-                .animation(.easeInOut(duration: 0.15), value: an)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }

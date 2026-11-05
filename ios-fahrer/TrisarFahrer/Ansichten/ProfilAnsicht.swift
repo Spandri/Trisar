@@ -62,7 +62,7 @@ struct ProfilAnsicht: View {
                         .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
                         .opacity(0.5)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .platz(21, 737, 360, 56)
             }
         }
@@ -93,7 +93,7 @@ private struct ProfilZeile: View {
             .frame(width: 360, height: 56)
             .background(Color(hex: 0xE3F654))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 

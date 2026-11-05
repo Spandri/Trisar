@@ -119,7 +119,7 @@ struct PlanerEinstellungenAnsicht: View {
                             .overlay(Rectangle().strokeBorder(lime, lineWidth: 2))
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .accessibilityAddTraits(aktiv ? .isSelected : [])
                 }
             }
@@ -141,7 +141,7 @@ struct PlanerEinstellungenAnsicht: View {
                 .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 
@@ -176,7 +176,7 @@ private struct NebenRegler: View {
             Button { aendern(sauber(Swift.max(min, wert - schritt))) } label: {
                 Rectangle().fill(lime).frame(width: 23, height: 3).frame(width: 23, height: 23).contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .accessibilityLabel("−")
 
             GeometryReader { geo in
@@ -204,7 +204,7 @@ private struct NebenRegler: View {
                 }
                 .frame(width: 23, height: 23).contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .accessibilityLabel("+")
         }
     }

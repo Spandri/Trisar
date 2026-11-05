@@ -85,7 +85,7 @@ struct Navileiste: View {
                 .frame(width: 70, height: 70)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .platz(288, 4, 70, 70)
         }
         .frame(width: 362, height: 78)
@@ -105,7 +105,7 @@ private struct NaviKnopf: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 
@@ -158,7 +158,7 @@ private struct SchnellwahlKnopf: View {
                                 .frame(width: 64, height: 64)
                                 .background(Circle().fill(Color(hex: 0x1C1917)).opacity(0.1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.web)
                     }
                 }
                 .padding(.vertical, 3)

@@ -48,7 +48,7 @@ struct EinsatzTagKarteAnsicht: View {
                 Image("Backbutton_Karte").resizable().scaledToFit().frame(width: 50, height: 50)
                     .background(Circle().fill(.black)).clipShape(Circle())
             }
-            .buttonStyle(.plain).accessibilityLabel("Zurück")
+            .buttonStyle(.web).accessibilityLabel("Zurück")
             Spacer(minLength: 0)
             Text(EinsatzUhr.tagKurz(tagIso)).font(.grotesk(16, .bold)).tracking(0.5).foregroundStyle(EinsatzFarbe.lime)
                 .lineLimit(1).fixedSize().padding(.horizontal, 18).frame(height: 50).background(Capsule().fill(.black))
@@ -75,7 +75,7 @@ struct EinsatzTagKarteAnsicht: View {
                 .foregroundStyle(EinsatzFarbe.lime)
                 .frame(width: 32, height: 32).contentShape(Rectangle())
             }
-            .buttonStyle(.plain).disabled(m.plaene.isEmpty).opacity(m.plaene.isEmpty ? 0.3 : 1)
+            .buttonStyle(.web).disabled(m.plaene.isEmpty).opacity(m.plaene.isEmpty ? 0.3 : 1)
             .accessibilityLabel(m.laeuft ? "Anhalten" : "Abspielen")
 
             Text(EinsatzUhr.uhr(Int(m.minute))).font(.grotesk(16, .bold)).monospacedDigit().foregroundStyle(.white)
@@ -108,7 +108,7 @@ struct EinsatzTagKarteAnsicht: View {
                 Text("\(m.tempo)x").font(.grotesk(16, .bold)).monospacedDigit().foregroundStyle(EinsatzFarbe.lime)
                     .frame(width: 40, height: 32).contentShape(Rectangle())
             }
-            .buttonStyle(.plain).accessibilityLabel("Tempo \(m.tempo)x")
+            .buttonStyle(.web).accessibilityLabel("Tempo \(m.tempo)x")
         }
         .padding(.leading, 8).padding(.trailing, 6)
         .background(RoundedRectangle(cornerRadius: 12).fill(.black))

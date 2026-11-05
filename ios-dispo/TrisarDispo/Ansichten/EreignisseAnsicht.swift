@@ -38,7 +38,7 @@ struct EreignisseAnsicht: View {
                         HStack(spacing: 0) {
                             Text("Entfernt: \(e.titel) · ")
                             Button { speicher.wiederherstellen(tagIso, e.id) } label: { Text("wiederherstellen").underline() }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.web)
                         }
                         .frame(height: 18)
                     }
@@ -232,7 +232,7 @@ private struct EreignisKarte: View {
                 .overlay(Rectangle().strokeBorder(rand, lineWidth: 2))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 
@@ -289,7 +289,7 @@ private struct EreignisErgaenzen: View {
                         Button(action: senden) {
                             Image("weiter_gross").resizable().frame(width: 34, height: 21).rotationEffect(.degrees(180))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.web)
                         .accessibilityLabel("Senden")
                     }
                     .padding(.leading, 18).padding(.trailing, 12)
@@ -324,14 +324,14 @@ private struct EreignisErgaenzen: View {
                     Text("Übernehmen").font(.grotesk(13, .bold)).foregroundStyle(.black)
                         .frame(maxWidth: .infinity).frame(height: 36).background(RF.lime)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 Button { entwurf = nil } label: {
                     Text("Verwerfen").font(.grotesk(13, .medium)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).frame(height: 36)
                         .overlay(Rectangle().strokeBorder(Color(hex: 0x5A5A5A), lineWidth: 1))
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
             }
             .padding(.top, 10)
         }

@@ -83,7 +83,7 @@ private struct KontaktKarte: View {
                 .frame(width: 338, height: 56)
                 .background(Color(hex: 0xE3F654))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .platz(12, 457, 338, 56)
         }
         .frame(width: 362, height: 543)

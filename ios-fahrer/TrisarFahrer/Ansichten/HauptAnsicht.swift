@@ -29,20 +29,20 @@ struct HauptAnsicht: View {
                 )
             }
         }
-        .fullScreenCover(isPresented: $profilOffen) {
+        .webVollbild(isPresented: $profilOffen) {
             ProfilFluss { profilOffen = false }
                 .environmentObject(anmeldung)
         }
         .onReceive(NotificationCenter.default.publisher(for: .supportOeffnen)) { _ in
             if offeneFahrt == nil && !profilOffen && !fahrzeugOffen { supportOffen = true }
         }
-        .fullScreenCover(isPresented: $supportOffen) { SupportAnsicht { supportOffen = false } }
-        .fullScreenCover(isPresented: $fahrzeugOffen) {
+        .webVollbild(isPresented: $supportOffen) { SupportAnsicht { supportOffen = false } }
+        .webVollbild(isPresented: $fahrzeugOffen) {
             FahrzeugAnsicht { fahrzeugOffen = false }
                 .environmentObject(anmeldung)
                 .environmentObject(speicher)
         }
-        .fullScreenCover(item: $offeneFahrt) { fahrt in
+        .webVollbild(item: $offeneFahrt) { fahrt in
             if let fahrer = anmeldung.fahrerID {
                 SoloNormalAnsicht(fahrtID: fahrt.id, fahrerID: fahrer) { offeneFahrt = nil }
                     .environmentObject(anmeldung)

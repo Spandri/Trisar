@@ -104,7 +104,7 @@ struct KolonnenChatAnsicht: View {
                     .background(Circle().fill(Color(hex: leer ? 0xE3F654 : 0xE3F754)))
                     .opacity(leer ? 0.5 : 1)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .disabled(leer)
         }
         .background(Color.black.opacity(0.6))

@@ -10,6 +10,8 @@ struct TrisarFahrerApp: App {
     init() {
         // Wie overscroll-none im Web: Seiten federn oben und unten nicht nach.
         UIScrollView.appearance().bounces = false
+        // Wie im Web: Seiten und Vollbilder erscheinen sofort, ohne Hochfahren oder Einblenden.
+        UIView.setAnimationsEnabled(false)
     }
 
     var body: some Scene {
@@ -27,6 +29,8 @@ struct TrisarFahrerApp: App {
             .environmentObject(anmeldung)
             .environmentObject(ortung)
             .environmentObject(fahrten)
+            // Ganze App auf die Breite des iPhones skalieren (Raster 402 wie im Web).
+            .webMassstab()
             .preferredColorScheme(.dark)
             .onChange(of: anmeldung.fahrerID, initial: true) { _, id in
                 ortung.setzeFahrer(id)

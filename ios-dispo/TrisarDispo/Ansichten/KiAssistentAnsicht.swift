@@ -193,7 +193,7 @@ struct KiAssistentAnsicht: View {
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .foregroundStyle(farbe)
         .accessibilityLabel(titel)
     }
@@ -204,7 +204,7 @@ struct KiAssistentAnsicht: View {
             Text("Neuplanung im Planer ansehen").grotesk(20, .bold, abstand: -0.5).foregroundStyle(.black)
                 .frame(maxWidth: .infinity).frame(height: 51).background(Color(hex: 0xE3F654))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .frame(maxWidth: 362)
         .padding(.top, 12 + 8)
     }
@@ -219,13 +219,13 @@ struct KiAssistentAnsicht: View {
                         Text("buchen").grotesk(24, .bold, abstand: -0.5).foregroundStyle(.black)
                             .frame(maxWidth: .infinity).frame(height: 51).background(Color(hex: 0xE3F754))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     Button { setzeStatus(n.id, "cancelled") } label: {
                         Text("nicht buchen").grotesk(24, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0xFF6F63))
                             .frame(maxWidth: .infinity).frame(height: 51)
                             .overlay(Rectangle().strokeBorder(Color(hex: 0xFF6F63), lineWidth: 2))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                 }
                 .padding(.top, 12)
             case "saving":
@@ -241,7 +241,7 @@ struct KiAssistentAnsicht: View {
                         Text("Fahrt bearbeiten").font(.grotesk(14, .bold)).foregroundStyle(.black)
                             .frame(maxWidth: .infinity).frame(height: 44).background(Color(hex: 0xE3F654))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                 }
                 .padding(.top, 12)
             case "cancelled":
@@ -544,7 +544,7 @@ private struct KiAktionen: View {
             Button(action: abbrechen) {
                 Image("Abbrechen_Rund_Trisar_01").resizable().frame(width: 48, height: 48)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .scaleEffect(bearbeitet ? 1 : 0.45)
             .opacity(bearbeitet ? 1 : 0)
             .offset(x: bearbeitet ? -60 : 0)
@@ -557,7 +557,7 @@ private struct KiAktionen: View {
                     .background(Circle().fill(Color(hex: sendenAktiv ? 0xE3F754 : 0xE3F654)))
                     .opacity(sendenAktiv ? 1 : 0.5)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .disabled(!sendenAktiv)
         }
         .frame(width: bearbeitet ? 108 : 48, height: 48, alignment: .trailing)

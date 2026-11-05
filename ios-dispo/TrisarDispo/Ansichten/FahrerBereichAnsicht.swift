@@ -100,7 +100,7 @@ struct AlleFahrerAnsicht: View {
                         .frame(width: 362, height: 56)
                         .background(Color(hex: 0xE3F654))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .platz(20, 496, 362, 56)
 
                     ForEach(Array(Self.chips.enumerated()), id: \.offset) { i, chip in
@@ -130,7 +130,7 @@ struct AlleFahrerAnsicht: View {
                                 .frame(width: 54, height: 54)
                                 .background(Circle().fill(Color(hex: 0xE3F654)))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.web)
                         .accessibilityLabel("Markierung löschen")
                     }
                     .padding(.trailing, 24)
@@ -181,7 +181,7 @@ struct AlleFahrerAnsicht: View {
                     Button { suche = "" } label: {
                         Image("clear-field-green").resizable().frame(width: 20, height: 20).frame(width: 24, height: 24)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .accessibilityLabel("Fahrer-Suche zurücksetzen")
                 } else {
                     Image("alle-fahrer-search").resizable().frame(width: 24, height: 24).allowsHitTesting(false)
@@ -367,7 +367,7 @@ struct PlanungsUebersicht: View {
                     Image("KI_Trisar_Icons_01_Lime").resizable().scaledToFit().frame(width: 13, height: 13)
                         .frame(width: 28, height: 26)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .accessibilityLabel("KI Planer öffnen")
                 legende("Fahrer", farbe: 0x45A8B6) {
                     RoundedRectangle(cornerRadius: 2).fill(Color(hex: 0x45A8B6)).frame(width: 10, height: 10)
@@ -562,7 +562,7 @@ struct FahrerKarte: View {
             .frame(width: maxVersatz, height: 84, alignment: .topLeading)
             .clipped()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .accessibilityLabel(text)
     }
 
@@ -585,7 +585,7 @@ struct StatusChipKnopf: View {
                 .background(gewaehlt ? Color(hex: farbe) : .clear)
                 .overlay(Rectangle().strokeBorder(Color(hex: farbe), lineWidth: 2))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 
@@ -620,7 +620,7 @@ struct ZeitFilterFeld: View {
                     .frame(width: 175, height: 56)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
             } else {
                 HStack(spacing: 0) {
                     Text(zeit.isEmpty ? "--:--" : zeit).grotesk(18, .semibold, abstand: 0.45).foregroundStyle(gelb)
@@ -643,7 +643,7 @@ struct ZeitFilterFeld: View {
                 Button { zeit = ""; datum = "" } label: {
                     Text("X").grotesk(38, .bold).foregroundStyle(Color(hex: 0xE3F654)).frame(width: 36, height: 36)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .accessibilityLabel("\(platzhalter) zurücksetzen")
                 .platz(175 - 4 - 36, 10, 36, 36)
             }

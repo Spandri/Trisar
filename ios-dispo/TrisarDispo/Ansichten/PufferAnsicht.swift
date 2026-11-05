@@ -148,7 +148,7 @@ struct PufferAnsicht: View {
                         Text(alle ? "Weniger anzeigen" : "Alle \(hoch.count) ansehen").font(.grotesk(13)).underline()
                             .padding(.vertical, 8)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                 }
             }
             .foregroundStyle(RF.dunkel)

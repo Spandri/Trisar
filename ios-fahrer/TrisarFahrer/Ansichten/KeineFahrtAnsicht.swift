@@ -29,7 +29,7 @@ struct KeineFahrtAnsicht: View {
                                       titel: fahrzeug.brand_model ?? "",
                                       bildOben: 55.57)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .platz(20, 462, 362, 268)
                 } else {
                     Text("Komm später nochmal")
@@ -48,7 +48,7 @@ struct KeineFahrtAnsicht: View {
                         .frame(width: 362, height: 56)
                         .overlay(Rectangle().strokeBorder(Color(hex: 0x7F8A2B), lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .platz(20, 754, 362, 56)
             }
         }
@@ -128,7 +128,7 @@ struct NotizBlatt: View {
                     .frame(width: 362, height: 56)
                     .background(knopfFarbe)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .disabled(beschaeftigt)
                 .platz(20, 742, 362, 56)
             }

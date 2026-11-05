@@ -277,7 +277,7 @@ private struct FahrtFormularInhalt: View {
             Button("Abbrechen", role: .cancel) {}
             Button("OK") { Task { await stornieren() } }
         }
-        .fullScreenCover(isPresented: $importOffen) {
+        .webVollbild(isPresented: $importOffen) {
             ImportAnsicht(modus: .fahrten, zurueck: { importOffen = false }, zumZiel: {
                 importOffen = false
                 zeigen?(.fahrten)
@@ -295,7 +295,7 @@ private struct FahrtFormularInhalt: View {
                 Button { importOffen = true } label: {
                     Image("import-fahrten").resizable().frame(width: 42, height: 40).contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .accessibilityLabel("Fahrten importieren")
                 .platz(402 - 20 - 42, 65, 42, 40)
             }
@@ -315,7 +315,7 @@ private struct FahrtFormularInhalt: View {
                 if werte.datum.isEmpty { werte.datum = FahrtText.heute() }
                 datumOffen = true
             } label: { ZeilenWert(text: datumText) }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .popover(isPresented: $datumOffen) {
                 DatePicker("", selection: datumBindung, displayedComponents: .date)
                     .datePickerStyle(.graphical).labelsHidden()
@@ -334,7 +334,7 @@ private struct FahrtFormularInhalt: View {
                 if FahrtText.uhrzeit(werte.startZeit, "").isEmpty { werte.startZeit = FahrtText.jetztUhr() }
                 zeitOffen = true
             } label: { ZeilenWert(text: FahrtText.uhrzeit(werte.startZeit, "")) }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .popover(isPresented: $zeitOffen) {
                 DatePicker("", selection: zeitBindung, displayedComponents: .hourAndMinute)
                     .datePickerStyle(.wheel).labelsHidden()
@@ -421,7 +421,7 @@ private struct FahrtFormularInhalt: View {
             ZeilenWert(text: statusText(werte.aktuellerStatus))
         }
         .menuIndicator(.hidden)
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 
     private let pfade: [String: WritableKeyPath<FahrtFormularWerte, String>] = [
@@ -784,7 +784,7 @@ private struct FahrtFormularInhalt: View {
                 .overlay(Rectangle().strokeBorder(Color(hex: 0xF55757), lineWidth: 2))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 
     // MARK: Speichern

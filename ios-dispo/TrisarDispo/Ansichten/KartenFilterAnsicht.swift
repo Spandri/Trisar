@@ -35,7 +35,7 @@ struct KartenFilterAnsicht: View {
                         .frame(width: 362, height: 56)
                         .background(Self.lime)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .platz(20, 482, 362, 56)
 
                     Button { filter.zuruecksetzen() } label: {
@@ -48,7 +48,7 @@ struct KartenFilterAnsicht: View {
                         .frame(width: 362, height: 56)
                         .background(Color(hex: 0xFF6B6B))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .platz(20, 550, 362, 56)
                 }
             }
@@ -80,7 +80,7 @@ private struct SuchZeile: View {
                     Button { text = ""; fokus = true } label: {
                         Image("clear-field-green").resizable().frame(width: 20, height: 20)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .accessibilityLabel("Fahrer zurücksetzen")
                 } else {
                     Image("karten-filter-search").resizable().frame(width: 24, height: 24)
@@ -110,7 +110,7 @@ private struct ZweierKnopf: View {
                 .background(an ? Self.lime : Color.clear)
                 .overlay(Rectangle().strokeBorder(Self.lime, lineWidth: 2))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 
@@ -143,7 +143,7 @@ private struct FeierabendZeile: View {
                     Image("clock-green").resizable().frame(width: 20, height: 20)
                 } else {
                     Button { wert = "" } label: { Image("clear-field-green").resizable().frame(width: 20, height: 20) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.web)
                         .accessibilityLabel("Feierabend zurücksetzen")
                 }
             }

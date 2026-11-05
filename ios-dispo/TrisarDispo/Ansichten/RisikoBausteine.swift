@@ -48,7 +48,7 @@ struct EreignisKacheln: View {
                             .overlay(Rectangle().strokeBorder(eigen ? Color(hex: 0xFEFFFE) : RF.lime, lineWidth: 2))
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.web)
                     }
                 }
             }
@@ -117,7 +117,7 @@ struct PufferDash: View {
             .overlay(Rectangle().strokeBorder(RF.lime, lineWidth: 2))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 
     private func zelle(_ wert: String, _ unter: String, _ farbe: Color) -> some View {

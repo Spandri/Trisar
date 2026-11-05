@@ -70,7 +70,7 @@ struct EinsatzTagAnsicht: View {
                             }
                             .frame(width: 124, height: 40, alignment: .topLeading).contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain).disabled(laeuft)
+                        .buttonStyle(.web).disabled(laeuft)
                         .mittig(Self.reiterX[i], Self.reiterY - 20, 124, 40)
                     }
 
@@ -205,14 +205,14 @@ struct EinsatzTagAnsicht: View {
                 .clipped()
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .platz(20, k.top, 362, k.hoehe)
 
             if k.erledigt {
                 Button { Task { await modell.zuruecknehmen(v) } } label: {
                     Image("x_knopf").resizable().frame(width: 54, height: 50.29)
                 }
-                .buttonStyle(.plain).accessibilityLabel("Übernahme für \(v.name) zurücknehmen").platz(20, k.knopfTop, 54, 50.29)
+                .buttonStyle(.web).accessibilityLabel("Übernahme für \(v.name) zurücknehmen").platz(20, k.knopfTop, 54, 50.29)
                 HStack(spacing: 10) {
                     Text("Übernommen").font(.grotesk(24, .bold)).tracking(-0.5).foregroundStyle(.black).fixedSize()
                     Image("haken").resizable().frame(width: 24.66, height: 29.04)
@@ -224,12 +224,12 @@ struct EinsatzTagAnsicht: View {
                         .frame(width: 178, height: 51)
                         .overlay(Rectangle().strokeBorder(EinsatzFarbe.rot, lineWidth: 2)).contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).platz(20, k.knopfTop, 178, 51)
+                .buttonStyle(.web).platz(20, k.knopfTop, 178, 51)
                 Button { Task { await modell.annehmen(v) } } label: {
                     Text("Annehmen").font(.grotesk(24, .bold)).tracking(-0.5).foregroundStyle(.black).fixedSize()
                         .frame(width: 178, height: 51).background(EinsatzFarbe.lime)
                 }
-                .buttonStyle(.plain).platz(204, k.knopfTop, 178, 51)
+                .buttonStyle(.web).platz(204, k.knopfTop, 178, 51)
             }
         }
     }
@@ -265,7 +265,7 @@ struct EinsatzTagAnsicht: View {
                 .rotationEffect(.degrees(vor ? 180 : 0))
                 .frame(width: 65, height: 48).contentShape(Rectangle())
         }
-        .buttonStyle(.plain).disabled(!aktiv)
+        .buttonStyle(.web).disabled(!aktiv)
         .accessibilityLabel(vor ? "Nächster Tag" : "Vorheriger Tag")
     }
 
@@ -287,7 +287,7 @@ struct EinsatzTagAnsicht: View {
             .overlay(Rectangle().strokeBorder(EinsatzFarbe.lime, lineWidth: 2))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain).disabled(gesperrt).opacity(gesperrt ? 0.5 : 1)
+        .buttonStyle(.web).disabled(gesperrt).opacity(gesperrt ? 0.5 : 1)
     }
 
     /// Status der Tage: 12er Punkte im 22er Abstand, gruen = bestaetigt, grau = offen, weisser Rand.

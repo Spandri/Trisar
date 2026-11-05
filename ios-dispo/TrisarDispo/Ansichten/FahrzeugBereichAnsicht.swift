@@ -28,8 +28,6 @@ struct FahrzeugBereichAnsicht: View {
             }
         }
         .id(seite)
-        .transition(.opacity)
-        .animation(.easeOut(duration: 0.15), value: seite)
     }
 }
 
@@ -54,7 +52,7 @@ struct FahrzeugListeSeite: View {
                     Button(action: filterOeffnen) {
                         Image("karten-layer-button").resizable().frame(width: 50, height: 50)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .accessibilityLabel("Filter")
                     .platz(332, 60, 50, 50)
 
@@ -82,7 +80,7 @@ struct FahrzeugListeSeite: View {
                         }
                         ForEach(liste) { f in
                             Button { bearbeiten(f) } label: { FahrzeugListenKarte(fahrzeug: f) }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.web)
                         }
                     }
                     .platz(20, 354, 362, nil)
@@ -120,7 +118,7 @@ struct FahrzeugListeSeite: View {
                 Button { filter.suche = "" } label: {
                     Image("clear-field-green").resizable().frame(width: 20, height: 20).frame(width: 24, height: 24)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .accessibilityLabel("Suche zurücksetzen")
             } else {
                 Image("vehicle-search").resizable().frame(width: 24, height: 24)
@@ -227,9 +225,8 @@ struct FahrzeugFilterSeite: View {
                 .background(aktiv ? Color(hex: 0xE3F654) : .clear)
                 .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
                 .contentShape(Rectangle())
-                .animation(.easeOut(duration: 0.15), value: aktiv)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 
@@ -297,7 +294,7 @@ struct FahrzeugFormularSeite: View {
                         .background(Color(hex: 0xDBEE4A))
                         .opacity(speichert ? 0.7 : 1)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .disabled(speichert)
                 .platz(20, 694, 362, 56)
 
@@ -352,7 +349,7 @@ struct FahrzeugFormularSeite: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .padding(.leading, 16).padding(.trailing, 48)
             if !bildURL.isEmpty {
                 StammBild(quelle: bildURL).frame(width: 64, height: 40)
@@ -372,7 +369,7 @@ struct FahrzeugFormularSeite: View {
                 }
                 .frame(width: 34, height: 44).contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .accessibilityLabel(bildURL.isEmpty ? "Fahrzeugbild hochladen" : "Fahrzeugbild entfernen")
             .frame(maxWidth: .infinity, alignment: .trailing)
         }

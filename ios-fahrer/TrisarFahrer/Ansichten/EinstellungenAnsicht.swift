@@ -57,7 +57,7 @@ struct EinstellungenAnsicht: View {
                         .frame(width: 362, height: 56)
                         .overlay(Rectangle().strokeBorder(Color(hex: 0x7F8A2B), lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .platz(20, 607, 362, 56)
 
                 // Im Web nur Beschriftung ohne Funktion.
@@ -114,7 +114,7 @@ struct EinstellungenAnsicht: View {
                         Image("Arrow-kurz_Trisar_Icons_01_Lime").resizable().frame(width: 10, height: 13)
                             .frame(width: 30, height: 40)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .padding(.trailing, 2)
                 }
             }
@@ -134,7 +134,7 @@ struct EinstellungenAnsicht: View {
                 .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             if spracheOffen {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Self.sprachen, id: \.self) { s in
@@ -147,7 +147,7 @@ struct EinstellungenAnsicht: View {
                                 .padding(.horizontal, 16).padding(.vertical, 8)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.web)
                     }
                 }
                 .frame(width: 177)
@@ -184,7 +184,7 @@ struct EinstellungenAnsicht: View {
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color(hex: 0x8B8B8D), lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .accessibilityLabel("Profilbild Optionen")
 
             if bildMenueOffen {
@@ -218,7 +218,7 @@ struct EinstellungenAnsicht: View {
                 .overlay(alignment: .bottom) { if linie { Rectangle().fill(Color(hex: 0x5D6620)).frame(height: 1) } }
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 
     private var vorschau: some View {
@@ -235,7 +235,7 @@ struct EinstellungenAnsicht: View {
                     Text("Schließen").font(.grotesk(16, .medium)).foregroundStyle(Color(hex: 0x0E1008))
                         .frame(maxWidth: .infinity).frame(height: 48).background(Color(hex: 0xE3F654))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
             }
             .padding(16)
             .frame(width: 360)

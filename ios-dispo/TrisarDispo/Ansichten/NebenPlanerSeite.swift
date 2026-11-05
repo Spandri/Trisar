@@ -85,7 +85,7 @@ struct NebenPlanenKnopf: View {
             .overlay(Rectangle().strokeBorder(Color(hex: 0xE2F754), lineWidth: 2))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .onAppear {
             withAnimation(.linear(duration: 120).repeatForever(autoreverses: false)) { winkel = 382.66 }
         }

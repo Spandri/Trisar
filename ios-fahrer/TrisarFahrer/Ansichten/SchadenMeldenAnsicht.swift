@@ -74,7 +74,7 @@ struct SchadenMeldenAnsicht: View {
                         .frame(width: 362, height: 110)
                         .clipped()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .overlay(alignment: .bottomTrailing) {
                         if !fotos.isEmpty {
                             Text("Neu aufnehmen").grotesk(11, .bold, abstand: -0.5).foregroundStyle(.black)
@@ -109,7 +109,7 @@ struct SchadenMeldenAnsicht: View {
                                             .background(an ? Color(hex: 0xE3F654) : .white)
                                             .overlay(Rectangle().strokeBorder(an ? Color(hex: 0x1C1C1D) : Color(hex: 0xDDDCDC), lineWidth: 1))
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.web)
                                 }
                             }
                         }
@@ -158,7 +158,7 @@ struct SchadenMeldenAnsicht: View {
                     .frame(width: 362, height: 56)
                     .background(punkt != nil ? Color(hex: 0xE3F754) : Color(hex: 0x3A3A3A))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .disabled(!bereit)
                 .platz(20, 764, 362, 56)
             }

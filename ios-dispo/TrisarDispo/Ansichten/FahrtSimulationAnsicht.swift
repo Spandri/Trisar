@@ -267,7 +267,7 @@ struct FahrtSimulationAnsicht: View {
             Image("Backbutton_Karte").resizable().scaledToFit()
                 .frame(width: 50, height: 50).background(Color.black).clipShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .accessibilityLabel("Zurück")
         .platz(20, 60, 50, 50)
 
@@ -317,7 +317,7 @@ struct FahrtSimulationAnsicht: View {
                 }
                 .frame(width: 32, height: 32).contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .disabled(!bereit)
             .opacity(bereit ? 1 : 0.3)
             .accessibilityLabel(spielt ? "Pause" : "Abspielen")
@@ -368,7 +368,7 @@ struct FahrtSimulationAnsicht: View {
                 Text("\(Int(tempo))x").font(.grotesk(16, .bold)).monospacedDigit().foregroundStyle(Self.lime)
                     .frame(width: 40, height: 32).contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .accessibilityLabel("Tempo \(Int(tempo))x")
         }
         .padding(.leading, 8).padding(.trailing, 6)

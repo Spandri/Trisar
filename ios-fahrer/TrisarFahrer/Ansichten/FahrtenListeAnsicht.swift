@@ -39,7 +39,7 @@ struct FahrtenListeAnsicht: View {
                     FahrzeugKarte(fahrzeug: speicher.fahrzeug,
                                   titel: speicher.fahrzeug?.license_plate ?? "Kein Kennzeichen")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .platz(20, versatz + 118, 362, 268)
 
                 ForEach(raster.zeilen, id: \.datum) { zeile in
@@ -69,7 +69,7 @@ struct FahrtenListeAnsicht: View {
         }
         .overlay { FussleisteUnten() }
         .overlay(alignment: .top) { fehlerHinweis }
-        .fullScreenCover(item: $ablehnenFahrt) { fahrt in
+        .webVollbild(item: $ablehnenFahrt) { fahrt in
             AblehnenBlatt(schliessen: { ablehnenFahrt = nil }) { notiz in
                 ablehnenFahrt = nil
                 Task { _ = await speicher.antworten(fahrt, annehmen: false, grund: notiz) }
@@ -194,7 +194,6 @@ private struct DienstKarte: View {
             .frame(width: 362, height: 124, alignment: .topLeading)
             .background(Color(hex: 0x1A1A1A))
             .overlay(Rectangle().strokeBorder(anfrage.angenommen ? Farbe.lime : .clear, lineWidth: 2))
-            .animation(.easeInOut(duration: 0.3), value: anfrage.angenommen)
 
             if !anfrage.angenommen {
                 AntwortKnoepfe(beschaeftigt: beschaeftigt, ablehnen: { antworten(false) }, annehmen: { antworten(true) })
@@ -224,7 +223,7 @@ private struct AntwortKnoepfe: View {
                     .background(Farbe.lime)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .disabled(beschaeftigt)
         .opacity(beschaeftigt ? 0.6 : 1)
     }
@@ -251,7 +250,7 @@ private struct AuftragsKarte: View {
                 Rectangle().fill(Color(hex: 0x1A1A1A))
                     .overlay(Rectangle().strokeBorder(fahrt.angenommen ? Farbe.lime : .clear, lineWidth: 2))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .platz(20, 0, 362, 187)
 
             // Tag oben mittig, mind. 90 breit, bei Kolonne mit Konvoi-Icon.

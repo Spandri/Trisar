@@ -93,7 +93,7 @@ struct ProfilKnopf: View {
             .frame(width: 52, height: 52)
             .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .accessibilityLabel("Profil")
     }
 }
@@ -115,7 +115,7 @@ struct ZurueckKnopf: View {
             .frame(width: 50, height: 50, alignment: .topLeading)
             .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .accessibilityLabel("Zurück")
     }
 }
@@ -124,5 +124,50 @@ struct ZurueckKnopf: View {
 extension Text {
     func grotesk(_ groesse: CGFloat, _ gewicht: Font.Weight = .regular, abstand: CGFloat = 0) -> some View {
         font(.grotesk(groesse, gewicht)).tracking(abstand)
+    }
+}
+
+// MARK: - Massstab fuer das ganze iPhone
+
+/// Die Seiten sind wie im Web fuer 402 Punkte Breite gebaut. Hier wird die ganze Ansicht
+/// (Inhalt, Leisten, Knoepfe) einmal auf die Breite des jeweiligen iPhones vergroessert oder
+/// verkleinert, damit jedes Modell gleich aussieht. Die Hoehe ergibt sich daraus: kurze iPhones
+/// scrollen etwas mehr, lange haben unten mehr Platz.
+struct WebMassstab: ViewModifier {
+    static let breite: CGFloat = 402
+
+    func body(content: Content) -> some View {
+        GeometryReader { geo in
+            // Ganzer Bildschirm = sichtbarer Bereich + Raender (Statusleiste, Home-Balken, Tastatur).
+            let r = geo.safeAreaInsets
+            let w = geo.size.width + r.leading + r.trailing
+            let h = geo.size.height + r.top + r.bottom
+            let s = w > 0 ? w / Self.breite : 1
+            content
+                // Raender im 402er Raster weitergeben, damit Seiten wie bisher unter der
+                // Statusleiste beginnen und der Tastatur ausweichen.
+                .safeAreaPadding(EdgeInsets(top: r.top / s, leading: r.leading / s,
+                                            bottom: r.bottom / s, trailing: r.trailing / s))
+                .frame(width: Self.breite, height: h / s)
+                .scaleEffect(s, anchor: .topLeading)
+                .frame(width: w, height: h, alignment: .topLeading)
+                .offset(x: -r.leading, y: -r.top)
+        }
+    }
+}
+
+extension View {
+    /// Ganze Ansicht auf die iPhone-Breite skalieren (siehe WebMassstab).
+    func webMassstab() -> some View { modifier(WebMassstab()) }
+
+    /// Vollbild-Seite mit demselben Massstab (ein fullScreenCover erbt ihn nicht).
+    func webVollbild<C: View>(isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil,
+                              @ViewBuilder content: @escaping () -> C) -> some View {
+        fullScreenCover(isPresented: isPresented, onDismiss: onDismiss) { content().webMassstab() }
+    }
+
+    func webVollbild<I: Identifiable, C: View>(item: Binding<I?>, onDismiss: (() -> Void)? = nil,
+                                              @ViewBuilder content: @escaping (I) -> C) -> some View {
+        fullScreenCover(item: item, onDismiss: onDismiss) { content($0).webMassstab() }
     }
 }

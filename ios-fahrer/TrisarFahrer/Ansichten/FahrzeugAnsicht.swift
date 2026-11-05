@@ -65,7 +65,7 @@ private struct FahrzeugInhalt: View {
         .overlay { FussleisteUnten() }
         .task { await daten.starten(fahrzeugID: speicher.fahrzeug?.id) }
         .onDisappear { Task { await daten.beenden() } }
-        .fullScreenCover(isPresented: $meldenOffen) {
+        .webVollbild(isPresented: $meldenOffen) {
             SchadenMeldenAnsicht(schliessen: { meldenOffen = false }) { stelle, beschreibung, fotos in
                 let ok = await daten.melden(stelle: stelle, beschreibung: beschreibung, fotos: fotos)
                 if ok { meldenOffen = false }
@@ -190,7 +190,7 @@ private struct FahrzeugInhalt: View {
                 .frame(maxWidth: .infinity).frame(height: 56)
                 .background(Color(hex: 0xE3F654))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .padding(.top, 10)
         }
         .padding(29)

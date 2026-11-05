@@ -65,14 +65,14 @@ struct EinsatzBedarfAnsicht: View {
                     Button { modell.bedarfAnpassung = [:] } label: {
                         Text("Zurücksetzen").font(.grotesk(14, .medium)).tracking(0.5).foregroundStyle(EinsatzFarbe.lime.opacity(0.5)).fixedSize()
                     }
-                    .buttonStyle(.plain).disabled(!angepasst).opacity(angepasst ? 1 : 0.4)
+                    .buttonStyle(.web).disabled(!angepasst).opacity(angepasst ? 1 : 0.4)
                     .mittig(201, fussY - 12, 160, 24, .center)
 
                     Button { modell.bedarfWeiter() } label: {
                         Image("weiter_gross").resizable().frame(width: 45, height: 28).rotationEffect(.degrees(180))
                             .frame(width: 65, height: 48).contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain).accessibilityLabel("Planung starten").platz(309, fussY - 24, 65, 48)
+                    .buttonStyle(.web).accessibilityLabel("Planung starten").platz(309, fussY - 24, 65, 48)
                 }
             }
         }

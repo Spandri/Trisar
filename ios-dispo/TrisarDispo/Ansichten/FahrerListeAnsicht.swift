@@ -36,7 +36,7 @@ struct FahrerListeAnsicht: View {
                         Text("Zur Kunden Liste").grotesk(16, .medium).foregroundStyle(Color(hex: 0x262626))
                             .frame(width: 362, height: 56).background(Color(hex: 0xE3F654))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .platz(20, 640, 362, 56)
                 }
             }
@@ -50,7 +50,7 @@ struct FahrerListeAnsicht: View {
                 .padding(.horizontal, 16).frame(height: 40)
                 .overlay(Rectangle().strokeBorder(Color(hex: 0x747474), lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .fixedSize()
     }
 }

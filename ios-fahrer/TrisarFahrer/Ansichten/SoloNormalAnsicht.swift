@@ -122,13 +122,13 @@ struct SoloNormalAnsicht: View {
         .onReceive(NotificationCenter.default.publisher(for: .supportOeffnen)) { _ in
             if offenesBlatt == nil && !chatOffen { supportOffen = true }
         }
-        .fullScreenCover(isPresented: $supportOffen) { SupportAnsicht { supportOffen = false } }
-        .fullScreenCover(isPresented: $chatOffen, onDismiss: { Task { await speicher.ungelesenAktualisieren() } }) {
+        .webVollbild(isPresented: $supportOffen) { SupportAnsicht { supportOffen = false } }
+        .webVollbild(isPresented: $chatOffen, onDismiss: { Task { await speicher.ungelesenAktualisieren() } }) {
             if let k = fahrt?.kolonnenID, let fahrer = anmeldung.fahrerID {
                 KolonnenChatAnsicht(chatID: k, fahrerID: fahrer, titel: kolonnenKurz) { chatOffen = false }
             }
         }
-        .fullScreenCover(item: $offenesBlatt) { blatt in
+        .webVollbild(item: $offenesBlatt) { blatt in
             blattAnsicht(blatt)
         }
     }
@@ -255,7 +255,7 @@ struct SoloNormalAnsicht: View {
                         .frame(width: innen, height: 51, alignment: .leading)
                         .background(Color(hex: 0x242425))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .platz(20, ersteGastZeile + CGFloat(i) * 57, innen, 51)
             }
 
@@ -279,7 +279,7 @@ struct SoloNormalAnsicht: View {
                         }
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .platz(20, 18, innen, 45)
 
                 let fahrerOben = gaesteUnten + 30
@@ -295,7 +295,7 @@ struct SoloNormalAnsicht: View {
                             .background(Color(hex: 0xE2F754))
                             .opacity(f.id == nil ? 0.7 : 1)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .platz(20, fahrerOben + 50 + CGFloat(i) * 57, innen, 51)
                 }
                 unterteil(fahrt, innen: innen)
@@ -345,7 +345,7 @@ struct SoloNormalAnsicht: View {
                         .frame(maxWidth: .infinity).frame(height: 56)
                         .overlay(Rectangle().strokeBorder(Color(hex: 0xE2F754), lineWidth: 2))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
             }
             // Unter dem letzten Knopf: Fussleiste 40 + 30 Luft (minus pb-6, das unten dazukommt).
             Spacer().frame(height: 40 + 30 - 24)
@@ -633,7 +633,7 @@ private struct OrtText: View {
                     .lineSpacing(18 * 1.15 - 18 * 1.276 > 0 ? 18 * 1.15 - 18 * 1.276 : 0)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
         }
         .frame(maxWidth: .infinity, alignment: rechts ? .trailing : .leading)
     }
@@ -655,7 +655,7 @@ private struct AktionsKnopf: View {
             .frame(maxWidth: .infinity).frame(height: 56)
             .background(farbe)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 
@@ -669,7 +669,7 @@ private struct KarteZurueck: View {
                 .clipShape(Circle())
                 .shadow(color: .black.opacity(0.45), radius: 8, y: 4)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .accessibilityLabel("Zurück")
     }
 }
@@ -734,7 +734,7 @@ struct KollegenKarte: View {
                         .background(Circle().fill(Color.black.opacity(0.85)))
                         .overlay(Circle().stroke(Color(hex: 0xE3F654), lineWidth: 2))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .padding(.bottom, 18)
 
                 VStack(spacing: 0) {
@@ -775,7 +775,7 @@ struct KollegenKarte: View {
                     .frame(maxWidth: .infinity).frame(height: 48)
                     .background(Color(hex: 0xE3F654))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .disabled(telefon.isEmpty)
                 .padding(.top, 18)
             }

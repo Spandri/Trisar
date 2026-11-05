@@ -86,7 +86,7 @@ struct TrisarFussleiste: View {
                     .foregroundStyle(Farbe.limeIcon)
                     .frame(width: 116, height: 40)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
         }
         .frame(height: 40)
         .frame(maxWidth: .infinity)
@@ -137,11 +137,21 @@ struct LimeKnopfStil: ButtonStyle {
             .frame(maxWidth: .infinity)
             .frame(height: 56)
             .background(configuration.isPressed ? Farbe.limeHover : Farbe.lime)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
 extension Notification.Name {
     static let supportOeffnen = Notification.Name("trisar-support-oeffnen")
+}
+
+
+/// Knopf ohne Druck-Effekt (kein Abdunkeln, kein Federn), wie die Knoepfe im Web.
+struct WebKnopfStil: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+    }
+}
+
+extension ButtonStyle where Self == WebKnopfStil {
+    static var web: WebKnopfStil { WebKnopfStil() }
 }

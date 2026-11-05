@@ -26,8 +26,6 @@ struct KundenBereichAnsicht: View {
             }
         }
         .id(seite)
-        .transition(.opacity)
-        .animation(.easeOut(duration: 0.15), value: seite)
     }
 }
 
@@ -68,7 +66,7 @@ struct KundenListeSeite: View {
                         .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .platz(20, 206, 362, 56)
 
                     HStack(spacing: 0) {
@@ -99,7 +97,7 @@ struct KundenListeSeite: View {
                         .background(Color(hex: 0xE3F654))
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .platz(20, 342, 362, 56)
 
                     // Dunkle Flaeche mit runden oberen Ecken ueber die volle Breite.
@@ -122,7 +120,7 @@ struct KundenListeSeite: View {
                             Text("Keine Fahrgäste gefunden.").font(.grotesk(16, .medium)).foregroundStyle(Color(hex: 0xE3F654))
                         }
                         ForEach(liste) { g in
-                            Button { bearbeiten(g) } label: { FahrgastKarte(gast: g) }.buttonStyle(.plain)
+                            Button { bearbeiten(g) } label: { FahrgastKarte(gast: g) }.buttonStyle(.web)
                         }
                     }
                     .platz(20, 446, 362, nil)
@@ -236,7 +234,7 @@ struct FahrgastFormularSeite: View {
                     .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .platz(205, 546, 177, 56)
 
                 let schalter: [(String, Binding<Bool>)] = [("lucide-star", $vip), ("lucide-accessibility", $barrierefrei),
@@ -250,7 +248,7 @@ struct FahrgastFormularSeite: View {
                             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color(hex: an ? 0xE3F654 : 0x7F8A2B), lineWidth: 2))
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                     .platz(20 + CGFloat(i) * (84.5 + 8), 614, 84.5, 48)
                 }
 
@@ -268,7 +266,7 @@ struct FahrgastFormularSeite: View {
                     .background(Color(hex: 0xE3F654))
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .disabled(speichert)
                 .platz(20, 946, 362, 64)
 
@@ -294,7 +292,7 @@ struct FahrgastFormularSeite: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.web)
                         }
                     }
                     .background(Color(hex: 0x161618))

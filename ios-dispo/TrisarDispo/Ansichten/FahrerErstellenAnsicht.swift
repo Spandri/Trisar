@@ -86,7 +86,7 @@ struct FahrerErstellenAnsicht: View {
                                 .frame(width: 48, height: 56, alignment: .trailing).padding(.trailing, 16)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.web)
                         .platz(20 + 362 - 64, o + 730, 64, 56)
                     }
                     if let t = m.trackerBeiAnderem {
@@ -116,7 +116,7 @@ struct FahrerErstellenAnsicht: View {
                         .background(Color(hex: 0xDBEE4A))
                         .opacity(m.speichert ? 0.7 : 1)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .disabled(m.speichert)
                 .platz(20, o + (warnung ? 696 : 674) + ortungsHoehe, 362, 56)
 
@@ -158,7 +158,7 @@ struct FahrerErstellenAnsicht: View {
                                     .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40, alignment: .leading)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.web)
                         }
                     }
                 }
@@ -196,7 +196,7 @@ struct FahrerErstellenAnsicht: View {
                 .frame(width: 34, height: 56, alignment: .trailing)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .platz(x + w - 34, o + y, 34, 56)
     }
 
@@ -225,7 +225,7 @@ struct FahrerErstellenAnsicht: View {
             .overlay(Rectangle().strokeBorder(lime, lineWidth: 2))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .platz(x, o + y, w, 56)
     }
 
@@ -243,7 +243,7 @@ struct FahrerErstellenAnsicht: View {
                 .overlay(Rectangle().strokeBorder(lime, lineWidth: 2))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .platz(x, o + 662, 178, 56)
     }
 
@@ -271,7 +271,7 @@ struct FahrerErstellenAnsicht: View {
                 .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40, alignment: .leading)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 
     private func umschalten(_ neu: Menue) {

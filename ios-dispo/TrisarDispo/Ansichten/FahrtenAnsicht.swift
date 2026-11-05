@@ -176,7 +176,7 @@ struct FahrtenListeDispo: View {
                 Button { speicher.standort = "" } label: {
                     Image("clear-x-green-24").resizable().frame(width: 24, height: 24)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .accessibilityLabel("Standort löschen")
             }
         }
@@ -199,7 +199,7 @@ struct FahrtenListeDispo: View {
                 .background(lime)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
 
             if !mitStandort {
                 Button { wechseln(archivUmschalten) } label: {
@@ -211,7 +211,7 @@ struct FahrtenListeDispo: View {
                         .overlay(Rectangle().strokeBorder(lime, lineWidth: 2))
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .accessibilityLabel(archiv ? "Live anzeigen" : "Archiv anzeigen")
             } else {
                 Button {
@@ -220,7 +220,7 @@ struct FahrtenListeDispo: View {
                 } label: {
                     Image("Arrow_Nav_Trisar_Icons_01").resizable().frame(width: 36, height: 36)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .accessibilityLabel("Fahrten aktualisieren")
             }
         }
@@ -243,7 +243,7 @@ struct FahrtenListeDispo: View {
             Button { if hatSuche { suche = "" } } label: {
                 Image(hatSuche ? "clear-x-green-24" : "vehicle-search").resizable().frame(width: 24, height: 24)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .accessibilityLabel(hatSuche ? "Suche leeren" : "Suche")
         }
         .padding(.horizontal, 16)
@@ -686,7 +686,7 @@ private struct AktionsKnopf: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .accessibilityLabel(text)
     }
 }
@@ -725,7 +725,7 @@ private struct RichtungsKnopf: View {
                 .overlay(Rectangle().strokeBorder(lime, lineWidth: 2))
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 
@@ -746,7 +746,7 @@ private struct BoardKasten: View {
                 Button(action: aktualisieren) {
                     Text("Aktualisieren").font(.grotesk(11, .medium)).underline().foregroundStyle(lime)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
             }
             if let stand = standText {
                 Text("Stand: \(stand)").font(.grotesk(11, .medium)).foregroundStyle(gruenGrau).padding(.top, 4)

@@ -27,8 +27,6 @@ struct KoordinatorProfilAnsicht: View {
             }
         }
         .id(seite)
-        .transition(.opacity)
-        .animation(.easeOut(duration: 0.15), value: seite)
         .task { await dienst.laden() }
     }
 }
@@ -75,7 +73,7 @@ struct KoordinatorProfilSeite: View {
                         .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .opacity(0.5)
                 .platz(21, 737, 360, 56)
             }
@@ -109,7 +107,7 @@ struct KoordinatorProfilSeite: View {
             .background(Color(hex: 0xE3F654))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 
@@ -161,7 +159,7 @@ struct AnsprechpartnerSeite: View {
                     .background(Color(hex: 0xE3F654))
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .platz(12, 457, 338, 56)
         }
         .frame(width: 362, height: 543)
@@ -243,7 +241,7 @@ struct KoordinatorEinstellungenSeite: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .platz(204, 546, 178, 56)
 
                 Button(action: abmelden) {
@@ -253,7 +251,7 @@ struct KoordinatorEinstellungenSeite: View {
                         .overlay(Rectangle().strokeBorder(Color(hex: 0x7F8A2B), lineWidth: 1))
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
                 .platz(20, 626, 362, 56)
 
                 // Im Web nur Beschriftung ohne Funktion.
@@ -303,7 +301,7 @@ struct KoordinatorEinstellungenSeite: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.web)
                 }
             }
         }
@@ -339,7 +337,7 @@ struct KoordinatorEinstellungenSeite: View {
                     .clipShape(Circle())
                     .overlay(Circle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.web)
             .accessibilityLabel("Profilbild Optionen")
 
             if bildMenueOffen {
@@ -375,7 +373,7 @@ struct KoordinatorEinstellungenSeite: View {
                 .overlay(alignment: .bottom) { if linie { Rectangle().fill(Color(hex: 0x5D6620)).frame(height: 1) } }
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 
     private var vorschau: some View {
@@ -398,7 +396,7 @@ struct KoordinatorEinstellungenSeite: View {
                     Text("Schließen").font(.grotesk(16, .medium)).foregroundStyle(Color(hex: 0x0E1008))
                         .frame(maxWidth: .infinity).frame(height: 48).background(Color(hex: 0xE3F654))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.web)
             }
             .padding(16)
             .frame(width: 360)

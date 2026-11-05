@@ -15,23 +15,17 @@ struct DispoHaupt: View {
             Color.black.ignoresSafeArea()
             seite
                 .id(ziel)
-                .transition(.opacity)
             // Unterseiten liegen als eigene Seite darueber, ohne Hochschieben (wie setView im Web).
             if let id = bearbeiteteFahrt {
                 FahrtFormularAnsicht(fahrtID: id, zurueck: { bearbeiteteFahrt = nil })
                     .environmentObject(anmeldung)
-                    .transition(.opacity)
                     .zIndex(1)
             }
             if let seite = planungsSeite {
                 planungsUnterseite(seite)
-                    .transition(.opacity)
                     .zIndex(2)
             }
         }
-        .animation(.easeOut(duration: 0.15), value: ziel)
-        .animation(.easeOut(duration: 0.15), value: bearbeiteteFahrt)
-        .animation(.easeOut(duration: 0.15), value: planungsSeite?.id)
     }
 
     @ViewBuilder private func planungsUnterseite(_ seite: PlanungsSeite) -> some View {
@@ -172,7 +166,7 @@ struct StartKnopf: View {
             .frame(width: 362, height: 56)
             .background(Color(hex: 0xE3F654))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
     }
 }
 
@@ -205,7 +199,7 @@ struct PlanungsKnopf: View {
             .clipped()
             .overlay(Rectangle().strokeBorder(Color(hex: 0xE2F754), lineWidth: 2))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.web)
         .onAppear {
             withAnimation(.linear(duration: 120).repeatForever(autoreverses: false)) { winkel = 382.66 }
         }
