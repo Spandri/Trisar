@@ -225,9 +225,9 @@ const loadDatabaseSnapshot = async ({ includeAll = false, forceRefresh = false }
   ].filter(Boolean);
 
   const filteredProfiles = (resultByTable.profiles || []).filter((profile) => {
-    if (profile?.is_dispo === true) return false;
+    // Dispo-Recht (is_dispo) macht niemanden zum Nicht-Fahrer. Nur die Rolle entscheidet.
     const role = normalizeRole(profile?.role);
-    return !['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator'].includes(role);
+    return !['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator', 'pruefung'].includes(role);
   });
 
   const snapshot = {

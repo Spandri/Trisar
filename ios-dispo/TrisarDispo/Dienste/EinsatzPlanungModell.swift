@@ -81,7 +81,7 @@ final class EinsatzPlanungModell: ObservableObject {
     /// visibleDrivers: Dispo-Rollen raus, nach Nachname und Vorname sortiert.
     private func fahrerUebernehmen(_ liste: [DispoFahrer]) {
         alleFahrerAnzahl = liste.count
-        let dispo: Set<String> = ["dispo", "dispatcher", "admin", "koordinator", "coordinator"]
+        let dispo: Set<String> = ["dispo", "dispatcher", "admin", "koordinator", "coordinator", "pruefung"]
         let de = Locale(identifier: "de")
         func vergleich(_ a: String, _ b: String) -> ComparisonResult {
             a.compare(b, options: [.caseInsensitive, .diacriticInsensitive], range: nil, locale: de)

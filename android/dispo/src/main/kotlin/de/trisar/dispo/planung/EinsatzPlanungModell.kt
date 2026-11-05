@@ -34,7 +34,7 @@ internal class EinsatzPlanungModell {
         const val HORIZONT_TAGE = 3
         val TAGES_STUNDEN = (6..23).toList()   // DAY_HOURS: Bedarfsprofil 06–23 Uhr
         const val RUHEZEIT_STANDARD = 11.0
-        private val DISPO = setOf("dispo", "dispatcher", "admin", "koordinator", "coordinator")
+        private val DISPO = setOf("dispo", "dispatcher", "admin", "koordinator", "coordinator", "pruefung")
     }
 
     private val speicher = EinsatzSpeicher

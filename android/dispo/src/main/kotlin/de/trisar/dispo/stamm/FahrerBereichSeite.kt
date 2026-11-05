@@ -145,7 +145,7 @@ private fun AlleFahrerSeite(
     // Ohne Dispo-Rollen, sortiert nach Nachname, Vorname.
     val deutsch = remember { Collator.getInstance(Locale.GERMAN).apply { strength = Collator.PRIMARY } }
     val sichtbare = liste.fahrer
-        .filter { (it.role ?: "").trim().lowercase() !in setOf("dispo", "dispatcher", "admin", "koordinator", "coordinator") }
+        .filter { (it.role ?: "").trim().lowercase() !in setOf("dispo", "dispatcher", "admin", "koordinator", "coordinator", "pruefung") }
         .sortedWith { a, b -> deutsch.compare(a.lastName, b.lastName).takeIf { it != 0 } ?: deutsch.compare(a.firstName, b.firstName) }
     val gefiltert = gefilterteFahrer(sichtbare, suche, statusFilter, startZeit, startDatum, endZeit, endDatum, jetzt)
     val angebot = Planung.angebot(sichtbare)

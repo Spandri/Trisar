@@ -235,7 +235,7 @@ struct AlleFahrerAnsicht: View {
     /// Ohne Dispo-Rollen, sortiert nach Nachname, Vorname.
     private var sichtbareFahrer: [DispoFahrer] {
         liste.fahrer
-            .filter { !["dispo", "dispatcher", "admin", "koordinator", "coordinator"].contains(($0.role ?? "").trimmingCharacters(in: .whitespaces).lowercased()) }
+            .filter { !["dispo", "dispatcher", "admin", "koordinator", "coordinator", "pruefung"].contains(($0.role ?? "").trimmingCharacters(in: .whitespaces).lowercased()) }
             .sorted {
                 let n = $0.lastName.compare($1.lastName, options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "de"))
                 if n != .orderedSame { return n == .orderedAscending }

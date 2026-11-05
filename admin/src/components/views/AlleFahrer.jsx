@@ -1341,8 +1341,8 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
     const collator = new Intl.Collator('de', { sensitivity: 'base' });
     const base = drivers.filter((row) => {
       const role = String(row.role || '').trim().toLowerCase();
-      const isDispoRole = ['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator'].includes(role);
-      if (row.is_dispo === true) return false;
+      const isDispoRole = ['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator', 'pruefung'].includes(role);
+      // Dispo-Recht (is_dispo) macht niemanden zum Nicht-Fahrer. Nur die Rolle entscheidet.
       if (isDispoRole) return false;
       return true;
     });

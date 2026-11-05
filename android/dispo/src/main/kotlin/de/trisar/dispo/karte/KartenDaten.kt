@@ -324,7 +324,7 @@ internal class KartenDaten {
         jobs: List<JsonObject>, kolonnen: List<JsonObject>,
     ): Pair<List<KartenFahrer>, Int> {
         // Nur die Rolle entscheidet, das Dispo-Recht (is_dispo) macht niemanden zum Nicht-Fahrer.
-        val dispoRollen = setOf("dispo", "dispatcher", "admin", "koordinator", "coordinator")
+        val dispoRollen = setOf("dispo", "dispatcher", "admin", "koordinator", "coordinator", "pruefung")
         val sichtbar = profile.filter { jText(it["role"]).lowercase() !in dispoRollen }
         val profilJe = sichtbar.associateBy { jText(it["id"]) }
         val jobJe = jobs.associateBy { jText(it["id"]) }

@@ -116,8 +116,8 @@ const FahrerAutocomplete = ({
         // Nur echte Fahrer, keine Dispatcher
         const drivers = (result.data || []).filter(profile => {
           const role = String(profile.role || '').trim().toLowerCase();
-          const isDispoRole = ['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator'].includes(role);
-          if (profile.is_dispo === true) return false;
+          const isDispoRole = ['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator', 'pruefung'].includes(role);
+          // Dispo-Recht (is_dispo) macht niemanden zum Nicht-Fahrer. Nur die Rolle entscheidet.
           if (isDispoRole) return false;
           return true;
         });

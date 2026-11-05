@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import { hasSupabaseAdminConfig, supabase, supabaseAdmin } from '../../services/supabase';
 import { useI18n } from '../../i18n';
+import FahrzeugTelemetrie from '../ui/FahrzeugTelemetrie';
+import { berechneEta, berechneAbfahrt, restFahrzeit } from '../../shared/etaBerechnung';
 import { adresseAufloesen, karteBereitstellen } from '../../shared/karte/maplibreKarte';
 import { FahrSimulation } from '../../demo/fahrSimulation';
 import { DEMO_MODE } from '../../datenquelle';
+import { useRoutenStandort } from '../../shared/routenStandort';
 
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
@@ -26,8 +29,8 @@ const MISSING_DRIVER_ACTIVITY_STATE_COLUMN_RE = /column .*driver_activity_state|
 const MISSING_DRIVER_SERVICE_COLUMN_RE = /column .*service_start_time|column .*service_end_time|could not find the ['"]?service_start_time['"]? column|could not find the ['"]?service_end_time['"]? column/i;
 const MISSING_JOBS_ROUTE_COLUMN_RE = /column .*route|could not find the ['"]?route['"]? column/i;
 const MISSING_JOBS_EXT_COLUMN_RE = /column .*ext_route_|column .*ext_driver_to_pickup_|could not find the ['"]?ext_route_|could not find the ['"]?ext_driver_to_pickup_/i;
-const JOBS_SELECT_FULL = 'id, driver_id, ride_date, etd, status, route, pickup_name, pickup_address, dropoff_name, dropoff_address, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_polyline, ext_driver_to_pickup_duration_mins, ext_driver_to_pickup_duration_in_traffic_mins, ext_driver_to_pickup_polyline';
-const JOBS_SELECT_NO_ROUTE = 'id, driver_id, ride_date, etd, status, pickup_name, pickup_address, dropoff_name, dropoff_address, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_polyline, ext_driver_to_pickup_duration_mins, ext_driver_to_pickup_duration_in_traffic_mins, ext_driver_to_pickup_polyline';
+const JOBS_SELECT_FULL = 'id, driver_id, ride_date, etd, status, route, pickup_name, pickup_address, dropoff_name, dropoff_address, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_polyline, ext_driver_to_pickup_duration_mins, ext_driver_to_pickup_duration_in_traffic_mins, ext_driver_to_pickup_polyline, ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at';
+const JOBS_SELECT_NO_ROUTE = 'id, driver_id, ride_date, etd, status, pickup_name, pickup_address, dropoff_name, dropoff_address, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_polyline, ext_driver_to_pickup_duration_mins, ext_driver_to_pickup_duration_in_traffic_mins, ext_driver_to_pickup_polyline, ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at';
 const JOBS_SELECT_BASE = 'id, driver_id, ride_date, etd, status, pickup_name, pickup_address, dropoff_name, dropoff_address';
 const JOBS_SELECT_PREFERENCE_KEY = 'koordinator_karten_jobs_select_preference';
 const IN_QUERY_BATCH_SIZE = 30;
@@ -434,6 +437,32 @@ const getDropoffValuesFromJob = (job) => {
   return { name, address };
 };
 
+// Ortstyp und Icon wie in der Fahrer-App (Flughafen, Hotel, Adresse).
+const RIDE_ICON_AIRPORT = '/icon/_Icon_Grau/Plain_Abflug_Trisar_Icons_01_grau.svg';
+const RIDE_ICON_AIRPORT_START = '/icon/_Icon_Grau/Plain_Landen_Trisar_Icons_01_grau.svg';
+const RIDE_ICON_HOTEL = '/icon/_Icon_Grau/House_Nav_Trisar_01_grau.svg';
+const RIDE_ICON_ADDRESS = '/icon/_Icon_Grau/Pin_Nav_Trisar_Icons_01_grau.svg';
+const ortsArt = (name, address) => {
+  const text = `${name || ''} ${address || ''}`.toLowerCase();
+  if (/\b(flughafen|airport|terminal|muc|fra|ber|ham|dus|str|cgn)\b/.test(text)) return 'airport';
+  if (/\b(hotel|resort|hostel|inn|motel|guesthouse|suite|aparthotel|residence)\b/.test(text)) return 'hotel';
+  return 'address';
+};
+const ortsIcon = (art, isStart) => {
+  if (art === 'airport') return isStart ? RIDE_ICON_AIRPORT_START : RIDE_ICON_AIRPORT;
+  if (art === 'hotel') return RIDE_ICON_HOTEL;
+  return RIDE_ICON_ADDRESS;
+};
+const ORTS_LABEL_KEY = { airport: 'karten.locationAirport', hotel: 'karten.locationHotel', address: 'karten.locationAddress' };
+const jobFuerEta = (job) => (job ? {
+  status: job.status,
+  etd: formatClockLabel(job.etd, ''),
+  rideDate: String(job.ride_date || '').slice(0, 10),
+  extDriverToDropoffDurationMins: job.ext_driver_to_dropoff_duration_mins,
+  extDriverToDropoffDurationInTrafficMins: job.ext_driver_to_dropoff_duration_in_traffic_mins,
+  extDriverToDropoffLastSyncAt: job.ext_driver_to_dropoff_last_sync_at,
+} : null);
+
 const buildDriverRideInfo = ({
   activeJob = null,
   nextJob = null,
@@ -448,9 +477,15 @@ const buildDriverRideInfo = ({
     rideJob?.ext_route_duration_in_traffic_mins,
     rideJob?.ext_route_duration_mins,
   );
-  const computedEta = routeDurationMins > 0 ? addMinutesToClock(nextTime, routeDurationMins) : null;
+  const jetzt = new Date();
+  const etaJob = jobFuerEta(rideJob);
+  const abfahrt = rideJob ? (berechneAbfahrt(etaJob, jetzt) || nextTime) : '--:--';
+  const computedEta = rideJob ? berechneEta(etaJob, routeDurationMins, jetzt) : null;
+  const fahrMinuten = rideJob ? restFahrzeit(etaJob, routeDurationMins, jetzt) : 0;
   const pickupValues = getPickupValuesFromJob(rideJob);
   const dropoffValues = getDropoffValuesFromJob(rideJob);
+  const startArt = ortsArt(pickupValues.name, pickupValues.address);
+  const zielArt = ortsArt(dropoffValues.name, dropoffValues.address);
   const sortedDriverJobs = (Array.isArray(allJobs) ? allJobs : [])
     .map((job) => ({ job, dateTime: toDateTimeFromRide(job?.ride_date, job?.etd) }))
     .filter((entry) => Boolean(entry?.dateTime))
@@ -467,17 +502,21 @@ const buildDriverRideInfo = ({
   return {
     dienststart: serviceStartLabel,
     dienstende: serviceEndLabel,
-    nextStart: nextTime,
+    nextStart: abfahrt,
     nextEnd: computedEta || '--:--',
+    driveMins: fahrMinuten,
+    unterwegs: Boolean(rideJob) && ['in_progress', 'unterwegs', 'started', 'on_trip', 'ongoing', 'active'].includes(String(rideJob?.status || '').trim().toLowerCase()),
     from: rideJob
       ? {
-          type: t('karten.pickup'),
+          type: t(ORTS_LABEL_KEY[startArt]),
+          icon: ortsIcon(startArt, true),
           label: extractLocationLabel(pickupValues.name, pickupValues.address),
         }
       : { type: '-', label: t('karten.noActiveRide') },
     to: rideJob
       ? {
-          type: t('karten.destination'),
+          type: t(ORTS_LABEL_KEY[zielArt]),
+          icon: ortsIcon(zielArt, false),
           label: extractLocationLabel(dropoffValues.name, dropoffValues.address),
         }
       : { type: '-', label: '-' },
@@ -567,13 +606,21 @@ const SIMULATION_BREITE_M = 3000;
 
 // Deckkraft der nicht fokussierten Fahrer, solange ein Fahrer ausgewählt ist.
 const DIMMED_MARKER_OPACITY = 0.3;
+// Groesste Zoomstufe beim Einpassen auf alle Fahrer (Karten-Knopf erneut tippen).
+const ALLE_FAHRER_MAX_ZOOM = 13.5;
+// Letzter bekannter Zuendungsstand je Fahrer, damit nur ein Wechsel neu laedt.
+const zuendungStand = new Map();
 
-const createDriverMarkerIcon = (googleMaps, driverState, mitRichtung = false) => {
+// Zuendung aus (laut Tracker): nur das Weiss des Markers (Ring, Stiel) auf 70 %,
+// die Statusfarbe bleibt voll. Eigene SVG-Varianten mit Endung _zuendung_aus.
+const zuendungsVariante = (url, zuendungAus) => (zuendungAus && url ? url.replace(/\.svg$/, '_zuendung_aus.svg') : url);
+
+const createDriverMarkerIcon = (googleMaps, driverState, mitRichtung = false, zuendungAus = false) => {
   // Fuer Gelb gibt es im Figma keinen eigenen Punkt: der Kreis des gelben Pins
   // ist derselbe, also wird nur seine Spitze abgeschnitten.
   if (mitRichtung && driverState === DRIVER_STATE_INACTIVE) {
     return {
-      url: DRIVER_PIN_URLS[DRIVER_STATE_INACTIVE],
+      url: zuendungsVariante(DRIVER_PIN_URLS[DRIVER_STATE_INACTIVE], zuendungAus),
       scaledSize: new googleMaps.Size(PIN_BREITE, PIN_HOEHE),
       ausschnitt: new googleMaps.Size(PIN_BREITE, PIN_BREITE),
       anchor: new googleMaps.Point(PIN_BREITE / 2, PIN_BREITE / 2),
@@ -583,14 +630,14 @@ const createDriverMarkerIcon = (googleMaps, driverState, mitRichtung = false) =>
   const punkt = mitRichtung ? DRIVER_PUNKT_URLS[driverState] : null;
   if (punkt) {
     return {
-      url: punkt,
+      url: zuendungsVariante(punkt, zuendungAus),
       scaledSize: new googleMaps.Size(PIN_BREITE, PIN_BREITE),
       anchor: new googleMaps.Point(PIN_BREITE / 2, PIN_BREITE / 2),
       labelOrigin: new googleMaps.Point(PIN_BREITE / 2, PIN_BREITE / 2),
     };
   }
   return {
-    url: DRIVER_PIN_URLS[driverState] || DRIVER_PIN_URLS[DRIVER_STATE_FREE],
+    url: zuendungsVariante(DRIVER_PIN_URLS[driverState] || DRIVER_PIN_URLS[DRIVER_STATE_FREE], zuendungAus),
     scaledSize: new googleMaps.Size(PIN_BREITE, PIN_HOEHE),
     anchor: new googleMaps.Point(PIN_BREITE / 2, PIN_HOEHE),
     labelOrigin: new googleMaps.Point(PIN_BREITE / 2, PIN_BREITE / 2),
@@ -706,6 +753,8 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
   // fahrende Linie und als schon gefahrene, blasse Linie dahinter.
   const routenTeileRef = useRef([]);
   const routenFortschrittRef = useRef({ teil: 0, index: 0 });
+  // Meldet, wenn der Fahrer von seiner gezeichneten Route abgekommen ist (dann neu rechnen).
+  const abseitsMeldenRef = useRef(null);
   const formByDriverRef = useRef(new Map());
   const driversRef = useRef(drivers);
   const selectedIdRef = useRef('');
@@ -715,7 +764,19 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
   // im Betrieb die OBD-Werte des Fahrzeugs (heading_deg, speed_mps).
   const bewegungRef = useRef(null);
   const [geplantFuerAuswahl, setGeplantFuerAuswahl] = useState(0);
-  if (!bewegungRef.current && !DEMO_MODE) bewegungRef.current = KEINE_BEWEGUNG;
+  // Im Betrieb kommt der Standort aus den Live-Daten der Fahrer. So laeuft der
+  // Routen-Fortschritt (gefahrener Teil blass, Rest ab dem Auto) auch ohne Simulation.
+  if (!bewegungRef.current && !DEMO_MODE) {
+    bewegungRef.current = {
+      ...KEINE_BEWEGUNG,
+      stand: (id) => {
+        const driver = (driversRef.current || []).find((entry) => String(entry?.id || '').trim() === String(id || '').trim());
+        const lat = Number(driver?.lat);
+        const lng = Number(driver?.lng);
+        return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+      },
+    };
+  }
   if (!bewegungRef.current) {
     bewegungRef.current = new FahrSimulation({
       beiGeplant: (id) => {
@@ -769,10 +830,10 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     const nah = (map.getBreiteMeter?.() ?? Infinity) <= NAHANSICHT_BREITE_M;
     const faehrt = Boolean(stand && stand.speedMps > 0);
     const mitRichtung = faehrt && driver.driverState !== DRIVER_STATE_FREE && (isSelected || nah);
-    const form = `${driver.driverState}|${mitRichtung ? 'punkt' : 'pin'}`;
+    const form = `${driver.driverState}|${mitRichtung ? 'punkt' : 'pin'}|${driver.zuendungAus ? 'aus' : 'an'}`;
     if (formByDriverRef.current.get(id) !== form) {
       formByDriverRef.current.set(id, form);
-      marker.setIcon(createDriverMarkerIcon(window.trisarKarte, driver.driverState, mitRichtung));
+      marker.setIcon(createDriverMarkerIcon(window.trisarKarte, driver.driverState, mitRichtung, driver.zuendungAus));
     }
 
     let kegel = kegelByDriverRef.current.get(id);
@@ -822,7 +883,9 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     });
 
     if (!bounds.isEmpty()) {
-      map.fitBounds(bounds, { top: KNOEPFE_OBEN_PX, right: 24, bottom: NAV_AND_FOOTER_COVER_PX, left: 24 });
+      // Nicht naeher als ein Stadtviertel: bei nur einem Fahrer zoomt die Karte
+      // sonst bis auf Hausnummern heran.
+      map.fitBounds(bounds, { top: KNOEPFE_OBEN_PX, right: 24, bottom: NAV_AND_FOOTER_COVER_PX, left: 24 }, { maxZoom: ALLE_FAHRER_MAX_ZOOM });
     }
   }, []);
 
@@ -899,6 +962,8 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
         treffer = weiter;
       }
     }
+    // Mehr als 200 m neben der Linie: Route passt nicht mehr, neu rechnen lassen.
+    if (treffer.index < 0 || treffer.abstand > 200) abseitsMeldenRef.current?.({ lat: stand.lat, lng: stand.lng });
     if (treffer.index < 0 || treffer.abstand > 60) return;
     fortschritt.index = Math.max(fortschritt.index, treffer.index);
     const hier = { lat: stand.lat, lng: stand.lng };
@@ -1113,7 +1178,7 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
           position: { lat: Number(driver.lat), lng: Number(driver.lng) },
           map,
           title: driver.name,
-          icon: createDriverMarkerIcon(window.trisarKarte, driver.driverState, false),
+          icon: createDriverMarkerIcon(window.trisarKarte, driver.driverState, false, driver.zuendungAus),
           label: createDriverMarkerLabel(driver.driverNumber),
           // Blass, aber deckend: die Strasse darunter scheint nicht durch.
           abblenden: markerOpacity,
@@ -1127,7 +1192,7 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
         // window.__TRISAR_KARTE_FAHRER_WAEHLEN (siehe KartenView).
         marker.element?.setAttribute?.('data-tutorial', `karte-fahrer-${id}`);
         markersByDriverRef.current.set(id, marker);
-        formByDriverRef.current.set(id, `${driver.driverState}|pin`);
+        formByDriverRef.current.set(id, `${driver.driverState}|pin|${driver.zuendungAus ? 'aus' : 'an'}`);
       } else {
         // Faehrt der Fahrer in der Bewegung schon, bleibt seine Position von
         // dort; sonst gilt der gespeicherte Standort.
@@ -1235,6 +1300,12 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
       window.setTimeout(() => writeMapCameraCache(map), 160);
     }
   }, [fitAllDriverMarkers, mapReady, resetCameraSignal]);
+
+  // Die Linien folgen dem Auto ueber den Routen-Fortschritt (ohne neue Route). Nur wenn der
+  // Fahrer mehr als 200 m von der Route abkommt, wird neu gerechnet, hoechstens alle 15 s.
+  const [abseitsPunkt, setAbseitsPunkt] = useState(null);
+  abseitsMeldenRef.current = (punkt) => setAbseitsPunkt(punkt);
+  const routenStandort = useRoutenStandort(abseitsPunkt?.lat, abseitsPunkt?.lng);
 
   useEffect(() => {
     if (!mapReady || !window.trisarKarte) return;
@@ -1649,6 +1720,8 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     selectedDriver?.activeRide?.to?.query,
     selectedDriver?.activeRide?.extDriverToPickupPolyline,
     selectedDriver?.activeRide?.extRoutePolyline,
+    routenStandort?.lat,
+    routenStandort?.lng,
     geplantFuerAuswahl,
     t,
   ]);
@@ -1720,6 +1793,7 @@ function DriverProfilePopup({ driver, onClose }) {
           <div className="text-center text-[#D6D6D6] text-[20px] leading-[1.1] font-normal font-['Space_Grotesk']">
             {driver?.vehicle || '-'}
           </div>
+          {driver?.id ? <FahrzeugTelemetrie driverId={driver.id} /> : null}
         </div>
 
         <a
@@ -1996,22 +2070,27 @@ function ActiveRideSheet({ driver, sheetPercent, setSheetPercent }) {
 
         <div className="mt-3 grid grid-cols-2 gap-6">
           <div>
+            <div className="text-[#868687] text-[12px] leading-[1] font-bold tracking-[-0.3px] font-['Space_Grotesk']">{t('karten.etd')}</div>
             <div className="mt-[8px] text-[#E3F654] text-[42px] leading-[0.9] font-bold tracking-[-1px] font-['Space_Grotesk']">{ride.nextStart}</div>
           </div>
           <div className="text-right">
+            <div className="text-[#868687] text-[12px] leading-[1] font-bold tracking-[-0.3px] font-['Space_Grotesk']">{t('karten.eta')}</div>
             <div className="mt-[8px] text-[#E3F654] text-[42px] leading-[0.9] font-bold tracking-[-1px] font-['Space_Grotesk']">{ride.nextEnd}</div>
+            <div className="mt-[6px] text-[#f4f5f4] text-[12px] font-bold tracking-[-0.5px] opacity-50 font-['Space_Grotesk']">
+              {ride.driveMins > 0 ? t('karten.driveMins', { mins: ride.driveMins }) : (ride.unterwegs && ride.nextEnd !== '--:--' ? t('karten.driveMins', { mins: '<1' }) : t('karten.driveUnknown'))}
+            </div>
           </div>
         </div>
 
         <div className="mt-6 grid grid-cols-[64px_1fr_64px] items-center gap-4">
-          <div className="h-[64px] bg-[#242525] rounded-[14px] flex items-center justify-center">
-            <img src="/icon/_Icon_Schwarz/Arrow_Nav_Trisar_Icons_01.svg" alt="" className="w-[31px] h-[24px]" />
+          <div className="h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
+            {ride.from.icon ? <img src={ride.from.icon} alt="" className="w-[30px] h-[30px] object-contain" /> : null}
           </div>
           <div className="flex justify-center">
-            <img src="/icon/_Icon_Schwarz/Arrow_Nav_Trisar_Icons_01.svg" alt="" className="w-[59px] h-[38px]" />
+            <img src="/icon/_Icon_Lime/Arrow_Trisar_Icons_01_Lime.svg" alt="" className="w-[59px] h-[38px] object-contain" />
           </div>
-          <div className="h-[64px] bg-[#242525] rounded-[14px] flex items-center justify-center">
-            <img src="/icon/_Icon_Schwarz/House_Nav_Trisar_01.svg" alt="" className="w-[32px] h-[27px]" />
+          <div className="h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
+            {ride.to.icon ? <img src={ride.to.icon} alt="" className="w-[30px] h-[30px] object-contain" /> : null}
           </div>
         </div>
 
@@ -2217,6 +2296,20 @@ export default function KartenView({ setView, filters = {} }) {
         }
         if (liveResult.error) throw liveResult.error;
 
+        // Zuendung aus dem OBD-Tracker (vehicle_telemetry_live). Fehlt die Tabelle
+        // oder das Recht, bleibt alles wie bisher.
+        let zuendungRows = [];
+        {
+          let telemResult = await supabase.from('vehicle_telemetry_live').select('driver_id, ignition, captured_at');
+          if ((telemResult.error || (telemResult.data || []).length === 0) && hasSupabaseAdminConfig) {
+            const adminTelem = await supabaseAdmin.from('vehicle_telemetry_live').select('driver_id, ignition, captured_at');
+            if (!adminTelem.error) telemResult = adminTelem;
+          }
+          if (!telemResult.error) zuendungRows = telemResult.data || [];
+        }
+        const zuendungByDriver = new Map(zuendungRows.map((row) => [String(row?.driver_id || '').trim(), row?.ignition]));
+        zuendungByDriver.forEach((wert, fahrerId) => zuendungStand.set(fahrerId, wert));
+
         const now = new Date();
         const lookaheadMs = Math.max(0, Number(inactiveLookaheadHours) || 0) * 60 * 60 * 1000;
 
@@ -2315,8 +2408,8 @@ export default function KartenView({ setView, filters = {} }) {
         const convoyAssignments = convoyAssignmentsResult.data || [];
         const visibleProfiles = profileRows.filter((row) => {
           const role = String(row?.role || '').trim().toLowerCase();
-          const isDispoRole = ['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator'].includes(role);
-          if (row?.is_dispo === true) return false;
+          const isDispoRole = ['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator', 'pruefung'].includes(role);
+          // Dispo-Recht (is_dispo) macht niemanden zum Nicht-Fahrer. Nur die Rolle entscheidet.
           if (isDispoRole) return false;
           return true;
         });
@@ -2412,6 +2505,7 @@ export default function KartenView({ setView, filters = {} }) {
               id,
               name,
               avatarUrl,
+              zuendungAus: zuendungByDriver.get(id) === false,
               driverNumber: profile?.driver_number ?? null,
               phone: String(profile?.phone || '').trim(),
               plate,
@@ -2463,21 +2557,42 @@ export default function KartenView({ setView, filters = {} }) {
       }
     };
 
+    // Kommt waehrend eines Ladens eine Aenderung (z. B. die Fahrzeit kurz nach dem
+    // Losfahren), wird danach noch einmal geladen, statt sie zu verwerfen.
+    let refreshPending = false;
     const refreshDrivers = async () => {
-      if (refreshInFlight) return;
+      if (refreshInFlight) {
+        refreshPending = true;
+        return;
+      }
       refreshInFlight = true;
       try {
-        await loadDriversFromDb();
+        do {
+          refreshPending = false;
+          await loadDriversFromDb();
+        } while (refreshPending && mounted);
       } finally {
         refreshInFlight = false;
       }
     };
+    // Zurueck in den Tab (Handy, Safari): sofort frisch laden.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshDrivers();
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     refreshDrivers();
 
     const refreshChannel = supabase
       .channel('ko-karten-live-refresh')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_live_locations' }, () => {
+        refreshDrivers();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicle_telemetry_live' }, (payload) => {
+        // Nur bei Wechsel der Zuendung neu laden, nicht bei jedem Datensatz.
+        const fahrerId = String(payload?.new?.driver_id || '').trim();
+        if (!fahrerId || zuendungStand.get(fahrerId) === payload?.new?.ignition) return;
+        zuendungStand.set(fahrerId, payload?.new?.ignition);
         refreshDrivers();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => {
@@ -2493,6 +2608,7 @@ export default function KartenView({ setView, filters = {} }) {
     return () => {
       mounted = false;
       window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(refreshChannel);
     };
   }, [inactiveLookaheadHours, t]);
@@ -2579,11 +2695,19 @@ export default function KartenView({ setView, filters = {} }) {
     };
     const etd = String(rideInfo.nextStart || '').trim();
     const computedEta = tripMinutes != null ? addMinutesToClock(etd, tripMinutes) : null;
+    // Unterwegs, aber noch keine Fahrzeit aus der Datenbank: die auf der Karte
+    // berechnete Restfahrzeit nehmen statt "jetzt" und "<1 min".
+    if (rideInfo.unterwegs && !(Number(rideInfo.driveMins) > 0) && tripMinutes != null && tripMinutes > 0) {
+      const jetzt = new Date();
+      const ankunft = new Date(jetzt.getTime() + tripMinutes * 60_000);
+      const uhr = `${String(ankunft.getHours()).padStart(2, '0')}:${String(ankunft.getMinutes()).padStart(2, '0')}`;
+      return { ...selectedDriver, rideInfo: { ...rideInfo, nextEnd: uhr, driveMins: tripMinutes } };
+    }
     return {
       ...selectedDriver,
       rideInfo: {
         ...rideInfo,
-        nextEnd: computedEta || rideInfo.nextEnd || '--:--',
+        nextEnd: (rideInfo.nextEnd && rideInfo.nextEnd !== '--:--') ? rideInfo.nextEnd : (computedEta || '--:--'),
       },
     };
   }, [routeMetrics, selectedDriver]);

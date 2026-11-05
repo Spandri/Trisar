@@ -283,7 +283,7 @@ final class KartenDaten: ObservableObject {
                           kolonnen: [Zeile]) -> (fahrer: [KartenFahrer], sichtbareProfile: Int) {
         // Nur die Rolle entscheidet, das Dispo-Recht (is_dispo) macht niemanden zum Nicht-Fahrer.
         let sichtbar = profile.filter {
-            !["dispo", "dispatcher", "admin", "koordinator", "coordinator"].contains(Self.text($0["role"]).lowercased())
+            !["dispo", "dispatcher", "admin", "koordinator", "coordinator", "pruefung"].contains(Self.text($0["role"]).lowercased())
         }
         var profilJe: [String: Zeile] = [:]
         for p in sichtbar { profilJe[Self.text(p["id"])] = p }
