@@ -14,7 +14,9 @@ struct Leinwand<Inhalt: View>: View {
 
     var body: some View {
         GeometryReader { geo in
-            let s = min(geo.size.width / breite, geo.size.height / basisHoehe, 1)
+            // Wie im Web (w-[min(402px,100vw)]): nur nach der Breite skalieren. Nach der Hoehe
+            // wuerde die Flaeche auf kleineren iPhones schmaler als der Bildschirm (schwarzer Rand).
+            let s = min(geo.size.width / breite, 1)
             let rahmen = max(basisHoehe, geo.size.height / max(s, 0.01))
             let hoehe = max(rahmen, inhaltHoehe)
             let feld = ZStack(alignment: .topLeading) {

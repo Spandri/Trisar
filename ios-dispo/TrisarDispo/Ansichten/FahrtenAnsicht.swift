@@ -816,7 +816,7 @@ struct FlussLeinwand<Inhalt: View>: View {
 
     var body: some View {
         GeometryReader { geo in
-            let s = min(geo.size.width / 402, geo.size.height / 874, 1)
+            let s = min(geo.size.width / 402, 1)
             ScrollView(.vertical, showsIndicators: false) {
                 inhalt()
                     .frame(width: 402, alignment: .topLeading)
