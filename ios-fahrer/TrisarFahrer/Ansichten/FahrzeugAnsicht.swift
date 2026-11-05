@@ -43,7 +43,6 @@ private struct FahrzeugInhalt: View {
 
                 if let ort = daten.standort {
                     StandortKarte(ort: ort)
-                        .allowsHitTesting(false)
                         .platz(24.5, versatz + 99, 353, 324)
                 }
 
@@ -204,7 +203,7 @@ private struct HoeheSchluessel: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
-/// Feste Karte (Zoom 15, ohne Bedienung) mit dem Standortpunkt, wie MapComponent im Web.
+/// Karte (Start Zoom 15) mit dem Standortpunkt, zoom- und verschiebbar.
 struct StandortKarte: UIViewRepresentable {
     let ort: CLLocationCoordinate2D
 
@@ -215,8 +214,10 @@ struct StandortKarte: UIViewRepresentable {
         karte.compassView.isHidden = true
         karte.showsScale = false
         karte.attributionButtonPosition = .bottomRight
-        karte.isScrollEnabled = false
-        karte.isZoomEnabled = false
+        // Zoomen (Finger auseinander/zusammen, Doppeltippen) und Verschieben erlaubt,
+        // Drehen und Kippen nicht.
+        karte.isScrollEnabled = true
+        karte.isZoomEnabled = true
         karte.isRotateEnabled = false
         karte.isPitchEnabled = false
         karte.backgroundColor = UIColor(red: 0x10 / 255, green: 0x11 / 255, blue: 0x12 / 255, alpha: 1)
