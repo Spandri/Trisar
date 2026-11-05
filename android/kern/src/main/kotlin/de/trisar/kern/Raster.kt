@@ -9,6 +9,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 
@@ -23,7 +29,16 @@ const val RASTER_BREITE = 402f
  */
 @Composable
 fun WebMassstab(inhalt: @Composable () -> Unit) {
-    BoxWithConstraints {
+    val fokus = LocalFocusManager.current
+    // Wie im Browser: Tipp auf eine leere Stelle schliesst die Tastatur. Erst nach den
+    // Kindern pruefen (Final): hat ein Feld oder Knopf den Tipp genommen, bleibt alles wie es ist.
+    BoxWithConstraints(Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
+            val hoch = waitForUpOrCancellation(PointerEventPass.Final)
+            if (hoch != null && !hoch.isConsumed) fokus.clearFocus()
+        }
+    }) {
         val dichte = LocalDensity.current
         val breitePx = with(dichte) { maxWidth.toPx() }
         val neu = Density(density = breitePx / RASTER_BREITE, fontScale = 1f)

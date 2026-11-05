@@ -175,6 +175,9 @@ struct AlleFahrerAnsicht: View {
         }
         .padding(.horizontal, 12)
         .frame(width: 362, height: 56)
+        // Wie im Web ist die ganze Box das Eingabefeld, auch das Wort davor.
+        .contentShape(Rectangle())
+        .onTapGesture { sucheFokus = true }
         .overlay(alignment: .trailing) {
             Group {
                 if !suche.trimmingCharacters(in: .whitespaces).isEmpty {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Die Web-App ist in einem festen Raster gebaut (402 x 874, absolute Positionen, skaliert
 /// auf die Bildschirmbreite). Damit die native App gleich aussieht, nutzen die Bildschirme
@@ -11,6 +12,9 @@ struct Leinwand<Inhalt: View>: View {
     var mitHintergrund = true
     var beimZiehen: (() async -> Void)?
     @ViewBuilder let inhalt: (_ rahmenHoehe: CGFloat) -> Inhalt
+    /// Tastaturhoehe in Bildschirmpunkten. Die Leinwand ignoriert alle Raender, also auch die
+    /// Tastatur: unten so viel Platz anhaengen, dass jedes Feld darueber gescrollt werden kann.
+    @State private var tastatur: CGFloat = 0
 
     var body: some View {
         GeometryReader { geo in
@@ -18,7 +22,7 @@ struct Leinwand<Inhalt: View>: View {
             // wuerde die Flaeche auf kleineren iPhones schmaler als der Bildschirm (schwarzer Rand).
             let s = min(geo.size.width / breite, 1)
             let rahmen = max(basisHoehe, geo.size.height / max(s, 0.01))
-            let hoehe = max(rahmen, inhaltHoehe)
+            let hoehe = max(rahmen, inhaltHoehe) + tastatur / max(s, 0.01)
             let feld = ZStack(alignment: .topLeading) {
                 inhalt(rahmen)
             }
@@ -30,13 +34,19 @@ struct Leinwand<Inhalt: View>: View {
             ScrollView(.vertical, showsIndicators: false) {
                 feld
             }
-            .scrollDisabled(hoehe <= rahmen && beimZiehen == nil)
+            .scrollDisabled(hoehe <= rahmen && tastatur == 0 && beimZiehen == nil)
             .scrollBounceBehavior(.basedOnSize)
             .refreshable { await beimZiehen?() }
             // Das Web-Raster beginnt an der Bildschirmkante. Ohne diese Zeilen schiebt die
             // ScrollView den Inhalt um die Statusleiste (59 pt), und Tipps landen daneben.
             .contentMargins(.vertical, 0, for: .scrollContent)
             .ignoresSafeArea()
+            .scrollDismissesKeyboard(.interactively)
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { n in
+                guard let r = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+                tastatur = max(0, UIScreen.main.bounds.maxY - r.minY)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in tastatur = 0 }
             // Hintergrund ueber den ganzen Bildschirm, nicht nur ueber die 402/393er Flaeche,
             // sonst bleibt bei anderer Breite ein schwarzer Streifen am Rand.
             // Ohne eigenen Hintergrund durchsichtig, damit ein Verlauf dahinter sichtbar bleibt (Dispo).
@@ -153,6 +163,58 @@ struct WebMassstab: ViewModifier {
                 .frame(width: w, height: h, alignment: .topLeading)
                 .offset(x: -r.leading, y: -r.top)
         }
+        .background(TastaturSchliesser())
+    }
+}
+
+/// Wie im Browser: ein Tipp ausserhalb eines Eingabefelds schliesst die Tastatur.
+/// Haengt einmal je Fenster einen Tipp-Erkenner an, der andere Tipps nicht schluckt.
+private struct TastaturSchliesser: UIViewRepresentable {
+    func makeUIView(context: Context) -> Anker { Anker() }
+    func updateUIView(_ uiView: Anker, context: Context) {}
+
+    final class Anker: UIView, UIGestureRecognizerDelegate {
+        private static let kennung = "trisar.tastaturSchliessen"
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            TastaturSicht.einrichten()
+            guard let fenster = window,
+                  !(fenster.gestureRecognizers ?? []).contains(where: { $0.name == Self.kennung }) else { return }
+            let tipp = UITapGestureRecognizer(target: self, action: #selector(getippt))
+            tipp.name = Self.kennung
+            tipp.cancelsTouchesInView = false
+            tipp.delegate = self
+            fenster.addGestureRecognizer(tipp)
+        }
+
+        /// Welches Feld vor dem Tipp aktiv war. Nur wenn der Tipp daran nichts geaendert hat
+        /// (kein anderes Feld bekam den Fokus), wird die Tastatur geschlossen. Sonst wuerde ein
+        /// Tipp auf den Rand eines Suchfelds es oeffnen und sofort wieder schliessen.
+        private weak var vorher: UIView?
+
+        @objc private func getippt(_ erkenner: UITapGestureRecognizer) {
+            guard let fenster = erkenner.view, let war = vorher else { return }
+            DispatchQueue.main.async {
+                if let jetzt = TastaturSicht.ersterAntworter(in: fenster), jetzt === war {
+                    fenster.endEditing(true)
+                }
+            }
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            // Tipps in ein Eingabefeld (oder dessen Inneres) lassen die Tastatur offen.
+            var v = touch.view
+            while let aktuell = v {
+                if aktuell is UITextField || aktuell is UITextView { return false }
+                v = aktuell.superview
+            }
+            vorher = g.view.flatMap { TastaturSicht.ersterAntworter(in: $0) }
+            return vorher != nil
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
     }
 }
 
@@ -169,5 +231,42 @@ extension View {
     func webVollbild<I: Identifiable, C: View>(item: Binding<I?>, onDismiss: (() -> Void)? = nil,
                                               @ViewBuilder content: @escaping (I) -> C) -> some View {
         fullScreenCover(item: item, onDismiss: onDismiss) { content($0).webMassstab() }
+    }
+}
+
+/// Schiebt das aktive Eingabefeld ueber die Tastatur, wenn es dahinter laege. Die Seiten
+/// ignorieren die Tastatur (festes Web-Raster), darum macht iOS das nicht von selbst.
+/// Sucht die naechste UIScrollView ueber dem Feld und scrollt sie um die Ueberdeckung.
+enum TastaturSicht {
+    private static var eingerichtet = false
+
+    static func einrichten() {
+        guard !eingerichtet else { return }
+        eingerichtet = true
+        NotificationCenter.default.addObserver(forName: UIResponder.keyboardDidShowNotification, object: nil, queue: .main) { n in
+            guard let r = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+            MainActor.assumeIsolated { sichtbarMachen(tastaturOben: r.minY) }
+        }
+    }
+
+    @MainActor private static func sichtbarMachen(tastaturOben: CGFloat) {
+        let fenster = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+        guard let fenster, let feld = ersterAntworter(in: fenster) else { return }
+        let feldRahmen = feld.convert(feld.bounds, to: nil)
+        let ueber = feldRahmen.maxY + 16 - tastaturOben
+        guard ueber > 0 else { return }
+        var v = feld.superview
+        while let aktuell = v, !(aktuell is UIScrollView) { v = aktuell.superview }
+        guard let rolle = v as? UIScrollView else { return }
+        let maxY = max(0, rolle.contentSize.height - rolle.bounds.height + rolle.adjustedContentInset.bottom)
+        let ziel = min(rolle.contentOffset.y + ueber, maxY)
+        rolle.setContentOffset(CGPoint(x: rolle.contentOffset.x, y: ziel), animated: true)
+    }
+
+    static func ersterAntworter(in v: UIView) -> UIView? {
+        if v.isFirstResponder { return v }
+        for u in v.subviews { if let f = ersterAntworter(in: u) { return f } }
+        return nil
     }
 }

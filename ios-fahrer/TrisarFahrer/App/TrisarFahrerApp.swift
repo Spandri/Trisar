@@ -17,7 +17,18 @@ struct TrisarFahrerApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
+                #if DEBUG
+                let args = ProcessInfo.processInfo.arguments
+                #endif
                 switch anmeldung.zustand {
+                #if DEBUG
+                // Nur Debug: Seiten mit Eingabefeld ohne Anmeldung pruefen (keine Ortung, kein Senden).
+                case _ where args.contains("-schadenTest"):
+                    SchadenMeldenAnsicht(schliessen: {}, melden: { _, _, _ in false })
+                case _ where args.contains("-notizTest"):
+                    NotizBlatt(titel: "Warum wollen Sie diese Fahrt stornieren?", titelFarbe: Farbe.lime,
+                               knopf: "Fahrt stornieren", knopfFarbe: Farbe.lime, schliessen: {}, bestaetigen: { _ in })
+                #endif
                 case .pruefe:
                     TrisarHintergrund()
                 case .abgemeldet:
