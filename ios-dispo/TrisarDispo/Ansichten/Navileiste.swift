@@ -12,6 +12,20 @@ struct Navileiste: View {
     let waehlen: (DispoZiel) -> Void
     @AppStorage("admin_nav_quick_selected_v1") private var schnellFahrten = "fahrten"
     @AppStorage("admin_nav_ki_selected_v1") private var schnellKi = "planung"
+    /// Welches Schnellwahl-Feld gerade aufgeklappt ist (0 Fahrten, 1 Planung/KI). Hoechstens eins.
+    @State private var offenesFeld: Int?
+
+    private func offenBindung(_ feld: Int) -> Binding<Bool> {
+        Binding(get: { offenesFeld == feld },
+                set: { offen in
+                    withAnimation(Navileiste.feder) {
+                        if offen { offenesFeld = feld } else if offenesFeld == feld { offenesFeld = nil }
+                    }
+                })
+    }
+
+    /// Eine Feder fuer alles in der Leiste: schnell, leicht nachfedernd.
+    static let feder = Animation.spring(response: 0.22, dampingFraction: 0.8)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,6 +40,14 @@ struct Navileiste: View {
             // Web: Leiste bottom 39px, Footer 40px hoch -> Leiste sitzt direkt auf dem Footer.
             .padding(.bottom, -1)
             TrisarFussleiste()
+        }
+        // Wie der pointerdown-Hoerer im Web: ein Tipp irgendwo daneben klappt das Menue zu.
+        .background {
+            if offenesFeld != nil {
+                Color.white.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture { withAnimation(Navileiste.feder) { offenesFeld = nil } }
+            }
         }
         .ignoresSafeArea()
     }
@@ -58,19 +80,21 @@ struct Navileiste: View {
                 .platz(76, 8, 64, 64)
             SchnellwahlKnopf(
                 optionen: [
-                    (.fahrzeuge, aktiv == .fahrzeuge ? "Vehicle_Nav_Trisar_01_Lime" : "Vehicle_Nav_Trisar_01_grau", CGSize(width: 24, height: 24)),
-                    (.fahrten, aktiv == .fahrten ? "Arrow_Nav_Trisar_Icons_01_Lime" : "Arrow_Nav_Trisar_Icons_01_grau", CGSize(width: 24, height: 23)),
-                    (.fahrer, aktiv == .fahrer ? "Person_Trisar_Icons_01_Lime" : "Person_Trisar_Icons_01_grau", CGSize(width: 23, height: 23)),
+                    .init(ziel: .fahrzeuge, grau: "Vehicle_Nav_Trisar_01_grau", lime: "Vehicle_Nav_Trisar_01_Lime", groesse: CGSize(width: 24, height: 24)),
+                    .init(ziel: .fahrten, grau: "Arrow_Nav_Trisar_Icons_01_grau", lime: "Arrow_Nav_Trisar_Icons_01_Lime", groesse: CGSize(width: 24, height: 23)),
+                    .init(ziel: .fahrer, grau: "Person_Trisar_Icons_01_grau", lime: "Person_Trisar_Icons_01_Lime", groesse: CGSize(width: 23, height: 23)),
                 ],
-                aktiv: aktiv, gewaehlt: $schnellFahrten, waehlen: waehlen
+                breite: 68, aktiv: aktiv, gewaehlt: $schnellFahrten,
+                offen: offenBindung(0), waehlen: waehlen
             )
             .platz(144, 8, 68, 64)
             SchnellwahlKnopf(
                 optionen: [
-                    (.planung, aktiv == .planung ? "KI_Trisar_Icons_01_Lime" : "KI_Trisar_Icons_01_grau", CGSize(width: 23, height: 23)),
-                    (.kiAssistent, aktiv == .kiAssistent ? "KI_Assistent_Trisar_Icons_01_Lime" : "KI_Assistent_Trisar_Icons_01_grau", CGSize(width: 35, height: 23)),
+                    .init(ziel: .planung, grau: "KI_Trisar_Icons_01_grau", lime: "KI_Trisar_Icons_01_Lime", groesse: CGSize(width: 23, height: 23)),
+                    .init(ziel: .kiAssistent, grau: "KI_Assistent_Trisar_Icons_01_grau", lime: "KI_Assistent_Trisar_Icons_01_Lime", groesse: CGSize(width: 35, height: 23)),
                 ],
-                aktiv: aktiv, gewaehlt: $schnellKi, waehlen: waehlen
+                breite: 64, aktiv: aktiv, gewaehlt: $schnellKi,
+                offen: offenBindung(1), waehlen: waehlen
             )
             .platz(212, 8, 64, 64)
             Button { waehlen(.fahrtNeu) } label: {
@@ -109,63 +133,214 @@ private struct NaviKnopf: View {
     }
 }
 
-/// SchnellwahlKnopf: vorne das gewaehlte Ziel gross, die anderen klein in den Ecken.
-/// Lang druecken oeffnet das Menue darueber (450 ms wie im Web).
-private struct SchnellwahlKnopf: View {
-    let optionen: [(DispoZiel, String, CGSize)]
+/// Eine Moeglichkeit eines Schnellwahl-Felds.
+struct SchnellwahlOption {
+    let ziel: DispoZiel
+    let grau: String
+    let lime: String
+    let groesse: CGSize
+}
+
+/// SchnellwahlKnopf aus Navibar.jsx, eine einzige Geste wie im Web:
+/// - Antippen oeffnet die vorne liegende Wahl.
+/// - 450 ms halten klappt die uebrigen darueber auf. Mit dem Finger nach oben
+///   ziehen, die Moeglichkeit unter dem Finger waechst, loslassen waehlt sie.
+/// - Loslassen ohne Moeglichkeit: Menue bleibt offen, Antippen waehlt, Tipp aufs
+///   Feld oder daneben schliesst.
+/// Hochziehen oeffnet das Menue sofort, Loslassen wechselt sofort die Seite.
+struct SchnellwahlKnopf: View {
+    let optionen: [SchnellwahlOption]
+    let breite: CGFloat
     let aktiv: DispoZiel
     @Binding var gewaehlt: String
+    @Binding var offen: Bool
     let waehlen: (DispoZiel) -> Void
-    @State private var menue = false
+
+    private static let haltenMs: UInt64 = 450
+    private static let hoehe: CGFloat = 64
+    private static let zeile: CGFloat = 69
+    private static let menueBreite: CGFloat = 80
+    /// Abstand Menue-Unterkante zur Feld-Oberkante: Feld top 8, Menue top -hoehe-2 in der Leiste.
+    private static let menueLuft: CGFloat = 10
+
+    @State private var gedrueckt = false
+    @State private var langGedrueckt = false
+    @State private var haltenTask: Task<Void, Never>?
+    @State private var schwebt: DispoZiel?
+    /// Gerade gewaehlt, Seite wechselt gleich: schon lime zeigen.
+    @State private var kommt: DispoZiel?
 
     private func schluessel(_ z: DispoZiel) -> String { "\(z)" }
 
+    private var vorneZiel: DispoZiel {
+        if let k = kommt { return k }
+        if optionen.contains(where: { $0.ziel == aktiv }) { return aktiv }
+        return optionen.first { schluessel($0.ziel) == gewaehlt }?.ziel ?? optionen[0].ziel
+    }
+    private var weitere: [SchnellwahlOption] { optionen.filter { $0.ziel != vorneZiel } }
+    private var menueHoehe: CGFloat { CGFloat(weitere.count) * Self.zeile + 6 }
+
     var body: some View {
-        let vorneZiel = optionen.first { $0.0 == aktiv }?.0
-            ?? optionen.first { schluessel($0.0) == gewaehlt }?.0 ?? optionen[0].0
-        let vorne = optionen.first { $0.0 == vorneZiel }!
-        let weitere = optionen.filter { $0.0 != vorneZiel }
-        ZStack(alignment: .top) {
-            ForEach(Array(weitere.enumerated()), id: \.offset) { i, o in
-                Image(o.1).resizable().scaledToFit().frame(width: o.2.width, height: o.2.height)
-                    .scaleEffect(0.58).opacity(0.6)
-                    .frame(maxWidth: .infinity, alignment: i == 1 ? .trailing : .leading)
-                    .padding(.horizontal, 7 - o.2.width * 0.21)
-                    .padding(.top, 7 - o.2.height * 0.21)
+        feld
+            .frame(width: breite, height: Self.hoehe)
+            .contentShape(Rectangle())
+            .gesture(geste)
+            // Menue per Layout ueber dem Feld (nicht per .offset), damit die Tipp-Flaechen stimmen.
+            .overlay(alignment: .bottom) {
+                if offen {
+                    menue
+                        .frame(width: Self.menueBreite, height: menueHoehe)
+                        .padding(.bottom, Self.hoehe + Self.menueLuft)
+                        .transition(.scale(scale: 0.4, anchor: .bottom).combined(with: .opacity))
+                }
             }
-            Image(vorne.1).resizable().scaledToFit().frame(width: vorne.2.width, height: vorne.2.height)
-                .scaleEffect(1.1)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear {
+                if optionen.contains(where: { $0.ziel == aktiv }) { gewaehlt = schluessel(aktiv) }
+            }
+            .onDisappear { haltenTask?.cancel() }
+    }
+
+    // MARK: Feld
+
+    private var feld: some View {
+        let vorne = vorneZiel
+        let klein = weitere
+        return ZStack(alignment: .topLeading) {
+            ForEach(optionen, id: \.ziel) { o in
+                let istVorne = o.ziel == vorne
+                let eckIndex = klein.firstIndex { $0.ziel == o.ziel } ?? 0
+                Image(istVorne && (o.ziel == aktiv || o.ziel == kommt) ? o.lime : o.grau)
+                    .resizable().scaledToFit()
+                    .frame(width: o.groesse.width, height: o.groesse.height)
+                    .scaleEffect(istVorne ? (gedrueckt && !offen ? 0.96 : 1.1) : 0.58)
+                    .opacity(istVorne ? 1 : 0.6)
+                    .position(istVorne ? CGPoint(x: breite / 2, y: Self.hoehe / 2) : eckPunkt(o, rechts: eckIndex == 1))
+                    .zIndex(istVorne ? 1 : 0)
+            }
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if menue { menue = false } else { waehlen(vorne.0) }
+        .frame(width: breite, height: Self.hoehe)
+        .animation(Navileiste.feder, value: vorne)
+        .animation(.easeOut(duration: 0.15), value: gedrueckt)
+    }
+
+    /// Kleine Zeichen: top 7, links bzw. rechts 7 (Mitte des ungeschrumpften Bildes).
+    private func eckPunkt(_ o: SchnellwahlOption, rechts: Bool) -> CGPoint {
+        CGPoint(x: rechts ? breite - 7 - o.groesse.width / 2 : 7 + o.groesse.width / 2,
+                y: 7 + o.groesse.height / 2)
+    }
+
+    // MARK: Menue
+
+    private var menue: some View {
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 39).fill(Color(hex: 0x1E1E1E))
+            ForEach(Array(weitere.enumerated()), id: \.element.ziel) { i, o in
+                Circle().fill(Color(hex: 0x1C1917)).opacity(0.1)
+                    .frame(width: 64, height: 64)
+                    .padding(.top, 5 + CGFloat(i) * Self.zeile)
+                if i > 0 {
+                    Rectangle().fill(Color(hex: 0x54545A)).opacity(0.5)
+                        .frame(width: 32, height: 1)
+                        .padding(.top, 72 + CGFloat(i - 1) * Self.zeile)
+                }
+                Image(o.grau).resizable().scaledToFit()
+                    .frame(width: o.groesse.width, height: o.groesse.height)
+                    .opacity(0.6)
+                    .scaleEffect(schwebt == o.ziel ? 1.3 : 1)
+                    .animation(.spring(response: 0.22, dampingFraction: 0.6), value: schwebt)
+                    .frame(width: 64, height: 64)
+                    .contentShape(Rectangle())
+                    .onTapGesture { auswaehlen(o.ziel) }
+                    .padding(.top, 5 + CGFloat(i) * Self.zeile)
+            }
         }
-        .onLongPressGesture(minimumDuration: 0.45) {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            menue = true
-        }
-        .overlay(alignment: .top) {
-            if menue {
-                VStack(spacing: 5) {
-                    ForEach(Array(weitere.enumerated()), id: \.offset) { _, o in
-                        Button {
-                            gewaehlt = schluessel(o.0)
-                            menue = false
-                            waehlen(o.0)
-                        } label: {
-                            Image(o.1).resizable().scaledToFit().frame(width: o.2.width, height: o.2.height).opacity(0.6)
-                                .frame(width: 64, height: 64)
-                                .background(Circle().fill(Color(hex: 0x1C1917)).opacity(0.1))
-                        }
-                        .buttonStyle(.web)
+    }
+
+    /// Moeglichkeit unter dem Finger, in Feld-Koordinaten. Grosszuegig: ganze Zeile, etwas breiter.
+    private func optionAn(_ p: CGPoint) -> DispoZiel? {
+        guard offen else { return nil }
+        let oben = -Self.menueLuft - menueHoehe
+        guard abs(p.x - breite / 2) <= Self.menueBreite / 2 + 12, p.y >= oben - 12, p.y < -Self.menueLuft + 4 else { return nil }
+        let i = Int((p.y - oben) / Self.zeile)
+        let liste = weitere
+        return liste.indices.contains(i) ? liste[i].ziel : liste.last?.ziel
+    }
+
+    // MARK: Geste
+
+    private var geste: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+            .onChanged { wert in
+                if !gedrueckt {
+                    gedrueckt = true
+                    langGedrueckt = false
+                    haltenStarten()
+                }
+                // Finger geht nach oben: Menue sofort auf, nicht erst nach dem Halten.
+                if !offen && wert.translation.height < -8 {
+                    haltenTask?.cancel()
+                    menueOeffnen()
+                }
+                if offen {
+                    let neu = optionAn(wert.location)
+                    if neu != schwebt {
+                        schwebt = neu
+                        if neu != nil { UISelectionFeedbackGenerator().selectionChanged() }
                     }
                 }
-                .padding(.vertical, 3)
-                .frame(width: 80)
-                .background(RoundedRectangle(cornerRadius: 39).fill(Color(hex: 0x1E1E1E)))
-                .offset(y: -CGFloat(weitere.count) * 69 - 8 - 2)
             }
+            .onEnded { wert in
+                haltenTask?.cancel()
+                gedrueckt = false
+                if offen {
+                    if let ziel = optionAn(wert.location) {
+                        auswaehlen(ziel)
+                        return
+                    }
+                    schwebt = nil
+                    if langGedrueckt {
+                        // Nach dem Loslassen bleibt das Menue offen, Antippen geht weiter.
+                        langGedrueckt = false
+                        return
+                    }
+                    offen = false
+                    return
+                }
+                if langGedrueckt {
+                    langGedrueckt = false
+                    return
+                }
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                waehlen(vorneZiel)
+            }
+    }
+
+    private func haltenStarten() {
+        haltenTask?.cancel()
+        haltenTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: Self.haltenMs * 1_000_000)
+            guard !Task.isCancelled, gedrueckt, !offen else { return }
+            menueOeffnen()
         }
+    }
+
+    private func menueOeffnen() {
+        langGedrueckt = true
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        offen = true
+    }
+
+    private func auswaehlen(_ ziel: DispoZiel) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        schwebt = nil
+        langGedrueckt = false
+        withAnimation(Navileiste.feder) {
+            kommt = ziel
+            gewaehlt = schluessel(ziel)
+        }
+        offen = false
+        // Sofort wechseln, ohne Pause.
+        waehlen(ziel)
+        kommt = nil
     }
 }
