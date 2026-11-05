@@ -17,17 +17,17 @@ final class Anmeldung: ObservableObject {
 
     private var beobachter: Task<Void, Never>?
     /// Optional: Zugang nur fuer bestimmte Konten (Dispo-App: Rolle dispo/admin/koordinator).
-    private let zugang: ((UUID) async -> Bool)?
+    private let zugang: ((Session) async -> Bool)?
     private let zugangVerweigert: String
 
-    init(zugang: ((UUID) async -> Bool)? = nil, zugangVerweigert: String = "") {
+    init(zugang: ((Session) async -> Bool)? = nil, zugangVerweigert: String = "") {
         self.zugang = zugang
         self.zugangVerweigert = zugangVerweigert
         beobachter = Task { [weak self] in
             for await (_, sitzung) in Backend.client.auth.authStateChanges {
                 guard let self else { return }
                 if let sitzung, !sitzung.isExpired {
-                    if let zugang = self.zugang, !(await zugang(sitzung.user.id)) {
+                    if let zugang = self.zugang, !(await zugang(sitzung)) {
                         try? await Backend.client.auth.signOut(scope: .local)
                         self.fehler = self.zugangVerweigert
                         self.zustand = .abgemeldet

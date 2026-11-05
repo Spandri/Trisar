@@ -1,10 +1,11 @@
 import SwiftUI
+import Supabase
 
 @main
 struct TrisarDispoApp: App {
     // Zugang nur fuer Dispo-Konten, wie AnmeldeTor.jsx (is_dispo oder Rolle dispo/admin/koordinator).
     @StateObject private var anmeldung = Anmeldung(
-        zugang: { id in await DispoZugang.erlaubt(id) },
+        zugang: { sitzung in await DispoZugang.erlaubt(sitzung) },
         zugangVerweigert: "Dieses Konto hat keinen Zugang zur Disposition."
     )
 
@@ -59,9 +60,31 @@ enum DispoZugang {
     private static let rollen: Set<String> = ["dispo", "dispatcher", "admin", "koordinator", "coordinator"]
     private struct Zeile: Decodable { let role: String?; let is_dispo: Bool? }
 
-    static func erlaubt(_ id: UUID) async -> Bool {
-        guard let z: [Zeile] = try? await Backend.client.from("profiles").select("role,is_dispo")
-            .eq("id", value: id).limit(1).execute().value, let p = z.first else { return false }
+    /// Fragt die Rolle direkt per REST mit dem Token dieser Sitzung ab. Waehrend authStateChanges
+    /// ist die Sitzung im Client evtl. noch nicht abgelegt, dann liefe die Abfrage ohne Konto,
+    /// RLS gaebe nichts zurueck und ein Dispo-Konto wuerde faelschlich abgewiesen.
+    static func erlaubt(_ sitzung: Session) async -> Bool {
+        for versuch in 0..<3 {
+            if let ja = await einmal(sitzung) { return ja }
+            try? await Task.sleep(nanoseconds: UInt64(versuch + 1) * 700_000_000)
+        }
+        return false
+    }
+
+    private static func einmal(_ sitzung: Session) async -> Bool? {
+        var teile = URLComponents(url: Konfig.supabaseURL.appendingPathComponent("rest/v1/profiles"), resolvingAgainstBaseURL: false)!
+        teile.queryItems = [
+            URLQueryItem(name: "select", value: "role,is_dispo"),
+            URLQueryItem(name: "id", value: "eq.\(sitzung.user.id.uuidString.lowercased())"),
+            URLQueryItem(name: "limit", value: "1"),
+        ]
+        var anfrage = URLRequest(url: teile.url!)
+        anfrage.setValue(Konfig.supabaseKey, forHTTPHeaderField: "apikey")
+        anfrage.setValue("Bearer \(sitzung.accessToken)", forHTTPHeaderField: "Authorization")
+        guard let (daten, rueck) = try? await URLSession.shared.data(for: anfrage),
+              (rueck as? HTTPURLResponse)?.statusCode == 200,
+              let zeilen = try? JSONDecoder().decode([Zeile].self, from: daten) else { return nil }
+        guard let p = zeilen.first else { return false }
         return p.is_dispo == true || rollen.contains((p.role ?? "").lowercased())
     }
 }
