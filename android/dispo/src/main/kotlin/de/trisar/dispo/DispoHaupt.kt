@@ -70,10 +70,12 @@ fun DispoHaupt(anmeldung: Anmeldung) {
     var bearbeiteteFahrt by rememberSaveable { mutableStateOf<String?>(null) }
     val zeigen: (DispoZiel) -> Unit = { ziel = it }
     val oeffneFahrt: (String) -> Unit = { bearbeiteteFahrt = it }
+    /** Gaeste-Import aus der Kundenliste (ImportAnsicht(.gaeste) in iOS). */
+    var gaesteImport by rememberSaveable { mutableStateOf(false) }
 
     // Android-Zurueck: erst den Editor schliessen, dann zur Startseite.
-    BackHandler(enabled = bearbeiteteFahrt != null || ziel != DispoZiel.START) {
-        if (bearbeiteteFahrt != null) bearbeiteteFahrt = null else ziel = DispoZiel.START
+    BackHandler(enabled = gaesteImport || bearbeiteteFahrt != null || ziel != DispoZiel.START) {
+        if (gaesteImport) gaesteImport = false else if (bearbeiteteFahrt != null) bearbeiteteFahrt = null else ziel = DispoZiel.START
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -83,7 +85,7 @@ fun DispoHaupt(anmeldung: Anmeldung) {
                 DispoZiel.START -> DispoStartseite(anmeldung, zeigen)
                 DispoZiel.FAHRER -> FahrerBereich(zeigen)
                 DispoZiel.FAHRZEUGE -> FahrzeugBereich(zeigen)
-                DispoZiel.KUNDEN -> KundenBereich(zeigen)
+                DispoZiel.KUNDEN -> KundenBereich(zeigen, importieren = { gaesteImport = true })
                 DispoZiel.PROFIL -> KoordinatorProfil(zeigen)
                 DispoZiel.FAHRTEN -> FahrtenSeite(zeigen, oeffneFahrt)
                 DispoZiel.KARTE -> DispoKarteSeite(zeigen)
@@ -95,6 +97,13 @@ fun DispoHaupt(anmeldung: Anmeldung) {
         // Editor liegt als eigene Seite darueber, ohne Hochschieben (wie setView im Web).
         bearbeiteteFahrt?.let { id ->
             key(id) { FahrtFormularSeite(fahrtID = id, zurueck = { bearbeiteteFahrt = null }, zeigen = null) }
+        }
+        if (gaesteImport) {
+            de.trisar.dispo.einlesen.ImportSeite(
+                modus = de.trisar.dispo.einlesen.ImportModus.GAESTE,
+                zurueck = { gaesteImport = false },
+                zumZiel = { gaesteImport = false; ziel = DispoZiel.KUNDEN },
+            )
         }
     }
 }
