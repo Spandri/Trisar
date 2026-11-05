@@ -168,6 +168,9 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
     var merkmale by mutableStateOf<List<String>>(emptyList()); private set
     var fahrzeitMin by mutableStateOf(0); private set
     var restZielMin by mutableStateOf<Int?>(null); private set
+    /** Gespeicherte TomTom-Linien (Rueckfall, wenn die Live-Route von OSRM ausfaellt). */
+    var tomtomFahrt by mutableStateOf<List<de.trisar.kern.GeoPunkt>>(emptyList()); private set
+    var tomtomAnfahrt by mutableStateOf<List<de.trisar.kern.GeoPunkt>>(emptyList()); private set
     var fahrerNummer by mutableStateOf(""); private set
     var fahrerName by mutableStateOf(""); private set
     var standortDB by mutableStateOf<GeoPunkt?>(null); private set
@@ -196,6 +199,8 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
         val ext_driver_to_dropoff_duration_mins: Int? = null,
         val ext_driver_to_dropoff_duration_in_traffic_mins: Int? = null,
         val ext_driver_to_dropoff_last_sync_at: String? = null,
+        val ext_route_polyline: String? = null,
+        val ext_driver_to_pickup_polyline: String? = null,
         val flight_origin: String? = null,
         val flug_text: String? = null,
     )
@@ -288,7 +293,7 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
             coroutineScope {
                 val zeileA = async {
                     Backend.client.from("jobs").select(Columns.raw(
-                        "passengers,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,flight_origin,flug_text:ext_flight_payload::text"
+                        "passengers,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,ext_route_polyline,ext_driver_to_pickup_polyline,flight_origin,flug_text:ext_flight_payload::text"
                     )) { filter { eq("id", fahrtID) }; limit(1) }.decodeList<DetailZeile>().firstOrNull()
                 }
                 val notizA = async {
@@ -348,6 +353,8 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
                 )
 
                 fahrzeitMin = zeile?.ext_route_duration_in_traffic_mins ?: zeile?.ext_route_duration_mins ?: 0
+                tomtomFahrt = polylineLesen(zeile?.ext_route_polyline)
+                tomtomAnfahrt = polylineLesen(zeile?.ext_driver_to_pickup_polyline)
                 val rest = zeile?.ext_driver_to_dropoff_duration_in_traffic_mins ?: zeile?.ext_driver_to_dropoff_duration_mins
                 val sync = FahrtZeit.ausISO(zeile?.ext_driver_to_dropoff_last_sync_at)
                 restZielMin = if (rest != null && sync != null && Instant.now().epochSecond - sync.epochSecond < 600) rest else null
@@ -567,4 +574,29 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
             false
         }
     }
+}
+
+/** Google-Polyline (Genauigkeit 1e5) in Punkte, wie decodeGooglePolyline im Web und FahrtDetails.swift. */
+fun polylineLesen(text: String?): List<de.trisar.kern.GeoPunkt> {
+    if (text.isNullOrEmpty()) return emptyList()
+    val punkte = mutableListOf<de.trisar.kern.GeoPunkt>()
+    var i = 0; var lat = 0; var lng = 0
+    fun zahl(): Int? {
+        var ergebnis = 0; var verschiebung = 0
+        while (i < text.length) {
+            val b = text[i].code - 63
+            i++
+            ergebnis = ergebnis or ((b and 0x1f) shl verschiebung)
+            verschiebung += 5
+            if (b < 0x20) return if (ergebnis and 1 != 0) (ergebnis shr 1).inv() else (ergebnis shr 1)
+        }
+        return null
+    }
+    while (i < text.length) {
+        val dLat = zahl() ?: break
+        val dLng = zahl() ?: break
+        lat += dLat; lng += dLng
+        punkte.add(de.trisar.kern.GeoPunkt(lat / 1e5, lng / 1e5))
+    }
+    return punkte
 }

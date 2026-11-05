@@ -19,6 +19,9 @@ final class FahrtDetails: ObservableObject {
     @Published private(set) var merkmale: [String] = []   // accessibility, vip, child, luggage
     @Published private(set) var fahrzeitMin: Int = 0      // ext_route_duration(_in_traffic)
     @Published private(set) var restZielMin: Int?         // ext_driver_to_dropoff_* (frisch)
+    /// Gespeicherte TomTom-Linien der Fahrt (Rueckfall, wenn die Live-Route von OSRM ausfaellt).
+    @Published private(set) var tomtomFahrt: [CLLocationCoordinate2D] = []    // ext_route_polyline
+    @Published private(set) var tomtomAnfahrt: [CLLocationCoordinate2D] = []  // ext_driver_to_pickup_polyline
     @Published private(set) var fahrerNummer: String = ""
     @Published private(set) var standortDB: CLLocationCoordinate2D?
     // Flug (ext_flight_payload, wie extractFlightLiveTracking/extractFlightSummary im Web)
@@ -70,6 +73,8 @@ final class FahrtDetails: ObservableObject {
         let ext_driver_to_dropoff_duration_mins: Int?
         let ext_driver_to_dropoff_duration_in_traffic_mins: Int?
         let ext_driver_to_dropoff_last_sync_at: String?
+        let ext_route_polyline: String?
+        let ext_driver_to_pickup_polyline: String?
         let flight_origin: String?
         let flug_text: String?
     }
@@ -92,7 +97,7 @@ final class FahrtDetails: ObservableObject {
     func laden() async {
         do {
             async let zeileAbfrage: [DetailZeile] = Backend.client.from("jobs")
-                .select("passengers,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,flight_origin,flug_text:ext_flight_payload::text")
+                .select("passengers,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,ext_route_polyline,ext_driver_to_pickup_polyline,flight_origin,flug_text:ext_flight_payload::text")
                 .eq("id", value: fahrtID).limit(1).execute().value
             async let notizAbfrage: [NotizZeile] = Backend.client.from("job_notes")
                 .select("note_text,created_at,author_name").eq("job_id", value: fahrtID)
@@ -134,6 +139,8 @@ final class FahrtDetails: ObservableObject {
             merkmale = [rollstuhl ? "accessibility" : nil, vip ? "vip" : nil, kind ? "child" : nil, gepaeck ? "luggage" : nil].compactMap { $0 }
 
             fahrzeitMin = zeile?.ext_route_duration_in_traffic_mins ?? zeile?.ext_route_duration_mins ?? 0
+            tomtomFahrt = Self.polylineLesen(zeile?.ext_route_polyline)
+            tomtomAnfahrt = Self.polylineLesen(zeile?.ext_driver_to_pickup_polyline)
             let rest = zeile?.ext_driver_to_dropoff_duration_in_traffic_mins ?? zeile?.ext_driver_to_dropoff_duration_mins
             if let rest, let sync = zeile?.ext_driver_to_dropoff_last_sync_at.flatMap(Datum.ausISO),
                Date().timeIntervalSince(sync) < 600 {
@@ -358,5 +365,32 @@ extension Datum {
     static func datumKurz(_ d: Date) -> String {
         let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.dateFormat = "d.M.yyyy"
         return f.string(from: d)
+    }
+}
+
+extension FahrtDetails {
+    /// Google-Polyline (Genauigkeit 1e5) in Punkte, wie decodeGooglePolyline im Web.
+    static func polylineLesen(_ text: String?) -> [CLLocationCoordinate2D] {
+        guard let text, !text.isEmpty else { return [] }
+        let bytes = Array(text.utf8)
+        var i = 0, lat = 0, lng = 0
+        var punkte: [CLLocationCoordinate2D] = []
+        func zahl() -> Int? {
+            var ergebnis = 0, verschiebung = 0
+            while i < bytes.count {
+                let b = Int(bytes[i]) - 63
+                i += 1
+                ergebnis |= (b & 0x1f) << verschiebung
+                verschiebung += 5
+                if b < 0x20 { return (ergebnis & 1) != 0 ? ~(ergebnis >> 1) : (ergebnis >> 1) }
+            }
+            return nil
+        }
+        while i < bytes.count {
+            guard let dLat = zahl(), let dLng = zahl() else { break }
+            lat += dLat; lng += dLng
+            punkte.append(CLLocationCoordinate2D(latitude: Double(lat) / 1e5, longitude: Double(lng) / 1e5))
+        }
+        return punkte
     }
 }

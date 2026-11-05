@@ -413,7 +413,7 @@ struct SoloNormalAnsicht: View {
     /// Neu rechnen, wenn sich Fahrt, Status oder (grob) der Standort aendert.
     private var routenSchluessel: String {
         let f = fahrerOrt.map { "\(Int($0.latitude * 200)),\(Int($0.longitude * 200))" } ?? "-"
-        return "\(fahrt?.abholAdresse ?? "")|\(fahrt?.zielAdresse ?? "")|\(unterwegs)|\(details.fahrerNummer)|\(f)"
+        return "\(fahrt?.abholAdresse ?? "")|\(fahrt?.zielAdresse ?? "")|\(unterwegs)|\(details.fahrerNummer)|\(f)|\(details.tomtomFahrt.count)|\(details.tomtomAnfahrt.count)"
     }
 
     private func routenBerechnen() async {
@@ -433,7 +433,8 @@ struct SoloNormalAnsicht: View {
         let fahrtStart = (unterwegs ? fahrer : nil) ?? abhol
         if let start = fahrtStart, let ziel {
             let s = await Routen.strecke(von: start, bis: ziel)
-            neu.fahrt = s.punkte
+            // OSRM ausgefallen: gespeicherte TomTom-Linie zeigen (Fahrzeit kommt dann aus details.fahrzeitMin).
+            neu.fahrt = s.punkte.count >= 2 ? s.punkte : details.tomtomFahrt
             neu.fahrtMinuten = s.minuten
             fahrtMinutenLive = s.minuten
         }
@@ -441,8 +442,9 @@ struct SoloNormalAnsicht: View {
         // Gelbe Anfahrt vom Fahrer zum Abholort, solange der Gast noch nicht eingestiegen ist.
         if !unterwegs, let fahrer, let abhol {
             let s = await Routen.strecke(von: fahrer, bis: abhol)
-            anfahrtVoll = s.punkte
-            neu.anfahrt = s.punkte
+            let anfahrt = s.punkte.count >= 2 ? s.punkte : details.tomtomAnfahrt
+            anfahrtVoll = anfahrt
+            neu.anfahrt = anfahrt
             neu.anfahrtMinuten = s.minuten
         } else {
             anfahrtVoll = []

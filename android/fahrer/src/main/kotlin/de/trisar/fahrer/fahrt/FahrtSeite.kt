@@ -193,7 +193,8 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
 
     /** Neu rechnen, wenn sich Fahrt, Status oder (grob) der Standort aendert. */
     val routenSchluessel = "${fahrt?.abholAdresse}|${fahrt?.zielAdresse}|$unterwegs|${details.fahrerNummer}|" +
-        (fahrerOrt?.let { "${(it.lat * 200).toInt()},${(it.lng * 200).toInt()}" } ?: "-") + "|$neuRechnen"
+        (fahrerOrt?.let { "${(it.lat * 200).toInt()},${(it.lng * 200).toInt()}" } ?: "-") + "|$neuRechnen" +
+        "|${details.tomtomFahrt.size}|${details.tomtomAnfahrt.size}"
     LaunchedEffect(routenSchluessel) {
         val f = fahrt ?: return@LaunchedEffect
         val abholText = f.abholAdresse.ifEmpty { f.abholName }
@@ -208,15 +209,17 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
         val fahrtStart = (if (unterwegs) fahrer else null) ?: abhol
         if (fahrtStart != null && ziel != null) {
             val s = Routen.strecke(ctx, fahrtStart, ziel)
-            neu = neu.copy(fahrt = s.punkte, fahrtMinuten = s.minuten)
+            // OSRM ausgefallen: gespeicherte TomTom-Linie zeigen (Fahrzeit dann aus details.fahrzeitMin).
+            neu = neu.copy(fahrt = if (s.punkte.size >= 2) s.punkte else details.tomtomFahrt, fahrtMinuten = s.minuten)
             fahrtMinutenLive = s.minuten
         }
         if (!unterwegs) neu = neu.copy(abholort = abhol)
         // Gelbe Anfahrt vom Fahrer zum Abholort, solange der Gast noch nicht eingestiegen ist.
         if (!unterwegs && fahrer != null && abhol != null) {
             val s = Routen.strecke(ctx, fahrer, abhol)
-            anfahrtVoll = s.punkte
-            neu = neu.copy(anfahrt = s.punkte, anfahrtMinuten = s.minuten)
+            val anfahrt = if (s.punkte.size >= 2) s.punkte else details.tomtomAnfahrt
+            anfahrtVoll = anfahrt
+            neu = neu.copy(anfahrt = anfahrt, anfahrtMinuten = s.minuten)
         } else {
             anfahrtVoll = emptyList()
         }
