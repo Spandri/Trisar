@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Nachbau von FahrtenScreen01View.jsx: Fahrzeugkarte, Tageszeilen, Dienstanfragen, Auftragskarten.
 /// Alle Masse aus dem Web-Code (Raster 402). Der Inhalt liegt dort in einem Block mit top 20.
@@ -13,7 +14,6 @@ struct FahrtenListeAnsicht: View {
     // Konstanten aus FahrtenScreen01View.jsx
     private let versatz: CGFloat = 20            // <div className="absolute left-0 top-[20px]">
     private let fahrzeugUnterkante: CGFloat = 118 + 268
-    private let kartenHoehe: CGFloat = 187
     private let kartenAbstand: CGFloat = 12
     private let knopfAbstand: CGFloat = 12
     private let knopfHoehe: CGFloat = 51
@@ -138,7 +138,8 @@ struct FahrtenListeAnsicht: View {
             }
             let mitKnoepfen = fahrt.wartetAufAntwort
             r.fahrten.append((fahrt, cursor, mitKnoepfen))
-            cursor += mitKnoepfen ? kartenHoehe + knopfAbstand + knopfHoehe + nachKnopf : kartenHoehe + kartenAbstand
+            let h = AuftragsKarte.hoehe(fahrt)
+            cursor += mitKnoepfen ? h + knopfAbstand + knopfHoehe + nachKnopf : h + kartenAbstand
         }
         for tag in offeneTage.sorted() { tagBeginnen(tag, erster: r.zeilen.isEmpty) }
         r.unterkante = cursor
@@ -231,7 +232,7 @@ private struct AntwortKnoepfe: View {
 
 /// Auftragskarte (RideCard). Wird ueber die volle Breite 402 gelegt, damit die Web-Masse
 /// (Icons bei x 53 und 276, Mitte 201) direkt passen.
-private struct AuftragsKarte: View {
+struct AuftragsKarte: View {
     let fahrt: Fahrt
     let mitKnoepfen: Bool
     let beschaeftigt: Bool
@@ -240,8 +241,32 @@ private struct AuftragsKarte: View {
     let annehmen: () -> Void
     let ablehnen: () -> Void
 
+    /// Kartenhoehe: 187 reicht fuer zwei Zeilen Ortsname. Laengere Namen machen die Karte hoeher
+    /// (Text beginnt bei 127, 20 je Zeile, 20 Rand unten), damit nichts ueber den Rand laeuft.
+    @MainActor static func hoehe(_ fahrt: Fahrt) -> CGFloat {
+        max(187, 147 + 20 * CGFloat(max(zeilen(fahrt.abholKurz), zeilen(fahrt.zielKurz))))
+    }
+
+    /// Zeilen eines Ortsnamens in der 129 breiten Spalte. Gemessen mit genau dem Text, der in der
+    /// Karte steht (variable Schrift: UIKit-Messung traf das Fett nicht und zaehlte eine Zeile zu viel).
+    @MainActor private static var zeilenSpeicher: [String: Int] = [:]
+    @MainActor static func zeilen(_ text: String) -> Int {
+        guard !text.isEmpty else { return 1 }
+        if let z = zeilenSpeicher[text] { return z }
+        func hoehe(_ t: String) -> CGFloat {
+            UIHostingController(rootView: Text(t).grotesk(16, .bold, abstand: -0.5)
+                .fixedSize(horizontal: false, vertical: true).frame(width: 129, alignment: .leading))
+                .sizeThatFits(in: CGSize(width: 129, height: 10_000)).height
+        }
+        let eine = hoehe("Ag")
+        let z = max(1, Int((hoehe(text) / max(eine, 1)).rounded()))
+        zeilenSpeicher[text] = z
+        return z
+    }
+
     var body: some View {
         let iconMitte: CGFloat = 42 + 35
+        let h = Self.hoehe(fahrt)
         let zeigeEtd = fahrt.istFlughafen || fahrt.istZug
         let zeigePlan = zeigeEtd && !(fahrt.planEtd ?? "").isEmpty
 
@@ -251,7 +276,7 @@ private struct AuftragsKarte: View {
                     .overlay(Rectangle().strokeBorder(fahrt.angenommen ? Farbe.lime : .clear, lineWidth: 2))
             }
             .buttonStyle(.web)
-            .platz(20, 0, 362, 187)
+            .platz(20, 0, 362, h)
 
             // Tag oben mittig, mind. 90 breit, bei Kolonne mit Konvoi-Icon.
             HStack(spacing: 10) {
@@ -318,10 +343,10 @@ private struct AuftragsKarte: View {
 
             if mitKnoepfen {
                 AntwortKnoepfe(beschaeftigt: beschaeftigt, ablehnen: ablehnen, annehmen: annehmen)
-                    .platz(20, 187 + 12)
+                    .platz(20, h + 12)
             }
         }
-        .frame(width: 402, height: mitKnoepfen ? 187 + 12 + 51 : 187, alignment: .topLeading)
+        .frame(width: 402, height: mitKnoepfen ? h + 12 + 51 : h, alignment: .topLeading)
     }
 
     /// pickRideIcon der Web-App.

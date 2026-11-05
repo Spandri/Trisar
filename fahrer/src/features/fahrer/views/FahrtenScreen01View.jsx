@@ -107,6 +107,39 @@ const getDisplayLocationName = (location, fallback = '') => {
 
 const VEHICLE_CARD_BOTTOM = 118 + 268; // Fahrzeugkarte: top 118, Hoehe 268
 const CARD_HEIGHT = 187;
+
+// Kartenhoehe: 187 reicht fuer zwei Zeilen Ortsname. Laengere Namen machen die Karte
+// hoeher (Text ab 127, 20 je Zeile, 20 Rand unten), damit nichts ueber den Rand laeuft.
+// Gemessen in einer unsichtbaren Spalte mit derselben Schrift und Breite (129) wie in der Karte.
+const zeilenSpeicher = new Map();
+let messSpalte = null;
+const ortZeilen = (text) => {
+  const wert = String(text || '');
+  if (!wert || typeof document === 'undefined') return 1;
+  if (zeilenSpeicher.has(wert)) return zeilenSpeicher.get(wert);
+  if (!messSpalte) {
+    messSpalte = document.createElement('div');
+    messSpalte.setAttribute('aria-hidden', 'true');
+    Object.assign(messSpalte.style, {
+      position: 'absolute', left: '-9999px', top: '0', visibility: 'hidden', width: '129px',
+      fontFamily: 'Space Grotesk', fontSize: '16px', fontWeight: '700', letterSpacing: '-0.5px',
+      lineHeight: '20px', overflowWrap: 'break-word', wordBreak: 'break-word',
+    });
+    document.body.appendChild(messSpalte);
+  }
+  messSpalte.textContent = wert;
+  const zeilen = Math.max(1, Math.round(messSpalte.getBoundingClientRect().height / 20));
+  // Erst merken, wenn die Schrift geladen ist, sonst misst die Ersatzschrift.
+  if (!document.fonts || document.fonts.status === 'loaded') zeilenSpeicher.set(wert, zeilen);
+  return zeilen;
+};
+const kartenHoehe = (job) => Math.max(
+  CARD_HEIGHT,
+  147 + 20 * Math.max(
+    ortZeilen(getDisplayLocationName(job?.from, 'Unbekannt')),
+    ortZeilen(getDisplayLocationName(job?.to, 'Unbekannt')),
+  ),
+);
 const CARD_GAP = 12;
 const ACTION_GAP = 12;
 const ACTION_HEIGHT = 51;
@@ -215,11 +248,12 @@ const buildListenLayout = (jobs, anfragen) => {
     }
     const cardTop = cursorTop;
     const withAction = canRespond(job);
-    const actionTop = withAction ? cardTop + CARD_HEIGHT + ACTION_GAP : null;
+    const cardHeight = kartenHoehe(job);
+    const actionTop = withAction ? cardTop + cardHeight + ACTION_GAP : null;
     cursorTop = withAction
       ? actionTop + ACTION_HEIGHT + AFTER_ACTION_GAP
-      : cardTop + CARD_HEIGHT + CARD_GAP;
-    fahrten.push({ cardTop, actionTop });
+      : cardTop + cardHeight + CARD_GAP;
+    fahrten.push({ cardTop, actionTop, cardHeight });
   });
 
   // Dienstzeiten fuer Tage ohne Fahrten gehen nicht verloren, sie haengen
@@ -262,8 +296,8 @@ const RideCard = ({ job, layout, topOffset = 0, onOpen, onAction, onSheetOpen, a
     <>
       {/* Card Background */}
       <div 
-        className={`absolute left-5 w-[362px] h-[187px] bg-[#1a1a1a] cursor-pointer touch-manipulation${isAccepted ? ' border-2 border-[#e3f754]' : ''}`}
-        style={{ top: cardTop }}
+        className={`absolute left-5 w-[362px] bg-[#1a1a1a] cursor-pointer touch-manipulation${isAccepted ? ' border-2 border-[#e3f754]' : ''}`}
+        style={{ top: cardTop, height: layout.cardHeight || CARD_HEIGHT }}
         onClick={onOpen}
         data-tutorial={tutorialId}
       />
@@ -392,7 +426,7 @@ const RideCard = ({ job, layout, topOffset = 0, onOpen, onAction, onSheetOpen, a
 const VehicleBlock = ({ vehicle, onOpen }) => {
   const { t } = useI18n();
   const plateNumber = vehicle?.license_plate || t('screens.noPlate');
-  const vin = vehicle?.vin || '12345678910121314';
+  const vin = vehicle?.vin || '';
   const image = vehicle?.image_url || '';
   const fuelType = vehicle?.fuel_type || '';
 
@@ -569,9 +603,18 @@ const FahrtenScreen01View = ({
     return Math.max(BASE_HEIGHT, Math.ceil(viewportHeight / safeScale));
   }, [scale, viewportHeight]);
 
+  // Nach dem Laden der Schrift neu messen (Kartenhoehe haengt an den Zeilen der Ortsnamen).
+  const [schriftGeladen, setSchriftGeladen] = useState(() => typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded');
+  useEffect(() => {
+    if (schriftGeladen || !document.fonts) return undefined;
+    let aktiv = true;
+    document.fonts.ready.then(() => { if (aktiv) setSchriftGeladen(true); });
+    return () => { aktiv = false; };
+  }, [schriftGeladen]);
   const listenLayout = useMemo(
     () => buildListenLayout(visibleJobs, activeServiceRequests),
-    [visibleJobs, activeServiceRequests],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleJobs, activeServiceRequests, schriftGeladen],
   );
   const rideLayouts = listenLayout.fahrten;
   const ridesBottom = listenLayout.unterkante;

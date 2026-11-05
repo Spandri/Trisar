@@ -45,7 +45,6 @@ import de.trisar.kern.tippen
 // Konstanten aus FahrtenScreen01View.jsx
 private const val VERSATZ = 20f            // <div className="absolute left-0 top-[20px]">
 private const val FAHRZEUG_UNTERKANTE = 118f + 268f
-private const val KARTEN_HOEHE = 187f
 private const val KARTEN_ABSTAND = 12f
 private const val KNOPF_ABSTAND = 12f
 private const val KNOPF_HOEHE = 51f
@@ -65,7 +64,7 @@ private class ListenRaster {
 }
 
 /** buildListenLayout der Web-App. */
-private fun rasterBerechnen(alle: List<Fahrt>, anfragen: List<DienstAnfrage>): ListenRaster {
+private fun rasterBerechnen(alle: List<Fahrt>, anfragen: List<DienstAnfrage>, hoehe: (Fahrt) -> Float): ListenRaster {
     fun minuten(zeit: String): Int {
         val t = zeit.split(":").mapNotNull { it.toIntOrNull() }
         return if (t.size >= 2) t[0] * 60 + t[1] else Int.MAX_VALUE
@@ -103,7 +102,8 @@ private fun rasterBerechnen(alle: List<Fahrt>, anfragen: List<DienstAnfrage>): L
         }
         val mitKnoepfen = f.wartetAufAntwort
         r.fahrten += Triple(f, cursor, mitKnoepfen)
-        cursor += if (mitKnoepfen) KARTEN_HOEHE + KNOPF_ABSTAND + KNOPF_HOEHE + NACH_KNOPF else KARTEN_HOEHE + KARTEN_ABSTAND
+        val h = hoehe(f)
+        cursor += if (mitKnoepfen) h + KNOPF_ABSTAND + KNOPF_HOEHE + NACH_KNOPF else h + KARTEN_ABSTAND
     }
     for (tag in offeneTage.sorted()) tagBeginnen(tag, r.zeilen.isEmpty())
     r.unterkante = cursor
@@ -130,7 +130,8 @@ internal fun FahrtenListeSeite(
     val fehler by speicher.fehler.collectAsState()
     var ablehnenFahrt by remember { mutableStateOf<Fahrt?>(null) }
 
-    val raster = remember(fahrten, anfragen) { rasterBerechnen(fahrten, anfragen) }
+    val kartenHoehe = kartenHoeheMesser()
+    val raster = remember(fahrten, anfragen) { rasterBerechnen(fahrten, anfragen, kartenHoehe) }
 
     Box(Modifier.fillMaxSize()) {
         Leinwand(inhaltHoehe = raster.unterkante + VERSATZ + NACH_KNOPF + 64f + 40f) {
@@ -247,9 +248,10 @@ private fun AuftragsKarte(
     val plan = fahrt.planEtd
     val zeigePlan = zeigeEtd && !plan.isNullOrEmpty()
 
-    Box(modifier.height((if (mitKnoepfen) KARTEN_HOEHE + KNOPF_ABSTAND + KNOPF_HOEHE else KARTEN_HOEHE).dp)) {
+    val h = kartenHoeheMesser()(fahrt)
+    Box(modifier.height((if (mitKnoepfen) h + KNOPF_ABSTAND + KNOPF_HOEHE else h).dp)) {
         Box(
-            Modifier.platz(20f, 0f, 362f, 187f).background(hex(0x1A1A1A))
+            Modifier.platz(20f, 0f, 362f, h).background(hex(0x1A1A1A))
                 .then(if (fahrt.angenommen) Modifier.border(2.dp, Farbe.lime) else Modifier)
                 .tippen(oeffnen)
         )
@@ -296,7 +298,7 @@ private fun AuftragsKarte(
             Text(fahrt.zielKurz, style = grotesk(16f, 700, abstand = -0.5f), textAlign = TextAlign.End, modifier = Modifier.weight(1f))
         }
 
-        if (mitKnoepfen) AntwortKnoepfe(beschaeftigt, Modifier.platz(20f, 187f + 12f), ablehnen, annehmen)
+        if (mitKnoepfen) AntwortKnoepfe(beschaeftigt, Modifier.platz(20f, h + 12f), ablehnen, annehmen)
     }
 }
 
@@ -314,5 +316,26 @@ private fun ortIcon(text: String, start: Boolean): String {
 private fun OrtIcon(name: String, modifier: Modifier) {
     Box(modifier.clip(RoundedCornerShape(12.dp)).background(hex(0x242525)), contentAlignment = Alignment.Center) {
         Icon(name, Modifier.size(30.dp))
+    }
+}
+
+
+/**
+ * Kartenhoehe wie AuftragsKarte.hoehe in iOS: 187 reicht fuer zwei Zeilen Ortsname, laengere
+ * Namen machen die Karte hoeher (Text ab 127, 20 je Zeile, 20 Rand unten).
+ * Gemessen mit genau der Schrift der Karte in der 129 breiten Spalte.
+ */
+@Composable
+private fun kartenHoeheMesser(): (Fahrt) -> Float {
+    val messer = androidx.compose.ui.text.rememberTextMeasurer()
+    val stil = grotesk(16f, 700, abstand = -0.5f)
+    val breite = with(androidx.compose.ui.platform.LocalDensity.current) { 129.dp.roundToPx() }
+    return remember(messer, stil, breite) {
+        val speicher = HashMap<String, Int>()
+        fun zeilen(text: String): Int = if (text.isEmpty()) 1 else speicher.getOrPut(text) {
+            messer.measure(text, stil, constraints = androidx.compose.ui.unit.Constraints(maxWidth = breite)).lineCount
+        }
+        val messen: (Fahrt) -> Float = { f -> maxOf(187f, 147f + 20f * maxOf(zeilen(f.abholKurz), zeilen(f.zielKurz))) }
+        messen
     }
 }
