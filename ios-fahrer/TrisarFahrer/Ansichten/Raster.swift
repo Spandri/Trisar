@@ -20,9 +20,6 @@ struct Leinwand<Inhalt: View>: View {
             let rahmen = max(basisHoehe, geo.size.height / max(s, 0.01))
             let hoehe = max(rahmen, inhaltHoehe)
             let feld = ZStack(alignment: .topLeading) {
-                if mitHintergrund {
-                    TrisarHintergrund().frame(width: breite, height: rahmen)
-                }
                 inhalt(rahmen)
             }
             .frame(width: breite, height: hoehe, alignment: .topLeading)
@@ -40,8 +37,12 @@ struct Leinwand<Inhalt: View>: View {
             // ScrollView den Inhalt um die Statusleiste (59 pt), und Tipps landen daneben.
             .contentMargins(.vertical, 0, for: .scrollContent)
             .ignoresSafeArea()
+            // Hintergrund ueber den ganzen Bildschirm, nicht nur ueber die 402/393er Flaeche,
+            // sonst bleibt bei anderer Breite ein schwarzer Streifen am Rand.
             // Ohne eigenen Hintergrund durchsichtig, damit ein Verlauf dahinter sichtbar bleibt (Dispo).
-            .background(mitHintergrund ? Color.black : Color.clear)
+            .background {
+                if mitHintergrund { TrisarHintergrund() } else { Color.clear }
+            }
         }
         .ignoresSafeArea()
     }

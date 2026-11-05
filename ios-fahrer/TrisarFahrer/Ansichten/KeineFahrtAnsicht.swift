@@ -50,11 +50,10 @@ struct KeineFahrtAnsicht: View {
                 }
                 .buttonStyle(.plain)
                 .platz(20, 754, 362, 56)
-
-                // TrisarFooter steht hier im Raster bei top 834 (nicht am Bildschirmrand).
-                TrisarFussleiste().platz(0, 834, 393, 40)
             }
         }
+        // Fest am unteren Rand wie auf allen anderen Seiten, damit sie auf keinem iPhone abgeschnitten wird.
+        .overlay { FussleisteUnten() }
     }
 }
 

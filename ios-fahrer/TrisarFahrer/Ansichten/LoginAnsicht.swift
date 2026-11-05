@@ -36,10 +36,9 @@ struct LoginAnsicht: View {
             .scrollDismissesKeyboard(.interactively)
             .scrollBounceBehavior(.basedOnSize)
 
-            // Waehrend der Eingabe ausblenden, sonst sitzt sie ueber der Tastatur und verdeckt den Knopf.
-            if fokus == nil {
-                TrisarFussleiste()
-            }
+            // Fest am Bildschirmrand wie im Web (fixed bottom-0): bleibt unter der Tastatur
+            // stehen statt mit ihr hochzuwandern oder zu verschwinden.
+            FussleisteUnten()
         }
     }
 
