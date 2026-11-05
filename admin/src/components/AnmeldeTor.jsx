@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
 import TrisarFooter from './ui/TrisarFooter';
+import { anmeldenMitKennung } from '../shared/anmeldung';
 
 const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator']);
 
@@ -20,10 +21,9 @@ const istDisposition = async (userId) => {
 // Supabase raeumt den Link-Anhang beim Start weg, darum hier sofort merken.
 let ausMailLink = typeof window !== 'undefined' && /type=(recovery|invite)/.test(window.location.hash);
 
-// Aussehen 1:1 wie der Login der Fahrer-App (fahrer/src/features/auth/LoginView.jsx).
+// Aufbau wie der Login der Fahrer-App, Hintergrund aber im Dispo-Blau wie die anderen Dispo-Seiten.
 const screenBg = {
-  backgroundImage:
-    "url(\"data:image/svg+xml;utf8,<svg viewBox='0 0 402 874' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(40.2 87.4 -40.2 18.49 0 0)'><stop stop-color='rgba(49,55,1,1)' offset='0'/><stop stop-color='rgba(25,28,0,1)' offset='0.2283'/><stop stop-color='rgba(12,14,0,1)' offset='0.34244'/><stop stop-color='rgba(0,0,0,1)' offset='0.45659'/><stop stop-color='rgba(0,0,0,1)' offset='0.83626'/><stop stop-color='rgba(0,0,0,1)' offset='1'/></radialGradient></defs></svg>\")",
+  background: 'radial-gradient(ellipse 141.42% 102.21% at 0% 0%, #0048cf 0%, #00369b 11.415%, #002468 22.83%, #001b4e 28.537%, #001234 34.244%, #00091a 39.952%, #00050d 42.805%, #000000 45.659%, #000000 100%)',
 };
 
 const eingabeKlasse = 'w-full bg-[#242525] border border-[#3a3a3a] text-[#868786] text-[15px] px-12 py-4 focus:outline-none focus:border-[#e3f754]';
@@ -92,7 +92,7 @@ export default function AnmeldeTor({ children }) {
         setZustand('drin');
         return;
       }
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
       setFehler('Dieses Konto hat keinen Zugang zur Disposition.');
       setZustand('abgemeldet');
     };
@@ -122,16 +122,16 @@ export default function AnmeldeTor({ children }) {
     setFehler('');
     setHinweis('');
     setLaeuft(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: passwort });
+    const { error } = await anmeldenMitKennung(supabase, email, passwort);
     setLaeuft(false);
-    if (error) setFehler('E-Mail oder Passwort falsch.');
+    if (error) setFehler('Benutzername, E-Mail oder Passwort falsch.');
   };
 
   const passwortVergessen = async () => {
     setFehler('');
     const adresse = email.trim();
-    if (!adresse) {
-      setFehler('Bitte zuerst die E-Mail eingeben.');
+    if (!adresse || !adresse.includes('@')) {
+      setFehler('Bitte zuerst die E-Mail eingeben. Konten nur mit Benutzername setzt die Disposition zurueck.');
       return;
     }
     await supabase.auth.resetPasswordForEmail(adresse, { redirectTo: window.location.origin });
@@ -158,7 +158,7 @@ export default function AnmeldeTor({ children }) {
     const erlaubt = data?.user ? await istDisposition(data.user.id) : false;
     if (erlaubt) setZustand('drin');
     else {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
       setFehler('Dieses Konto hat keinen Zugang zur Disposition.');
       setZustand('abgemeldet');
     }
@@ -206,13 +206,16 @@ export default function AnmeldeTor({ children }) {
             </form>
           ) : (
             <form onSubmit={anmelden} className="space-y-6">
-              <Feld label="E-Mail" symbol={<MailSymbol />}>
+              <Feld label="Benutzername oder E-Mail" symbol={<MailSymbol />}>
                 <input
-                  type="email"
+                  type="text"
                   autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="deine@email.de"
+                  placeholder="name oder deine@email.de"
                   className={eingabeKlasse}
                 />
               </Feld>

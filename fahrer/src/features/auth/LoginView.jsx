@@ -59,7 +59,7 @@ const LoginView = ({
           <form onSubmit={onLogin} className="space-y-6">
             <div className="flex flex-col gap-2">
               <label className="text-[#e3f754] text-[13px] font-medium pl-1">
-                E-Mail
+                Benutzername oder E-Mail
               </label>
               <div className="relative">
                 <div className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5">
@@ -69,10 +69,14 @@ const LoginView = ({
                   </svg>
                 </div>
                 <input
-                  type="email"
+                  type="text"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="deine@email.de"
+                  placeholder="name oder deine@email.de"
                   className="w-full bg-[#242525] border border-[#3a3a3a] text-[#868786] text-[15px] px-12 py-4 focus:outline-none focus:border-[#e3f754]"
                 />
               </div>

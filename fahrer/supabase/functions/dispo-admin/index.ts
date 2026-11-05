@@ -6,6 +6,19 @@ import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 
 const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator']);
 
+// Benutzername wie in Migration 20261105150000_benutzername.
+const NAME_MUSTER = /^[a-z0-9._-]{3,32}$/;
+// Konten ohne echte E-Mail bekommen diese Adresse. Sie wird nie angeschrieben (email_confirm).
+const PLATZHALTER_DOMAIN = 'konto.trisar.de';
+const istPlatzhalter = (email: string) => email.endsWith(`@${PLATZHALTER_DOMAIN}`);
+
+const fehlerText = (message: string) => {
+  if (/already (been )?registered|already exists/i.test(message)) return 'email_taken';
+  if (/password/i.test(message) && /(short|weak|at least)/i.test(message)) return 'password_too_short';
+  if (/invalid format|unable to validate email/i.test(message)) return 'email_invalid';
+  return message;
+};
+
 const ensureEnv = (name: string) => {
   const value = Deno.env.get(name);
   if (!value) throw new Error(`Missing environment variable: ${name}`);
@@ -59,6 +72,86 @@ Deno.serve(async (req) => {
       });
       if (error) return jsonResponse(400, { error: error.message });
       return jsonResponse(200, { user_id: data?.user?.id || null });
+    }
+
+    if (body?.aktion === 'konto_anlegen' || body?.aktion === 'konto_aendern') {
+      const anlegen = body.aktion === 'konto_anlegen';
+      const userId = anlegen ? '' : String(body.user_id || '').trim();
+      if (!anlegen && !userId) return jsonResponse(400, { error: 'user_id_missing' });
+
+      const hatName = typeof body.benutzername === 'string';
+      const name = hatName ? body.benutzername.trim().toLowerCase() : '';
+      const email = String(body.email || '').trim().toLowerCase();
+      const passwort = typeof body.passwort === 'string' ? body.passwort : '';
+
+      if (anlegen && !name && !email) return jsonResponse(400, { error: 'login_missing' });
+      if (name && !NAME_MUSTER.test(name)) return jsonResponse(400, { error: 'username_invalid' });
+      if (anlegen && !passwort) return jsonResponse(400, { error: 'password_missing' });
+      if (passwort && passwort.length < 8) return jsonResponse(400, { error: 'password_too_short' });
+
+      if (name) {
+        const { data: belegt } = await admin
+          .from('profiles')
+          .select('id')
+          .eq('username', name)
+          .maybeSingle();
+        if (belegt?.id && belegt.id !== userId) return jsonResponse(400, { error: 'username_taken' });
+      }
+
+      if (anlegen) {
+        const { data, error } = await admin.auth.admin.createUser({
+          email: email || `${name}@${PLATZHALTER_DOMAIN}`,
+          password: passwort,
+          email_confirm: true,
+          user_metadata: {
+            first_name: String(body.first_name || '').trim(),
+            last_name: String(body.last_name || '').trim(),
+            role: 'fahrer',
+            password_setup_required: false,
+          },
+        });
+        if (error || !data?.user?.id) return jsonResponse(400, { error: fehlerText(error?.message || 'create_failed') });
+        const neueId = data.user.id;
+        const { error: profilFehler } = await admin.from('profiles').upsert([{
+          id: neueId,
+          username: name || null,
+          email: email || null,
+          first_name: String(body.first_name || '').trim() || null,
+          last_name: String(body.last_name || '').trim() || null,
+          role: 'fahrer',
+        }]);
+        if (profilFehler) {
+          await admin.auth.admin.deleteUser(neueId);
+          return jsonResponse(400, { error: profilFehler.message });
+        }
+        return jsonResponse(200, { user_id: neueId });
+      }
+
+      // Bestehendes Konto: nur geaenderte Teile setzen.
+      const { data: bisher, error: bisherFehler } = await admin.auth.admin.getUserById(userId);
+      if (bisherFehler || !bisher?.user) return jsonResponse(404, { error: 'user_not_found' });
+      const authAenderung: Record<string, unknown> = {};
+      if (passwort) authAenderung.password = passwort;
+      const altMail = String(bisher.user.email || '').toLowerCase();
+      if (email && email !== altMail) {
+        authAenderung.email = email;
+        authAenderung.email_confirm = true;
+      } else if (!email && name && istPlatzhalter(altMail) && altMail !== `${name}@${PLATZHALTER_DOMAIN}`) {
+        authAenderung.email = `${name}@${PLATZHALTER_DOMAIN}`;
+        authAenderung.email_confirm = true;
+      }
+      if (Object.keys(authAenderung).length) {
+        const { error } = await admin.auth.admin.updateUserById(userId, authAenderung);
+        if (error) return jsonResponse(400, { error: fehlerText(error.message) });
+      }
+      if (hatName) {
+        if (!name && istPlatzhalter(String(authAenderung.email || altMail))) {
+          return jsonResponse(400, { error: 'login_missing' });
+        }
+        const { error } = await admin.from('profiles').update({ username: name || null }).eq('id', userId);
+        if (error) return jsonResponse(400, { error: error.message });
+      }
+      return jsonResponse(200, { user_id: userId });
     }
 
     return jsonResponse(400, { error: 'unknown_action' });

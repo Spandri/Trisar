@@ -1,15 +1,17 @@
 import SwiftUI
 
 /// Nachbau von FahrerErstellenView.jsx (Raster 402 x 913, Inhalt 20 tiefer gesetzt).
-/// `fahrer == nil` = anlegen (Einladung ueber dispo-admin), sonst bearbeiten.
+/// `fahrer == nil` = anlegen (Konto mit Passwort ueber dispo-admin), sonst bearbeiten.
+/// Zugang: Benutzername oder E-Mail plus Passwort, beim Bearbeiten optional ein neues Passwort.
 /// Ortung: Handy-App oder OBD-Tracker mit IMEI (profiles.tracking_mode, imei_driver_map).
 struct FahrerErstellenAnsicht: View {
     let zurueck: () -> Void
     @StateObject private var m: FahrerEditorModell
     @FocusState private var fokus: Feld?
     @State private var menue: Menue?
+    @State private var passwortSichtbar = false
 
-    enum Feld: Hashable { case vorname, nachname, email, vorwahl, telefon, strasse, hausnummer, ort, plz, nummer, imei }
+    enum Feld: Hashable { case vorname, nachname, email, benutzername, passwort, vorwahl, telefon, strasse, hausnummer, ort, plz, nummer, imei }
     enum Menue { case sprache, fahrzeug, tracker }
 
     init(fahrer: DispoFahrer?, zurueck: @escaping () -> Void) {
@@ -18,6 +20,8 @@ struct FahrerErstellenAnsicht: View {
     }
 
     private let o: CGFloat = 20                 // Container `top-[20px]`
+    /// Zeile fuer Benutzername und Passwort unter der E-Mail, alles darunter rutscht um sie nach unten.
+    private let zugangsZeile: CGFloat = 68
     private let lime = Color(hex: 0xE3F654)
     private let schrift = Color(hex: 0x8A9728)
 
@@ -26,7 +30,7 @@ struct FahrerErstellenAnsicht: View {
         let ortungsHoehe: CGFloat = m.ortung == "obd" ? 156 : 68
         let warnung = !m.nummerWarnung.isEmpty
 
-        Leinwand(basisHoehe: 913, inhaltHoehe: 913 + ortungsHoehe) { _ in
+        Leinwand(basisHoehe: 913, inhaltHoehe: 913 + zugangsZeile + ortungsHoehe) { _ in
             ZStack(alignment: .topLeading) {
                 ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
 
@@ -38,36 +42,43 @@ struct FahrerErstellenAnsicht: View {
                 eingabe(.vorname, "Vorname", $m.vorname, x: 20, y: 186, w: 178)
                 eingabe(.nachname, "Nachname", $m.nachname, x: 204, y: 186, w: 178)
 
-                // E-Mail: Brief-Icon links, beim Bearbeiten nur lesbar.
+                // E-Mail: Brief-Icon links. Optional, wenn ein Benutzername gesetzt ist.
                 kasten(x: 20, y: 254, w: 362)
                 Image("Mail_Trisar_Icons_01_Lime").resizable().frame(width: 10, height: 13).scaleEffect(1.2)
                     .platz(12, o + 254 + 21.5, 10, 13)
                 feld(.email, "E-Mail", $m.email, x: 20 + 40, y: 254, w: 362 - 80)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
-                    .disabled(m.bearbeiten)
                 pfeil(.email, x: 20, y: 254, w: 362)
 
-                kasten(x: 20, y: 322, w: 85)
-                feld(.vorwahl, "+49", $m.landesvorwahl, x: 20 + 16, y: 322, w: 85 - 24)
+                // Zugang: Benutzername (klein, a-z 0-9 . _ -) und Passwort mit Auge.
+                eingabe(.benutzername, "Benutzername",
+                        Binding(get: { m.benutzername }, set: { m.benutzername = $0.lowercased() }),
+                        x: 20, y: 322, w: 178)
+                    .textContentType(.username)
+                    .textInputAutocapitalization(.never)
+                passwortFeld(x: 204, y: 322, w: 178)
+
+                kasten(x: 20, y: 390, w: 85)
+                feld(.vorwahl, "+49", $m.landesvorwahl, x: 20 + 16, y: 390, w: 85 - 24)
                     .keyboardType(.phonePad)
 
-                kasten(x: 111, y: 322, w: 271)
+                kasten(x: 111, y: 390, w: 271)
                 Image("contact-phone").resizable().scaledToFit().frame(width: 12, height: 12)
-                    .platz(111 + 12, o + 322 + 22, 12, 12)
-                feld(.telefon, "Telefon", $m.telefon, x: 111 + 40, y: 322, w: 271 - 80)
+                    .platz(111 + 12, o + 390 + 22, 12, 12)
+                feld(.telefon, "Telefon", $m.telefon, x: 111 + 40, y: 390, w: 271 - 80)
                     .keyboardType(.phonePad)
-                pfeil(.telefon, x: 111, y: 322, w: 271)
+                pfeil(.telefon, x: 111, y: 390, w: 271)
 
-                eingabe(.strasse, "Straße", $m.strasse, x: 20, y: 390, w: 271, rechts: 48)
-                eingabe(.hausnummer, "Nr.", $m.hausnummer, x: 297, y: 390, w: 85, rechts: 40)
-                eingabe(.ort, "Ort", $m.ort, x: 20, y: 458, w: 362, rechts: 48)
-                eingabe(.plz, "PLZ", $m.plz, x: 20, y: 526, w: 178, rechts: 48)
+                eingabe(.strasse, "Straße", $m.strasse, x: 20, y: 458, w: 271, rechts: 48)
+                eingabe(.hausnummer, "Nr.", $m.hausnummer, x: 297, y: 458, w: 85, rechts: 40)
+                eingabe(.ort, "Ort", $m.ort, x: 20, y: 526, w: 362, rechts: 48)
+                eingabe(.plz, "PLZ", $m.plz, x: 20, y: 594, w: 178, rechts: 48)
 
-                auswahl(text: m.sprache.isEmpty ? "Sprache" : m.sprache, x: 204, y: 526, w: 178) { umschalten(.sprache) }
-                auswahl(text: m.fahrzeugeLaden ? "Fahrzeuge laden ..." : m.fahrzeugEtikett, x: 20, y: 594, w: 271) { umschalten(.fahrzeug) }
+                auswahl(text: m.sprache.isEmpty ? "Sprache" : m.sprache, x: 204, y: 594, w: 178) { umschalten(.sprache) }
+                auswahl(text: m.fahrzeugeLaden ? "Fahrzeuge laden ..." : m.fahrzeugEtikett, x: 20, y: 662, w: 271) { umschalten(.fahrzeug) }
 
-                eingabe(.nummer, "Nr.", Binding(get: { m.nummer }, set: { m.nummerGeaendert($0) }), x: 297, y: 594, w: 85, rechts: 40)
+                eingabe(.nummer, "Nr.", Binding(get: { m.nummer }, set: { m.nummerGeaendert($0) }), x: 297, y: 662, w: 85, rechts: 40)
                     .keyboardType(.numberPad)
 
                 // Ortung: Handy-App oder OBD-Tracker.
@@ -75,10 +86,10 @@ struct FahrerErstellenAnsicht: View {
                 ortungsKnopf("obd", "OBD-Tracker", x: 204)
 
                 if m.ortung == "obd" {
-                    kasten(x: 20, y: 730, w: 362)
+                    kasten(x: 20, y: 798, w: 362)
                     feld(.imei, "IMEI des Trackers (15 Ziffern)",
                          Binding(get: { m.imei }, set: { m.imei = String($0.filter(\.isNumber).prefix(15)) }),
-                         x: 20 + 16, y: 730, w: 362 - 16 - 56)
+                         x: 20 + 16, y: 798, w: 362 - 16 - 56)
                         .keyboardType(.numberPad)
                     if !m.tracker.isEmpty {
                         Button { umschalten(.tracker) } label: {
@@ -87,12 +98,12 @@ struct FahrerErstellenAnsicht: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.web)
-                        .platz(20 + 362 - 64, o + 730, 64, 56)
+                        .platz(20 + 362 - 64, o + 798, 64, 56)
                     }
                     if let t = m.trackerBeiAnderem {
                         WebText(text: "Tracker ist gerade bei \(t.besitzerName.isEmpty ? "?" : t.besitzerName) und wird dort abgeschaltet.",
                                 groesse: 12, zeilenHoehe: 12 * 1.3, farbe: UIColor(Color(hex: 0xFF9500)))
-                            .platz(20, o + 790, 362, nil)
+                            .platz(20, o + 858, 362, nil)
                     }
                 }
 
@@ -101,7 +112,7 @@ struct FahrerErstellenAnsicht: View {
                         .padding(.horizontal, 12).padding(.vertical, 4)
                         .background(Color(hex: 0x2D1E00))
                         .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color(hex: 0xFF9500), lineWidth: 1))
-                        .platz(20, o + 662 + ortungsHoehe, 362, nil)
+                        .platz(20, o + 730 + ortungsHoehe, 362, nil)
                 }
 
                 // Speichern: loest erst der Knopf aus (createDriver).
@@ -118,7 +129,7 @@ struct FahrerErstellenAnsicht: View {
                 }
                 .buttonStyle(.web)
                 .disabled(m.speichert)
-                .platz(20, o + (warnung ? 696 : 674) + ortungsHoehe, 362, 56)
+                .platz(20, o + (warnung ? 832 : 810) + ortungsHoehe, 362, 56)
 
                 WebText(text: m.rueckmeldung.isEmpty
                         ? (m.bearbeiten ? "Fahrerdaten bearbeiten und speichern." : "Fahrzeug koppeln + Nr. setzen und dann Fahrer erstellen.")
@@ -128,18 +139,18 @@ struct FahrerErstellenAnsicht: View {
                     .frame(width: 362, alignment: .topLeading)
                     .frame(minHeight: 56, alignment: .topLeading)
                     .overlay(Rectangle().strokeBorder(Color(hex: 0x7F8A2B), lineWidth: 1))
-                    .platz(20, o + (warnung ? 764 : 742) + ortungsHoehe, 362, nil)
+                    .platz(20, o + (warnung ? 832 : 810) + ortungsHoehe, 362, nil)
 
                 // Aufgeklappte Listen zuletzt, damit sie ueber allem liegen.
                 if menue == .sprache {
-                    liste(x: 204, y: 526, w: 178, maxHoehe: 192, zeilen: FahrerEditorModell.sprachen.count) {
+                    liste(x: 204, y: 594, w: 178, maxHoehe: 192, zeilen: FahrerEditorModell.sprachen.count) {
                         ForEach(FahrerEditorModell.sprachen, id: \.self) { s in
                             zeile(s) { m.sprache = s; menue = nil }
                         }
                     }
                 }
                 if menue == .fahrzeug {
-                    liste(x: 20, y: 594, w: 271, maxHoehe: 208, zeilen: m.fahrzeuge.count + 1) {
+                    liste(x: 20, y: 662, w: 271, maxHoehe: 208, zeilen: m.fahrzeuge.count + 1) {
                         zeile("Kein Fahrzeug") { m.fahrzeugID = ""; menue = nil }
                         ForEach(m.fahrzeuge) { f in
                             zeile(f.etikett.isEmpty ? "Ohne Kennzeichen" : f.etikett) { m.fahrzeugID = f.id; menue = nil }
@@ -147,7 +158,7 @@ struct FahrerErstellenAnsicht: View {
                     }
                 }
                 if menue == .tracker && m.ortung == "obd" {
-                    liste(x: 20, y: 730, w: 362, maxHoehe: 208, zeilen: m.tracker.count) {
+                    liste(x: 20, y: 798, w: 362, maxHoehe: 208, zeilen: m.tracker.count) {
                         ForEach(m.tracker) { t in
                             let notiz = t.is_active != true ? "frei" : (t.driver_id == m.ursprung?.id ? "dieser Fahrer" : t.besitzerName)
                             Button { m.imei = t.imei; menue = nil } label: {
@@ -200,6 +211,40 @@ struct FahrerErstellenAnsicht: View {
         .platz(x + w - 34, o + y, 34, 56)
     }
 
+    /// Passwort mit Auge rechts zum Ein- und Ausblenden. Beim Bearbeiten nur fuer ein neues Passwort.
+    private func passwortFeld(x: CGFloat, y: CGFloat, w: CGFloat) -> some View {
+        let platzhalter = m.bearbeiten ? "Neues Passwort" : "Passwort"
+        let prompt = Text(platzhalter).foregroundColor(schrift.opacity(0.9))
+        return ZStack(alignment: .topLeading) {
+            kasten(x: x, y: y, w: w)
+            Group {
+                if passwortSichtbar {
+                    TextField("", text: $m.passwort, prompt: prompt)
+                } else {
+                    SecureField("", text: $m.passwort, prompt: prompt)
+                }
+            }
+            .textContentType(.newPassword)
+            .textInputAutocapitalization(.never)
+            .focused($fokus, equals: .passwort)
+            .font(.grotesk(16, .medium)).tracking(0.5)
+            .foregroundStyle(schrift)
+            .tint(lime)
+            .autocorrectionDisabled()
+            .platz(x + 16, o + y, w - 16 - 44, 56, .leading)
+            Button { passwortSichtbar.toggle() } label: {
+                Image(passwortSichtbar ? "AugeZu" : "AugeOffen").resizable().scaledToFit()
+                    .frame(width: 20, height: 20)
+                    .padding(.trailing, 12)
+                    .frame(width: 44, height: 56, alignment: .trailing)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.web)
+            .accessibilityLabel(passwortSichtbar ? "Passwort ausblenden" : "Passwort anzeigen")
+            .platz(x + w - 44, o + y, 44, 56)
+        }
+    }
+
     /// Feld mit Rahmen und Pfeil (`left-4`, rechts je nach Feld `right-10/12/14`).
     private func eingabe(_ f: Feld, _ platzhalter: String, _ text: Binding<String>,
                          x: CGFloat, y: CGFloat, w: CGFloat, rechts: CGFloat = 56) -> some View {
@@ -244,7 +289,7 @@ struct FahrerErstellenAnsicht: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.web)
-        .platz(x, o + 662, 178, 56)
+        .platz(x, o + 662 + zugangsZeile, 178, 56)
     }
 
     /// Aufgeklappte Liste 58 unter dem Feld: schwarz, Lime-Rand, scrollbar.

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalComposeUiApi::class)
+
 package de.trisar.kern
 
 import androidx.compose.foundation.background
@@ -26,7 +28,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.autofill.AutofillNode
+import androidx.compose.ui.autofill.AutofillType
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalAutofill
+import androidx.compose.ui.platform.LocalAutofillTree
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -58,6 +69,15 @@ fun LoginSeite(anmeldung: Anmeldung, hintergrund: @Composable () -> Unit = { Tri
     val fokus = LocalFocusManager.current
     val pwFeld = remember { FocusRequester() }
 
+    // Passwort-Manager: Benutzername und Passwort automatisch eintragen lassen.
+    val autofill = LocalAutofill.current
+    val baum = LocalAutofillTree.current
+    val kennungKnoten = remember { AutofillNode(listOf(AutofillType.Username)) { email = it } }
+    val pwKnoten = remember { AutofillNode(listOf(AutofillType.Password)) { passwort = it } }
+    DisposableEffect(Unit) { baum += kennungKnoten; baum += pwKnoten; onDispose { } }
+    fun Modifier.ausfuellen(knoten: AutofillNode) = onGloballyPositioned { knoten.boundingBox = it.boundsInWindow() }
+        .onFocusChanged { if (it.isFocused) autofill?.requestAutofillForNode(knoten) else autofill?.cancelAutofillForNode(knoten) }
+
     fun los() { fokus.clearFocus(); hinweis = null; anmeldung.anmelden(email, passwort) { passwort = "" } }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -76,15 +96,18 @@ fun LoginSeite(anmeldung: Anmeldung, hintergrund: @Composable () -> Unit = { Tri
             }
             Spacer(Modifier.height(56.dp))
             Spalte(24f) {
-                Feld("E-Mail", "Brief", fokusMail) {
+                Feld("Benutzername oder E-Mail", "Brief", fokusMail) {
                     BasicTextField(
                         email, { email = it }, singleLine = true,
                         textStyle = grotesk(15f, farbe = Farbe.grauText),
                         cursorBrush = SolidColor(Farbe.lime),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next, autoCorrectEnabled = false),
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false,
+                            keyboardType = KeyboardType.Text, imeAction = ImeAction.Next,
+                        ),
                         keyboardActions = KeyboardActions(onNext = { pwFeld.requestFocus() }),
-                        modifier = Modifier.fillMaxWidth().onFocusChanged { fokusMail = it.isFocused },
-                        decorationBox = { inner -> if (email.isEmpty()) Text("deine@email.de", style = grotesk(15f, farbe = Farbe.grauText)); inner() },
+                        modifier = Modifier.fillMaxWidth().ausfuellen(kennungKnoten).onFocusChanged { fokusMail = it.isFocused },
+                        decorationBox = { inner -> if (email.isEmpty()) Text("name oder deine@email.de", style = grotesk(15f, farbe = Farbe.grauText)); inner() },
                     )
                 }
                 Feld("Passwort", "Schloss", fokusPw, rechts = {
@@ -97,7 +120,7 @@ fun LoginSeite(anmeldung: Anmeldung, hintergrund: @Composable () -> Unit = { Tri
                         visualTransformation = if (sichtbar) VisualTransformation.None else PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go, autoCorrectEnabled = false),
                         keyboardActions = KeyboardActions(onGo = { los() }),
-                        modifier = Modifier.fillMaxWidth().focusRequester(pwFeld).onFocusChanged { fokusPw = it.isFocused },
+                        modifier = Modifier.fillMaxWidth().focusRequester(pwFeld).ausfuellen(pwKnoten).onFocusChanged { fokusPw = it.isFocused },
                         decorationBox = { inner -> if (passwort.isEmpty()) Text("••••••••", style = grotesk(15f, farbe = Farbe.grauText)); inner() },
                     )
                 }

@@ -408,3 +408,7 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # Prueft Anmeldung und Disposition selbst (auth.getUser), siehe functions/dispo-admin.
 [functions.dispo-admin]
 verify_jwt = false
+
+# Anmeldung mit Benutzername oder E-Mail, laeuft vor jeder Sitzung, siehe functions/anmelden.
+[functions.anmelden]
+verify_jwt = false

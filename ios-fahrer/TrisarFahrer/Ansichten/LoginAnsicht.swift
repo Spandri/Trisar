@@ -74,13 +74,13 @@ struct LoginAnsicht<Hintergrund: View>: View {
     private var formular: some View {
         VStack(spacing: 24) {
             TrisarFeld(
-                titel: "E-Mail",
+                titel: "Benutzername oder E-Mail",
                 icon: "Brief",
                 feld: {
                     AnyView(
-                        TextField("", text: $email, prompt: Text(verbatim: "deine@email.de").foregroundStyle(Farbe.grauText))
+                        TextField("", text: $email, prompt: Text(verbatim: "name oder deine@email.de").foregroundStyle(Farbe.grauText))
                             .textContentType(.username)
-                            .keyboardType(.emailAddress)
+                            .keyboardType(.default)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .submitLabel(.next)
@@ -158,13 +158,14 @@ struct LoginAnsicht<Hintergrund: View>: View {
     private func anmelden() async {
         fokus = nil
         hinweis = nil
-        await anmeldung.anmelden(email: email, passwort: passwort)
+        await anmeldung.anmelden(kennung: email, passwort: passwort)
         if anmeldung.fehler == nil { passwort = "" }
     }
 
     private func passwortVergessen() async {
         let mail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !mail.isEmpty else {
+        // Zuruecksetzen geht nur per Mail-Link, ein Benutzername reicht dafuer nicht.
+        guard !mail.isEmpty, mail.contains("@") else {
             anmeldung.fehler = "Bitte zuerst deine E-Mail eintragen."
             return
         }

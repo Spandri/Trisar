@@ -29,22 +29,28 @@ const normalizePhone = (phone = '') => {
 
 const isValidEmailFormat = (value = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
 
-const resolveDriverPasswordSetupRedirect = () => {
-  const configured = String(import.meta.env.VITE_FAHRER_APP_URL || '').trim();
-  if (configured) return configured;
-  try {
-    const url = new URL(window.location.origin);
-    if (url.hostname === 'koordinator.trisar.de' || url.hostname === 'admin.trisar.de') {
-      return `${url.protocol}//fahrer.trisar.de`;
-    }
-    if (url.port === '5175' || url.port === '5177') {
-      url.port = '5173';
-      return url.toString().replace(/\/$/, '');
-    }
-  } catch {
-    // Fall back to default driver domain.
-  }
-  return 'https://fahrer.trisar.de';
+// Wie profiles_username_format in Migration 20261105150000_benutzername.
+const isValidUsername = (value = '') => /^[a-z0-9._-]{3,32}$/.test(value);
+const cleanUsername = (value = '') => String(value).toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 32);
+
+// Fehlercodes von dispo-admin in Text der Oberflaeche.
+const kontoFehlerText = (code, t) => {
+  if (/username_taken/.test(code)) return t('erstellen.errorUsernameTaken');
+  if (/username_invalid/.test(code)) return t('erstellen.errorUsernameInvalid');
+  if (/email_taken/.test(code)) return t('erstellen.errorEmailTaken');
+  if (/email_invalid|invalid format|unable to validate email/i.test(code)) return t('erstellen.errorEmailInvalid');
+  if (/password_too_short/.test(code)) return t('erstellen.errorPasswordShort');
+  if (/password_missing/.test(code)) return t('erstellen.errorPasswordRequired');
+  if (/login_missing/.test(code)) return t('erstellen.errorLoginRequired');
+  if (/not_signed_in/.test(code)) return t('erstellen.errorSessionExpired');
+  return t('erstellen.errorAccountFailed', { error: code });
+};
+
+const kontoAufruf = async (body) => {
+  const antwort = await supabase.functions.invoke('dispo-admin', { body });
+  if (!antwort.error) return { data: antwort.data, code: '' };
+  const inhalt = await antwort.error.context?.json?.().catch(() => null);
+  return { data: null, code: String(inhalt?.error || antwort.error.message || 'unknown') };
 };
 
 export default function FahrerErstellenView({ setView, initialDriver = null }) {
@@ -71,11 +77,23 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
   const [driverNumber, setDriverNumber] = useState('');
   const [driverNumberWarning, setDriverNumberWarning] = useState('');
   const [originalEmail, setOriginalEmail] = useState('');
+  // Konto: Benutzername + Passwort legt die Disposition selbst an (dispo-admin, konto_anlegen).
+  const [username, setUsername] = useState('');
+  const [originalUsername, setOriginalUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  // Ortung: 'app' = Handy-Standort aus der Fahrer-App, 'obd' = Tracker (IMEI) im Auto.
+  const [trackingMode, setTrackingMode] = useState('app');
+  const [trackerImei, setTrackerImei] = useState('');
+  const [trackerList, setTrackerList] = useState([]);
+  const [showTrackerMenu, setShowTrackerMenu] = useState(false);
   const isEditMode = Boolean(initialDriver?.id);
 
   const firstNameRef = useRef(null);
   const lastNameRef = useRef(null);
   const emailRef = useRef(null);
+  const usernameRef = useRef(null);
+  const passwordRef = useRef(null);
   const phoneRef = useRef(null);
   const streetRef = useRef(null);
   const streetNumberRef = useRef(null);
@@ -115,6 +133,27 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
     };
   }, []);
 
+  // Bekannte Tracker (alle IMEIs, die schon einmal einem Fahrer zugeordnet waren).
+  useEffect(() => {
+    let mounted = true;
+    const loadTrackers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('imei_driver_map')
+          .select('imei, driver_id, is_active, driver:driver_id(first_name, last_name)')
+          .order('imei', { ascending: true });
+        if (!mounted || error) return;
+        setTrackerList(Array.isArray(data) ? data : []);
+      } catch {
+        // Tabelle fehlt (z.B. Demo): Liste bleibt leer, IMEI kann von Hand eingetragen werden.
+      }
+    };
+    loadTrackers();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const inputClass =
     'absolute left-4 right-14 top-1/2 -translate-y-1/2 bg-transparent border-none outline-none text-[#8a9728] text-[16px] leading-6 tracking-[0.5px] font-medium placeholder:text-[#8a9728] placeholder:opacity-90';
 
@@ -142,8 +181,15 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
     setVehicleId('');
     setDriverNumber('');
     setOriginalEmail('');
+    setUsername('');
+    setOriginalUsername('');
+    setPassword('');
+    setPasswordVisible(false);
+    setTrackingMode('app');
+    setTrackerImei('');
     setShowLanguageMenu(false);
     setShowVehicleMenu(false);
+    setShowTrackerMenu(false);
   };
 
   useEffect(() => {
@@ -162,6 +208,9 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
       const initialMail = String(initialDriver?.email || '').trim();
       setEmail(initialMail);
       setOriginalEmail(initialMail.toLowerCase());
+      setUsername('');
+      setOriginalUsername('');
+      setPassword('');
       const phoneParts = normalizePhone('');
       setCountryCode(phoneParts.country);
       setPhone(phoneParts.local);
@@ -209,6 +258,18 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
         setLanguage(String(data.language || 'Deutsch').trim() || 'Deutsch');
         setVehicleId(String(data.vehicle_id || '').trim());
         setDriverNumber(data.driver_number != null ? String(data.driver_number) : (initialDriver?.driverNumber != null ? String(initialDriver.driverNumber) : ''));
+        setTrackingMode(data.tracking_mode === 'obd' ? 'obd' : 'app');
+        setUsername(String(data.username || ''));
+        setOriginalUsername(String(data.username || ''));
+
+        const trackerResult = await supabase
+          .from('imei_driver_map')
+          .select('imei')
+          .eq('driver_id', initialDriver.id)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (!mounted) return;
+        setTrackerImei(String(trackerResult.data?.imei || '').trim());
       } catch (error) {
         if (!mounted) return;
         setFeedback(t('erstellen.driverLoadError', { error: error.message }));
@@ -229,8 +290,21 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
       setFeedback(t('erstellen.errorNameRequired'));
       return;
     }
-    if (!isEditMode && !email.trim()) {
-      setFeedback(t('erstellen.errorEmailRequired'));
+    const normalizedUsername = cleanUsername(username);
+    if (!normalizedUsername && !email.trim() && !(isEditMode && originalEmail)) {
+      setFeedback(t('erstellen.errorLoginRequired'));
+      return;
+    }
+    if (normalizedUsername && !isValidUsername(normalizedUsername)) {
+      setFeedback(t('erstellen.errorUsernameInvalid'));
+      return;
+    }
+    if (!isEditMode && !password) {
+      setFeedback(t('erstellen.errorPasswordRequired'));
+      return;
+    }
+    if (password && password.length < 8) {
+      setFeedback(t('erstellen.errorPasswordShort'));
       return;
     }
     if (!driverNumber.trim()) {
@@ -243,11 +317,17 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
       return;
     }
 
+    const normalizedImei = trackerImei.replace(/\D/g, '');
+    if (trackingMode === 'obd' && !/^\d{15}$/.test(normalizedImei)) {
+      setFeedback(t('erstellen.errorTrackerImei'));
+      return;
+    }
+
     setIsSubmitting(true);
     setFeedback('');
 
     const normalizedEmail = email.trim().toLowerCase();
-    if (!isEditMode && !isValidEmailFormat(normalizedEmail)) {
+    if (normalizedEmail && !isValidEmailFormat(normalizedEmail)) {
       setFeedback(t('erstellen.errorEmailInvalid'));
       setIsSubmitting(false);
       return;
@@ -264,12 +344,30 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
       city: city.trim() || null,
       zip: zip.trim() || null,
       language: language || 'Deutsch',
-      role: 'fahrer',
-      is_dispo: false,
+      ...(isEditMode ? {} : { role: 'fahrer', is_dispo: false }),
+      username: normalizedUsername || null,
       vehicle_id: vehicleId || null,
       driver_number: parsedDriverNumber,
+      tracking_mode: trackingMode,
     };
     console.log('Profil-Payload:', profilePayload);
+
+    // Tracker-Zuordnung passend zur Ortung schreiben. Bei 'app' wird jeder Tracker des
+    // Fahrers abgeschaltet, sonst schreiben Handy und Tracker abwechselnd den Standort.
+    // Bei 'obd' bekommt der Fahrer genau diese IMEI. War sie bei jemand anderem, wandert sie mit.
+    const saveTracker = async (driverId) => {
+      const off = await supabase
+        .from('imei_driver_map')
+        .update({ is_active: false })
+        .eq('driver_id', driverId)
+        .neq('imei', trackingMode === 'obd' ? normalizedImei : '');
+      if (off.error) throw off.error;
+      if (trackingMode !== 'obd') return;
+      const on = await supabase
+        .from('imei_driver_map')
+        .upsert([{ imei: normalizedImei, driver_id: driverId, is_active: true }], { onConflict: 'imei' });
+      if (on.error) throw on.error;
+    };
 
     try {
       if (isEditMode) {
@@ -303,12 +401,35 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
           return null;
         };
 
+        // Login-Daten ueber dispo-admin, nur wenn sich etwas daran aendert.
+        const kontoGeaendert = password
+          || normalizedUsername !== originalUsername
+          || (normalizedEmail && normalizedEmail !== originalEmail);
+        if (kontoGeaendert) {
+          const { code } = await kontoAufruf({
+            aktion: 'konto_aendern',
+            user_id: targetId,
+            benutzername: normalizedUsername,
+            email: normalizedEmail,
+            ...(password ? { passwort: password } : {}),
+          });
+          if (code) throw new Error(kontoFehlerText(code, t));
+          setOriginalUsername(normalizedUsername);
+          setPassword('');
+        }
+
         const adminProfileError = await updateProfile(supabaseAdmin, profilePayload);
         if (adminProfileError) {
           const publicProfileError = await updateProfile(supabase, profilePayload);
           if (publicProfileError) {
             throw new Error(t('erstellen.errorSaveFailedAdminPublic', { admin: adminProfileError.message, public: publicProfileError.message }));
           }
+        }
+
+        try {
+          await saveTracker(targetId);
+        } catch (trackerError) {
+          throw new Error(t('erstellen.errorTrackerSave', { error: trackerError.message }));
         }
 
         console.log('✅ Fahrer erfolgreich aktualisiert!');
@@ -320,28 +441,18 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
       console.log('➕ Erstelle neuen Fahrer...');
       let userId = null;
       let profileClient = supabaseAdmin;
-      const redirectTo = resolveDriverPasswordSetupRedirect();
 
-      // Einladung laeuft ueber die Funktion dispo-admin, der Admin-Schluessel bleibt auf dem Server.
-      const einladung = await supabase.functions.invoke('dispo-admin', {
-        body: {
-          aktion: 'fahrer_einladen',
-          email: normalizedEmail,
-          redirectTo,
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-        },
+      // Konto mit Passwort direkt anlegen, keine Einladungs-Mail. Admin-Schluessel bleibt auf dem Server.
+      const konto = await kontoAufruf({
+        aktion: 'konto_anlegen',
+        benutzername: normalizedUsername,
+        email: normalizedEmail,
+        passwort: password,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
       });
-      const einladungsFehler = einladung.error
-        ? String((await einladung.error.context?.json?.().catch(() => null))?.error || einladung.error.message || '')
-        : '';
-      if (einladungsFehler) {
-        if (/invalid format|unable to validate email address/i.test(einladungsFehler)) {
-          throw new Error(t('erstellen.errorEmailInvalid'));
-        }
-        throw new Error(t('erstellen.errorInviteMailFailed', { error: einladungsFehler }));
-      }
-      userId = einladung.data?.user_id || null;
+      if (konto.code) throw new Error(kontoFehlerText(konto.code, t));
+      userId = konto.data?.user_id || null;
 
       if (!userId) {
         throw new Error(t('erstellen.errorAuthUserMissingId'));
@@ -372,8 +483,13 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
         }
       }
       if (upsertError) throw upsertError;
+      try {
+        await saveTracker(userId);
+      } catch (trackerError) {
+        throw new Error(t('erstellen.errorTrackerSave', { error: trackerError.message }));
+      }
       console.log('✅ Fahrer erfolgreich erstellt!');
-      setFeedback(t('erstellen.driverCreatedInviteSent'));
+      setFeedback(t('erstellen.driverCreatedAccount'));
       resetForm();
     } catch (error) {
       console.error('❌ Fehler beim Erstellen/Bearbeiten:', error);
@@ -426,6 +542,11 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
   };
 
   // Handler für Fahrernummer-Änderung
+  // Platz fuer die Ortungs-Zeilen: Auswahl (68) plus bei OBD IMEI-Feld und Hinweiszeile (88).
+  // Dazu die Konto-Zeile (Benutzername + Passwort, 68), die alles darunter nach unten schiebt.
+  const trackingRowsHeight = (trackingMode === 'obd' ? 156 : 68) + 68;
+  const contentHeight = BASE_HEIGHT + trackingRowsHeight;
+
   const handleDriverNumberChange = (e) => {
     const value = e.target.value.replace(/[^\d]/g, '');
     setDriverNumber(value);
@@ -443,8 +564,8 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
       className="h-dvh w-full bg-black overflow-y-auto overflow-x-hidden flex justify-center overscroll-none"
       style={{ WebkitTextSizeAdjust: 'none', WebkitOverflowScrolling: 'touch', textSizeAdjust: 'none', fontFamily: 'Space Grotesk, sans-serif' }}
     >
-      <div className="relative shrink-0" style={{ width: `${BASE_WIDTH * scale}px`, height: `${BASE_HEIGHT * scale}px` }}>
-        <div className="absolute left-0 top-0 w-[402px] origin-top-left" style={{ ...screenBg, transform: `scale(${scale})`, height: `${BASE_HEIGHT}px` }}>
+      <div className="relative shrink-0" style={{ width: `${BASE_WIDTH * scale}px`, height: `${contentHeight * scale}px` }}>
+        <div className="absolute left-0 top-0 w-[402px] origin-top-left" style={{ ...screenBg, transform: `scale(${scale})`, height: `${contentHeight}px` }}>
           <BackCircleButton onClick={() => setView('alleFahrer')} className="absolute left-5 top-[60px]" />
 
           <div className="absolute left-0 top-[20px] w-[402px]">
@@ -483,8 +604,9 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
                 ref={emailRef}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={t('erstellen.email')}
-                readOnly={isEditMode}
+                placeholder={t('erstellen.emailOptional')}
+                type="email"
+                autoComplete="off"
                 className="absolute left-10 right-10 top-1/2 -translate-y-1/2 bg-transparent border-none outline-none text-[#8a9728] text-[16px] leading-6 tracking-[0.5px] font-medium placeholder:text-[#8a9728] placeholder:opacity-90"
               />
               <img src="/icon/_Icon_Lime/Mail_Trisar_Icons_01_Lime.svg" alt="" className="absolute left-3 top-1/2 -translate-y-1/2 w-[10px] h-[13px] scale-[1.2]" />
@@ -493,7 +615,49 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               </button>
             </Box>
 
-            <Box x={20} y={322} w={85}>
+            {/* Konto: Benutzername + Passwort, damit sich der Fahrer nur noch anmelden muss */}
+            <Box x={20} y={322} w={178}>
+              <input
+                ref={usernameRef}
+                value={username}
+                onChange={(e) => setUsername(cleanUsername(e.target.value))}
+                placeholder={t('erstellen.username')}
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className="absolute left-4 right-10 top-1/2 -translate-y-1/2 bg-transparent border-none outline-none text-[#8a9728] text-[16px] leading-6 tracking-[0.5px] font-medium placeholder:text-[#8a9728] placeholder:opacity-90"
+              />
+              <button type="button" onClick={() => usernameRef.current?.focus()} className="absolute right-3 top-1/2 -translate-y-1/2">
+                <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="w-[10px] h-[13px]" />
+              </button>
+            </Box>
+
+            <Box x={204} y={322} w={178}>
+              <input
+                ref={passwordRef}
+                type={passwordVisible ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isEditMode ? t('erstellen.newPassword') : t('erstellen.password')}
+                autoComplete="new-password"
+                className="absolute left-4 right-10 top-1/2 -translate-y-1/2 bg-transparent border-none outline-none text-[#8a9728] text-[16px] leading-6 tracking-[0.5px] font-medium placeholder:text-[#8a9728] placeholder:opacity-90"
+              />
+              <button
+                type="button"
+                onClick={() => setPasswordVisible((v) => !v)}
+                aria-label={passwordVisible ? 'Passwort ausblenden' : 'Passwort anzeigen'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5"
+              >
+                <img
+                  src={passwordVisible ? '/icon/_Icon_Grau/Auge_geschlossen_Trisar_Icons_01_grau.svg' : '/icon/_Icon_Grau/Auge_offen_Trisar_Icons_01_grau.svg'}
+                  alt=""
+                  className="w-5 h-5 object-contain"
+                />
+              </button>
+            </Box>
+
+            <Box x={20} y={390} w={85}>
               <input
                 value={countryCode}
                 onChange={(e) => setCountryCode(e.target.value)}
@@ -502,7 +666,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               />
             </Box>
 
-            <Box x={111} y={322} w={271}>
+            <Box x={111} y={390} w={271}>
               <input
                 ref={phoneRef}
                 value={phone}
@@ -516,7 +680,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               </button>
             </Box>
 
-            <Box x={20} y={390} w={271}>
+            <Box x={20} y={458} w={271}>
               <input
                 ref={streetRef}
                 value={street}
@@ -529,7 +693,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               </button>
             </Box>
 
-            <Box x={297} y={390} w={85}>
+            <Box x={297} y={458} w={85}>
               <input
                 ref={streetNumberRef}
                 value={streetNumber}
@@ -542,7 +706,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               </button>
             </Box>
 
-            <Box x={20} y={458} w={362}>
+            <Box x={20} y={526} w={362}>
               <input
                 ref={cityRef}
                 value={city}
@@ -555,7 +719,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               </button>
             </Box>
 
-            <Box x={20} y={526} w={178}>
+            <Box x={20} y={594} w={178}>
               <input
                 ref={zipRef}
                 value={zip}
@@ -568,7 +732,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               </button>
             </Box>
 
-            <Box x={204} y={526} w={178} className="z-30">
+            <Box x={204} y={594} w={178} className="z-30">
               <button type="button" onClick={() => setShowLanguageMenu((v) => !v)} className="absolute inset-0 text-left">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8a9728] text-[16px] leading-6 tracking-[0.5px] font-medium whitespace-nowrap">
                   {language || t('erstellen.language')}
@@ -594,7 +758,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               )}
             </Box>
 
-            <Box x={20} y={594} w={271} className="z-20">
+            <Box x={20} y={662} w={271} className="z-20">
               <button type="button" onClick={() => setShowVehicleMenu((v) => !v)} className="absolute inset-0 text-left">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8a9728] text-[16px] leading-6 tracking-[0.5px] font-medium whitespace-nowrap">
                   {loadingVehicles ? t('erstellen.vehiclesLoading') : selectedVehicleLabel}
@@ -635,7 +799,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               )}
             </Box>
 
-            <Box x={297} y={594} w={85}>
+            <Box x={297} y={662} w={85}>
               <input
                 ref={driverNumberRef}
                 value={driverNumber}
@@ -648,8 +812,87 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               </button>
             </Box>
 
+            {/* Ortung: Handy-App oder OBD-Tracker */}
+            {[
+              { mode: 'app', x: 20, label: t('erstellen.trackingApp') },
+              { mode: 'obd', x: 204, label: t('erstellen.trackingObd') },
+            ].map(({ mode, x, label }) => (
+              <Box key={mode} x={x} y={730} w={178} className={trackingMode === mode ? 'bg-[#e3f654]' : ''}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTrackingMode(mode);
+                    setShowTrackerMenu(false);
+                  }}
+                  className="absolute inset-0 text-left"
+                >
+                  <span className={`absolute left-4 top-1/2 -translate-y-1/2 text-[16px] leading-6 tracking-[0.5px] font-medium whitespace-nowrap ${trackingMode === mode ? 'text-[#0e1008]' : 'text-[#8a9728]'}`}>
+                    {label}
+                  </span>
+                </button>
+              </Box>
+            ))}
+
+            {trackingMode === 'obd' && (
+              <Box x={20} y={798} w={362} className="z-20">
+                <input
+                  value={trackerImei}
+                  onChange={(e) => setTrackerImei(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                  onFocus={() => setShowTrackerMenu(false)}
+                  inputMode="numeric"
+                  placeholder={t('erstellen.trackerImei')}
+                  className={inputClass}
+                />
+                {trackerList.length > 0 && (
+                  <button type="button" onClick={() => setShowTrackerMenu((v) => !v)} className="absolute right-0 top-0 bottom-0 w-12">
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#e3f654] text-[32px] leading-none font-bold">v</span>
+                  </button>
+                )}
+                {showTrackerMenu && (
+                  <div className="absolute left-0 right-0 top-[58px] bg-black border-2 border-[#e3f654] z-40 max-h-52 overflow-y-auto">
+                    {trackerList.map((tracker) => {
+                      const owner = [tracker.driver?.first_name, tracker.driver?.last_name].filter(Boolean).join(' ').trim();
+                      const isOwn = tracker.driver_id === initialDriver?.id;
+                      const note = !tracker.is_active
+                        ? t('erstellen.trackerFree')
+                        : isOwn
+                          ? t('erstellen.trackerThisDriver')
+                          : owner;
+                      return (
+                        <button
+                          key={tracker.imei}
+                          type="button"
+                          onClick={() => {
+                            setTrackerImei(tracker.imei);
+                            setShowTrackerMenu(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-[#8a9728] text-[16px]"
+                        >
+                          {tracker.imei}
+                          {note ? <span className="text-[#c8d85d] text-[12px]"> · {note}</span> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </Box>
+            )}
+
+            {(() => {
+              // Hinweis, wenn der gewaehlte Tracker gerade bei jemand anderem aktiv ist.
+              if (trackingMode !== 'obd') return null;
+              const taken = trackerList.find((tr) => tr.imei === trackerImei && tr.is_active && tr.driver_id !== initialDriver?.id);
+              if (!taken) return null;
+              const owner = [taken.driver?.first_name, taken.driver?.last_name].filter(Boolean).join(' ').trim();
+              return (
+                <div className="absolute left-5 top-[858px] w-[362px] text-[#ff9500] text-[12px] leading-[1.3]">
+                  {t('erstellen.trackerMoves', { name: owner || '?' })}
+                </div>
+              );
+            })()}
+
             {driverNumberWarning && (
-              <div className="absolute left-5 top-[662px] w-[362px] px-3 py-1 text-[#ff9500] text-[12px] leading-[1.3] bg-[#2d1e00] border border-[#ff9500] rounded">
+              <div className="absolute left-5 w-[362px] px-3 py-1 text-[#ff9500] text-[12px] leading-[1.3] bg-[#2d1e00] border border-[#ff9500] rounded" style={{ top: `${662 + trackingRowsHeight}px` }}>
                 {driverNumberWarning}
               </div>
             )}
@@ -658,14 +901,15 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               type="button"
               disabled={isSubmitting}
               onClick={createDriver}
-              className={`absolute left-5 w-[362px] h-14 bg-[#dbee4a] disabled:opacity-70 ${driverNumberWarning ? 'top-[696px]' : 'top-[674px]'}`}
+              className="absolute left-5 w-[362px] h-14 bg-[#dbee4a] disabled:opacity-70"
+              style={{ top: `${(driverNumberWarning ? 696 : 674) + trackingRowsHeight}px` }}
             >
               <span className="text-[#0e1008] text-[16px] leading-6 tracking-[0.5px] font-medium">
                 {isSubmitting ? t('erstellen.saving') : (isEditMode ? t('erstellen.driverSave') : t('erstellen.driverCreateTitle'))}
               </span>
             </button>
 
-            <div className={`absolute left-5 w-[362px] min-h-[56px] px-3 py-2 border border-[#7f8a2b] text-[#c8d85d] text-[12px] leading-[1.3] ${driverNumberWarning ? 'top-[764px]' : 'top-[742px]'}`}>
+            <div className="absolute left-5 w-[362px] min-h-[56px] px-3 py-2 border border-[#7f8a2b] text-[#c8d85d] text-[12px] leading-[1.3]" style={{ top: `${(driverNumberWarning ? 764 : 742) + trackingRowsHeight}px` }}>
               {feedback || (isEditMode ? t('erstellen.driverEditHint') : t('erstellen.driverCreateHint'))}
             </div>
 

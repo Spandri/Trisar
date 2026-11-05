@@ -6,11 +6,19 @@ import io.github.jan.supabase.auth.SignOutScope
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.auth.user.UserSession
+import io.github.jan.supabase.exceptions.RestException
+import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 
 @Serializable
 data class FahrerProfil(
@@ -30,7 +38,7 @@ sealed interface Zustand {
 }
 
 /**
- * Anmeldestatus wie Anmeldung in iOS. Gleiches Konto wie im Web (E-Mail + Passwort).
+ * Anmeldestatus wie Anmeldung in iOS. Gleiches Konto wie im Web (Benutzername oder E-Mail + Passwort).
  * zugang: optional nur bestimmte Konten (Dispo: Rolle dispo/admin/koordinator).
  */
 class Anmeldung(
@@ -68,21 +76,54 @@ class Anmeldung(
 
     val fahrerID: String? get() = (zustand.value as? Zustand.Angemeldet)?.id
 
-    fun anmelden(email: String, passwort: String, fertig: () -> Unit = {}) {
-        val mail = email.trim().lowercase()
-        if (mail.isEmpty() || passwort.isEmpty()) { fehler.value = "Bitte E-Mail und Passwort eingeben."; return }
+    /** kennung: Benutzername oder E-Mail. Mit '@' direkt bei Supabase, sonst ueber die Funktion `anmelden`. */
+    fun anmelden(kennung: String, passwort: String, fertig: () -> Unit = {}) {
+        val k = kennung.trim().lowercase()
+        if (k.isEmpty() || passwort.isEmpty()) { fehler.value = "Bitte Benutzername oder E-Mail und Passwort eingeben."; return }
         arbeitet.value = true
         fehler.value = null
         viewModelScope.launch {
             try {
-                Backend.client.auth.signInWith(Email) { this.email = mail; this.password = passwort }
+                if ('@' in k) {
+                    Backend.client.auth.signInWith(Email) { this.email = k; this.password = passwort }
+                } else {
+                    mitBenutzername(k, passwort)
+                }
                 fertig()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 fehler.value = lesbar(e)
             } finally {
                 arbeitet.value = false
             }
         }
+    }
+
+    /**
+     * Der Server loest den Benutzernamen in die E-Mail auf und liefert die fertige Sitzung.
+     * Falsche Daten kommen als HTTP 400 mit invalid_credentials, invoke wirft dann.
+     */
+    private suspend fun mitBenutzername(name: String, passwort: String) {
+        val koerper = buildJsonObject { put("kennung", name); put("passwort", passwort) }
+        val text = Backend.client.functions.invoke("anmelden", body = koerper).bodyAsText()
+        val d = Backend.json.parseToJsonElement(text).jsonObject
+        fun feld(n: String) = (d[n] as? JsonPrimitive)?.content?.takeIf { it != "null" }.orEmpty()
+        val zugang = feld("access_token")
+        val erneuern = feld("refresh_token")
+        if (zugang.isEmpty() || erneuern.isEmpty()) throw IllegalStateException("invalid_credentials")
+        // Nutzer vorher holen, damit sessionStatus gleich mit user.id kommt (Zustand.Angemeldet braucht sie).
+        val nutzer = runCatching { Backend.client.auth.retrieveUser(zugang) }.getOrNull()
+        Backend.client.auth.importSession(
+            UserSession(
+                accessToken = zugang,
+                refreshToken = erneuern,
+                expiresIn = feld("expires_in").toLongOrNull() ?: 3600L,
+                tokenType = feld("token_type").ifEmpty { "bearer" },
+                user = nutzer,
+            )
+        )
+        if (nutzer == null) Backend.client.auth.retrieveUserForCurrentSession(updateSession = true)
     }
 
     fun abmelden() {
@@ -97,6 +138,8 @@ class Anmeldung(
     fun passwortVergessen(email: String, hinweis: (String) -> Unit) {
         val mail = email.trim().lowercase()
         if (mail.isEmpty()) { fehler.value = "Bitte zuerst deine E-Mail eintragen."; return }
+        // Der Link geht nur an eine E-Mail, ein Benutzername reicht dafuer nicht.
+        if ('@' !in mail) { fehler.value = "Zum Zurücksetzen bitte deine E-Mail eintragen, nicht den Benutzernamen."; return }
         fehler.value = null
         viewModelScope.launch {
             runCatching { Backend.client.auth.resetPasswordForEmail(mail, redirectUrl = "https://fahrer.trisar.de") }
@@ -115,9 +158,10 @@ class Anmeldung(
     }
 
     private fun lesbar(e: Exception): String {
-        val t = e.toString().lowercase()
+        var t = e.toString().lowercase()
+        if (e is RestException) t += " " + e.error.lowercase()
         return when {
-            "invalid login" in t || "invalid_credentials" in t -> "E-Mail oder Passwort stimmt nicht."
+            "invalid login" in t || "invalid_credentials" in t -> "Benutzername, E-Mail oder Passwort stimmt nicht."
             "unable to resolve" in t || "timeout" in t || "network" in t -> "Keine Verbindung. Bitte Internet prüfen."
             else -> "Anmeldung fehlgeschlagen: ${e.message}"
         }

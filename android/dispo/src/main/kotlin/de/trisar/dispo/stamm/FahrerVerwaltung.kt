@@ -358,8 +358,9 @@ internal data class TrackerEintrag(val imei: String, val driverID: String?, val 
 internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
     companion object {
         val sprachen = listOf("Deutsch", "English", "Français", "Italiano", "Español", "Türkçe")
-        /** resolveDriverPasswordSetupRedirect: von admin.trisar.de aus immer die Fahrer-App. */
-        const val PASSWORT_ZIEL = "https://fahrer.trisar.de"
+        /** Benutzername wie NAME_MUSTER in dispo-admin (Migration 20261105150000_benutzername). */
+        private val NAME_MUSTER = Regex("[a-z0-9._-]{3,32}")
+        private val MAIL_MUSTER = Regex("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")
 
         /** normalizePhone: "+49 1234" -> ("+49", "1234"). */
         fun telefonTeilen(wert: String): Pair<String, String> {
@@ -378,6 +379,9 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
     var vorname by mutableStateOf("")
     var nachname by mutableStateOf("")
     var email by mutableStateOf("")
+    var benutzername by mutableStateOf("")
+    /** Beim Anlegen Pflicht, beim Bearbeiten nur wenn ein neues gesetzt werden soll. */
+    var passwort by mutableStateOf("")
     var landesvorwahl by mutableStateOf("+49")
     var telefon by mutableStateOf("")
     var strasse by mutableStateOf("")
@@ -402,6 +406,7 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
     var rueckmeldung by mutableStateOf("")
 
     private var urspruenglicheEmail = ""
+    private var urspruenglicherName = ""
     private var nummerPruefung: Job? = null
 
     val fahrzeugEtikett: String get() {
@@ -481,6 +486,8 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
                 email = mail
                 urspruenglicheEmail = mail.lowercase()
             }
+            benutzername = d.text("username")
+            urspruenglicherName = benutzername
             landesvorwahl = tel.first
             telefon = tel.second
             strasse = d.text("street")
@@ -535,6 +542,7 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
 
     private fun formularLeeren() {
         vorname = ""; nachname = ""; email = ""
+        benutzername = ""; passwort = ""; urspruenglicherName = ""
         landesvorwahl = "+49"; telefon = ""
         strasse = ""; hausnummer = ""; ort = ""; plz = ""
         sprache = "Deutsch"; fahrzeugID = ""; nummer = ""
@@ -545,7 +553,15 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
     /** createDriver aus FahrerErstellenView.jsx. Wird nur durch den Knopf ausgeloest. */
     suspend fun speichern() {
         if (vorname.isBlank() || nachname.isBlank()) { rueckmeldung = "Bitte Vorname und Nachname angeben."; return }
-        if (!bearbeiten && email.isBlank()) { rueckmeldung = "Bitte E-Mail angeben."; return }
+        val name = benutzername.trim().lowercase()
+        val mail = email.trim().lowercase()
+        if (!bearbeiten && name.isEmpty() && mail.isEmpty()) { rueckmeldung = "Bitte Benutzername oder E-Mail angeben."; return }
+        if (name.isNotEmpty() && !NAME_MUSTER.matches(name)) { rueckmeldung = kontoFehlerText("username_invalid"); return }
+        if (mail.isNotEmpty() && (!bearbeiten || mail != urspruenglicheEmail) && !MAIL_MUSTER.matches(mail)) {
+            rueckmeldung = kontoFehlerText("email_invalid"); return
+        }
+        if (!bearbeiten && passwort.isEmpty()) { rueckmeldung = "Bitte ein Passwort angeben."; return }
+        if (passwort.isNotEmpty() && passwort.length < 8) { rueckmeldung = kontoFehlerText("password_too_short"); return }
         if (nummer.isBlank()) { rueckmeldung = "Bitte eine Fahrernummer in \"Nr.\" angeben."; return }
         val fahrerNummer = nummer.toIntOrNull()
         if (fahrerNummer == null || fahrerNummer <= 0) { rueckmeldung = "Fahrernummer muss eine positive ganze Zahl sein."; return }
@@ -555,10 +571,6 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
         speichert = true
         rueckmeldung = ""
         try {
-            val mail = email.trim().lowercase()
-            if (!bearbeiten && !Regex("[^\\s@]+@[^\\s@]+\\.[^\\s@]+").matches(mail)) {
-                rueckmeldung = "Bitte eine gültige E-Mail-Adresse eingeben (z. B. name@firma.de)."; return
-            }
             val mailFuerProfil: JsonElement = when {
                 mail.isNotEmpty() -> JsonPrimitive(mail)
                 bearbeiten && urspruenglicheEmail.isNotEmpty() -> JsonPrimitive(urspruenglicheEmail)
@@ -568,14 +580,13 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
                 "first_name" to JsonPrimitive(vorname.trim()),
                 "last_name" to JsonPrimitive(nachname.trim()),
                 "email" to mailFuerProfil,
+                "username" to if (name.isEmpty()) JsonNull else JsonPrimitive(name),
                 "phone" to JsonPrimitive("${landesvorwahl.trim()} ${telefon.trim()}".trim()),
                 "street" to jsonText(strasse),
                 "street_number" to jsonText(hausnummer),
                 "city" to jsonText(ort),
                 "zip" to jsonText(plz),
                 "language" to JsonPrimitive(sprache.ifEmpty { "Deutsch" }),
-                "role" to JsonPrimitive("fahrer"),
-                "is_dispo" to JsonPrimitive(false),
                 "vehicle_id" to if (fahrzeugID.isEmpty()) JsonNull else JsonPrimitive(fahrzeugID),
                 "driver_number" to JsonPrimitive(fahrerNummer),
                 "tracking_mode" to JsonPrimitive(ortung),
@@ -585,6 +596,18 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
             if (f != null) {
                 val ziel = f.id.trim()
                 if (ziel.isEmpty()) throw StammFehler("Fahrer-ID fehlt.")
+                // Anmeldedaten liegen in auth.users, das darf nur dispo-admin aendern.
+                if (name != urspruenglicherName || passwort.isNotEmpty() || (mail.isNotEmpty() && mail != urspruenglicheEmail)) {
+                    konto(buildJsonObject {
+                        put("aktion", "konto_aendern")
+                        put("user_id", ziel)
+                        put("benutzername", name)
+                        put("email", mail)
+                        if (passwort.isNotEmpty()) put("passwort", passwort)
+                    })
+                    urspruenglicherName = name
+                    passwort = ""
+                }
                 // Im Web erst Admin-, dann oeffentlicher Client. Live sind beide derselbe angemeldete Client.
                 profilAktualisieren(ziel, profil)?.let { throw StammFehler("Speichern fehlgeschlagen. Admin: $it | Public: $it") }
                 try { trackerSpeichern(ziel, imeiZiffern) } catch (e: Exception) {
@@ -595,15 +618,27 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
                 return
             }
 
-            // Einladung ueber die Funktion dispo-admin, der Admin-Schluessel bleibt auf dem Server.
-            val nutzerID = einladen(mail)
-            val zeile = LinkedHashMap(profil).apply { put("id", JsonPrimitive(nutzerID)) }
+            // Konto direkt mit Passwort ueber dispo-admin, keine Einladungs-Mail. Der Admin-Schluessel bleibt auf dem Server.
+            val nutzerID = konto(buildJsonObject {
+                put("aktion", "konto_anlegen")
+                put("benutzername", name)
+                put("email", mail)
+                put("passwort", passwort)
+                put("first_name", vorname.trim())
+                put("last_name", nachname.trim())
+            })
+            // Rolle nur beim Anlegen setzen. Beim Bearbeiten wuerde sie einem Dispo-Konto die Rechte nehmen.
+            val zeile = LinkedHashMap(profil).apply {
+                put("id", JsonPrimitive(nutzerID))
+                put("role", JsonPrimitive("fahrer"))
+                put("is_dispo", JsonPrimitive(false))
+            }
             profilEinfuegen(zeile)?.let { throw StammFehler(it) }
             try { trackerSpeichern(nutzerID, imeiZiffern) } catch (e: Exception) {
                 throw StammFehler("Tracker-Zuordnung nicht gespeichert: ${dbMeldung(e)}")
             }
-            rueckmeldung = "Fahrer angelegt. Die Einladungs-Mail zum Passwort setzen wurde versendet."
             formularLeeren()
+            rueckmeldung = "Konto angelegt. Anmeldung mit Benutzername oder E-Mail und dem Passwort."
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -669,15 +704,24 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
         ) { onConflict = "imei" }
     }
 
-    /** dispo-admin, aktion fahrer_einladen. Liefert die neue user_id. */
-    private suspend fun einladen(mail: String): String {
-        val koerper = buildJsonObject {
-            put("aktion", "fahrer_einladen")
-            put("email", mail)
-            put("redirectTo", PASSWORT_ZIEL)
-            put("first_name", vorname.trim())
-            put("last_name", nachname.trim())
-        }
+    /** Fehlercodes von dispo-admin (konto_anlegen, konto_aendern) als Text fuer die Dispo. */
+    private fun kontoFehlerText(code: String): String = when (code) {
+        "username_taken" -> "Benutzername ist schon vergeben."
+        "username_invalid" -> "Benutzername ungültig. Erlaubt sind 3 bis 32 Zeichen aus a-z, 0-9, Punkt, Unterstrich und Bindestrich."
+        "email_taken" -> "Diese E-Mail gehört schon zu einem anderen Konto."
+        "email_invalid" -> "Bitte eine gültige E-Mail-Adresse eingeben (z. B. name@firma.de)."
+        "password_too_short" -> "Das Passwort braucht mindestens 8 Zeichen."
+        "password_missing" -> "Bitte ein Passwort angeben."
+        "login_missing" -> "Benutzername oder E-Mail fehlt."
+        // Sitzung ist serverseitig weg, Token im Geraet noch da.
+        "not_signed_in" -> "Sitzung abgelaufen. Bitte einmal abmelden und neu anmelden, dann erneut speichern."
+        "not_dispo" -> "Nur die Disposition darf Konten anlegen."
+        "user_not_found" -> "Konto des Fahrers nicht gefunden."
+        else -> "Konto konnte nicht gespeichert werden: $code"
+    }
+
+    /** dispo-admin mit konto_anlegen oder konto_aendern. Liefert die user_id. */
+    private suspend fun konto(koerper: JsonObject): String {
         val text = try {
             Backend.client.functions.invoke("dispo-admin", body = koerper).bodyAsText()
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -689,14 +733,8 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
                 t = runCatching { (Backend.json.parseToJsonElement(roh).jsonObject["error"] as? JsonPrimitive)?.content }.getOrNull()
                     ?.takeIf { it.isNotEmpty() } ?: roh.ifEmpty { t }
             }
-            if (Regex("invalid format|unable to validate email address", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
-                throw StammFehler("Bitte eine gültige E-Mail-Adresse eingeben (z. B. name@firma.de).")
-            }
-            if (t.contains("not_signed_in", ignoreCase = true)) {
-                // Sitzung ist serverseitig weg, Token im Geraet noch da.
-                throw StammFehler("Deine Anmeldung ist abgelaufen. Bitte einmal abmelden und neu anmelden, dann den Fahrer erneut anlegen.")
-            }
-            throw StammFehler("Einladungs-Mail konnte nicht versendet werden: $t")
+            if (t.contains("not_signed_in", ignoreCase = true)) throw StammFehler(kontoFehlerText("not_signed_in"))
+            throw StammFehler(kontoFehlerText(t.trim()))
         }
         val id = runCatching { (Backend.json.parseToJsonElement(text).jsonObject["user_id"] as? JsonPrimitive)?.content }.getOrNull()
         if (id.isNullOrEmpty() || id == "null") throw StammFehler("Auth-User wurde nicht erstellt (keine user.id erhalten).")

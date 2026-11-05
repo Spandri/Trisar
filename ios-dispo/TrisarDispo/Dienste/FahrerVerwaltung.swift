@@ -390,8 +390,14 @@ struct TrackerEintrag: Decodable, Identifiable {
 @MainActor
 final class FahrerEditorModell: ObservableObject {
     static let sprachen = ["Deutsch", "English", "Français", "Italiano", "Español", "Türkçe"]
-    /// resolveDriverPasswordSetupRedirect: von admin.trisar.de aus immer die Fahrer-App.
-    static let passwortZiel = "https://fahrer.trisar.de"
+    /// Wie NAME_MUSTER in dispo-admin: 3 bis 32 Zeichen aus a-z, 0-9, Punkt, Unterstrich, Bindestrich.
+    static func nameGueltig(_ name: String) -> Bool {
+        name.wholeMatch(of: /[a-z0-9._-]{3,32}/) != nil
+    }
+    /// Konten ohne echte E-Mail haben auf dem Server diese Platzhalter-Adresse. Nie anzeigen.
+    static func istPlatzhalter(_ mail: String) -> Bool {
+        mail.lowercased().hasSuffix("@konto.trisar.de")
+    }
 
     let ursprung: DispoFahrer?
     var bearbeiten: Bool { ursprung != nil }
@@ -399,6 +405,10 @@ final class FahrerEditorModell: ObservableObject {
     @Published var vorname = ""
     @Published var nachname = ""
     @Published var email = ""
+    /// Benutzername fuer die Anmeldung (profiles.username), immer klein geschrieben.
+    @Published var benutzername = ""
+    /// Beim Anlegen Pflicht, beim Bearbeiten nur, wenn ein neues Passwort gesetzt werden soll.
+    @Published var passwort = ""
     @Published var landesvorwahl = "+49"
     @Published var telefon = ""
     @Published var strasse = ""
@@ -419,6 +429,7 @@ final class FahrerEditorModell: ObservableObject {
     @Published var rueckmeldung = ""
 
     private var urspruenglicheEmail = ""
+    private var urspruenglicherName = ""
     private var nummerPruefung: Task<Void, Never>?
 
     init(fahrer: DispoFahrer?) { ursprung = fahrer }
@@ -481,9 +492,10 @@ final class FahrerEditorModell: ObservableObject {
         let vehicle_id: String?
         let driver_number: Int?
         let tracking_mode: String?
+        let username: String?
 
         enum CodingKeys: String, CodingKey {
-            case first_name, last_name, email, phone, street, street_number, city, zip, language, vehicle_id, driver_number, tracking_mode
+            case first_name, last_name, email, phone, street, street_number, city, zip, language, vehicle_id, driver_number, tracking_mode, username
         }
 
         // Text- oder Zahlspalten (PLZ, Hausnummer ...) wie String(...) im Web lesen.
@@ -506,6 +518,7 @@ final class FahrerEditorModell: ObservableObject {
             vehicle_id = text(.vehicle_id)
             driver_number = (try? c.decodeIfPresent(Int.self, forKey: .driver_number)) ?? text(.driver_number).flatMap { Int($0) }
             tracking_mode = text(.tracking_mode)
+            username = text(.username)
         }
     }
 
@@ -515,8 +528,8 @@ final class FahrerEditorModell: ObservableObject {
         vorname = f.firstName
         nachname = f.lastName
         nummer = f.driverNumber.map(String.init) ?? ""
-        email = f.email
-        urspruenglicheEmail = f.email.lowercased()
+        email = Self.istPlatzhalter(f.email) ? "" : f.email
+        urspruenglicheEmail = email.lowercased()
         do {
             let daten: Profil?
             do {
@@ -532,7 +545,7 @@ final class FahrerEditorModell: ObservableObject {
             vorname = (d.first_name ?? f.firstName).trimmingCharacters(in: .whitespaces)
             nachname = (d.last_name ?? f.lastName).trimmingCharacters(in: .whitespaces)
             let mail = (d.email ?? f.email).trimmingCharacters(in: .whitespaces)
-            if !mail.isEmpty {
+            if !mail.isEmpty && !Self.istPlatzhalter(mail) {
                 email = mail
                 urspruenglicheEmail = mail.lowercased()
             }
@@ -547,6 +560,8 @@ final class FahrerEditorModell: ObservableObject {
             fahrzeugID = (d.vehicle_id ?? "").trimmingCharacters(in: .whitespaces)
             nummer = d.driver_number.map(String.init) ?? (f.driverNumber.map(String.init) ?? "")
             ortung = d.tracking_mode == "obd" ? "obd" : "app"
+            benutzername = (d.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+            urspruenglicherName = benutzername
 
             struct Imei: Decodable { let imei: String? }
             let aktiv: Imei? = try await Backend.client.from("imei_driver_map").select("imei")
@@ -598,6 +613,7 @@ final class FahrerEditorModell: ObservableObject {
 
     private func formularLeeren() {
         vorname = ""; nachname = ""; email = ""
+        benutzername = ""; passwort = ""; urspruenglicherName = ""
         landesvorwahl = "+49"; telefon = ""
         strasse = ""; hausnummer = ""; ort = ""; plz = ""
         sprache = "Deutsch"; fahrzeugID = ""; nummer = ""
@@ -610,8 +626,22 @@ final class FahrerEditorModell: ObservableObject {
         if vorname.trimmingCharacters(in: .whitespaces).isEmpty || nachname.trimmingCharacters(in: .whitespaces).isEmpty {
             rueckmeldung = "Bitte Vorname und Nachname angeben."; return
         }
-        if !bearbeiten && email.trimmingCharacters(in: .whitespaces).isEmpty {
-            rueckmeldung = "Bitte E-Mail angeben."; return
+        let name = benutzername.trimmingCharacters(in: .whitespaces).lowercased()
+        let mail = email.trimmingCharacters(in: .whitespaces).lowercased()
+        if name.isEmpty && mail.isEmpty {
+            rueckmeldung = "Bitte Benutzername oder E-Mail angeben."; return
+        }
+        if !name.isEmpty && !Self.nameGueltig(name) {
+            rueckmeldung = "Benutzername ungültig. Erlaubt sind 3 bis 32 Zeichen aus a-z, 0-9, Punkt, Unterstrich und Bindestrich."; return
+        }
+        if !mail.isEmpty && mail.wholeMatch(of: /[^\s@]+@[^\s@]+\.[^\s@]+/) == nil {
+            rueckmeldung = "Bitte eine gültige E-Mail-Adresse eingeben (z. B. name@firma.de)."; return
+        }
+        if !bearbeiten && passwort.isEmpty {
+            rueckmeldung = "Bitte ein Passwort angeben (mindestens 8 Zeichen)."; return
+        }
+        if !passwort.isEmpty && passwort.count < 8 {
+            rueckmeldung = "Passwort zu kurz. Mindestens 8 Zeichen."; return
         }
         if nummer.trimmingCharacters(in: .whitespaces).isEmpty {
             rueckmeldung = "Bitte eine Fahrernummer in \"Nr.\" angeben."; return
@@ -628,20 +658,17 @@ final class FahrerEditorModell: ObservableObject {
         rueckmeldung = ""
         defer { speichert = false }
 
-        let mail = email.trimmingCharacters(in: .whitespaces).lowercased()
-        if !bearbeiten && mail.wholeMatch(of: /[^\s@]+@[^\s@]+\.[^\s@]+/) == nil {
-            rueckmeldung = "Bitte eine gültige E-Mail-Adresse eingeben (z. B. name@firma.de)."; return
-        }
         let mailFuerProfil: AnyJSON = !mail.isEmpty ? .string(mail)
             : (bearbeiten && !urspruenglicheEmail.isEmpty ? .string(urspruenglicheEmail) : .null)
         func oderNull(_ s: String) -> AnyJSON {
             let t = s.trimmingCharacters(in: .whitespaces)
             return t.isEmpty ? .null : .string(t)
         }
-        let profil: [String: AnyJSON] = [
+        var profil: [String: AnyJSON] = [
             "first_name": .string(vorname.trimmingCharacters(in: .whitespaces)),
             "last_name": .string(nachname.trimmingCharacters(in: .whitespaces)),
             "email": mailFuerProfil,
+            "username": name.isEmpty ? .null : .string(name),
             "phone": .string("\(landesvorwahl.trimmingCharacters(in: .whitespaces)) \(telefon.trimmingCharacters(in: .whitespaces))"
                 .trimmingCharacters(in: .whitespaces)),
             "street": oderNull(strasse),
@@ -649,17 +676,25 @@ final class FahrerEditorModell: ObservableObject {
             "city": oderNull(ort),
             "zip": oderNull(plz),
             "language": .string(sprache.isEmpty ? "Deutsch" : sprache),
-            "role": .string("fahrer"),
-            "is_dispo": .bool(false),
             "vehicle_id": fahrzeugID.isEmpty ? .null : .string(fahrzeugID),
             "driver_number": .integer(fahrerNummer),
             "tracking_mode": .string(ortung),
         ]
+        // Rolle nur beim Anlegen setzen. Beim Bearbeiten bleibt sie, sonst verliert ein Dispo-Konto seine Rechte.
+        if !bearbeiten {
+            profil["role"] = .string("fahrer")
+            profil["is_dispo"] = .bool(false)
+        }
 
         do {
             if let f = ursprung {
                 let ziel = f.id.trimmingCharacters(in: .whitespaces)
                 guard !ziel.isEmpty else { throw TrisarFehler.text("Fahrer-ID fehlt.") }
+                // Zugang zuerst ueber dispo-admin, dort wird der Benutzername auf Doppel geprueft.
+                let mailGeaendert = !mail.isEmpty && mail != urspruenglicheEmail
+                if name != urspruenglicherName || mailGeaendert || !passwort.isEmpty {
+                    try await kontoAendern(ziel, name: name, mail: mail)
+                }
                 // Im Web erst Admin-, dann oeffentlicher Client. Live sind beide derselbe angemeldete Client.
                 if let fehler = await profilAktualisieren(ziel, profil) {
                     throw TrisarFehler.text("Speichern fehlgeschlagen. Admin: \(fehler) | Public: \(fehler)")
@@ -669,19 +704,21 @@ final class FahrerEditorModell: ObservableObject {
                 }
                 rueckmeldung = "Fahrer gespeichert."
                 if !mail.isEmpty { urspruenglicheEmail = mail }
+                urspruenglicherName = name
+                passwort = ""
                 return
             }
 
-            // Einladung ueber die Funktion dispo-admin, der Admin-Schluessel bleibt auf dem Server.
-            let nutzerID = try await einladen(mail)
+            // Konto mit Passwort ueber die Funktion dispo-admin, der Admin-Schluessel bleibt auf dem Server.
+            let nutzerID = try await kontoAnlegen(name: name, mail: mail)
             var zeile = profil
             zeile["id"] = .string(nutzerID)
             if let fehler = await profilEinfuegen(zeile) { throw TrisarFehler.text(fehler) }
             do { try await trackerSpeichern(nutzerID, imeiZiffern) } catch {
                 throw TrisarFehler.text("Tracker-Zuordnung nicht gespeichert: \(dbMeldung(error))")
             }
-            rueckmeldung = "Fahrer angelegt. Die Einladungs-Mail zum Passwort setzen wurde versendet."
             formularLeeren()
+            rueckmeldung = "Konto angelegt. Anmeldung mit Benutzername oder E-Mail und dem Passwort."
         } catch {
             rueckmeldung = "Fahrer konnte nicht gespeichert werden: \(dbMeldung(error))"
         }
@@ -752,25 +789,50 @@ final class FahrerEditorModell: ObservableObject {
             .execute()
     }
 
-    /// dispo-admin, aktion fahrer_einladen. Liefert die neue user_id.
-    private func einladen(_ mail: String) async throws -> String {
+    /// dispo-admin, aktion konto_anlegen. Liefert die neue user_id.
+    private func kontoAnlegen(name: String, mail: String) async throws -> String {
         struct Koerper: Encodable {
-            let aktion = "fahrer_einladen"
+            let aktion = "konto_anlegen"
+            let benutzername: String
             let email: String
-            let redirectTo: String
+            let passwort: String
             let first_name: String
             let last_name: String
         }
-        struct Antwort: Decodable { let user_id: String? }
-        let antwort: Antwort
+        let id = try await dispoAdmin(Koerper(
+            benutzername: name, email: mail, passwort: passwort,
+            first_name: vorname.trimmingCharacters(in: .whitespaces),
+            last_name: nachname.trimmingCharacters(in: .whitespaces)),
+            fehlschlag: "Konto konnte nicht angelegt werden")
+        guard let id, !id.isEmpty else {
+            throw TrisarFehler.text("Auth-User wurde nicht erstellt (keine user.id erhalten).")
+        }
+        return id
+    }
+
+    /// dispo-admin, aktion konto_aendern. Passwort nur, wenn eins eingetragen ist.
+    private func kontoAendern(_ id: String, name: String, mail: String) async throws {
+        struct Koerper: Encodable {
+            let aktion = "konto_aendern"
+            let user_id: String
+            let benutzername: String
+            let email: String
+            let passwort: String?
+        }
+        _ = try await dispoAdmin(Koerper(
+            user_id: id, benutzername: name, email: mail,
+            passwort: passwort.isEmpty ? nil : passwort),
+            fehlschlag: "Zugangsdaten konnten nicht geändert werden")
+    }
+
+    /// Aufruf von dispo-admin mit lesbaren Fehlern. Liefert user_id aus der Antwort.
+    private struct AdminAntwort: Decodable { let user_id: String? }
+
+    private func dispoAdmin<Koerper: Encodable>(_ koerper: Koerper, fehlschlag: String) async throws -> String? {
         do {
-            antwort = try await Backend.client.functions.invoke(
-                "dispo-admin",
-                options: FunctionInvokeOptions(body: Koerper(
-                    email: mail, redirectTo: Self.passwortZiel,
-                    first_name: vorname.trimmingCharacters(in: .whitespaces),
-                    last_name: nachname.trimmingCharacters(in: .whitespaces)))
-            )
+            let antwort: AdminAntwort = try await Backend.client.functions.invoke(
+                "dispo-admin", options: FunctionInvokeOptions(body: koerper))
+            return antwort.user_id
         } catch {
             var text = error.localizedDescription
             if case let FunctionsError.httpError(_, daten) = error,
@@ -778,18 +840,30 @@ final class FahrerEditorModell: ObservableObject {
                let e = json["error"] as? String, !e.isEmpty {
                 text = e
             }
-            if text.range(of: "invalid format|unable to validate email address", options: [.regularExpression, .caseInsensitive]) != nil {
-                throw TrisarFehler.text("Bitte eine gültige E-Mail-Adresse eingeben (z. B. name@firma.de).")
-            }
-            if text.range(of: "not_signed_in", options: .caseInsensitive) != nil {
-                // Sitzung ist serverseitig weg, Token im Geraet noch da.
-                throw TrisarFehler.text("Deine Anmeldung ist abgelaufen. Bitte einmal abmelden und neu anmelden, dann den Fahrer erneut anlegen.")
-            }
-            throw TrisarFehler.text("Einladungs-Mail konnte nicht versendet werden: \(text)")
+            throw TrisarFehler.text(Self.adminFehler(text) ?? "\(fehlschlag): \(text)")
         }
-        guard let id = antwort.user_id, !id.isEmpty else {
-            throw TrisarFehler.text("Auth-User wurde nicht erstellt (keine user.id erhalten).")
+    }
+
+    /// Fehlercodes von dispo-admin auf Deutsch.
+    private static func adminFehler(_ code: String) -> String? {
+        switch code {
+        case "username_taken": return "Benutzername ist schon vergeben."
+        case "username_invalid":
+            return "Benutzername ungültig. Erlaubt sind 3 bis 32 Zeichen aus a-z, 0-9, Punkt, Unterstrich und Bindestrich."
+        case "email_taken": return "Diese E-Mail gehört schon zu einem anderen Konto."
+        case "email_invalid": return "Bitte eine gültige E-Mail-Adresse eingeben (z. B. name@firma.de)."
+        case "password_too_short": return "Passwort zu kurz. Mindestens 8 Zeichen."
+        case "password_missing": return "Bitte ein Passwort angeben (mindestens 8 Zeichen)."
+        case "login_missing": return "Benutzername oder E-Mail fehlt."
+        case "not_dispo": return "Keine Berechtigung für die Fahrerverwaltung."
+        case "not_signed_in":
+            // Sitzung ist serverseitig weg, Token im Geraet noch da.
+            return "Sitzung abgelaufen. Bitte einmal abmelden und neu anmelden, dann erneut speichern."
+        default:
+            if code.range(of: "invalid format|unable to validate email address", options: [.regularExpression, .caseInsensitive]) != nil {
+                return "Bitte eine gültige E-Mail-Adresse eingeben (z. B. name@firma.de)."
+            }
+            return nil
         }
-        return id
     }
 }

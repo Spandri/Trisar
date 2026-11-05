@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../shared/supabase/client';
+import { anmeldenMitKennung } from '../../shared/anmeldung';
 
 // Demo-Trailer: bis zur Freigabe bleibt die Sitzung bewusst leer.
 export const TRAILER_AKTIV = typeof window !== 'undefined'
@@ -192,9 +193,9 @@ export const useAuthSession = () => {
 
   const signInWithPassword = async ({ email, password }) => {
     setAuthError('');
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const { error } = await anmeldenMitKennung(supabase, email, password);
     if (error) {
-      setAuthError(error.message || 'Anmeldung fehlgeschlagen.');
+      setAuthError('Benutzername, E-Mail oder Passwort falsch.');
       return false;
     }
     return true;
@@ -232,7 +233,9 @@ export const useAuthSession = () => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Nur dieses Geraet abmelden. Standard waere 'global' und wuerde auch die Dispo-Sitzung
+    // desselben Kontos auf anderen Geraeten killen (gleicher Account fuer Fahrer-App und Dispo).
+await supabase.auth.signOut({ scope: 'local' });
     const isPendingLocally = window.localStorage.getItem(PASSWORD_SETUP_PENDING_KEY) === '1';
     setRequiresPasswordSetup(isPendingLocally);
   };

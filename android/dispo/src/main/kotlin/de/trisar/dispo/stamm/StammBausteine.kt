@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -170,6 +172,7 @@ internal fun Eingabe(
     fokusGeaendert: ((Boolean) -> Unit)? = null,
     aktiv: Boolean = true,
     einzeilig: Boolean = true,
+    verdeckt: Boolean = false,
 ) {
     var m = modifier
     if (fokus != null) m = m.focusRequester(fokus)
@@ -182,6 +185,7 @@ internal fun Eingabe(
         textStyle = stil,
         cursorBrush = SolidColor(LIME),
         keyboardOptions = KeyboardOptions(capitalization = gross, autoCorrectEnabled = false, keyboardType = tastatur),
+        visualTransformation = if (verdeckt) PasswordVisualTransformation() else VisualTransformation.None,
         modifier = m,
         decorationBox = { feld ->
             Box(contentAlignment = if (einzeilig) Alignment.CenterStart else Alignment.TopStart) {

@@ -1,7 +1,7 @@
 import Foundation
 import Supabase
 
-/// Anmeldestatus des Fahrers. Gleiches Konto wie in der Web-App (E-Mail + Passwort).
+/// Anmeldestatus des Fahrers. Gleiches Konto wie in der Web-App (Benutzername oder E-Mail + Passwort).
 @MainActor
 final class Anmeldung: ObservableObject {
     enum Zustand: Equatable {
@@ -50,20 +50,60 @@ final class Anmeldung: ObservableObject {
         return nil
     }
 
-    func anmelden(email: String, passwort: String) async {
-        let mail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !mail.isEmpty, !passwort.isEmpty else {
-            fehler = "Bitte E-Mail und Passwort eingeben."
+    /// Anmeldung mit Benutzername oder E-Mail. Mit '@' direkt bei Supabase,
+    /// sonst ueber die Funktion `anmelden`, die den Benutzernamen auf dem Server aufloest.
+    func anmelden(kennung: String, passwort: String) async {
+        let eingabe = kennung.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !eingabe.isEmpty, !passwort.isEmpty else {
+            fehler = "Bitte Benutzername oder E-Mail und Passwort eingeben."
             return
         }
         arbeitet = true
         fehler = nil
         defer { arbeitet = false }
         do {
-            try await Backend.client.auth.signIn(email: mail, password: passwort)
+            if eingabe.contains("@") {
+                try await Backend.client.auth.signIn(email: eingabe, password: passwort)
+            } else {
+                try await mitBenutzername(eingabe, passwort)
+            }
         } catch {
             fehler = Self.lesbar(error)
         }
+    }
+
+    private enum AnmeldeFehler: Error, CustomStringConvertible {
+        case falsch
+        case server(String)
+        var description: String {
+            switch self {
+            case .falsch: return "invalid_credentials"
+            case let .server(text): return text
+            }
+        }
+    }
+
+    /// POST an /functions/v1/anmelden, danach Sitzung aus den Tokens setzen.
+    private func mitBenutzername(_ name: String, _ passwort: String) async throws {
+        struct Antwort: Decodable {
+            let access_token: String?
+            let refresh_token: String?
+            let error: String?
+        }
+        var anfrage = URLRequest(url: Konfig.supabaseURL.appendingPathComponent("functions/v1/anmelden"))
+        anfrage.httpMethod = "POST"
+        anfrage.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        anfrage.setValue(Konfig.supabaseKey, forHTTPHeaderField: "apikey")
+        anfrage.setValue("Bearer \(Konfig.supabaseKey)", forHTTPHeaderField: "Authorization")
+        anfrage.httpBody = try JSONSerialization.data(withJSONObject: ["kennung": name, "passwort": passwort])
+        let (daten, rueck) = try await URLSession.shared.data(for: anfrage)
+        let status = (rueck as? HTTPURLResponse)?.statusCode ?? 0
+        let antwort = try? JSONDecoder().decode(Antwort.self, from: daten)
+        if antwort?.error == "invalid_credentials" { throw AnmeldeFehler.falsch }
+        guard status == 200, let zugang = antwort?.access_token, let erneuern = antwort?.refresh_token else {
+            throw AnmeldeFehler.server(antwort?.error ?? "Status \(status)")
+        }
+        try await Backend.client.auth.setSession(accessToken: zugang, refreshToken: erneuern)
     }
 
     func abmelden() async {
@@ -92,7 +132,7 @@ final class Anmeldung: ObservableObject {
     private static func lesbar(_ error: Error) -> String {
         let text = String(describing: error).lowercased()
         if text.contains("invalid login") || text.contains("invalid_credentials") {
-            return "E-Mail oder Passwort stimmt nicht."
+            return "Benutzername, E-Mail oder Passwort stimmt nicht."
         }
         if text.contains("offline") || text.contains("network") || text.contains("timed out") {
             return "Keine Verbindung. Bitte Internet prüfen."
