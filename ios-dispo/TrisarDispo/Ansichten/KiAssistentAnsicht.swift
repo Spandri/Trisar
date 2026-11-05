@@ -41,7 +41,9 @@ struct KiAssistentAnsicht: View {
                 // Ohne Tastatur 175 ueber dem Rand, mit Tastatur 8 darueber.
                 Color.clear.frame(height: fokussiert ? 8 : 175)
             }
-            .ignoresSafeArea(.container)
+            // Mit Tastatur unten den Rand beachten: WebMassstab gibt die Tastatur als Rand weiter,
+            // wer ihn ignoriert, landet mit dem Eingabefeld hinter der Tastatur.
+            .ignoresSafeArea(.container, edges: fokussiert ? .top : .all)
 
             kopf
                 .frame(maxWidth: .infinity, alignment: .top)
