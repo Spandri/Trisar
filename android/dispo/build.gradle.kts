@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -15,11 +17,24 @@ android {
         versionCode = 1
         versionName = "0.1.0"
     }
+    // Eigener Release-Schluessel in android/signatur/ (nicht im Git, sicher aufbewahren).
+    // Fehlt er, wird mit dem Debug-Schluessel signiert.
+    val releaseDatei = rootProject.file("signatur/release.properties")
+    signingConfigs {
+        if (releaseDatei.exists()) {
+            val p = Properties().apply { releaseDatei.inputStream().use { load(it) } }
+            create("release") {
+                storeFile = file(p.getProperty("storeFile"))
+                storePassword = p.getProperty("storePassword")
+                keyAlias = p.getProperty("keyAlias")
+                keyPassword = p.getProperty("keyPassword")
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Zum Verteilen als APK erstmal mit dem Debug-Schluessel signiert.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {
