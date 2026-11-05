@@ -20,6 +20,8 @@ final class Ortung: NSObject, ObservableObject {
     @Published private(set) var wartend = 0
     @Published private(set) var letzterFehler: String?
     @Published private(set) var nutztOBD = false
+    /// Erst nach dem Profil wissen wir, ob das Handy orten soll (sonst OBD).
+    private var profilGeladen = false
     @Published private(set) var laeuft = false
 
     /// Fahrer kann die Ortung pausieren (z.B. Feierabend). Bleibt ueber App-Neustarts erhalten.
@@ -126,6 +128,18 @@ final class Ortung: NSObject, ObservableObject {
         default: berechtigung = .unbekannt
         }
         aktualisieren()
+        immerAnfragenFallsNoetig()
+    }
+
+    /// Zweiter Schritt direkt nach „Beim Verwenden“: iOS fragt nach „Immer erlauben“, damit der
+    /// Standort auch im Hintergrund weiterlaeuft. iOS zeigt das nur einmal, danach nur ueber die
+    /// Einstellungen. Bei OBD-Tracker braucht es das Handy nicht, dann wird nicht gefragt.
+    private func immerAnfragenFallsNoetig() {
+        let schluessel = "trisar_immer_gefragt"
+        guard manager.authorizationStatus == .authorizedWhenInUse, fahrerID != nil, !nutztOBD,
+              profilGeladen, !UserDefaults.standard.bool(forKey: schluessel) else { return }
+        UserDefaults.standard.set(true, forKey: schluessel)
+        manager.requestAlwaysAuthorization()
     }
 
     // MARK: - Profil und aktive Fahrt
@@ -140,6 +154,8 @@ final class Ortung: NSObject, ObservableObject {
             .execute()
             .value {
             nutztOBD = profile.first?.nutztOBD ?? false
+            profilGeladen = true
+            immerAnfragenFallsNoetig()
         }
         aktiveFahrtID = await Self.aktiveFahrt(fahrer: id)
     }
