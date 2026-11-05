@@ -42,7 +42,15 @@ final class FahrzeugDaten: ObservableObject {
     private var beobachter: [Task<Void, Never>] = []
     private var takt: Timer?
 
-    init(fahrerID: UUID) { self.fahrerID = fahrerID }
+    private static let standortSchluessel = "trisar_fahrzeug_letzter_standort"
+
+    init(fahrerID: UUID) {
+        self.fahrerID = fahrerID
+        // Letzten bekannten Standort sofort zeigen, die Karte muss nicht auf die Datenbank warten.
+        if let w = UserDefaults.standard.array(forKey: Self.standortSchluessel) as? [Double], w.count == 2 {
+            standort = CLLocationCoordinate2D(latitude: w[0], longitude: w[1])
+        }
+    }
 
     func starten(fahrzeugID: UUID?) async {
         self.fahrzeugID = fahrzeugID
@@ -94,13 +102,15 @@ final class FahrzeugDaten: ObservableObject {
         struct Zeile: Decodable { let lat: Double?; let lng: Double?; let source: String? }
         guard let zeilen: [Zeile] = try? await Backend.client.from("driver_live_locations")
             .select("lat,lng,source").eq("driver_id", value: fahrerID).limit(5).execute().value else { return }
+        // OBD-Standort bevorzugt, sonst der Handy-Standort: Bei Ortungsart "Handy-App"
+        // ueberschreibt das Handy den Eintrag, dann gab es vorher gar keine Karte.
         let obd = zeilen.first {
             ($0.source ?? "").range(of: "teltonika|fmb\\d*|obd|telematik|telematics|tracker", options: [.regularExpression, .caseInsensitive]) != nil
         }
-        if let o = obd, let lat = o.lat, let lng = o.lng {
-            standort = CLLocationCoordinate2D(latitude: lat, longitude: lng)
-        } else {
-            standort = nil
+        if let z = obd ?? zeilen.first, let lat = z.lat, let lng = z.lng {
+            let neu = CLLocationCoordinate2D(latitude: lat, longitude: lng)
+            standort = neu
+            UserDefaults.standard.set([lat, lng], forKey: Self.standortSchluessel)
         }
     }
 

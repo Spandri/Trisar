@@ -229,8 +229,14 @@ struct StandortKarte: UIViewRepresentable {
     }
 
     func updateUIView(_ karte: MLNMapView, context: Context) {
+        // Nur bei echter Bewegung (> 5 m) neu zentrieren. Vorher lief das bei jeder
+        // Aktualisierung der Seite (Fahrzeugdaten alle paar Sekunden) und bremste die Karte.
+        guard let alt = context.coordinator.punkt?.coordinate else { return }
+        let weg = CLLocation(latitude: alt.latitude, longitude: alt.longitude)
+            .distance(from: CLLocation(latitude: ort.latitude, longitude: ort.longitude))
+        guard weg > 5 else { return }
         context.coordinator.punkt?.coordinate = ort
-        karte.setCenter(ort, animated: true)
+        karte.setCenter(ort, animated: false)
     }
 
     func makeCoordinator() -> Koordinator { Koordinator() }
