@@ -21,7 +21,7 @@ team@trisar.de
 **Anmeldung erforderlich:** ja
 
 - Benutzername: `apple.pruefung`
-- Passwort: trägst du selbst ein (das Passwort, das du über die Einladungsmail an team+apple@trisar.de gesetzt hast)
+- Passwort: trägst du selbst ein (das Passwort, das du über den Link in der Mail an stefano.spandri@trisar.de gesetzt hast)
 
 **Kontakt:** dein Name, team@trisar.de, deine Telefonnummer
 
