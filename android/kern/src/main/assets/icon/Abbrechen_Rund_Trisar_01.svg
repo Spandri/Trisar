@@ -1,0 +1,10 @@
+<svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Figma 2579:12121: roter Kreis mit schwarzem Rand, Kreuz aus zwei TRISAR-Pfeilspitzen -->
+<circle cx="25" cy="25" r="24" fill="#FF6F63" stroke="black" stroke-width="2"/>
+<g transform="translate(13.43 14.005) scale(0.726)">
+<path d="M0 0V5.71L12.14 14.62V15.45V14.85V15.67L0 24.58V30.29L15.94 19.32V14.85V15.45V10.97L0 0Z" fill="black"/>
+</g>
+<g transform="translate(36.57 14.005) scale(-0.726 0.726)">
+<path d="M0 0V5.71L12.14 14.62V15.45V14.85V15.67L0 24.58V30.29L15.94 19.32V14.85V15.45V10.97L0 0Z" fill="black"/>
+</g>
+</svg>

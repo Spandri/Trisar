@@ -1,0 +1,28 @@
+<svg width="35" height="41.1367" viewBox="0 0 35 41.1367" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 177">
+<g id="Group 174">
+<path id="Vector" d="M16.3943 37.9948L15.8316 37.9948L12.9414 30.5988L10 30.5988L14.3993 41.1367L17.3663 41.1367L17.9034 41.1367L21.5098 41.1367L25.9091 30.5988L22.9677 30.5988L20.0775 37.9948L19.5148 37.9948L19.5148 15.0004L17.9034 15.0004L17.3663 15.0004L16.3943 15.0004L16.3943 37.9948Z" fill="white"/>
+<path id="Rectangle 188" d="M13 28H24L21.5 38H14L13 28Z" fill="white"/>
+<circle id="Ellipse 12" cx="17.5" cy="17.5" r="16" fill="black" stroke="url(#paint0_linear_2562_11807)" stroke-width="3"/>
+</g>
+<path id="Vector 604" d="M8 18H2" stroke="white" stroke-width="6"/>
+<path id="Vector 605" d="M20 18H14" stroke="white" stroke-width="6"/>
+<path id="Vector 606" d="M20 30H14" stroke="white" stroke-width="6"/>
+<path id="Vector 607" d="M20 6H14" stroke="white" stroke-width="6"/>
+<path id="Vector 608" d="M14 24H8" stroke="white" stroke-width="6"/>
+<path id="Vector 609" d="M26 24H20" stroke="white" stroke-width="6"/>
+<path id="Vector 610" d="M32 18H26" stroke="white" stroke-width="6"/>
+<path id="Vector 611" d="M26 12H20" stroke="white" stroke-width="6"/>
+<path id="Vector 612" d="M14 12H8" stroke="white" stroke-width="6"/>
+<rect id="Rectangle 427" x="6" y="27" width="2" height="2" fill="#FFFEFE"/>
+<rect id="Rectangle 428" x="26" y="27" width="3" height="3" fill="#FFFEFE"/>
+<rect id="Rectangle 429" x="26" y="5" width="3.5" height="4" fill="#FFFEFE"/>
+<rect id="Rectangle 430" x="5" y="6" width="3" height="3" fill="#FFFEFE"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_2562_11807" x1="17.5" y1="0" x2="17.5" y2="35" gradientUnits="userSpaceOnUse">
+<stop stop-color="white"/>
+<stop offset="1" stop-color="white"/>
+</linearGradient>
+</defs>
+</svg>
