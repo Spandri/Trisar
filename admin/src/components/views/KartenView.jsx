@@ -2414,6 +2414,8 @@ export default function KartenView({ setView, filters = {} }) {
           return true;
         });
         const profileById = new Map(visibleProfiles.map((row) => [String(row.id || ''), row]));
+        // Ausgeblendete Konten (Dispo, Pruefkonto) auch ohne Profil nicht als Punkt zeigen.
+        const hiddenIds = new Set(profileRows.filter((row) => !visibleProfiles.includes(row)).map((row) => String(row.id || '')));
         const jobById = new Map(jobRows.map((job) => [String(job?.id || '').trim(), job]));
         const jobsByDriverId = new Map();
         const addJobForDriver = (driverId, job) => {
@@ -2456,6 +2458,7 @@ export default function KartenView({ setView, filters = {} }) {
             const lat = Number(row?.lat);
             const lng = Number(row?.lng);
             if (!id || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+            if (hiddenIds.has(id)) return null;
 
             const profile = profileById.get(id);
             const name = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || t('karten.driverWithId', { id: id.slice(0, 8) });

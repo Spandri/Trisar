@@ -287,6 +287,8 @@ final class KartenDaten: ObservableObject {
         }
         var profilJe: [String: Zeile] = [:]
         for p in sichtbar { profilJe[Self.text(p["id"])] = p }
+        // Ausgeblendete Konten (Dispo, Pruefkonto) auch ohne Profil nicht als Punkt zeigen.
+        let versteckt = Set(profile.map { Self.text($0["id"]) }).subtracting(profilJe.keys)
         var jobJe: [String: Zeile] = [:]
         for j in jobs { jobJe[Self.text(j["id"])] = j }
         var jobsJeFahrer: [String: [Zeile]] = [:]
@@ -316,7 +318,8 @@ final class KartenDaten: ObservableObject {
 
         let liste: [KartenFahrer] = live.compactMap { zeile in
             let id = Self.text(zeile["driver_id"])
-            guard !id.isEmpty, let lat = Self.zahl(zeile["lat"]), let lng = Self.zahl(zeile["lng"]) else { return nil }
+            guard !id.isEmpty, !versteckt.contains(id),
+                  let lat = Self.zahl(zeile["lat"]), let lng = Self.zahl(zeile["lng"]) else { return nil }
             let p = profilJe[id]
             let name = [Self.text(p?["first_name"]), Self.text(p?["last_name"])].filter { !$0.isEmpty }.joined(separator: " ")
             let fz = p?["vehicles"] as? Zeile

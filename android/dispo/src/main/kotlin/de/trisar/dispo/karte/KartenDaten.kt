@@ -327,6 +327,8 @@ internal class KartenDaten {
         val dispoRollen = setOf("dispo", "dispatcher", "admin", "koordinator", "coordinator", "pruefung")
         val sichtbar = profile.filter { jText(it["role"]).lowercase() !in dispoRollen }
         val profilJe = sichtbar.associateBy { jText(it["id"]) }
+        // Ausgeblendete Konten (Dispo, Pruefkonto) auch ohne Profil nicht als Punkt zeigen.
+        val versteckt = profile.map { jText(it["id"]) }.toSet() - profilJe.keys
         val jobJe = jobs.associateBy { jText(it["id"]) }
         val jobsJeFahrer = HashMap<String, MutableList<JsonObject>>()
         fun zuordnen(f: String, job: JsonObject) {
@@ -359,7 +361,7 @@ internal class KartenDaten {
         val liste = live.mapNotNull { zeile ->
             val id = jText(zeile["driver_id"])
             val lat = jZahl(zeile["lat"]); val lng = jZahl(zeile["lng"])
-            if (id.isEmpty() || lat == null || lng == null) return@mapNotNull null
+            if (id.isEmpty() || lat == null || lng == null || id in versteckt) return@mapNotNull null
             val p = profilJe[id]
             val name = listOf(jText(p?.get("first_name")), jText(p?.get("last_name"))).filter { it.isNotEmpty() }.joinToString(" ")
             val fz = p?.get("vehicles") as? JsonObject
