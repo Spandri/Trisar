@@ -25,12 +25,16 @@ P8=$(ls "$S"/AuthKey_*.p8 2>/dev/null | head -1 || true)
 [ -f "$S/firebase-dienstkonto.json" ] || { echo "Fehlt: $S/firebase-dienstkonto.json"; exit 1; }
 
 echo "1/4 Migration einspielen"
+if ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"select 1 from supabase_migrations.schema_migrations where version='20261106010000'\"" | grep -q 1; then
+  echo "   schon eingespielt, uebersprungen"
+else
 {
   echo "begin;"
   cat "$HIER/fahrer/supabase/migrations/20261106010000_push.sql"
   echo "insert into supabase_migrations.schema_migrations (version, name) values ('20261106010000', 'push') on conflict do nothing;"
   echo "commit;"
 } | ssh "$SERVER" "$DOCKER exec -i $DB psql -U postgres -v ON_ERROR_STOP=1 -q" 2>&1 | grep -v '^NOTICE' || true
+fi
 
 echo "2/4 Schluessel ablegen"
 python3 - "$P8" "$S/firebase-dienstkonto.json" "$APNS_KEY_ID" "$APNS_TEAM_ID" <<'PY' | ssh "$SERVER" "$DOCKER exec -i $DB psql -U postgres -v ON_ERROR_STOP=1 -q"
