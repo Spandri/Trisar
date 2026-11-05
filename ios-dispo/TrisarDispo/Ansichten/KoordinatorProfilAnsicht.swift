@@ -169,6 +169,7 @@ struct AnsprechpartnerSeite: View {
 // MARK: - Einstellungen
 
 struct KoordinatorEinstellungenSeite: View {
+    @State private var mitteilungenOffen = false
     @ObservedObject var dienst: KoordinatorProfilDienst
     let zurueck: () -> Void
     @EnvironmentObject private var anmeldung: Anmeldung
@@ -252,13 +253,23 @@ struct KoordinatorEinstellungenSeite: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.web)
+                .platz(20, 694, 362, 56)
+
+                Button { mitteilungenOffen = true } label: {
+                    Text("Mitteilungen").font(.grotesk(16, .medium)).tracking(0.5)
+                        .foregroundStyle(Color(hex: 0xE3F654))
+                        .frame(width: 362, height: 56)
+                        .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 1))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.web)
                 .platz(20, 626, 362, 56)
 
                 // Im Web nur Beschriftung ohne Funktion.
                 Text("Account löschen").font(.grotesk(12, .medium)).tracking(0.5)
                     .foregroundStyle(Color(hex: 0xE3F654)).opacity(0.35)
                     .frame(width: 362, height: 24)
-                    .platz(20, 694, 362, 24)
+                    .platz(20, 762, 362, 24)
 
                 if spracheOffen { sprachListe.platz(204, 604, 178, nil) }
                 profilbildKnopf.platz(402 - 20 - 228, 60, 228, nil, .topTrailing)
@@ -266,6 +277,11 @@ struct KoordinatorEinstellungenSeite: View {
         }
         .overlay { FussleisteUnten() }
         .overlay { if bildVorschau { vorschau } }
+        .overlay {
+            if mitteilungenOffen, let nutzer = anmeldung.fahrerID {
+                MitteilungenAnsicht(nutzer: nutzer, gruppen: PushArten.dispo) { mitteilungenOffen = false }
+            }
+        }
         .overlay(alignment: .bottom) {
             if !bildFehler.isEmpty {
                 Text(bildFehler).font(.grotesk(12, .medium)).foregroundStyle(Color(hex: 0xFF8E8E))

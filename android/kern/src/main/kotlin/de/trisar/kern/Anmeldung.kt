@@ -129,6 +129,8 @@ class Anmeldung(
     fun abmelden() {
         // Nur dieses Geraet abmelden, sonst fliegt auch die Dispo-Sitzung desselben Kontos raus.
         viewModelScope.launch {
+            // Erst das Geraet fuer Mitteilungen austragen, solange die Sitzung noch gilt.
+            Push.abmelden()
             runCatching { Backend.client.auth.signOut(SignOutScope.LOCAL) }
             zustand.value = Zustand.Abgemeldet
             profil.value = null

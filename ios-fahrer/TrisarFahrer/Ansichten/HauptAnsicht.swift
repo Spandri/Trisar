@@ -42,6 +42,28 @@ struct HauptAnsicht: View {
                 .environmentObject(anmeldung)
                 .environmentObject(speicher)
         }
+        .onReceive(Push.shared.$ziel.compactMap { $0 }) { ziel in
+            Push.shared.ziel = nil
+            switch ziel["ziel"] {
+            case "fahrt":
+                if let id = ziel["job_id"].flatMap(UUID.init(uuidString:)),
+                   let fahrt = speicher.fahrten.first(where: { $0.id == id }) {
+                    profilOffen = false; supportOffen = false; fahrzeugOffen = false
+                    offeneFahrt = fahrt
+                }
+            case "chat":
+                if let id = ziel["kolonne_id"].flatMap(UUID.init(uuidString:)),
+                   let fahrt = speicher.fahrten.first(where: { $0.kolonnenID == id }) {
+                    profilOffen = false; supportOffen = false; fahrzeugOffen = false
+                    offeneFahrt = fahrt
+                }
+            case "fahrzeug":
+                profilOffen = false; supportOffen = false; offeneFahrt = nil
+                fahrzeugOffen = true
+            default:
+                profilOffen = false; supportOffen = false; fahrzeugOffen = false; offeneFahrt = nil
+            }
+        }
         .webVollbild(item: $offeneFahrt) { fahrt in
             if let fahrer = anmeldung.fahrerID {
                 SoloNormalAnsicht(fahrtID: fahrt.id, fahrerID: fahrer) { offeneFahrt = nil }

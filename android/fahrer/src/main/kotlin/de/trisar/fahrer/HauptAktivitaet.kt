@@ -29,6 +29,9 @@ class HauptAktivitaet : ComponentActivity() {
             statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.BLACK),
         )
+        de.trisar.kern.Push.einrichten(applicationContext, "fahrer", BuildConfig.FIREBASE_APP_ID, BuildConfig.FIREBASE_API_KEY,
+            BuildConfig.FIREBASE_PROJEKT, BuildConfig.FIREBASE_SENDER)
+        de.trisar.kern.Push.ausIntent(intent)
         setContent {
             WebMassstab {
                 Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -36,10 +39,18 @@ class HauptAktivitaet : ComponentActivity() {
                     when (val z = zustand) {
                         Zustand.Pruefe -> TrisarHintergrund()
                         Zustand.Abgemeldet -> LoginSeite(anmeldung)
-                        is Zustand.Angemeldet -> FahrerHaupt(anmeldung, z.id)
+                        is Zustand.Angemeldet -> {
+                            androidx.compose.runtime.LaunchedEffect(z.id) { de.trisar.kern.Push.nachAnmeldung(this@HauptAktivitaet) }
+                            FahrerHaupt(anmeldung, z.id)
+                        }
                     }
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        de.trisar.kern.Push.ausIntent(intent)
     }
 }

@@ -72,6 +72,20 @@ fun DispoHaupt(anmeldung: Anmeldung) {
     val oeffneFahrt: (String) -> Unit = { bearbeiteteFahrt = it }
     /** Gaeste-Import aus der Kundenliste (ImportAnsicht(.gaeste) in iOS). */
     var gaesteImport by rememberSaveable { mutableStateOf(false) }
+    // Tipp auf eine Mitteilung: Fahrt, Fahrzeuge, Fahrer oder Fahrten oeffnen.
+    val pushZiel by de.trisar.kern.Push.ziel.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(pushZiel) {
+        val z = pushZiel ?: return@LaunchedEffect
+        de.trisar.kern.Push.ziel.value = null
+        gaesteImport = false
+        when (z["ziel"]) {
+            "fahrt" -> z["job_id"]?.let { bearbeiteteFahrt = it }
+            "fahrzeug" -> ziel = DispoZiel.FAHRZEUGE
+            "fahrer" -> ziel = DispoZiel.FAHRER
+            "chat" -> ziel = DispoZiel.FAHRTEN
+            else -> ziel = DispoZiel.START
+        }
+    }
 
     // Android-Zurueck: erst den Editor schliessen, dann zur Startseite.
     BackHandler(enabled = gaesteImport || bearbeiteteFahrt != null || ziel != DispoZiel.START) {

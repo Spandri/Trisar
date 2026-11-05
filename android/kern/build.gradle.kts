@@ -45,4 +45,10 @@ dependencies {
     api("org.maplibre.gl:android-sdk:11.7.1")
     // Standort.
     api("com.google.android.gms:play-services-location:21.3.0")
+
+    // Push-Mitteilungen (FCM), Firebase wird ohne google-services-Plugin eingerichtet (Push.kt).
+    api(platform("com.google.firebase:firebase-bom:33.7.0"))
+    api("com.google.firebase:firebase-messaging")
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+    api("androidx.core:core-ktx:1.15.0")
 }

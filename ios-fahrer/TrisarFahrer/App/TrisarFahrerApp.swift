@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct TrisarFahrerApp: App {
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
     @StateObject private var anmeldung = Anmeldung()
     @StateObject private var ortung = Ortung()
     @StateObject private var fahrten = FahrtenSpeicher()
@@ -12,6 +13,7 @@ struct TrisarFahrerApp: App {
         UIScrollView.appearance().bounces = false
         // Wie im Web: Seiten und Vollbilder erscheinen sofort, ohne Hochfahren oder Einblenden.
         UIView.setAnimationsEnabled(false)
+        Push.shared.einrichten(app: "fahrer")
     }
 
     var body: some Scene {
@@ -49,6 +51,7 @@ struct TrisarFahrerApp: App {
                 if id != nil && ortung.berechtigung == .unbekannt {
                     ortung.berechtigungAnfragen()
                 }
+                if id != nil { Task { await Push.shared.nachAnmeldung() } }
             }
             .onChange(of: phase) { _, neu in
                 if neu == .active {

@@ -25,6 +25,7 @@ struct EinstellungenAnsicht: View {
     @State private var bildAuswahl: PhotosPickerItem?
     @State private var bildWaehlen = false
     @State private var bildFehler: String?
+    @State private var mitteilungenOffen = false
     @FocusState private var fokus: Feld?
 
     private enum Feld: Hashable { case vorname, nachname, email, vorwahl, telefon, strasse, hausnummer, ort, plz }
@@ -58,13 +59,22 @@ struct EinstellungenAnsicht: View {
                         .overlay(Rectangle().strokeBorder(Color(hex: 0x7F8A2B), lineWidth: 1))
                 }
                 .buttonStyle(.web)
-                .platz(20, 607, 362, 56)
+                .platz(20, 675, 362, 56)
 
                 // Im Web nur Beschriftung ohne Funktion.
                 Text("Account löschen").font(.grotesk(12, .medium)).tracking(0.5)
                     .foregroundStyle(Color(hex: 0xE3F654).opacity(0.35))
                     .frame(width: 362, height: 24)
-                    .platz(20, 682)
+                    .platz(20, 750)
+
+                Button { mitteilungenOffen = true } label: {
+                    Text("Mitteilungen").font(.grotesk(16, .medium)).tracking(0.5)
+                        .foregroundStyle(Color(hex: 0xE3F654))
+                        .frame(width: 362, height: 56)
+                        .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 1))
+                }
+                .buttonStyle(.web)
+                .platz(20, 607, 362, 56)
 
                 sprachFeld.platz(204, 526, 177, nil)
                 profilbildKnopf.platz(402 - 20 - 228, 60, 228, nil, .topTrailing)
@@ -72,6 +82,11 @@ struct EinstellungenAnsicht: View {
         }
         .overlay { FussleisteUnten() }
         .overlay { if bildVorschau { vorschau } }
+        .overlay {
+            if mitteilungenOffen, let nutzer = anmeldung.fahrerID {
+                MitteilungenAnsicht(nutzer: nutzer, gruppen: PushArten.fahrer) { mitteilungenOffen = false }
+            }
+        }
         .overlay(alignment: .bottom) {
             if let f = bildFehler ?? dienst.fehler {
                 Text(f).font(.grotesk(12, .medium)).foregroundStyle(Color(hex: 0xFF8E8E))

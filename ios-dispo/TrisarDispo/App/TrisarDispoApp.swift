@@ -3,6 +3,7 @@ import Supabase
 
 @main
 struct TrisarDispoApp: App {
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
     // Zugang nur fuer Dispo-Konten, wie AnmeldeTor.jsx (is_dispo oder Rolle dispo/admin/koordinator).
     @StateObject private var anmeldung = Anmeldung(
         zugang: { sitzung in await DispoZugang.erlaubt(sitzung) },
@@ -14,6 +15,7 @@ struct TrisarDispoApp: App {
         UIScrollView.appearance().bounces = false
         // Wie im Web: Seiten und Vollbilder erscheinen sofort, ohne Hochfahren oder Einblenden.
         UIView.setAnimationsEnabled(false)
+        Push.shared.einrichten(app: "dispo")
     }
 
     var body: some Scene {
@@ -30,6 +32,9 @@ struct TrisarDispoApp: App {
                 #endif
             }
             .environmentObject(anmeldung)
+            .onChange(of: anmeldung.fahrerID, initial: true) { _, id in
+                if id != nil { Task { await Push.shared.nachAnmeldung() } }
+            }
             // Ganze App auf die Breite des iPhones skalieren (Raster 402 wie im Web).
             .webMassstab()
             .preferredColorScheme(.dark)

@@ -71,6 +71,7 @@ private val SPRACHEN = listOf("Deutsch", "English", "Français", "Italiano", "Es
  */
 @Composable
 internal fun EinstellungenSeite(anmeldung: Anmeldung, fahrerID: String, zurueck: () -> Unit) {
+    var mitteilungenOffen by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val bereich = rememberCoroutineScope()
     val fokus = LocalFocusManager.current
@@ -205,13 +206,18 @@ internal fun EinstellungenSeite(anmeldung: Anmeldung, fahrerID: String, zurueck:
             Eingabe(Feld.ORT, "Ort", 20f, 458f, 361f, rechts = 48f)
             Eingabe(Feld.PLZ, "PLZ", 20f, 526f, 178f, rechts = 48f)
 
-            Box(Modifier.platz(20f, 607f, 362f, 56f).border(1.dp, hex(0x7F8A2B)).tippen { fokus.clearFocus(); anmeldung.abmelden() },
+            Box(Modifier.platz(20f, 607f, 362f, 56f).border(1.dp, hex(0xE3F654)).tippen { mitteilungenOffen = true },
+                contentAlignment = Alignment.Center) {
+                Text("Mitteilungen", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0xE3F654)))
+            }
+
+            Box(Modifier.platz(20f, 675f, 362f, 56f).border(1.dp, hex(0x7F8A2B)).tippen { fokus.clearFocus(); anmeldung.abmelden() },
                 contentAlignment = Alignment.Center) {
                 Text("Abmelden", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x7F8A2B)))
             }
 
             // Im Web nur Beschriftung ohne Funktion.
-            Box(Modifier.platz(20f, 682f, 362f, 24f), contentAlignment = Alignment.Center) {
+            Box(Modifier.platz(20f, 750f, 362f, 24f), contentAlignment = Alignment.Center) {
                 Text("Account löschen", style = grotesk(12f, 500, abstand = 0.5f, farbe = hex(0xE3F654).copy(alpha = 0.35f)))
             }
 
@@ -260,6 +266,7 @@ internal fun EinstellungenSeite(anmeldung: Anmeldung, fahrerID: String, zurueck:
             }
         }
         FussleisteUnten()
+        if (mitteilungenOffen) de.trisar.kern.MitteilungenSeite(fahrerID, de.trisar.kern.PushArten.fahrer) { mitteilungenOffen = false }
 
         val f = bildFehler ?: dienstFehler
         if (f != null) {

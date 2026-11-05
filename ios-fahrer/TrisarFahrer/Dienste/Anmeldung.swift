@@ -107,6 +107,8 @@ final class Anmeldung: ObservableObject {
     }
 
     func abmelden() async {
+        // Erst das Geraet fuer Mitteilungen austragen, solange die Sitzung noch gilt.
+        await Push.shared.abmelden()
         // Nur dieses Geraet abmelden, sonst fliegt auch die Dispo-Sitzung desselben Kontos raus.
         try? await Backend.client.auth.signOut(scope: .local)
         zustand = .abgemeldet

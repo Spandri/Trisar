@@ -212,6 +212,7 @@ private fun EinstellungenSeite(dienst: KoordinatorProfilDienst, zurueck: () -> U
     val scope = rememberCoroutineScope()
     val anmeldung = aktivitaetsAnmeldung()
     val fokusManager = LocalFocusManager.current
+    var mitteilungenOffen by remember { mutableStateOf(false) }
 
     var vorname by remember { mutableStateOf("") }
     var nachname by remember { mutableStateOf("") }
@@ -341,7 +342,12 @@ private fun EinstellungenSeite(dienst: KoordinatorProfilDienst, zurueck: () -> U
                 Icon("Arrow-kurz_Trisar_Icons_01_Lime", Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(10.dp, 13.dp).rotate(90f))
             }
 
-            Box(Modifier.platz(20f, 626f, 362f, 56f).border(1.dp, hex(0x7F8A2B)).tippen {
+            Box(Modifier.platz(20f, 626f, 362f, 56f).border(1.dp, hex(0xE3F654)).tippen { mitteilungenOffen = true },
+                contentAlignment = Alignment.Center) {
+                Text("Mitteilungen", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0xE3F654)))
+            }
+
+            Box(Modifier.platz(20f, 694f, 362f, 56f).border(1.dp, hex(0x7F8A2B)).tippen {
                 fokusManager.clearFocus()
                 scope.launch {
                     // Nur dieses Geraet abmelden, wie Anmeldung.abmelden().
@@ -353,7 +359,7 @@ private fun EinstellungenSeite(dienst: KoordinatorProfilDienst, zurueck: () -> U
             }
 
             // Im Web nur Beschriftung ohne Funktion.
-            Box(Modifier.platz(20f, 694f, 362f, 24f).alpha(0.35f), contentAlignment = Alignment.Center) {
+            Box(Modifier.platz(20f, 762f, 362f, 24f).alpha(0.35f), contentAlignment = Alignment.Center) {
                 Text("Account löschen", style = grotesk(12f, 500, abstand = 0.5f, farbe = LIME))
             }
 
@@ -399,6 +405,10 @@ private fun EinstellungenSeite(dienst: KoordinatorProfilDienst, zurueck: () -> U
             }
         }
         FussleisteUnten()
+        val nutzer = (anmeldung?.zustand?.value as? de.trisar.kern.Zustand.Angemeldet)?.id
+        if (mitteilungenOffen && nutzer != null) {
+            de.trisar.kern.MitteilungenSeite(nutzer, de.trisar.kern.PushArten.dispo) { mitteilungenOffen = false }
+        }
 
         if (bildVorschau) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.85f)).tippen { }, contentAlignment = Alignment.Center) {

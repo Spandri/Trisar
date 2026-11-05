@@ -66,6 +66,20 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
     var seite by remember { mutableStateOf<Seite?>(null) }
     var profilSeite by remember { mutableStateOf(ProfilUnterseite.PROFIL) }
 
+    // Tipp auf eine Mitteilung: Fahrt, Chat (Fahrt der Kolonne) oder Fahrzeug oeffnen.
+    val pushZiel by de.trisar.kern.Push.ziel.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(pushZiel, geladen, fahrten) {
+        val z = pushZiel ?: return@LaunchedEffect
+        if (!geladen) return@LaunchedEffect
+        de.trisar.kern.Push.ziel.value = null
+        seite = when (z["ziel"]) {
+            "fahrt" -> fahrten.firstOrNull { it.id == z["job_id"] }?.let { Seite.Fahrt(it.id) }
+            "chat" -> fahrten.firstOrNull { it.kolonnenID != null && it.kolonnenID == z["kolonne_id"] }?.let { Seite.Fahrt(it.id) }
+            "fahrzeug" -> Seite.Fahrzeug
+            else -> null
+        }
+    }
+
     // Ortung und Berechtigungen
     val berechtigung by FahrerOrtung.berechtigung.collectAsState()
     val profilGeladen by FahrerOrtung.profilGeladen.collectAsState()

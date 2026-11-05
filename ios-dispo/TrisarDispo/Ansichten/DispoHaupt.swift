@@ -15,6 +15,18 @@ struct DispoHaupt: View {
             Color.black.ignoresSafeArea()
             seite
                 .id(ziel)
+                .onReceive(Push.shared.$ziel.compactMap { $0 }) { tipp in
+                    Push.shared.ziel = nil
+                    planungsSeite = nil
+                    switch tipp["ziel"] {
+                    case "fahrt":
+                        if let id = tipp["job_id"].flatMap(UUID.init(uuidString:)) { bearbeiteteFahrt = id }
+                    case "fahrzeug": zeigen(.fahrzeuge)
+                    case "fahrer": zeigen(.fahrer)
+                    case "chat": zeigen(.fahrten)
+                    default: zeigen(.start)
+                    }
+                }
             // Unterseiten liegen als eigene Seite darueber, ohne Hochschieben (wie setView im Web).
             if let id = bearbeiteteFahrt {
                 FahrtFormularAnsicht(fahrtID: id, zurueck: { bearbeiteteFahrt = nil })

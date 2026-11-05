@@ -34,6 +34,7 @@ targets:
       - ../ios-fahrer/TrisarFahrer/App/Konfig.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Backend.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Anmeldung.swift
+      - ../ios-fahrer/TrisarFahrer/Dienste/Push.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Fahrten.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Chat.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/FahrtDetails.swift
@@ -56,6 +57,10 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: YES
+    entitlements:
+      path: TrisarDispo/TrisarDispo.entitlements
+      properties:
+        aps-environment: development
     info:
       path: TrisarDispo/Info.plist
       properties:
