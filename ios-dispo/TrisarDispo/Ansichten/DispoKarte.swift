@@ -241,11 +241,11 @@ struct DispoKarte: UIViewRepresentable {
 
         // MARK: Einpassen (fitBounds, Polsterung im Web-Raster)
 
-        private func einpassen(_ orte: [CLLocationCoordinate2D], oben: CGFloat, rechts: CGFloat, unten: CGFloat, links: CGFloat) {
+        private func einpassen(_ orte: [CLLocationCoordinate2D], oben: CGFloat, rechts: CGFloat, unten: CGFloat, links: CGFloat, maxZoom: Double? = nil) {
             guard let karte, let erster = orte.first else { return }
             guard karte.bounds.width > 10, karte.bounds.height > 10 else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                    self?.einpassen(orte, oben: oben, rechts: rechts, unten: unten, links: links)
+                    self?.einpassen(orte, oben: oben, rechts: rechts, unten: unten, links: links, maxZoom: maxZoom)
                 }
                 return
             }
@@ -256,12 +256,22 @@ struct DispoKarte: UIViewRepresentable {
                 ne.latitude = max(ne.latitude, p.latitude); ne.longitude = max(ne.longitude, p.longitude)
             }
             let rand = UIEdgeInsets(top: oben * s, left: links * s, bottom: unten * s, right: rechts * s)
-            karte.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: sw, ne: ne), edgePadding: rand, animated: true, completionHandler: nil)
+            let grenzen = MLNCoordinateBounds(sw: sw, ne: ne)
+            guard let maxZoom else {
+                karte.setVisibleCoordinateBounds(grenzen, edgePadding: rand, animated: true, completionHandler: nil)
+                return
+            }
+            // Wie maxZoom bei fitBounds im Web: die Kamera nie naeher als die Grenze.
+            let kamera = karte.cameraThatFitsCoordinateBounds(grenzen, edgePadding: rand)
+            let mindestHoehe = MLNAltitudeForZoomLevel(maxZoom, kamera.pitch, kamera.centerCoordinate.latitude, karte.bounds.size)
+            if kamera.altitude < mindestHoehe { kamera.altitude = mindestHoehe }
+            karte.setCamera(kamera, animated: true)
         }
 
         /// fitAllDriverMarkers: oben bleiben Zurueck, Filter und Statusleiste frei.
         private func alleEinpassen() {
-            einpassen(letzteListe.map(\.ort), oben: 200, rechts: 24, unten: 190, links: 24)
+            // Nicht naeher als ein Stadtviertel (Web: ALLE_FAHRER_MAX_ZOOM).
+            einpassen(letzteListe.map(\.ort), oben: 200, rechts: 24, unten: 190, links: 24, maxZoom: 13.5)
         }
 
         /// fitRouteBounds: unten Leiste + Blatt, oben so viel, wie die Hoehe hergibt.
