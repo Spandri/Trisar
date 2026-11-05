@@ -18,11 +18,15 @@ struct TrisarDispoApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                switch anmeldung.zustand {
-                case .pruefe: Color.black.ignoresSafeArea()
-                case .abgemeldet: LoginAnsicht()
-                case .angemeldet: DispoHaupt()
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-naviTest") {
+                    NaviTestAnsicht()
+                } else {
+                    hauptInhalt
                 }
+                #else
+                hauptInhalt
+                #endif
             }
             .environmentObject(anmeldung)
             // Ganze App auf die Breite des iPhones skalieren (Raster 402 wie im Web).
@@ -30,7 +34,26 @@ struct TrisarDispoApp: App {
             .preferredColorScheme(.dark)
         }
     }
+
+    @ViewBuilder private var hauptInhalt: some View {
+                switch anmeldung.zustand {
+                case .pruefe: Color.black.ignoresSafeArea()
+                case .abgemeldet: LoginAnsicht(hintergrund: DispoHintergrund())
+                case .angemeldet: DispoHaupt()
+                }
+    }
 }
+
+#if DEBUG
+/// Nur zum Pruefen der Navigationsleiste ohne Anmeldung: Start mit Argument -naviTest.
+struct NaviTestAnsicht: View {
+    @State private var ziel: DispoZiel = .start
+    var body: some View {
+        DispoPlatzhalter(titel: "\(ziel)", zeigen: { ziel = $0 }, aktiv: ziel)
+            .id(ziel)
+    }
+}
+#endif
 
 enum DispoZugang {
     private static let rollen: Set<String> = ["dispo", "dispatcher", "admin", "koordinator", "coordinator"]

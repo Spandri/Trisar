@@ -3,7 +3,9 @@ import SwiftUI
 
 /// Nachbau von `fahrer/src/features/auth/LoginView.jsx`.
 /// Masse der Web-App (Basisbreite 402): Logo oben 103, Formular ab 212, Pfeil ab 586.
-struct LoginAnsicht: View {
+struct LoginAnsicht<Hintergrund: View>: View {
+    /// Fahrer-App: gelber Verlauf. Dispo-App gibt ihr Blau mit.
+    let hintergrund: Hintergrund
     @EnvironmentObject private var anmeldung: Anmeldung
     @State private var email = ""
     @State private var passwort = ""
@@ -13,9 +15,12 @@ struct LoginAnsicht: View {
 
     private enum Feld { case email, passwort }
 
+    init(hintergrund: Hintergrund) { self.hintergrund = hintergrund }
+
     var body: some View {
         ZStack(alignment: .bottom) {
-            TrisarHintergrund()
+            hintergrund
+                .ignoresSafeArea()
                 .onTapGesture { fokus = nil }
 
             ScrollView {
@@ -168,4 +173,8 @@ struct LoginAnsicht: View {
         try? await Backend.client.auth.resetPasswordForEmail(mail, redirectTo: URL(string: "https://fahrer.trisar.de"))
         hinweis = "Wenn die E-Mail bekannt ist, kommt gleich ein Link zum Zurücksetzen."
     }
+}
+
+extension LoginAnsicht where Hintergrund == TrisarHintergrund {
+    init() { self.init(hintergrund: TrisarHintergrund()) }
 }
