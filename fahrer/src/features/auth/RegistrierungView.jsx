@@ -128,7 +128,7 @@ const RegistrierungView = ({
               type="submit"
               className="w-full bg-[#e3f754] text-black rounded-none py-4 text-[15px] font-bold hover:bg-[#d4ff28] transition-colors"
             >
-              Registrieren
+              Passwort speichern
             </button>
 
             {authError && (

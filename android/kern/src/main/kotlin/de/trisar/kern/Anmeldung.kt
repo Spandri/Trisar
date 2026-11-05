@@ -142,7 +142,22 @@ class Anmeldung(
         if ('@' !in mail) { fehler.value = "Zum Zurücksetzen bitte deine E-Mail eintragen, nicht den Benutzernamen."; return }
         fehler.value = null
         viewModelScope.launch {
-            runCatching { Backend.client.auth.resetPasswordForEmail(mail, redirectUrl = "https://fahrer.trisar.de") }
+            // Direkt per REST statt resetPasswordForEmail: ein PKCE-Link liesse sich im Browser
+            // nicht einloesen (Schluessel liegt nur in der App), man landete auf dem Login.
+            runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val url = java.net.URL(Konfig.SUPABASE_URL + "/auth/v1/recover?redirect_to=" +
+                        java.net.URLEncoder.encode("https://fahrer.trisar.de", "UTF-8"))
+                    val verbindung = url.openConnection() as java.net.HttpURLConnection
+                    verbindung.requestMethod = "POST"
+                    verbindung.doOutput = true
+                    verbindung.setRequestProperty("Content-Type", "application/json")
+                    verbindung.setRequestProperty("apikey", Konfig.SUPABASE_KEY)
+                    verbindung.outputStream.use { it.write(buildJsonObject { put("email", mail) }.toString().toByteArray()) }
+                    verbindung.responseCode
+                    verbindung.disconnect()
+                }
+            }
             hinweis("Wenn die E-Mail bekannt ist, kommt gleich ein Link zum Zurücksetzen.")
         }
     }

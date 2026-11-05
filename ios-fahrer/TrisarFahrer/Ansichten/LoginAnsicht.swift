@@ -171,7 +171,16 @@ struct LoginAnsicht<Hintergrund: View>: View {
         }
         anmeldung.fehler = nil
         // Link fuehrt in die Web-App, dort wird das neue Passwort gesetzt (gleiches Konto).
-        try? await Backend.client.auth.resetPasswordForEmail(mail, redirectTo: URL(string: "https://fahrer.trisar.de"))
+        // Bewusst ohne supabase-swift: das schickt einen PKCE-Link, dessen Schluessel nur in
+        // dieser App liegt. Der Browser koennte ihn nicht einloesen und landet auf dem Login.
+        var teile = URLComponents(url: Konfig.supabaseURL.appendingPathComponent("auth/v1/recover"), resolvingAgainstBaseURL: false)!
+        teile.queryItems = [URLQueryItem(name: "redirect_to", value: "https://fahrer.trisar.de")]
+        var anfrage = URLRequest(url: teile.url!)
+        anfrage.httpMethod = "POST"
+        anfrage.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        anfrage.setValue(Konfig.supabaseKey, forHTTPHeaderField: "apikey")
+        anfrage.httpBody = try? JSONSerialization.data(withJSONObject: ["email": mail])
+        _ = try? await URLSession.shared.data(for: anfrage)
         hinweis = "Wenn die E-Mail bekannt ist, kommt gleich ein Link zum Zurücksetzen."
     }
 }
