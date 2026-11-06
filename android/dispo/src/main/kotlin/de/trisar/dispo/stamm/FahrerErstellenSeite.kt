@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -221,6 +222,12 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
                     36f, z + 730f, 362f - 16f - 56f, imeiFokus, KeyboardType.Number,
                     // Wie onFocus am IMEI-Feld: Tracker-Liste zu.
                     fokusGeaendert = { if (it && menue == EditorMenue.TRACKER) menue = null })
+                // Nummer des gewaehlten Trackers (klebt auf dem Geraet) rechts im Feld.
+                m.trackerNummer?.let { nr ->
+                    Box(Modifier.platz(20f + 362f - 56f - 80f, o + z + 730f, 80f, 56f), contentAlignment = Alignment.CenterEnd) {
+                        Text("Nr. $nr", style = grotesk(16f, 700, farbe = LIME), maxLines = 1)
+                    }
+                }
                 if (m.tracker.isNotEmpty()) {
                     Box(Modifier.platz(20f + 362f - 64f, o + z + 730f, 64f, 56f).tippen { umschalten(EditorMenue.TRACKER) }, contentAlignment = Alignment.CenterEnd) {
                         Text("v", style = grotesk(32f, 700, farbe = LIME), modifier = Modifier.padding(end = 16.dp))
@@ -286,6 +293,7 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
                         Box(Modifier.fillMaxWidth().height(40.dp).tippen { m.imei = t.imei; menue = null }.padding(horizontal = 16.dp),
                             contentAlignment = Alignment.CenterStart) {
                             Text(buildAnnotatedString {
+                                t.nummer?.let { nr -> withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = LIME)) { append("Nr. $nr · ") } }
                                 append(t.imei)
                                 if (notiz.isNotEmpty()) withStyle(SpanStyle(fontSize = 12.sp, color = hex(0xC8D85D))) { append(" · $notiz") }
                             }, style = grotesk(16f, farbe = SCHRIFT), maxLines = 1)

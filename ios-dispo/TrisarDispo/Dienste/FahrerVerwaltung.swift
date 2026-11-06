@@ -380,6 +380,8 @@ struct TrackerEintrag: Decodable, Identifiable {
     let driver_id: String?
     let is_active: Bool?
     let driver: Besitzer?
+    /// Nummer auf dem Geraet (obd_tracker), nil wenn keine vergeben.
+    var nummer: Int?
     var id: String { imei }
     var besitzerName: String {
         [driver?.first_name, driver?.last_name].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
@@ -470,14 +472,29 @@ final class FahrerEditorModell: ObservableObject {
         fahrzeugeLaden = false
     }
 
-    /// Bekannte Tracker (alle IMEIs, die schon einmal einem Fahrer zugeordnet waren).
+    /// Bekannte Tracker: alle mit Nummer (obd_tracker) plus alle, die schon einmal einem Fahrer zugeordnet waren.
     private func trackerHolen() async {
+        struct Nummer: Decodable { let imei: String; let nummer: Int }
         // Tabelle fehlt: Liste bleibt leer, IMEI kann von Hand eingetragen werden.
-        tracker = (try? await Backend.client.from("imei_driver_map")
+        let zuordnungen: [TrackerEintrag] = (try? await Backend.client.from("imei_driver_map")
             .select("imei, driver_id, is_active, driver:driver_id(first_name, last_name)")
-            .order("imei", ascending: true)
             .execute().value) ?? []
+        let nummern: [Nummer] = (try? await Backend.client.from("obd_tracker")
+            .select("imei, nummer").execute().value) ?? []
+        var nachImei: [String: TrackerEintrag] = [:]
+        for z in zuordnungen { nachImei[z.imei] = z }
+        for n in nummern {
+            var e = nachImei[n.imei] ?? TrackerEintrag(imei: n.imei, driver_id: nil, is_active: false, driver: nil)
+            e.nummer = n.nummer
+            nachImei[n.imei] = e
+        }
+        tracker = nachImei.values.sorted {
+            ($0.nummer ?? Int.max, $0.imei) < ($1.nummer ?? Int.max, $1.imei)
+        }
     }
+
+    /// Nummer des gerade eingetragenen Trackers (fuer die Anzeige im Feld).
+    var trackerNummer: Int? { tracker.first { $0.imei == imei }?.nummer }
 
     private struct Profil: Decodable {
         let first_name: String?

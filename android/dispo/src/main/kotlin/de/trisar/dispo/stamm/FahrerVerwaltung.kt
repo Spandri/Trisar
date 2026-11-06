@@ -353,7 +353,7 @@ internal data class DispoFahrzeugWahl(val id: String, val brandModel: String, va
     }
 }
 
-internal data class TrackerEintrag(val imei: String, val driverID: String?, val isActive: Boolean?, val besitzerName: String)
+internal data class TrackerEintrag(val imei: String, val driverID: String?, val isActive: Boolean?, val besitzerName: String, val nummer: Int? = null)
 
 internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
     companion object {
@@ -445,12 +445,12 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
         fahrzeugeLaden = false
     }
 
-    /** Bekannte Tracker (alle IMEIs, die schon einmal einem Fahrer zugeordnet waren). */
+    /** Bekannte Tracker: alle mit Nummer (obd_tracker) plus alle, die schon einmal einem Fahrer zugeordnet waren. */
     private suspend fun trackerHolen() {
         // Tabelle fehlt: Liste bleibt leer, IMEI kann von Hand eingetragen werden.
-        tracker = runCatching {
+        val zuordnungen = runCatching {
             Backend.client.from("imei_driver_map")
-                .select(Columns.raw("imei, driver_id, is_active, driver:driver_id(first_name, last_name)")) { order("imei", Order.ASCENDING) }
+                .select(Columns.raw("imei, driver_id, is_active, driver:driver_id(first_name, last_name)"))
                 .decodeList<JsonObject>().map { z ->
                     val d = z["driver"] as? JsonObject
                     val besitzer = listOf(d?.text("first_name") ?: "", d?.text("last_name") ?: "").filter { it.isNotEmpty() }.joinToString(" ").trim()
@@ -458,7 +458,20 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
                     TrackerEintrag(z.text("imei"), z.text("driver_id").ifEmpty { null }, aktiv, besitzer)
                 }
         }.getOrDefault(emptyList())
+        val nummern = runCatching {
+            Backend.client.from("obd_tracker").select(Columns.raw("imei, nummer"))
+                .decodeList<JsonObject>().mapNotNull { z -> z.text("nummer").toIntOrNull()?.let { z.text("imei") to it } }
+        }.getOrDefault(emptyList())
+        val nachImei = LinkedHashMap<String, TrackerEintrag>()
+        for (z in zuordnungen) nachImei[z.imei] = z
+        for ((imeiN, nr) in nummern) {
+            nachImei[imeiN] = (nachImei[imeiN] ?: TrackerEintrag(imeiN, null, false, "")).copy(nummer = nr)
+        }
+        tracker = nachImei.values.sortedWith(compareBy<TrackerEintrag>({ it.nummer ?: Int.MAX_VALUE }, { it.imei }))
     }
+
+    /** Nummer des gerade eingetragenen Trackers (fuer die Anzeige im Feld). */
+    val trackerNummer: Int? get() = tracker.firstOrNull { it.imei == imei }?.nummer
 
     private suspend fun fahrerHolen() {
         val f = ursprung ?: return

@@ -135,17 +135,28 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
     };
   }, []);
 
-  // Bekannte Tracker (alle IMEIs, die schon einmal einem Fahrer zugeordnet waren).
+  // Bekannte Tracker: alle mit Nummer (obd_tracker) plus alle, die schon einmal einem Fahrer zugeordnet waren.
   useEffect(() => {
     let mounted = true;
     const loadTrackers = async () => {
       try {
-        const { data, error } = await supabase
-          .from('imei_driver_map')
-          .select('imei, driver_id, is_active, driver:driver_id(first_name, last_name)')
-          .order('imei', { ascending: true });
-        if (!mounted || error) return;
-        setTrackerList(Array.isArray(data) ? data : []);
+        const [mapResult, numberResult] = await Promise.all([
+          supabase
+            .from('imei_driver_map')
+            .select('imei, driver_id, is_active, driver:driver_id(first_name, last_name)'),
+          supabase.from('obd_tracker').select('imei, nummer'),
+        ]);
+        if (!mounted || mapResult.error) return;
+        const byImei = new Map();
+        (Array.isArray(mapResult.data) ? mapResult.data : []).forEach((row) => byImei.set(row.imei, { ...row, nummer: null }));
+        // obd_tracker fehlt (z.B. Demo): dann nur die zugeordneten IMEIs ohne Nummer.
+        (numberResult.error ? [] : numberResult.data || []).forEach((row) => {
+          const known = byImei.get(row.imei);
+          byImei.set(row.imei, known ? { ...known, nummer: row.nummer } : { imei: row.imei, nummer: row.nummer, driver_id: null, is_active: false, driver: null });
+        });
+        const list = [...byImei.values()].sort((a, b) =>
+          (a.nummer ?? Infinity) - (b.nummer ?? Infinity) || String(a.imei).localeCompare(String(b.imei)));
+        setTrackerList(list);
       } catch {
         // Tabelle fehlt (z.B. Demo): Liste bleibt leer, IMEI kann von Hand eingetragen werden.
       }
@@ -856,6 +867,15 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
                   placeholder={t('erstellen.trackerImei')}
                   className={inputClass}
                 />
+                {(() => {
+                  // Nummer des gewaehlten Trackers (klebt auf dem Geraet) rechts im Feld.
+                  const nummer = trackerList.find((tr) => tr.imei === trackerImei)?.nummer;
+                  return nummer ? (
+                    <span className="absolute right-14 top-1/2 -translate-y-1/2 pointer-events-none text-[#e3f654] text-[16px] leading-6 font-bold whitespace-nowrap">
+                      Nr. {nummer}
+                    </span>
+                  ) : null;
+                })()}
                 {trackerList.length > 0 && (
                   <button type="button" onClick={() => setShowTrackerMenu((v) => !v)} className="absolute right-0 top-0 bottom-0 w-12">
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#e3f654] text-[32px] leading-none font-bold">v</span>
@@ -881,6 +901,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
                           }}
                           className="w-full text-left px-4 py-2 text-[#8a9728] text-[16px]"
                         >
+                          {tracker.nummer ? <span className="text-[#e3f654] font-bold">Nr. {tracker.nummer} · </span> : null}
                           {tracker.imei}
                           {note ? <span className="text-[#c8d85d] text-[12px]"> · {note}</span> : null}
                         </button>

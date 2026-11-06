@@ -104,6 +104,14 @@ struct FahrerErstellenAnsicht: View {
                          Binding(get: { m.imei }, set: { m.imei = String($0.filter(\.isNumber).prefix(15)) }),
                          x: 20 + 16, y: 798, w: 362 - 16 - 56)
                         .keyboardType(.numberPad)
+                    // Nummer des gewaehlten Trackers (klebt auf dem Geraet) rechts im Feld.
+                    if let nr = m.trackerNummer {
+                        Text("Nr. \(nr)").grotesk(16, .bold).foregroundStyle(lime)
+                            .lineLimit(1).fixedSize()
+                            .frame(width: 80, height: 56, alignment: .trailing)
+                            .allowsHitTesting(false)
+                            .platz(20 + 362 - 56 - 80, o + 798, 80, 56)
+                    }
                     if !m.tracker.isEmpty {
                         Button { umschalten(.tracker) } label: {
                             Text("v").grotesk(32, .bold).foregroundStyle(lime)
@@ -175,7 +183,8 @@ struct FahrerErstellenAnsicht: View {
                         ForEach(m.tracker) { t in
                             let notiz = t.is_active != true ? "frei" : (t.driver_id == m.ursprung?.id ? "dieser Fahrer" : t.besitzerName)
                             Button { m.imei = t.imei; menue = nil } label: {
-                                (Text(t.imei).font(.grotesk(16)).foregroundColor(schrift)
+                                ((t.nummer.map { Text("Nr. \($0) · ").font(.grotesk(16, .bold)).foregroundColor(lime) } ?? Text(""))
+                                 + Text(t.imei).font(.grotesk(16)).foregroundColor(schrift)
                                  + (notiz.isEmpty ? Text("") : Text(" · \(notiz)").font(.grotesk(12)).foregroundColor(Color(hex: 0xC8D85D))))
                                     .lineLimit(1)
                                     .padding(.horizontal, 16)
