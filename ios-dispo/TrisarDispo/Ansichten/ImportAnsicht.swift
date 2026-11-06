@@ -27,6 +27,7 @@ struct ImportAnsicht: View {
     @State private var importe: [ImportDienst.Import] = []
     @State private var beschaeftigt = false
     @State private var waehlen = false
+    @State private var spaltenOffen = false
 
     private let lime = Color(hex: 0xE3F654)
     private let limeHalb = Color(hex: 0xE3F654).opacity(0.7)
@@ -74,7 +75,7 @@ struct ImportAnsicht: View {
                             .padding(.top, 16)
                     }
                 }
-                .padding(.horizontal, 20).padding(.top, 60).padding(.bottom, 90)
+                .padding(.horizontal, 20).padding(.top, 60).padding(.bottom, schritt == .zuordnung ? 170 : 90)
                 .frame(maxWidth: 402, alignment: .leading)
                 .frame(maxWidth: .infinity)
             }
@@ -82,6 +83,7 @@ struct ImportAnsicht: View {
             .scrollDismissesKeyboard(.interactively)
             .ignoresSafeArea()
             FussleisteUnten()
+            if schritt == .zuordnung && analyse != nil { importLeiste.padding(.bottom, 40) }
         }
         .fileImporter(isPresented: $waehlen, allowedContentTypes: Self.dateiTypen) { antwort in
             if case let .success(url) = antwort { dateiGewaehlt(url) }
@@ -157,14 +159,33 @@ struct ImportAnsicht: View {
         .padding(.top, 40)
     }
 
-    // MARK: 3. Zuordnung und Vorschau
+    // MARK: 3. Pruefen: Zahlen, Chips, Spalten (zugeklappt), Fahrten pro Tag als Karten
+
+    private var bereitListe: [ImportDienst.Satz] { mitAdressen.filter { !$0.aus && $0.fehlt.isEmpty } }
+
+    private func personen(_ s: ImportDienst.Satz) -> Int {
+        max(ImportDienst.namen(s.daten["passengers"]).count, Int(ImportDienst.text(s.daten["anzahl"])) ?? 0)
+    }
+
+    /// Nach Tag gruppiert, innerhalb nach Uhrzeit. Ohne Datum zuerst.
+    private var gruppen: [(tag: String, eintraege: [(index: Int, satz: ImportDienst.Satz)])] {
+        let liste = mitAdressen.enumerated().map { (index: $0.offset, satz: $0.element) }
+        guard fahrten else { return [(tag: "alle", eintraege: liste)] }
+        let nachTag = Dictionary(grouping: liste) { ImportDienst.text($0.satz.daten["ride_date"]) }
+        return nachTag.keys.sorted { a, b in a.isEmpty ? true : (b.isEmpty ? false : a < b) }.map { tag in
+            (tag: tag, eintraege: (nachTag[tag] ?? []).sorted { ImportDienst.text($0.satz.daten["etd"]) < ImportDienst.text($1.satz.daten["etd"]) })
+        }
+    }
 
     @ViewBuilder private var zuordnungSchritt: some View {
         if let analyse {
             let liste = mitAdressen
-            let bereit = liste.filter { !$0.aus && $0.fehlt.isEmpty }
-            let unvollstaendig = liste.filter { !$0.aus && !$0.fehlt.isEmpty }
-            let zugeordnet = analyse.spalten.filter { analyse.zuordnung["\($0.index)"] != nil }.count
+            let bereit = bereitListe
+            let unvollstaendig = liste.filter { !$0.aus && !$0.fehlt.isEmpty }.count
+            let pruefen = bereit.filter { $0.hinweise.contains { Self.warnungen.contains($0) } }.count
+            let aus = liste.filter(\.aus).count
+            let tage = gruppen.filter { !$0.tag.isEmpty && $0.tag != "alle" }.count
+            let gaeste = bereit.reduce(0) { $0 + personen($1) }
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Text(analyse.dateiname).font(.grotesk(12, .medium)).foregroundStyle(.white.opacity(0.5)).lineLimit(1).padding(.trailing, 12)
@@ -174,16 +195,16 @@ struct ImportAnsicht: View {
                     }
                     .buttonStyle(.web)
                 }
-                .padding(.top, 20)
+                .padding(.top, 16)
 
                 if analyse.blaetter.count > 1 {
-                    Text(t("imp.blatt")).font(.grotesk(11, .medium)).foregroundStyle(.white.opacity(0.5)).padding(.top, 14)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 6) {
                             ForEach(analyse.blaetter, id: \.self) { b in
                                 let aktiv = b.index == analyse.blatt
                                 Button { if !aktiv { neuAuswerten(blatt: b.index, zuordnung: nil) } } label: {
-                                    Text(b.name).font(.grotesk(12, .medium))
+                                    Text(b.name + ((b.fahrten ?? 0) > 0 && !aktiv ? " · \(b.fahrten ?? 0)" : ""))
+                                        .font(.grotesk(12, .medium)).lineLimit(1)
                                         .foregroundStyle(aktiv ? .black : .white.opacity(0.7))
                                         .padding(.horizontal, 12).frame(height: 30)
                                         .background(aktiv ? lime : .clear)
@@ -192,143 +213,153 @@ struct ImportAnsicht: View {
                                 .buttonStyle(.web)
                             }
                         }
+                        .padding(.horizontal, 20)
                     }
-                    .padding(.top, 6)
-                }
-                if analyse.vorlage != nil {
-                    hinweisBalken(t("imp.vorlageGenutzt", ["name": analyse.vorlage?.name ?? ""]), Color(hex: 0x8DFFAF))
-                }
-                if let k = analyse.kontext, k.datum != nil || k.ziel != nil {
-                    let datum = k.datum.map { d in d.count == 10 ? "\(d.suffix(2)).\(d.dropFirst(5).prefix(2)).\(d.prefix(4))" : d }
-                    hinweisBalken([datum.map { t("imp.kontextDatum", ["datum": $0]) }, k.ziel.map { t("imp.kontextZiel", ["ziel": $0]) }]
-                        .compactMap { $0 }.joined(separator: " "), lime.opacity(0.85))
-                }
-                if analyse.llama?.genutzt == true {
-                    hinweisBalken(t("imp.llamaGenutzt"), orange)
+                    .padding(.horizontal, -20)
+                    .padding(.top, 12)
                 }
 
-                HStack(spacing: 10) {
-                    ImportFunken(pulsieren: false)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(t("imp.zuordnung")).font(.grotesk(20, .bold)).frame(height: 20)
-                        Text(t("imp.zugeordnetVon", ["n": "\(zugeordnet)", "gesamt": "\(analyse.spalten.count)"]))
-                            .font(.grotesk(12, .medium)).foregroundStyle(limeHalb)
+                // Ueberblick in Zahlen
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                    kachel(bereit.count, t(fahrten ? "imp.k.fahrten" : "imp.k.gaeste"), hell: true)
+                    if fahrten {
+                        kachel(tage, t(tage == 1 ? "imp.k.tag" : "imp.k.tage"))
+                        kachel(gaeste, t("imp.k.gaeste"))
                     }
+                    if unvollstaendig > 0 { kachel(unvollstaendig, t("imp.k.fehlt"), farbe: rot) }
+                    if pruefen > 0 { kachel(pruefen, t("imp.k.pruefen"), farbe: orange) }
+                    if aus > 0 { kachel(aus, t("imp.k.aus"), farbe: .white.opacity(0.35)) }
                 }
-                .foregroundStyle(lime)
-                .padding(.top, 20)
+                .padding(.top, 16)
 
-                if let fehlt = analyse.fehlendeZuordnung, !fehlt.isEmpty {
-                    WebText(text: t("imp.pflichtFehlt", ["felder": fehlt.map(feldText).joined(separator: ", ")]),
-                            groesse: 12, gewicht: .medium, zeilenHoehe: 16, farbe: UIColor(hex: 0xFFCD8A))
-                        .padding(.top, 10)
-                }
-
-                VStack(spacing: 8) {
-                    ForEach(analyse.spalten) { spaltenKarte($0, analyse) }
-                }
-                .padding(.top, 14)
-
-                Text(t("imp.vorschau")).font(.grotesk(20, .bold)).foregroundStyle(lime).padding(.top, 24)
-                (Text(t("imp.bereit", ["n": "\(bereit.count)"])).foregroundColor(limeHalb)
-                    + Text(unvollstaendig.isEmpty ? "" : " · " + t("imp.unvollstaendigKurz", ["n": "\(unvollstaendig.count)"])).foregroundColor(rot))
-                    .font(.grotesk(12, .medium)).padding(.top, 4)
-                if fahrten {
-                    Text(adressStand).font(.grotesk(11, .medium)).foregroundStyle(.white.opacity(0.45)).padding(.top, 2)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(liste.enumerated()), id: \.offset) { i, satz in zeilenKarte(i, satz) }
+                // Herkunft als kurze Chips
+                FlussZeilen(abstand: 6).callAsFunction {
+                    if let d = analyse.kontext?.datum, d.count == 10 {
+                        chip(t("imp.c.datum", ["datum": "\(d.suffix(2)).\(d.dropFirst(5).prefix(2)).\(d.prefix(4))"]), lime)
+                    }
+                    if let z = analyse.kontext?.ziel { chip(t("imp.c.ziel", ["ziel": ImportDienst.kurzname(z)]), lime) }
+                    if analyse.vorlage != nil { chip(t("imp.c.vorlage"), Color(hex: 0x8DFFAF)) }
+                    if analyse.llama?.genutzt == true { chip(t("imp.c.llama"), orange) }
+                    if fahrten {
+                        chip(adressen.map { a in t("imp.c.adressen", ["n": "\(a.values.filter(\.gefunden).count)", "gesamt": "\(a.count)"]) }
+                             ?? t("imp.c.adressenLaeuft"), .white.opacity(0.6))
+                    }
                 }
                 .padding(.top, 10)
 
-                Button { Task { await importieren(bereit) } } label: {
-                    HStack(spacing: 0) {
-                        Text(beschaeftigt ? t("sonstige.uebernehme")
-                            : t(fahrten ? "imp.fahrtenImportieren" : "imp.gaesteImportieren", ["n": "\(bereit.count)"]))
-                            .font(.grotesk(16, .medium)).tracking(0.4).foregroundStyle(Color(hex: 0x1D1C1D))
-                        Spacer(minLength: 0)
-                        Image("Arrow_Trisar_Icons_01").resizable().frame(width: 34, height: 20)
+                spaltenKopf(analyse)
+                if spaltenOffen || !(analyse.fehlendeZuordnung ?? []).isEmpty {
+                    VStack(spacing: 6) { ForEach(analyse.spalten) { spaltenZeile($0, analyse) } }.padding(.top, 8)
+                }
+
+                // Fahrten nach Tagen
+                VStack(spacing: 12) {
+                    ForEach(Array(gruppen.enumerated()), id: \.offset) { gi, g in
+                        if fahrten { tagKopf(g.tag, erster: gi == 0, saetze: g.eintraege.map(\.satz)) }
+                        ForEach(g.eintraege, id: \.index) { e in karte(e.index, e.satz) }
                     }
-                    .padding(.horizontal, 16)
-                    .frame(maxWidth: .infinity).frame(height: 56)
-                    .background(lime)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.web)
-                .disabled(beschaeftigt || bereit.isEmpty)
-                .opacity(beschaeftigt || bereit.isEmpty ? 0.4 : 1)
-                .padding(.top, 16)
-                if !unvollstaendig.isEmpty {
-                    WebText(text: t("imp.unvollstaendigHinweis"), groesse: 11, gewicht: .medium, zeilenHoehe: 15,
-                            farbe: UIColor.white.withAlphaComponent(0.45))
-                        .padding(.top, 6)
-                }
+                .padding(.top, 22)
             }
             .opacity(neuBerechnen ? 0.5 : 1)
             .allowsHitTesting(!neuBerechnen)
         }
     }
 
-    private var adressStand: String {
-        guard let adressen else { return t("imp.adressenPruefen") }
-        return t("imp.adressenOk", ["n": "\(adressen.values.filter(\.gefunden).count)", "gesamt": "\(adressen.count)"])
+    /// Fester Importknopf ueber der Fusszeile.
+    private var importLeiste: some View {
+        let bereit = bereitListe
+        return Button { Task { await importieren(bereit) } } label: {
+            HStack(spacing: 0) {
+                Text(beschaeftigt ? t("sonstige.uebernehme")
+                    : t(fahrten ? "imp.fahrtenImportieren" : "imp.gaesteImportieren", ["n": "\(bereit.count)"]))
+                    .font(.grotesk(16, .medium)).tracking(0.4).foregroundStyle(Color(hex: 0x1D1C1D))
+                Spacer(minLength: 0)
+                Image("Arrow_Trisar_Icons_01").resizable().frame(width: 34, height: 20)
+            }
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity).frame(height: 56)
+            .background(lime)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.web)
+        .disabled(beschaeftigt || bereit.isEmpty || neuBerechnen)
+        .opacity(beschaeftigt || bereit.isEmpty ? 0.4 : 1)
+        .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 10)
+        .frame(maxWidth: 402)
+        .frame(maxWidth: .infinity)
+        .background(LinearGradient(colors: [.black.opacity(0), .black.opacity(0.95), .black], startPoint: .top, endPoint: .bottom))
     }
 
-    private func hinweisBalken(_ text: String, _ farbe: Color) -> some View {
-        HStack(spacing: 10) {
-            Rectangle().fill(farbe).frame(width: 2)
-            WebText(text: text, groesse: 12, gewicht: .medium, zeilenHoehe: 16, farbe: UIColor(farbe))
+    private func kachel(_ zahl: Int, _ text: String, hell: Bool = false, farbe: Color? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(zahl)").font(.grotesk(26, .bold)).foregroundStyle(hell ? .black : (farbe ?? lime))
+            Text(text).font(.grotesk(11, .medium)).foregroundStyle(hell ? .black.opacity(0.7) : .white.opacity(0.55)).lineLimit(1)
         }
-        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, alignment: .leading).frame(height: 64)
+        .background(hell ? lime : Color(hex: 0x0F0F0F))
+        .overlay(Rectangle().strokeBorder(hell ? .clear : (farbe ?? lime.opacity(0.35)), lineWidth: 1))
+    }
+
+    private func chip(_ text: String, _ farbe: Color) -> some View {
+        Text(text).font(.grotesk(11, .medium)).foregroundStyle(farbe).lineLimit(1)
+            .padding(.horizontal, 8).frame(height: 24)
+            .overlay(Rectangle().strokeBorder(farbe, lineWidth: 1))
+    }
+
+    private func spaltenKopf(_ analyse: ImportDienst.Analyse) -> some View {
+        let fehlt = analyse.fehlendeZuordnung ?? []
+        let zugeordnet = analyse.spalten.filter { analyse.zuordnung["\($0.index)"] != nil }.count
+        let offen = spaltenOffen || !fehlt.isEmpty
+        return Button { spaltenOffen.toggle() } label: {
+            HStack(spacing: 10) {
+                ImportFunken(pulsieren: false)
+                Text(t("imp.spalten")).font(.grotesk(15, .bold))
+                Spacer(minLength: 0)
+                Text((fehlt.isEmpty ? t("imp.erkanntVon", ["n": "\(zugeordnet)", "gesamt": "\(analyse.spalten.count)"])
+                      : t("imp.fehltKurz", ["felder": fehlt.map(feldText).joined(separator: ", ")])) + (offen ? " ▴" : " ▾"))
+                    .font(.grotesk(12, .medium)).foregroundStyle(fehlt.isEmpty ? lime.opacity(0.75) : orange).lineLimit(1)
+            }
+            .foregroundStyle(lime)
+            .padding(.horizontal, 16).frame(height: 48)
+            .background(Color.black.opacity(0.4))
+            .overlay(Rectangle().strokeBorder(fehlt.isEmpty ? lime.opacity(0.45) : orange, lineWidth: 2))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.web)
         .padding(.top, 14)
     }
 
-    private func spaltenKarte(_ spalte: ImportDienst.Spalte, _ analyse: ImportDienst.Analyse) -> some View {
+    private func spaltenZeile(_ spalte: ImportDienst.Spalte, _ analyse: ImportDienst.Analyse) -> some View {
         let feld = analyse.zuordnung["\(spalte.index)"] ?? ""
         let sicher = !feld.isEmpty && (spalte.sicherheit >= 0.8 || spalte.grund?.vorlage == true)
-        let pruefen = !feld.isEmpty && !sicher
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Text(spalte.titel).font(.grotesk(15, .bold)).foregroundStyle(feld.isEmpty ? .white.opacity(0.55) : lime).lineLimit(1)
-                Spacer(minLength: 0)
-                if sicher { abzeichen(t("imp.sicher"), lime) }
-                if pruefen { abzeichen(t("imp.pruefen"), orange) }
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(spalte.titel).font(.grotesk(14, .bold)).foregroundStyle(feld.isEmpty ? .white.opacity(0.55) : lime).lineLimit(1)
+                Text(spalte.beispiele.prefix(2).joined(separator: " · ")).font(.grotesk(11, .medium)).foregroundStyle(.white.opacity(0.4)).lineLimit(1)
             }
-            Text(spalte.beispiele.prefix(3).joined(separator: " · "))
-                .font(.grotesk(11, .medium)).foregroundStyle(.white.opacity(0.45)).lineLimit(1)
-                .padding(.top, 3)
+            Spacer(minLength: 0)
             Menu {
-                Button(t("imp.nichtImportieren")) { zuordnen(spalte.index, "") }
-                ForEach(analyse.felder, id: \.self) { f in
-                    Button(t("imp.feld.\(f)")) { zuordnen(spalte.index, f) }
+                Section(grundText(spalte, feld)) {
+                    Button(t("imp.nichtImportieren")) { zuordnen(spalte.index, "") }
+                    ForEach(analyse.felder, id: \.self) { f in Button(t("imp.feld.\(f)")) { zuordnen(spalte.index, f) } }
                 }
             } label: {
                 HStack(spacing: 0) {
                     Text(feld.isEmpty ? t("imp.nichtImportieren") : t("imp.feld.\(feld)"))
-                        .font(.grotesk(14, .medium)).foregroundStyle(feld.isEmpty ? .white.opacity(0.6) : lime).lineLimit(1)
+                        .font(.grotesk(13, .medium)).foregroundStyle(feld.isEmpty ? .white.opacity(0.55) : lime).lineLimit(1)
                     Spacer(minLength: 0)
-                    Text("▾").font(.system(size: 12)).foregroundStyle(feld.isEmpty ? .white.opacity(0.5) : lime)
+                    Text("▾").font(.system(size: 11)).foregroundStyle(feld.isEmpty ? .white.opacity(0.5) : lime)
                 }
-                .padding(.horizontal, 12)
-                .frame(maxWidth: .infinity).frame(height: 38)
+                .padding(.horizontal, 8).frame(width: 150, height: 34)
                 .background(Color.black)
                 .overlay(Rectangle().strokeBorder(feld.isEmpty ? .white.opacity(0.25) : lime, lineWidth: 1))
-                .contentShape(Rectangle())
             }
-            .padding(.top, 8)
-            WebText(text: grundText(spalte, feld), groesse: 10, gewicht: .medium, zeilenHoehe: 13, farbe: UIColor.white.withAlphaComponent(0.4))
-                .padding(.top, 6)
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12).padding(.vertical, 8)
         .background(Color(hex: 0x0F0F0F))
-        .overlay(Rectangle().strokeBorder(feld.isEmpty ? .white.opacity(0.12) : lime.opacity(0.55), lineWidth: 2))
-    }
-
-    private func abzeichen(_ text: String, _ farbe: Color) -> some View {
-        Text(text).font(.grotesk(10, .bold)).foregroundStyle(.black)
-            .padding(.horizontal, 8).frame(height: 20).background(farbe)
+        .overlay(Rectangle().strokeBorder(feld.isEmpty ? .white.opacity(0.12) : (sicher ? lime.opacity(0.45) : orange), lineWidth: 1))
     }
 
     private func grundText(_ s: ImportDienst.Spalte, _ feld: String) -> String {
@@ -341,52 +372,106 @@ struct ImportAnsicht: View {
         return teile.isEmpty ? t("imp.vonHandGeaendert") : teile.joined(separator: " · ")
     }
 
-    // MARK: Vorschau-Zeilen
-
-    private func zeilenKarte(_ i: Int, _ satz: ImportDienst.Satz) -> some View {
-        let warnt = satz.hinweise.contains { Self.warnungen.contains($0) }
-        let rand: Color = satz.aus ? .white.opacity(0.1) : !satz.fehlt.isEmpty ? rot : warnt ? orange : lime.opacity(0.4)
-        let istOffen = offen == i
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 10) {
-                Button { saetze[i].aus.toggle() } label: {
-                    Image(systemName: satz.aus ? "square" : "checkmark.square.fill")
-                        .font(.system(size: 18)).foregroundStyle(satz.aus ? .white.opacity(0.4) : lime)
-                }
-                .buttonStyle(.web)
-                .accessibilityLabel(t("imp.mitImportieren"))
-                Button { offen = istOffen ? nil : i } label: {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(titel(satz)).font(.grotesk(14, .medium)).foregroundStyle(lime).lineLimit(1)
-                        let d = detail(satz)
-                        if !d.isEmpty { Text(d).font(.grotesk(11, .medium)).foregroundStyle(.white.opacity(0.5)).lineLimit(1) }
-                        if !satz.fehlt.isEmpty {
-                            Text(t("imp.fehltFeld", ["felder": satz.fehlt.map(feldText).joined(separator: ", ")]))
-                                .font(.grotesk(11, .medium)).foregroundStyle(rot)
-                        }
-                        if !satz.hinweise.isEmpty {
-                            Text(satz.hinweise.map { hinweisText($0, satz) }.joined(separator: " · "))
-                                .font(.grotesk(11, .medium)).foregroundStyle(warnt ? orange : .white.opacity(0.45))
-                                .multilineTextAlignment(.leading)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.web)
-                Text(istOffen ? "▴" : "✎").font(.system(size: 11)).foregroundStyle(.white.opacity(0.4))
+    /// Trennzeile wie in „Alle Fahrten“, darunter die Zahl der Fahrten und Gaeste des Tages.
+    private func tagKopf(_ tag: String, erster: Bool, saetze: [ImportDienst.Satz]) -> some View {
+        let aktiv = saetze.filter { !$0.aus }
+        let farbe = tag.isEmpty ? rot : lime
+        let gaeste = aktiv.reduce(0) { $0 + personen($1) }
+        return VStack(spacing: 2) {
+            HStack(spacing: 0) {
+                Rectangle().fill(farbe).frame(width: 44, height: 2)
+                Spacer(minLength: 0)
+                Text(tag.isEmpty ? t("imp.ohneDatum") : Datum.trennzeile(tag))
+                    .font(.grotesk(26, .bold)).tracking(-0.5).foregroundStyle(farbe).lineLimit(1)
+                Spacer(minLength: 0)
+                Rectangle().fill(farbe).frame(width: 44, height: 2)
             }
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            if istOffen { editor(i).padding(.horizontal, 12).padding(.bottom, 12) }
+            Text(t(aktiv.count == 1 ? "imp.tagEine" : "imp.tagViele", ["n": "\(aktiv.count)"])
+                 + (gaeste > 0 ? " · " + t("imp.tagGaeste", ["n": "\(gaeste)"]) : ""))
+                .font(.grotesk(12, .medium)).foregroundStyle(lime.opacity(0.7))
         }
-        .background(Color(hex: 0x0F0F0F))
-        .overlay(Rectangle().strokeBorder(rand, lineWidth: 2))
-        .opacity(satz.aus ? 0.5 : 1)
+        .padding(.top, erster ? 0 : 12)
+    }
+
+    // MARK: Fahrt-Karte wie in „Alle Fahrten“
+
+    private func karte(_ i: Int, _ s: ImportDienst.Satz) -> some View {
+        let d = s.daten
+        let istRot = !s.fehlt.isEmpty
+        let text = istRot ? Color.black : Color(hex: 0x18181B)
+        let warnungen = s.hinweise.filter { Self.warnungen.contains($0) }
+        let infos = s.hinweise.filter { !Self.warnungen.contains($0) }
+        let namenListe = ImportDienst.namen(d["passengers"])
+        let namen = fahrten ? (namenListe.isEmpty ? t("imp.ohneName") : namenListe.joined(separator: ", "))
+            : { let n = "\(wert(i, "first_name")) \(wert(i, "last_name"))".trimmingCharacters(in: .whitespaces); return n.isEmpty ? t("imp.ohneName") : n }()
+        let groesse: CGFloat = namen.count > 45 ? 18 : (namen.count > 30 ? 20 : 24)
+        let teile = wert(i, "note").components(separatedBy: " · ").filter { !$0.isEmpty }
+        let firma = teile.first { $0.hasPrefix("Firma: ") }.map { String($0.dropFirst(7)) } ?? ""
+        let notiz = teile.filter { !$0.hasPrefix("Firma: ") }.joined(separator: " · ")
+        let route = fahrten
+            ? "\(wert(i, "pickup_name").isEmpty ? wert(i, "pickup_address") : wert(i, "pickup_name")) → \(wert(i, "dropoff_name").isEmpty ? wert(i, "dropoff_address") : wert(i, "dropoff_name"))"
+            : ["company", "email", "phone"].map { wert(i, $0) }.filter { !$0.isEmpty }.joined(separator: " · ")
+        let flug = wert(i, "flight_number").isEmpty ? wert(i, "train_number") : wert(i, "flight_number")
+        let extra = fahrten ? [flug, wert(i, "anzahl").isEmpty ? "" : t("imp.personen", ["n": wert(i, "anzahl")]),
+                               d["needs_child_seat"] == .bool(true) ? feldText("kindersitz") : "", d["is_vip"] == .bool(true) ? "VIP" : ""]
+            .filter { !$0.isEmpty }.joined(separator: " · ") : ""
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(namen).font(.grotesk(groesse, .bold)).foregroundStyle(text).lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !route.isEmpty { Text(route).font(.grotesk(12, .medium)).tracking(0.3).foregroundStyle(text).opacity(0.8) }
+                    if !firma.isEmpty { Text(firma).font(.grotesk(13, .bold)).foregroundStyle(text).lineLimit(1) }
+                    if !extra.isEmpty { Text(extra).font(.grotesk(13, .bold)).foregroundStyle(text) }
+                    if istRot {
+                        Text(t("imp.fehltFeld", ["felder": s.fehlt.map(feldText).joined(separator: ", ")]))
+                            .font(.grotesk(12, .bold)).foregroundStyle(.black)
+                    }
+                    if !warnungen.isEmpty {
+                        Text(warnungen.map { hinweisText($0, s) }.joined(separator: " · "))
+                            .font(.grotesk(12, .bold)).foregroundStyle(istRot ? .black : Color(hex: 0xFF8A00))
+                    }
+                    if !infos.isEmpty {
+                        Text(infos.map { hinweisText($0, s) }.joined(separator: " · "))
+                            .font(.grotesk(11, .medium)).foregroundStyle(istRot ? Color(hex: 0x262626) : Color(hex: 0x71717B))
+                    }
+                    if !notiz.isEmpty {
+                        Text(t("imp.notiz", ["text": notiz])).font(.grotesk(12, .medium))
+                            .foregroundStyle(istRot ? .black : Color(hex: 0x71717B)).lineLimit(1).padding(.trailing, 36)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if fahrten {
+                    Text(String(wert(i, "etd").prefix(5)).isEmpty ? "--:--" : String(wert(i, "etd").prefix(5)))
+                        .font(.grotesk(22, .bold)).foregroundStyle(text)
+                }
+            }
+            .padding(18)
+            .frame(minHeight: 120, alignment: .top)
+            .contentShape(Rectangle())
+            .onTapGesture { offen = offen == i ? nil : i }
+            if offen == i { editor(i).padding(.horizontal, 18).padding(.bottom, 56) }
+        }
+        .background(istRot ? Color(hex: 0xFB2C36) : .white)
+        .overlay(alignment: .bottomTrailing) {
+            Button { saetze[i].aus.toggle() } label: {
+                ZStack {
+                    Rectangle().fill(s.aus ? Color.clear : Color(hex: 0x18181B))
+                    Rectangle().strokeBorder(Color(hex: 0x18181B), lineWidth: 2)
+                    if !s.aus { Text("✓").font(.system(size: 16, weight: .bold)).foregroundStyle(lime) }
+                }
+                .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.web)
+            .accessibilityLabel(t("imp.mitImportieren"))
+            .padding(14)
+        }
+        .opacity(s.aus ? 0.45 : 1)
     }
 
     @ViewBuilder private func editor(_ i: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Rectangle().fill(.white.opacity(0.1)).frame(height: 1)
+            Rectangle().fill(Color.black.opacity(0.1)).frame(height: 1)
             if fahrten {
                 HStack(spacing: 8) {
                     eingabe(feldText("datum"), wert(i, "ride_date"), platzhalter: "2027-01-31") { v in
@@ -421,7 +506,7 @@ struct ImportAnsicht: View {
                     ForEach(["pickup_address", "dropoff_address"], id: \.self) { k in
                         let a = wert(i, k)
                         if let treffer = adressen[a], treffer.gefunden, let name = treffer.name {
-                            Text("\(a) → \(name)").font(.grotesk(10, .medium)).foregroundStyle(.white.opacity(0.4))
+                            Text("\(a) → \(name)").font(.grotesk(10, .medium)).foregroundStyle(Color(hex: 0x71717B))
                         }
                     }
                 }
@@ -442,16 +527,16 @@ struct ImportAnsicht: View {
     private func eingabe(_ label: String, _ wert: String, platzhalter: String = "", tastatur: UIKeyboardType = .default,
                          aendern: @escaping (String) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.grotesk(10, .medium)).foregroundStyle(.white.opacity(0.5))
+            Text(label).font(.grotesk(10, .medium)).foregroundStyle(Color(hex: 0x71717B))
             TextField("", text: Binding(get: { wert }, set: aendern),
-                      prompt: Text(platzhalter).foregroundStyle(.white.opacity(0.25)))
-                .font(.grotesk(13, .medium)).foregroundStyle(.white)
+                      prompt: Text(platzhalter).foregroundStyle(Color(hex: 0xA1A1AA)))
+                .font(.grotesk(13, .medium)).foregroundStyle(Color(hex: 0x18181B))
                 .keyboardType(tastatur)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .padding(.horizontal, 8).frame(height: 34)
-                .background(Color.black)
-                .overlay(Rectangle().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+                .background(Color.white)
+                .overlay(Rectangle().strokeBorder(Color(hex: 0xD4D4D8), lineWidth: 1))
         }
         .frame(maxWidth: .infinity)
     }
@@ -462,31 +547,6 @@ struct ImportAnsicht: View {
         guard saetze.indices.contains(i) else { return }
         for (k, v) in werte { saetze[i].daten[k] = v }
         ImportDienst.pruefen(&saetze[i], gaeste: !fahrten)
-    }
-
-    private func titel(_ s: ImportDienst.Satz) -> String {
-        let d = s.daten
-        if fahrten {
-            let ab = ImportDienst.text(d["pickup_name"]).isEmpty ? ImportDienst.text(d["pickup_address"]) : ImportDienst.text(d["pickup_name"])
-            let an = ImportDienst.text(d["dropoff_name"]).isEmpty ? ImportDienst.text(d["dropoff_address"]) : ImportDienst.text(d["dropoff_name"])
-            let zeit = ImportDienst.text(d["etd"]).prefix(5)
-            return "\(zeit.isEmpty ? "--:--" : String(zeit)) \(ab.isEmpty ? "—" : ab) → \(an.isEmpty ? "—" : an)"
-        }
-        let n = "\(ImportDienst.text(d["first_name"])) \(ImportDienst.text(d["last_name"]))".trimmingCharacters(in: .whitespaces)
-        return n.isEmpty ? "—" : n
-    }
-
-    private func detail(_ s: ImportDienst.Satz) -> String {
-        let d = s.daten
-        if fahrten {
-            let datum = ImportDienst.text(d["ride_date"])
-            let kurz = datum.count == 10 ? "\(datum.suffix(2)).\(datum.dropFirst(5).prefix(2)).\(datum.dropFirst(2).prefix(2))" : datum
-            let flug = ImportDienst.text(d["flight_number"]).isEmpty ? ImportDienst.text(d["train_number"]) : ImportDienst.text(d["flight_number"])
-            let anzahl = ImportDienst.text(d["anzahl"])
-            return [kurz, flug, ImportDienst.namen(d["passengers"]).joined(separator: ", "), anzahl.isEmpty ? "" : "\(anzahl) P."]
-                .filter { !$0.isEmpty }.joined(separator: " · ")
-        }
-        return ["company", "email", "phone"].map { ImportDienst.text(d[$0]) }.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     private func hinweisText(_ h: String, _ s: ImportDienst.Satz) -> String {
@@ -768,7 +828,7 @@ struct ImportAnsicht: View {
         "imp.grundWerte": "{anteil} % der Werte: {art}",
         "imp.grundVorlage": "Wie beim letzten Import dieser Tabelle",
         "imp.grundLlama": "Von Llama vorgeschlagen, durch die Werte bestätigt",
-        "imp.hinweis": "Beliebige Tabelle aus Excel (.xlsx, .xls) oder CSV, auch mit mehreren Blättern. Die Spalten werden erkannt, du prüfst den Vorschlag, ergänzt fehlende Angaben und importierst. Jeder Import lässt sich rückgängig machen.",
+        "imp.hinweis": "Excel oder CSV. Spalten, Tage und Adressen werden automatisch erkannt.",
         "imp.keinTreffer": "Keine passende Bedeutung erkannt",
         "imp.nichtImportieren": "Nicht importieren",
         "imp.pruefen": "prüfen",
@@ -780,6 +840,29 @@ struct ImportAnsicht: View {
         "imp.zuDenFahrten": "Zu den Fahrten",
         "imp.zugeordnetVon": "{n} von {gesamt} Spalten zugeordnet",
         "imp.zuordnung": "Zuordnung",
+        "imp.k.fahrten": "Fahrten",
+        "imp.k.gaeste": "Gäste",
+        "imp.k.tag": "Tag",
+        "imp.k.tage": "Tage",
+        "imp.k.fehlt": "unvollständig",
+        "imp.k.pruefen": "prüfen",
+        "imp.k.aus": "abgewählt",
+        "imp.c.datum": "Datum {datum} aus Datei",
+        "imp.c.ziel": "Ziel {ziel}",
+        "imp.c.vorlage": "Vorlage erkannt",
+        "imp.c.llama": "Llama hat geholfen",
+        "imp.c.adressen": "{n}/{gesamt} Adressen gefunden",
+        "imp.c.adressenLaeuft": "Adressen werden geprüft …",
+        "imp.spalten": "Spalten",
+        "imp.fehltKurz": "fehlt: {felder}",
+        "imp.erkanntVon": "{n} von {gesamt} erkannt",
+        "imp.ohneDatum": "Ohne Datum",
+        "imp.tagEine": "1 Fahrt",
+        "imp.tagViele": "{n} Fahrten",
+        "imp.tagGaeste": "{n} Gäste",
+        "imp.ohneName": "Ohne Namen",
+        "imp.personen": "{n} P.",
+        "imp.notiz": "Notiz: {text}",
         "imp.blatt": "Tabellenblatt",
         "imp.vorlageGenutzt": "Zuordnung wie beim letzten Import dieser Tabelle ({name}).",
         "imp.llamaGenutzt": "Llama hat Spalten zugeordnet, die die Regeln nicht sicher erkannt haben. Bitte die markierten Spalten prüfen.",
@@ -859,5 +942,36 @@ private struct ImportFunkenForm: Shape {
             pfad.addCurve(to: p(b), control1: p(a), control2: p(c2))
         }
         return pfad
+    }
+}
+
+/// Kurze Chips nebeneinander, mit Umbruch wenn die Zeile voll ist.
+private struct FlussZeilen: Layout {
+    var abstand: CGFloat = 6
+
+    init(abstand: CGFloat = 6) { self.abstand = abstand }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let breite = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, zeile: CGFloat = 0, maxX: CGFloat = 0
+        for s in subviews {
+            let g = s.sizeThatFits(.unspecified)
+            if x > 0 && x + g.width > breite { x = 0; y += zeile + abstand; zeile = 0 }
+            x += g.width + abstand
+            zeile = max(zeile, g.height)
+            maxX = max(maxX, x - abstand)
+        }
+        return CGSize(width: proposal.width ?? maxX, height: subviews.isEmpty ? 0 : y + zeile)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, zeile: CGFloat = 0
+        for s in subviews {
+            let g = s.sizeThatFits(.unspecified)
+            if x > bounds.minX && x + g.width > bounds.maxX { x = bounds.minX; y += zeile + abstand; zeile = 0 }
+            s.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(g))
+            x += g.width + abstand
+            zeile = max(zeile, g.height)
+        }
     }
 }
