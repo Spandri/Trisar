@@ -3,6 +3,7 @@
 // und in profiles als Disposition markiert ist.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
+import { importAktion } from './import.ts';
 
 const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator']);
 
@@ -57,6 +58,12 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
+
+    // Excel-/CSV-Import (siehe import.ts).
+    if (typeof body?.aktion === 'string' && body.aktion.startsWith('import_')) {
+      const { status, daten } = await importAktion(admin, body, aufrufer.user.id);
+      return jsonResponse(status, daten);
+    }
 
     if (body?.aktion === 'fahrer_einladen') {
       const email = String(body.email || '').trim().toLowerCase();

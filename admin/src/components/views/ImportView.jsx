@@ -1,61 +1,54 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import BackCircleButton from '../ui/BackCircleButton';
 import TrisarFooter from '../ui/TrisarFooter';
-import { supabase } from '../../services/supabase';
 import { useI18n } from '../../i18n';
 import { tutorialLaeuft } from '../ui/demoDialoge';
-import {
-  fahrtenBauen,
-  felderFuer,
-  gaesteBauen,
-  spaltenErkennen,
-  tabelleAusText,
-  tabelleLesen,
-} from '../../services/spaltenErkennung';
 import { importBeispiele } from '../../demo/importBeispiele';
 import { DEMO_MODE } from '../../datenquelle';
+import {
+  adressenPruefen,
+  beispielAlsDatei,
+  dateiAlsBase64,
+  importAnalysieren,
+  importAusfuehren,
+  importKern as K,
+  importListe,
+  importRueckgaengig,
+} from '../../services/importDienst';
 
-// Import von Fahrten und Fahrgästen aus beliebigen Tabellen (Excel oder CSV).
-// Kein festes Spaltenschema: jede Spalte wird erkannt, die Zuordnung als
-// Vorschlag gezeigt und kann geändert werden. Erst dann wird importiert.
-//
-// Ablauf: Datei → Erkennung → Zuordnung prüfen → Vorschau → Import.
+// Import von Fahrten und Fahrgaesten aus beliebigen Tabellen (Excel oder CSV).
+// Ablauf: Datei -> Erkennung -> Zuordnung und Vorschau pruefen (jede Zeile aenderbar) -> Import.
+// Die Erkennung laeuft auf dem Server (dispo-admin, siehe importDienst.js), dieselbe in iOS und Android.
 
 const MODES = {
   rides: {
     titleKey: 'sonstige.fahrtenImportTitle',
-    table: 'jobs',
-    // Zurueck fuehrt dorthin, woher der Import geoeffnet wird (Fahrt erstellen);
-    // nach dem Import geht "Zu den Fahrten" in die Fahrtenliste.
     backView: 'fahrtAdd',
     zielView: 'ankuenfte',
-    bauen: fahrtenBauen,
     importKey: 'imp.fahrtenImportieren',
     fertigKey: 'imp.fahrtenImportiert',
     zielKey: 'imp.zuDenFahrten',
-    describe: (row) => `${(row.etd || '').slice(0, 5)} ${row.pickup_name || '—'} → ${row.dropoff_name || '—'}`,
-    detail: (row) => [row.ride_date, row.flight_number || row.train_number, (row.passengers || []).join(', ')].filter(Boolean).join(' · '),
   },
   guests: {
     titleKey: 'sonstige.kundenImportTitle',
-    table: 'guests',
     backView: 'alleKunden',
     zielView: 'alleKunden',
-    bauen: gaesteBauen,
     importKey: 'imp.gaesteImportieren',
     fertigKey: 'imp.gaesteImportiert',
     zielKey: 'imp.zuDenFahrgaesten',
-    describe: (row) => `${row.first_name} ${row.last_name}`.trim(),
-    detail: (row) => [row.company, row.email, row.phone].filter(Boolean).join(' · '),
   },
 };
 
 const LIME = '#E3F654';
 const ORANGE = '#ffcd8a';
+const ROT = '#ff8a8a';
 const schrift = "font-['Space_Grotesk']";
 
 // Kleine Pause, damit die Erkennung als eigener Schritt sichtbar ist.
-const ERKENNUNG_MS = 1400;
+const ERKENNUNG_MS = 900;
+
+// Hinweise, die eine Zeile nicht ausschliessen, aber angeschaut werden sollten.
+const WARNUNGEN = new Set(['doppelt', 'vergangen', 'adresseUnbekannt', 'mehrNamenAlsPersonen', 'gleicheAdresse', 'emailUngueltig']);
 
 const FunkenIcon = ({ drehen = false }) => (
   <svg viewBox="0 0 29 29.14" width="22" height="22" fill="none" className={drehen ? 'animate-pulse' : ''}>
@@ -68,19 +61,38 @@ const PfeilIcon = () => (
   <img src="/icon/_Icon_Schwarz/Arrow_Trisar_Icons_01.svg" alt="" className="w-[34px] h-[20px]" />
 );
 
+const datumKurz = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(2, 4)}` : '');
+
+const Feld = ({ label, value, onChange, typ = 'text', breit = true }) => (
+  <label className={`flex flex-col gap-[3px] ${breit ? 'col-span-2' : ''}`}>
+    <span className={`text-[10px] font-medium ${schrift} text-white/50`}>{label}</span>
+    <input
+      type={typ}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+      className={`h-[34px] bg-black border border-white/25 px-2 text-[13px] font-medium ${schrift} text-white outline-none focus:border-[#E3F654]`}
+    />
+  </label>
+);
+
 export default function ImportView({ setView, mode = 'rides' }) {
   const { t } = useI18n();
-  const config = MODES[mode] || MODES.rides;
-  const felder = felderFuer(mode);
+  const modus = mode === 'guests' ? 'guests' : 'rides';
+  const config = MODES[modus];
   const fileInputRef = useRef(null);
 
   // schritt: 'datei' | 'erkennung' | 'zuordnung' | 'fertig'
   const [schritt, setSchritt] = useState('datei');
-  const [dateiname, setDateiname] = useState('');
-  const [erkennung, setErkennung] = useState(null);
-  const [zuordnung, setZuordnung] = useState({});
+  const [quelle, setQuelle] = useState(null); // { datei (base64), dateiname }
+  const [analyse, setAnalyse] = useState(null);
+  const [saetze, setSaetze] = useState([]); // [{ ...datensatz, aus: bool }]
+  const [offen, setOffen] = useState(null); // Index der Zeile im Editor
+  const [adressen, setAdressen] = useState(null); // { adresse: {gefunden, name} } oder null = laeuft
+  const [neuBerechnen, setNeuBerechnen] = useState(false);
   const [fehler, setFehler] = useState('');
-  const [importiert, setImportiert] = useState(0);
+  const [ergebnis, setErgebnis] = useState(null); // { import_id, anzahl }
+  const [rueckgaengigText, setRueckgaengigText] = useState('');
+  const [importe, setImporte] = useState([]);
   const [isBusy, setIsBusy] = useState(false);
 
   const gradientStyle = useMemo(
@@ -90,95 +102,145 @@ export default function ImportView({ setView, mode = 'rides' }) {
     [],
   );
 
-  const auswerten = async (name, rohzeilenLaden) => {
+  const fehlerText = (e) => {
+    const code = e?.code || e?.message || '';
+    if (['datei_zu_gross', 'datei_unlesbar', 'datei_leer', 'nichts_zu_importieren'].includes(code)) return t(`imp.fehler.${code}`);
+    if (/not_signed_in/.test(code)) return t('erstellen.errorSessionExpired');
+    return t('sonstige.dateiLesenFehler', { message: code });
+  };
+
+  const listeLaden = () => { importListe(modus).then(setImporte).catch(() => setImporte([])); };
+  useEffect(listeLaden, [modus]);
+
+  // Ergebnis der Analyse uebernehmen. Doppelte Fahrten sind zunaechst abgewaehlt.
+  const uebernehmen = (a) => {
+    setAnalyse(a);
+    setSaetze(a.datensaetze.map((s) => ({ ...s, aus: s.hinweise.includes('doppelt') })));
+    setOffen(null);
+    setAdressen(null);
+  };
+
+  const auswerten = async (eingabe, { blatt = null, zuordnung = null, warten = true } = {}) => {
     setFehler('');
-    setDateiname(name);
-    setSchritt('erkennung');
+    if (warten) setSchritt('erkennung'); else setNeuBerechnen(true);
     try {
-      const [rohzeilen] = await Promise.all([
-        rohzeilenLaden(),
-        new Promise((fertig) => setTimeout(fertig, ERKENNUNG_MS)),
+      const [a] = await Promise.all([
+        importAnalysieren({ modus, ...eingabe, blatt, zuordnung }),
+        warten ? new Promise((fertig) => setTimeout(fertig, ERKENNUNG_MS)) : null,
       ]);
-      const ergebnis = spaltenErkennen(rohzeilen, mode);
-      if (!ergebnis.spalten.length || !ergebnis.datenzeilen.length) {
-        setFehler(t('imp.leer'));
-        setSchritt('datei');
-        return;
-      }
-      setErkennung(ergebnis);
-      setZuordnung(Object.fromEntries(
-        ergebnis.spalten.filter((s) => s.vorschlag).map((s) => [s.index, s.vorschlag]),
-      ));
+      uebernehmen(a);
       setSchritt('zuordnung');
-    } catch (error) {
-      setFehler(t('sonstige.dateiLesenFehler', { message: error.message }));
-      setSchritt('datei');
+    } catch (e) {
+      setFehler(fehlerText(e));
+      if (warten) setSchritt('datei');
+    } finally {
+      setNeuBerechnen(false);
     }
   };
 
-  const handleFile = (event) => {
+  const handleFile = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    auswerten(file.name, () => tabelleLesen(file));
+    if (file.size > 8 * 1024 * 1024) { setFehler(t('imp.fehler.datei_zu_gross')); return; }
+    const eingabe = { datei: await dateiAlsBase64(file), dateiname: file.name };
+    setQuelle(eingabe);
+    auswerten(eingabe);
   };
 
   const beispielLaden = (beispiel) => {
-    auswerten(beispiel.dateiname, async () => tabelleAusText(beispiel.inhalt));
+    const eingabe = { datei: beispielAlsDatei(beispiel.inhalt), dateiname: beispiel.dateiname };
+    setQuelle(eingabe);
+    auswerten(eingabe);
   };
 
-  // Eine Spalte einem Feld zuordnen. Ein Feld gehört immer nur einer Spalte —
-  // wird es anderswo neu gewählt, verliert die alte Spalte die Zuordnung.
+  // Adressen pruefen, sobald die Vorschau steht (nur Fahrten, nur live).
+  useEffect(() => {
+    if (schritt !== 'zuordnung' || modus !== 'rides' || !analyse || DEMO_MODE) return undefined;
+    let aktiv = true;
+    const liste = [...new Set(analyse.datensaetze.flatMap((s) => [s.daten.pickup_address, s.daten.dropoff_address]).filter(Boolean))];
+    setAdressen(null);
+    adressenPruefen(liste).then((r) => { if (aktiv) setAdressen(r); }).catch(() => { if (aktiv) setAdressen({}); });
+    return () => { aktiv = false; };
+  }, [analyse, schritt, modus]);
+
+  // Spalte neu zuordnen: der Server baut die Datensaetze neu.
   const zuordnen = (spaltenIndex, feld) => {
-    setZuordnung((alt) => {
-      const neu = { ...alt };
-      const belegt = felder.find((f) => f.key === feld)?.belegt || [];
-      Object.entries(neu).forEach(([idx, f]) => {
-        const kollidiert = f === feld
-          || belegt.includes(f)
-          || (felder.find((x) => x.key === f)?.belegt || []).includes(feld);
-        if (feld && kollidiert && Number(idx) !== spaltenIndex) delete neu[idx];
-      });
-      if (feld) neu[spaltenIndex] = feld; else delete neu[spaltenIndex];
-      return neu;
+    const felder = K.felderFuer(modus);
+    const neu = { ...(analyse?.zuordnung || {}) };
+    const belegt = felder.find((f) => f.key === feld)?.belegt || [];
+    Object.entries(neu).forEach(([idx, f]) => {
+      const kollidiert = f === feld || belegt.includes(f) || (felder.find((x) => x.key === f)?.belegt || []).includes(feld);
+      if (feld && kollidiert && Number(idx) !== spaltenIndex) delete neu[idx];
     });
+    if (feld) neu[spaltenIndex] = feld; else delete neu[spaltenIndex];
+    auswerten(quelle, { blatt: analyse.blatt, zuordnung: neu, warten: false });
   };
 
-  const ergebnis = useMemo(
-    () => (erkennung ? config.bauen(erkennung.datenzeilen, zuordnung) : { fertig: [], unvollstaendig: [] }),
-    [erkennung, zuordnung, config],
-  );
+  const blattWechseln = (blatt) => auswerten(quelle, { blatt, warten: false });
+
+  // Zeile bearbeiten und sofort neu pruefen.
+  const satzAendern = (index, aenderung) => {
+    setSaetze((alt) => alt.map((s, i) => {
+      if (i !== index) return s;
+      const neu = { ...s, daten: { ...s.daten, ...aenderung } };
+      return K.pruefen(modus, neu);
+    }));
+  };
+
+  // Adresshinweise an die Saetze haengen (nur Anzeige, blockiert nichts).
+  const mitAdressen = useMemo(() => saetze.map((s) => {
+    if (modus !== 'rides' || !adressen) return s;
+    const unbekannt = [s.daten.pickup_address, s.daten.dropoff_address].some((a) => a && adressen[a] && !adressen[a].gefunden);
+    const hinweise = s.hinweise.filter((h) => h !== 'adresseUnbekannt');
+    return { ...s, hinweise: unbekannt ? [...hinweise, 'adresseUnbekannt'] : hinweise };
+  }), [saetze, adressen, modus]);
+
+  const bereit = mitAdressen.filter((s) => !s.aus && !s.fehlt.length);
+  const unvollstaendig = mitAdressen.filter((s) => !s.aus && s.fehlt.length);
+  const adressStand = useMemo(() => {
+    if (!adressen) return null;
+    const werte = Object.values(adressen);
+    return { gefunden: werte.filter((w) => w.gefunden).length, gesamt: werte.length };
+  }, [adressen]);
 
   const handleApply = async () => {
-    if (!ergebnis.fertig.length) return;
+    if (!bereit.length) return;
     setIsBusy(true);
     setFehler('');
     try {
-      if (config.table === 'jobs') {
-        // Notizen gehoeren in job_notes, nicht in jobs.
-        const zeilen = ergebnis.fertig.map((fahrt) => {
-          const zeile = { ...fahrt };
-          delete zeile.note;
-          return zeile;
-        });
-        const { data, error } = await supabase.from('jobs').insert(zeilen).select('id');
-        if (error) throw error;
-        const notizen = ergebnis.fertig
-          .map((fahrt, index) => ({ job_id: data?.[index]?.id, note_text: String(fahrt.note || '').trim() }))
-          .filter((notiz) => notiz.job_id && notiz.note_text);
-        if (notizen.length) {
-          const { error: notizFehler } = await supabase.from('job_notes').insert(notizen);
-          if (notizFehler) throw notizFehler;
-        }
-      } else {
-        const { error } = await supabase.from(config.table).insert(ergebnis.fertig);
-        if (error) throw error;
-      }
+      const vorlage = Object.fromEntries(analyse.spalten
+        .filter((s) => !s.ohneTitel && analyse.zuordnung[s.index])
+        .map((s) => [K.schluessel(s.titel), analyse.zuordnung[s.index]]));
+      const r = await importAusfuehren({
+        modus,
+        datensaetze: bereit.map((s) => s.daten),
+        dateiname: analyse.dateiname,
+        signatur: analyse.signatur,
+        vorlage,
+      });
       window.dispatchEvent(new CustomEvent('trisar:fahrten-geaendert'));
-      setImportiert(ergebnis.fertig.length);
+      setErgebnis(r);
+      setRueckgaengigText('');
       setSchritt('fertig');
-    } catch (error) {
-      setFehler(t('sonstige.importFehlgeschlagen', { message: error.message }));
+      listeLaden();
+    } catch (e) {
+      setFehler(t('sonstige.importFehlgeschlagen', { message: fehlerText(e) }));
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const rueckgaengig = async (importId) => {
+    setIsBusy(true);
+    try {
+      const r = await importRueckgaengig(importId);
+      window.dispatchEvent(new CustomEvent('trisar:fahrten-geaendert'));
+      setRueckgaengigText(t('imp.rueckgaengigFertig', { n: r.geloescht })
+        + (r.behalten ? ` ${t('imp.rueckgaengigBehalten', { n: r.behalten })}` : ''));
+      listeLaden();
+    } catch (e) {
+      setFehler(fehlerText(e));
     } finally {
       setIsBusy(false);
     }
@@ -186,23 +248,41 @@ export default function ImportView({ setView, mode = 'rides' }) {
 
   const neuStarten = () => {
     setSchritt('datei');
-    setErkennung(null);
-    setZuordnung({});
-    setDateiname('');
+    setAnalyse(null);
+    setSaetze([]);
+    setQuelle(null);
     setFehler('');
+    setErgebnis(null);
+    setRueckgaengigText('');
   };
 
   const grundText = (spalte) => {
     const g = spalte.grund || {};
     if (!spalte.vorschlag) return t('imp.keinTreffer');
+    if (g.vorlage) return t('imp.grundVorlage');
+    if (g.llama) return t('imp.grundLlama');
     const teile = [];
     if (g.kopf) teile.push(t('imp.grundKopf', { titel: g.kopf }));
     if (g.werte) teile.push(t('imp.grundWerte', { anteil: g.anteil, art: t(`imp.art.${g.werte}`) }));
-    return teile.join(' · ');
+    return teile.join(' · ') || t('imp.vonHandGeaendert');
   };
 
-  const zugeordnet = erkennung ? erkennung.spalten.filter((s) => zuordnung[s.index]).length : 0;
-  const fehlendeFelder = [...new Set(ergebnis.unvollstaendig.flatMap((u) => u.fehlt))];
+  const hinweisText = (h, s) => (h === 'mehrereZeilen' ? t('imp.h.mehrereZeilen', { n: s.zeilen.length }) : t(`imp.h.${h}`));
+  const feldText = (f) => t(`imp.feld.${f === 'name' ? 'vollname' : f}`);
+
+  const zugeordnet = analyse ? analyse.spalten.filter((s) => analyse.zuordnung[s.index]).length : 0;
+
+  const fahrtZeile = (s) => {
+    const d = s.daten;
+    return {
+      titel: `${(d.etd || '--:--').slice(0, 5)} ${d.pickup_name || d.pickup_address || '—'} → ${d.dropoff_name || d.dropoff_address || '—'}`,
+      detail: [datumKurz(d.ride_date), d.flight_number || d.train_number, (d.passengers || []).join(', '), d.anzahl ? `${d.anzahl} P.` : ''].filter(Boolean).join(' · '),
+    };
+  };
+  const gastZeile = (s) => ({
+    titel: `${s.daten.first_name || ''} ${s.daten.last_name || ''}`.trim() || '—',
+    detail: [s.daten.company, s.daten.email, s.daten.phone].filter(Boolean).join(' · '),
+  });
 
   return (
     <div className="w-[min(402px,100vw)] h-dvh relative mx-auto overflow-hidden overscroll-none" style={gradientStyle}>
@@ -224,7 +304,7 @@ export default function ImportView({ setView, mode = 'rides' }) {
               <button
                 type="button"
                 onClick={() => {
-                  // Im Demo-Tutorial darf keine Dateiauswahl aufgehen — sie haelt den Ablauf an.
+                  // Im Demo-Tutorial darf keine Dateiauswahl aufgehen, sie haelt den Ablauf an.
                   if (tutorialLaeuft()) return;
                   fileInputRef.current?.click();
                 }}
@@ -233,15 +313,13 @@ export default function ImportView({ setView, mode = 'rides' }) {
                 style={{ background: LIME }}
               >
                 <span className={`text-[#1d1c1d] text-base font-medium ${schrift} tracking-wide`}>{t('sonstige.dateiAuswaehlen')}</span>
-                {/* Figma 2563:12437 — Import-Symbol, 42 x 40 */}
                 <span className="block w-[42px] h-[40px] shrink-0 overflow-clip">
                   <img src="/icon/_Icon_Schwarz/import-datei.svg" alt="" className="block w-full h-full" />
                 </span>
               </button>
-              <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.tsv,.txt,text/csv" className="hidden" onChange={handleFile} />
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xlsm,.xls,.ods,.csv,.tsv,.txt,text/csv" className="hidden" onChange={handleFile} />
 
-              {/* Beispieldateien nur in der Demo. */}
-              {DEMO_MODE && mode === 'rides' ? (
+              {DEMO_MODE && modus === 'rides' ? (
                 <div className="mt-[28px]">
                   <div className={`text-[13px] font-medium ${schrift}`} style={{ color: 'rgba(227,246,84,0.7)' }}>{t('imp.beispiele')}</div>
                   <div className="mt-[10px] flex flex-col gap-[8px]">
@@ -261,6 +339,32 @@ export default function ImportView({ setView, mode = 'rides' }) {
                   </div>
                 </div>
               ) : null}
+
+              {importe.length ? (
+                <div className="mt-[28px]">
+                  <div className={`text-[13px] font-medium ${schrift}`} style={{ color: 'rgba(227,246,84,0.7)' }}>{t('imp.letzteImporte')}</div>
+                  <div className="mt-[10px] flex flex-col gap-[6px]">
+                    {importe.map((imp) => (
+                      <div key={imp.id} className="w-full border-2 bg-[#0f0f0f] px-3 py-2 flex items-center justify-between gap-2" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
+                        <div className="min-w-0">
+                          <div className={`text-[13px] font-medium truncate ${schrift} text-white`}>{imp.dateiname || '—'}</div>
+                          <div className={`text-[11px] font-medium ${schrift} text-white/45`}>
+                            {new Date(imp.erstellt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}
+                            {' · '}
+                            {imp.rueckgaengig ? t('imp.wurdeRueckgaengig') : t('imp.nochDa', { n: imp.vorhanden, gesamt: imp.anzahl })}
+                          </div>
+                        </div>
+                        {!imp.rueckgaengig && imp.vorhanden ? (
+                          <button type="button" disabled={isBusy} onClick={() => rueckgaengig(imp.id)} className={`shrink-0 text-[12px] font-medium underline ${schrift}`} style={{ color: ORANGE }}>
+                            {t('imp.rueckgaengigKurz')}
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  {rueckgaengigText ? <div className={`mt-[8px] text-[12px] font-medium ${schrift}`} style={{ color: '#8DFFAF' }}>{rueckgaengigText}</div> : null}
+                </div>
+              ) : null}
             </>
           ) : null}
 
@@ -269,36 +373,72 @@ export default function ImportView({ setView, mode = 'rides' }) {
             <div className="mt-[40px] flex flex-col items-center text-center" data-tutorial="import-erkennung">
               <span style={{ color: LIME }}><FunkenIcon drehen /></span>
               <div className={`mt-[14px] text-[18px] font-bold ${schrift}`} style={{ color: LIME }}>{t('imp.erkennt')}</div>
-              <div className={`mt-[6px] text-[12px] font-medium ${schrift} text-white/50`}>{dateiname}</div>
+              <div className={`mt-[6px] text-[12px] font-medium ${schrift} text-white/50`}>{quelle?.dateiname}</div>
             </div>
           ) : null}
 
           {/* --- 3. Zuordnung und Vorschau ------------------------------- */}
-          {schritt === 'zuordnung' && erkennung ? (
-            <>
+          {schritt === 'zuordnung' && analyse ? (
+            <div className={neuBerechnen ? 'opacity-50 pointer-events-none' : ''}>
               <div className="mt-[20px] flex items-center justify-between">
-                <span className={`text-[12px] font-medium ${schrift} text-white/50 truncate pr-3`}>{dateiname}</span>
+                <span className={`text-[12px] font-medium ${schrift} text-white/50 truncate pr-3`}>{analyse.dateiname}</span>
                 <button type="button" onClick={neuStarten} className={`shrink-0 text-[12px] font-medium ${schrift} underline`} style={{ color: LIME }}>
                   {t('imp.andereDatei')}
                 </button>
               </div>
+
+              {/* Mehrere Tabellenblaetter: das passende ist gewaehlt, wechseln geht. */}
+              {analyse.blaetter.length > 1 ? (
+                <div className="mt-[14px]">
+                  <div className={`text-[11px] font-medium ${schrift} text-white/50`}>{t('imp.blatt')}</div>
+                  <div className="mt-[6px] flex flex-wrap gap-[6px]">
+                    {analyse.blaetter.map((b) => (
+                      <button
+                        key={b.index}
+                        type="button"
+                        onClick={() => b.index !== analyse.blatt && blattWechseln(b.index)}
+                        className={`h-[30px] px-3 border text-[12px] font-medium ${schrift}`}
+                        style={b.index === analyse.blatt ? { background: LIME, color: '#000', borderColor: LIME } : { borderColor: 'rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.7)' }}
+                      >
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {analyse.vorlage ? (
+                <div className={`mt-[14px] border-l-2 pl-3 text-[12px] leading-4 font-medium ${schrift}`} style={{ borderColor: '#8DFFAF', color: '#8DFFAF' }}>
+                  {t('imp.vorlageGenutzt', { name: analyse.vorlage.name || '' })}
+                </div>
+              ) : null}
+              {analyse.llama?.genutzt ? (
+                <div className={`mt-[14px] border-l-2 pl-3 text-[12px] leading-4 font-medium ${schrift}`} style={{ borderColor: ORANGE, color: ORANGE }}>
+                  {t('imp.llamaGenutzt')}
+                </div>
+              ) : null}
 
               <div className="mt-[20px] flex items-center gap-[10px]" style={{ color: LIME }}>
                 <FunkenIcon />
                 <div>
                   <div className={`text-[20px] font-bold leading-none ${schrift}`}>{t('imp.zuordnung')}</div>
                   <div className={`mt-[4px] text-[12px] font-medium ${schrift}`} style={{ color: 'rgba(227,246,84,0.7)' }}>
-                    {t('imp.zugeordnetVon', { n: zugeordnet, gesamt: erkennung.spalten.length })}
+                    {t('imp.zugeordnetVon', { n: zugeordnet, gesamt: analyse.spalten.length })}
                   </div>
                 </div>
               </div>
 
+              {analyse.fehlendeZuordnung?.length ? (
+                <div className={`mt-[10px] text-[12px] leading-4 font-medium ${schrift}`} style={{ color: ORANGE }}>
+                  {t('imp.pflichtFehlt', { felder: analyse.fehlendeZuordnung.map(feldText).join(', ') })}
+                </div>
+              ) : null}
+
               <div className="mt-[14px] flex flex-col gap-[8px]" data-tutorial="import-zuordnung">
-                {erkennung.spalten.map((spalte) => {
-                  const feld = zuordnung[spalte.index] || '';
-                  const vorschlagGilt = feld && feld === spalte.vorschlag;
-                  const sicher = vorschlagGilt && spalte.sicherheit >= 0.8;
-                  const pruefen = vorschlagGilt && !sicher;
+                {analyse.spalten.map((spalte) => {
+                  const feld = analyse.zuordnung[spalte.index] || '';
+                  const sicher = feld && (spalte.sicherheit >= 0.8 || spalte.grund?.vorlage);
+                  const pruefen = feld && !sicher;
                   return (
                     <div
                       key={spalte.index}
@@ -331,15 +471,15 @@ export default function ImportView({ setView, mode = 'rides' }) {
                           style={{ borderColor: feld ? LIME : 'rgba(255,255,255,0.25)', color: feld ? LIME : 'rgba(255,255,255,0.6)' }}
                         >
                           <option value="">{t('imp.nichtImportieren')}</option>
-                          {felder.map((f) => (
-                            <option key={f.key} value={f.key}>{t(`imp.feld.${f.key}`)}</option>
+                          {analyse.felder.map((f) => (
+                            <option key={f} value={f}>{t(`imp.feld.${f}`)}</option>
                           ))}
                         </select>
                         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12px]" style={{ color: feld ? LIME : 'rgba(255,255,255,0.5)' }}>▾</span>
                       </div>
 
                       <div className={`mt-[6px] text-[10px] leading-[13px] font-medium ${schrift} text-white/40`}>
-                        {feld && !vorschlagGilt ? t('imp.vonHandGeaendert') : grundText(spalte)}
+                        {grundText(spalte)}
                       </div>
                     </div>
                   );
@@ -347,54 +487,103 @@ export default function ImportView({ setView, mode = 'rides' }) {
               </div>
 
               <div className={`mt-[24px] text-[20px] font-bold ${schrift}`} style={{ color: LIME }}>{t('imp.vorschau')}</div>
-              <div className={`mt-[4px] text-[12px] font-medium ${schrift}`} style={{ color: 'rgba(227,246,84,0.7)' }}>
-                {t('imp.bereit', { n: ergebnis.fertig.length })}
-                {ergebnis.unvollstaendig.length ? (
-                  <span style={{ color: ORANGE }}>
-                    {' · '}
-                    {t('imp.unvollstaendig', {
-                      n: ergebnis.unvollstaendig.length,
-                      felder: fehlendeFelder.map((f) => t(`imp.feld.${f === 'name' ? 'vollname' : f}`)).join(', '),
-                    })}
-                  </span>
-                ) : null}
+              <div className={`mt-[4px] text-[12px] leading-4 font-medium ${schrift}`} style={{ color: 'rgba(227,246,84,0.7)' }}>
+                {t('imp.bereit', { n: bereit.length })}
+                {unvollstaendig.length ? <span style={{ color: ROT }}>{' · '}{t('imp.unvollstaendigKurz', { n: unvollstaendig.length })}</span> : null}
               </div>
+              {modus === 'rides' && !DEMO_MODE ? (
+                <div className={`mt-[2px] text-[11px] font-medium ${schrift} text-white/45`}>
+                  {adressStand ? t('imp.adressenOk', { n: adressStand.gefunden, gesamt: adressStand.gesamt }) : t('imp.adressenPruefen')}
+                </div>
+              ) : null}
 
               <div className="mt-[10px] space-y-[6px]" data-tutorial="import-vorschau">
-                {ergebnis.fertig.slice(0, 20).map((row, index) => (
-                  <div key={index} className="w-full border-2 bg-[#0f0f0f] px-3 py-2" style={{ borderColor: 'rgba(227,246,84,0.4)' }}>
-                    <div className={`text-[14px] font-medium truncate ${schrift}`} style={{ color: LIME }}>{config.describe(row)}</div>
-                    {config.detail(row) ? (
-                      <div className={`text-[11px] font-medium truncate ${schrift} text-white/50`}>{config.detail(row)}</div>
-                    ) : null}
-                  </div>
-                ))}
-                {ergebnis.fertig.length > 20 ? (
-                  <div className={`text-[12px] font-medium ${schrift} text-white/50`}>{t('sonstige.weitereDatensaetze', { n: ergebnis.fertig.length - 20 })}</div>
-                ) : null}
+                {mitAdressen.map((s, index) => {
+                  const z = modus === 'rides' ? fahrtZeile(s) : gastZeile(s);
+                  const warnt = s.hinweise.some((h) => WARNUNGEN.has(h));
+                  const rand = s.aus ? 'rgba(255,255,255,0.1)' : s.fehlt.length ? ROT : warnt ? ORANGE : 'rgba(227,246,84,0.4)';
+                  const istOffen = offen === index;
+                  return (
+                    <div key={index} className="w-full border-2 bg-[#0f0f0f]" style={{ borderColor: rand, opacity: s.aus ? 0.5 : 1 }}>
+                      <div className="flex items-start gap-2 px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={!s.aus}
+                          onChange={() => setSaetze((alt) => alt.map((x, i) => (i === index ? { ...x, aus: !x.aus } : x)))}
+                          className="mt-[3px] accent-[#E3F654] w-4 h-4 shrink-0"
+                          aria-label={t('imp.mitImportieren')}
+                        />
+                        <button type="button" onClick={() => setOffen(istOffen ? null : index)} className="min-w-0 flex-1 text-left">
+                          <div className={`text-[14px] font-medium truncate ${schrift}`} style={{ color: LIME }}>{z.titel}</div>
+                          {z.detail ? <div className={`text-[11px] font-medium truncate ${schrift} text-white/50`}>{z.detail}</div> : null}
+                          {s.fehlt.length ? (
+                            <div className={`text-[11px] font-medium ${schrift}`} style={{ color: ROT }}>{t('imp.fehltFeld', { felder: s.fehlt.map(feldText).join(', ') })}</div>
+                          ) : null}
+                          {s.hinweise.length ? (
+                            <div className={`text-[11px] font-medium ${schrift}`} style={{ color: warnt ? ORANGE : 'rgba(255,255,255,0.45)' }}>
+                              {s.hinweise.map((h) => hinweisText(h, s)).join(' · ')}
+                            </div>
+                          ) : null}
+                        </button>
+                        <span className={`shrink-0 text-[11px] font-medium ${schrift} text-white/40`}>{istOffen ? '▴' : '✎'}</span>
+                      </div>
+
+                      {istOffen ? (
+                        <div className="px-3 pb-3 grid grid-cols-2 gap-[8px] border-t border-white/10 pt-2">
+                          {modus === 'rides' ? (
+                            <>
+                              <Feld breit={false} typ="date" label={feldText('datum')} value={s.daten.ride_date} onChange={(v) => satzAendern(index, { ride_date: v || null })} />
+                              <Feld breit={false} typ="time" label={feldText('uhrzeit')} value={(s.daten.etd || '').slice(0, 5)} onChange={(v) => satzAendern(index, { etd: v ? `${v}:00` : null, original_etd: v ? `${v}:00` : null })} />
+                              <Feld label={feldText('abholort')} value={s.daten.pickup_address} onChange={(v) => satzAendern(index, { pickup_address: v, pickup_name: K.kurzname(v) })} />
+                              <Feld label={feldText('zielort')} value={s.daten.dropoff_address} onChange={(v) => satzAendern(index, { dropoff_address: v, dropoff_name: K.kurzname(v) })} />
+                              <Feld breit={false} label={feldText('flugnummer')} value={s.daten.flight_number || s.daten.train_number} onChange={(v) => satzAendern(index, /^(ICE|IC|EC|RJ|RE|RB)\s?\d/i.test(v) ? { train_number: v, flight_number: null } : { flight_number: v, train_number: null })} />
+                              <Feld breit={false} typ="number" label={feldText('anzahl')} value={s.daten.anzahl ?? ''} onChange={(v) => satzAendern(index, { anzahl: v ? Number(v) : null })} />
+                              <Feld label={feldText('gaeste')} value={(s.daten.passengers || []).join(', ')} onChange={(v) => satzAendern(index, { passengers: v.split(/\s*,\s*/).filter(Boolean) })} />
+                              <Feld label={feldText('notiz')} value={s.daten.note} onChange={(v) => satzAendern(index, { note: v })} />
+                              {adressen ? [s.daten.pickup_address, s.daten.dropoff_address].filter((a) => a && adressen[a]?.gefunden).map((a) => (
+                                <div key={a} className={`col-span-2 text-[10px] leading-[13px] font-medium ${schrift} text-white/40`}>{a} → {adressen[a].name}</div>
+                              )) : null}
+                            </>
+                          ) : (
+                            <>
+                              <Feld breit={false} label={feldText('vorname')} value={s.daten.first_name} onChange={(v) => satzAendern(index, { first_name: v })} />
+                              <Feld breit={false} label={feldText('nachname')} value={s.daten.last_name} onChange={(v) => satzAendern(index, { last_name: v })} />
+                              <Feld label={feldText('email')} value={s.daten.email} onChange={(v) => satzAendern(index, { email: v || null })} />
+                              <Feld breit={false} label={feldText('telefon')} value={s.daten.phone} onChange={(v) => satzAendern(index, { phone: v || null })} />
+                              <Feld breit={false} label={feldText('firma')} value={s.daten.company} onChange={(v) => satzAendern(index, { company: v || null })} />
+                            </>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
 
               <button
                 type="button"
                 onClick={handleApply}
-                disabled={isBusy || !ergebnis.fertig.length}
+                disabled={isBusy || !bereit.length}
                 data-tutorial="import-uebernehmen"
                 className="mt-[16px] w-full h-14 px-4 flex items-center justify-between disabled:opacity-40"
                 style={{ background: LIME }}
               >
                 <span className={`text-[#1d1c1d] text-base font-medium ${schrift} tracking-wide`}>
-                  {isBusy ? t('sonstige.uebernehme') : t(config.importKey, { n: ergebnis.fertig.length })}
+                  {isBusy ? t('sonstige.uebernehme') : t(config.importKey, { n: bereit.length })}
                 </span>
                 <PfeilIcon />
               </button>
-            </>
+              {unvollstaendig.length ? (
+                <div className={`mt-[6px] text-[11px] leading-4 font-medium ${schrift} text-white/45`}>{t('imp.unvollstaendigHinweis')}</div>
+              ) : null}
+            </div>
           ) : null}
 
           {/* --- 4. Fertig ---------------------------------------------- */}
           {schritt === 'fertig' ? (
             <>
               <div className={`mt-[28px] text-[18px] font-bold ${schrift}`} style={{ color: '#8DFFAF' }} data-tutorial="import-fertig">
-                {t(config.fertigKey, { n: importiert })}
+                {t(config.fertigKey, { n: ergebnis?.anzahl || 0 })}
               </div>
               <button
                 type="button"
@@ -413,6 +602,18 @@ export default function ImportView({ setView, mode = 'rides' }) {
               >
                 <span className={`text-[14px] font-medium ${schrift}`} style={{ color: LIME }}>{t('imp.weitereDatei')}</span>
               </button>
+              {ergebnis?.import_id && !rueckgaengigText ? (
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => rueckgaengig(ergebnis.import_id)}
+                  className="mt-[10px] w-full h-12 border-2 px-4 flex items-center justify-between"
+                  style={{ borderColor: ORANGE }}
+                >
+                  <span className={`text-[14px] font-medium ${schrift}`} style={{ color: ORANGE }}>{t('imp.rueckgaengig')}</span>
+                </button>
+              ) : null}
+              {rueckgaengigText ? <div className={`mt-[10px] text-[13px] font-medium ${schrift}`} style={{ color: '#8DFFAF' }}>{rueckgaengigText}</div> : null}
             </>
           ) : null}
 
