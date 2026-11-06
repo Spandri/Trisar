@@ -39,13 +39,19 @@ enum Stunden {
         let status = "eingereicht"; let eingereicht_am: String; let aktualisiert: String
     }
 
+    /// Als Pause zaehlt nur eine Unterbrechung von mindestens 3 Stunden, kuerzere sind Arbeitszeit.
+    static let pauseMindest = 180
+
     static func speichern(_ e: Eintrag, beginn: Date, ende: Date, pauseMin: Int, angepasst: Bool, begruendung: String?) async throws {
         guard let fahrer = try? await Backend.client.auth.session.user.id.uuidString.lowercased() else {
             throw TrisarFehler.text("Nicht angemeldet.")
         }
         let jetzt = iso.string(from: Date())
-        // Immer auf halbe Stunden gerundet.
-        let arbeits = max(0, Int((Double(Int(ende.timeIntervalSince(beginn) / 60) - pauseMin) / 30).rounded()) * 30)
+        // Halbe Stunden, immer zugunsten des Fahrers (aufrunden).
+        // Als Pause zaehlt nur eine Unterbrechung von mindestens 3 Stunden.
+        let dauer = Int(ende.timeIntervalSince(beginn) / 60)
+        let pauseMin = pauseMin >= pauseMindest ? pauseMin : 0
+        let arbeits = max(0, Int((Double(dauer - pauseMin) / 30).rounded(.up)) * 30)
         let zeile = Neu(driver_id: fahrer, dienst_id: e.dienst.id.uuidString.lowercased(), datum: e.dienst.datum,
                         beginn: iso.string(from: beginn), ende: iso.string(from: ende),
                         pausen: angepasst ? [] : (e.vorschlag?.pausen ?? []), pause_min: pauseMin, arbeits_min: arbeits,

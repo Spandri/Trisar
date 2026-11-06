@@ -310,7 +310,7 @@ internal fun VerlaufSeite(
 // MARK: Bearbeiten
 
 private val HALBE = (0 until 24 * 60 step 30).toList()
-private val PAUSEN = (0..180 step 30).toList()
+private val PAUSEN = listOf(0) + (180..600 step 30).toList()
 
 /** Bearbeiten: Beginn, Ende und Pause in halben Stunden, dazu eine Notiz, warum es abweicht. */
 @Composable
@@ -319,21 +319,22 @@ internal fun StundenBearbeitenSeite(eintrag: Stunden.Eintrag, fahrerID: String, 
     val v = eintrag.vorschlag
     val tag = eintrag.dienst.datum
 
-    /** Uhrzeit (Berlin) als Minuten ab Mitternacht, auf halbe Stunden gerundet. */
-    fun minuten(iso: String?): Int? {
+    /** Uhrzeit (Berlin) als Minuten ab Mitternacht in halben Stunden, zugunsten des Fahrers (Beginn ab, Ende auf). */
+    fun minuten(iso: String?, auf: Boolean = false): Int? {
         val u = Stunden.uhr(iso)
         val t = u.split(":").mapNotNull { it.toIntOrNull() }
         if (t.size != 2) return null
-        return (Math.round((t[0] * 60 + t[1]) / 30.0).toInt() * 30) % (24 * 60)
+        val m = (t[0] * 60 + t[1]) / 30.0
+        return ((if (auf) Math.ceil(m) else Math.floor(m)).toInt() * 30) % (24 * 60)
     }
 
     var beginn by remember {
         mutableIntStateOf(minuten(z?.beginn ?: v.beginn.ifEmpty { null }) ?: minuten(Stunden.zuZeitpunkt(tag, eintrag.dienst.beginn)) ?: 8 * 60)
     }
     var ende by remember {
-        mutableIntStateOf(minuten(z?.ende ?: v.ende.ifEmpty { null }) ?: minuten(Stunden.zuZeitpunkt(tag, eintrag.dienst.ende)) ?: 16 * 60)
+        mutableIntStateOf(minuten(z?.ende ?: v.ende.ifEmpty { null }, auf = true) ?: minuten(Stunden.zuZeitpunkt(tag, eintrag.dienst.ende), auf = true) ?: 16 * 60)
     }
-    var pause by remember { mutableIntStateOf(Math.round((z?.pauseMin ?: v.pauseMin) / 30.0).toInt() * 30) }
+    var pause by remember { mutableIntStateOf((Math.floor((z?.pauseMin ?: v.pauseMin) / 30.0).toInt() * 30).let { if (it >= Stunden.PAUSE_MINDEST) it else 0 }) }
     var begruendung by remember { mutableStateOf((z?.begruendung ?: "").replace("Abgelehnt: ", "")) }
     var fehler by remember { mutableStateOf("") }
     var beschaeftigt by remember { mutableStateOf(false) }
@@ -343,7 +344,7 @@ internal fun StundenBearbeitenSeite(eintrag: Stunden.Eintrag, fahrerID: String, 
     val arbeitsMin = run {
         var dauer = ende - beginn
         if (dauer <= 0) dauer += 24 * 60
-        maxOf(0, dauer - pause)
+        maxOf(0, dauer - (if (pause >= Stunden.PAUSE_MINDEST) pause else 0))
     }
 
     fun speichern() {
@@ -391,6 +392,7 @@ internal fun StundenBearbeitenSeite(eintrag: Stunden.Eintrag, fahrerID: String, 
                     Rad("Ende", ende, HALBE, { Stunden.hmm(it) }) { ende = it }
                     Rad("Pause", pause, PAUSEN, { "${Stunden.hmm(it)} h" }) { pause = it }
                 }
+                Text("Pause erst ab 3 Stunden, kürzere Pausen sind Arbeitszeit.", style = grotesk(13f, 500, farbe = Color.White.copy(alpha = 0.5f)), modifier = Modifier.padding(top = 8.dp))
 
                 Column(Modifier.padding(top = 12.dp).width(362.dp).background(Color.White).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Warum weicht es ab?", style = grotesk(16f, 700, abstand = 0.5f, farbe = hex(0x1D1C1D)))

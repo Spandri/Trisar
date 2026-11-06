@@ -109,12 +109,16 @@ object Stunden {
      * Fahrer reicht ein (neu oder Aenderung eines zurueckgegebenen Zettels), wie Stunden.speichern in iOS.
      * Arbeitszeit immer auf halbe Stunden gerundet.
      */
+    const val PAUSE_MINDEST = 180
+
     suspend fun speichern(
         fahrerID: String, e: Eintrag, beginn: String, ende: String, pauseMin: Int, angepasst: Boolean, begruendung: String?,
     ) {
         val jetzt = Instant.now().toString()
         val dauer = maxOf(0, minutenGanz(beginn, ende))
-        val arbeits = maxOf(0, Math.round((dauer - pauseMin) / 30.0).toInt() * 30)
+        // Als Pause zaehlt nur eine Unterbrechung von mindestens 3 Stunden, kuerzere sind Arbeitszeit.
+        val pause = if (pauseMin >= PAUSE_MINDEST) pauseMin else 0
+        val arbeits = maxOf(0, Math.ceil((dauer - pause) / 30.0).toInt() * 30) // zugunsten des Fahrers
         val zeile = buildJsonObject {
             put("driver_id", fahrerID)
             put("dienst_id", e.dienst.id)
@@ -122,7 +126,7 @@ object Stunden {
             put("beginn", beginn)
             put("ende", ende)
             put("pausen", if (angepasst) JsonArray(emptyList()) else ((e.vorschlag.roh as? JsonObject)?.get("pausen") ?: JsonArray(emptyList())))
-            put("pause_min", pauseMin)
+            put("pause_min", pause)
             put("arbeits_min", arbeits)
             put("vorschlag", e.vorschlag.roh)
             put("angepasst", angepasst)

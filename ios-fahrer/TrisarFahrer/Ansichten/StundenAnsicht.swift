@@ -298,12 +298,12 @@ struct StundenBearbeitenAnsicht: View {
     @FocusState private var fokus: Bool
 
     private static let halbe = Array(stride(from: 0, to: 24 * 60, by: 30))
-    private static let pausen = Array(stride(from: 0, through: 180, by: 30))
+    private static let pausen = [0] + Array(stride(from: 180, through: 600, by: 30))
 
     private var arbeitsMin: Int {
         var dauer = ende - beginn
         if dauer <= 0 { dauer += 24 * 60 }
-        return max(0, dauer - pause)
+        return max(0, dauer - (pause >= Stunden.pauseMindest ? pause : 0))
     }
 
     var body: some View {
@@ -332,6 +332,7 @@ struct StundenBearbeitenAnsicht: View {
                         rad("Pause", $pause, Self.pausen) { "\(Stunden.hmm($0)) h" }
                     }
                     .padding(.top, 12)
+                    Text("Pause erst ab 3 Stunden, kürzere Pausen sind Arbeitszeit.").grotesk(13, .medium).foregroundStyle(.white.opacity(0.5)).padding(.top, 8)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Warum weicht es ab?").grotesk(16, .bold, abstand: 0.5).foregroundStyle(Color(hex: 0x1D1C1D))
@@ -390,19 +391,21 @@ struct StundenBearbeitenAnsicht: View {
         .background(flaeche)
     }
 
-    /// Uhrzeit (Europe/Berlin) als Minuten ab Mitternacht, auf halbe Stunden gerundet.
-    private func minuten(_ d: Date?) -> Int? {
+    /// Uhrzeit (Europe/Berlin) als Minuten ab Mitternacht in halben Stunden, zugunsten des Fahrers
+    /// (Beginn ab-, Ende aufgerundet).
+    private func minuten(_ d: Date?, auf: Bool = false) -> Int? {
         guard let d else { return nil }
         let teile = Stunden.uhr(d).split(separator: ":").compactMap { Int($0) }
         guard teile.count == 2 else { return nil }
-        return Int((Double(teile[0] * 60 + teile[1]) / 30).rounded()) * 30 % (24 * 60)
+        return Int((Double(teile[0] * 60 + teile[1]) / 30).rounded(auf ? .up : .down)) * 30 % (24 * 60)
     }
 
     private func vorbelegen() {
         let z = eintrag.zettel, v = eintrag.vorschlag, tag = eintrag.dienst.datum
         beginn = minuten(Stunden.datum(z?.beginn ?? v?.beginn)) ?? minuten(eintrag.dienst.beginn.flatMap { Stunden.zeitpunkt(tag, $0) }) ?? 8 * 60
-        ende = minuten(Stunden.datum(z?.ende ?? v?.ende)) ?? minuten(eintrag.dienst.ende.flatMap { Stunden.zeitpunkt(tag, $0) }) ?? 16 * 60
-        pause = Int((Double(z?.pause_min ?? v?.pause_min ?? 0) / 30).rounded()) * 30
+        ende = minuten(Stunden.datum(z?.ende ?? v?.ende), auf: true) ?? minuten(eintrag.dienst.ende.flatMap { Stunden.zeitpunkt(tag, $0) }, auf: true) ?? 16 * 60
+        let p = Int((Double(z?.pause_min ?? v?.pause_min ?? 0) / 30).rounded(.down)) * 30
+        pause = p >= Stunden.pauseMindest ? p : 0
         begruendung = (z?.begruendung ?? "").replacingOccurrences(of: "Abgelehnt: ", with: "")
     }
 

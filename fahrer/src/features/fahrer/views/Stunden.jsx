@@ -37,6 +37,7 @@ const TEXTE = {
   beginn: 'Beginn',
   ende: 'Ende',
   pauseLabel: 'Pause',
+  pauseAb: 'Pause erst ab 3 Stunden, kürzere Pausen sind Arbeitszeit.',
   begruendung: 'Warum weicht es ab?',
   schreiben: 'Schreiben...',
   begruendungFehlt: 'Bitte kurz schreiben, warum die Zeiten abweichen.',
@@ -57,7 +58,12 @@ const tagTitel = (iso) => {
   const d = new Date(`${iso}T12:00:00`);
   return `${d.toLocaleDateString('de-DE', { weekday: 'long' })} ${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`.replace(/\.*$/, '.');
 };
-const halbe = (min) => Math.round((min || 0) / 30) * 30;
+// Immer zugunsten des Fahrers: Arbeitszeit und Ende auf, Beginn und Pause ab.
+const halbeAuf = (min) => Math.ceil((min || 0) / 30) * 30;
+const halbeAb = (min) => Math.floor((min || 0) / 30) * 30;
+// Als Pause zaehlt nur eine Unterbrechung von mindestens 3 Stunden, kuerzere sind Arbeitszeit.
+const PAUSE_MIN = 180;
+const pauseZaehlt = (pause) => (pause >= PAUSE_MIN ? pause : 0);
 
 // Zeit HH:MM am Tag des Dienstes (Europe/Berlin) als ISO. Vor dem Beginn liegende Enden rutschen auf den Folgetag.
 const zuZeitpunkt = (datum, hhmm, nachIso = null) => {
@@ -102,7 +108,9 @@ export const useStundenKarten = () => {
 const speichern = async (eintrag, { beginn, ende, pauseMin, angepasst, begruendung }) => {
   const fahrer = (await supabase.auth.getUser()).data?.user?.id;
   const jetzt = new Date().toISOString();
-  const arbeits = Math.max(0, halbe(Math.round((new Date(ende) - new Date(beginn)) / 60000) - pauseMin));
+  const dauer = Math.round((new Date(ende) - new Date(beginn)) / 60000);
+  const pause = pauseZaehlt(pauseMin);
+  const arbeits = Math.max(0, halbeAuf(dauer - pause));
   const v = eintrag.vorschlag || null;
   const zeile = {
     driver_id: fahrer,
@@ -111,7 +119,7 @@ const speichern = async (eintrag, { beginn, ende, pauseMin, angepasst, begruendu
     beginn,
     ende,
     pausen: angepasst ? [] : (v?.pausen || []),
-    pause_min: pauseMin,
+    pause_min: pause,
     arbeits_min: arbeits,
     vorschlag: v,
     angepasst,
@@ -266,11 +274,11 @@ export const useStundenAktionen = (nachher) => {
 };
 
 const HALBE = Array.from({ length: 48 }, (_, i) => i * 30);
-const PAUSEN = [0, 30, 60, 90, 120, 150, 180];
-const zuMin = (iso) => {
+const PAUSEN = [0, ...Array.from({ length: 15 }, (_, i) => 180 + i * 30)];
+const zuMin = (iso, auf = false) => {
   if (!iso) return null;
   const [h, m] = uhr(iso).split(':').map(Number);
-  return halbe(h * 60 + m) % 1440;
+  return (auf ? halbeAuf(h * 60 + m) : halbeAb(h * 60 + m)) % 1440;
 };
 const alsUhr = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
@@ -294,14 +302,14 @@ export function StundenBearbeiten({ eintrag, schliessen, fertig }) {
   const v = eintrag.vorschlag || {};
   const tag = eintrag.dienst.datum;
   const [beginn, setBeginn] = useState(() => zuMin(z?.beginn || v.beginn) ?? zuMin(zuZeitpunkt(tag, eintrag.dienst.beginn || '')) ?? 480);
-  const [ende, setEnde] = useState(() => zuMin(z?.ende || v.ende) ?? zuMin(zuZeitpunkt(tag, eintrag.dienst.ende || '')) ?? 960);
-  const [pause, setPause] = useState(() => halbe(z?.pause_min ?? v.pause_min ?? 0));
+  const [ende, setEnde] = useState(() => zuMin(z?.ende || v.ende, true) ?? zuMin(zuZeitpunkt(tag, eintrag.dienst.ende || ''), true) ?? 960);
+  const [pause, setPause] = useState(() => pauseZaehlt(halbeAb(z?.pause_min ?? v.pause_min ?? 0)));
   const [begruendung, setBegruendung] = useState((z?.begruendung || '').replace(tx('abgelehnt'), ''));
   const [fehler, setFehler] = useState('');
   const [busy, setBusy] = useState(false);
   let dauer = ende - beginn;
   if (dauer <= 0) dauer += 1440;
-  const arbeitsMin = Math.max(0, dauer - pause);
+  const arbeitsMin = Math.max(0, dauer - pauseZaehlt(pause));
 
   const senden = async () => {
     if (!begruendung.trim()) { setFehler(tx('begruendungFehlt')); return; }
@@ -337,6 +345,7 @@ export function StundenBearbeiten({ eintrag, schliessen, fertig }) {
           <Wahl label={tx('ende')} wert={ende} setWert={setEnde} werte={HALBE} text={hmm} />
           <Wahl label={tx('pauseLabel')} wert={pause} setWert={setPause} werte={PAUSEN} text={(m) => `${hmm(m)} h`} />
         </div>
+        <div className="mt-[8px] text-[13px] font-medium text-white/50" style={schrift}>{tx('pauseAb')}</div>
 
         <div className="mt-[12px] bg-white p-4 flex flex-col gap-2">
           <span className="text-[#1d1c1d] text-[16px] font-bold tracking-[0.5px]" style={schrift}>{tx('begruendung')}</span>
