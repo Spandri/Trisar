@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -42,6 +41,7 @@ import de.trisar.kern.hex
 import de.trisar.kern.mittig
 import de.trisar.kern.platz
 import de.trisar.kern.tippen
+import kotlinx.coroutines.launch
 
 // Konstanten aus FahrtenScreen01View.jsx
 private const val VERSATZ = 20f            // <div className="absolute left-0 top-[20px]">
@@ -60,53 +60,60 @@ private class ListenRaster {
     val zeilen = mutableListOf<Pair<String, Float>>()
     val dienste = mutableListOf<Pair<DienstAnfrage, Float>>()
     val fahrten = mutableListOf<Triple<Fahrt, Float, Boolean>>()
+    val stunden = mutableListOf<Pair<de.trisar.kern.Stunden.Eintrag, Float>>()
     var unterkante = 0f
 }
 
-/** buildListenLayout der Web-App. */
-private fun rasterBerechnen(alle: List<Fahrt>, anfragen: List<DienstAnfrage>, hoehe: (Fahrt) -> Float, fahrzeugKarte: Float = 268f): ListenRaster {
+/**
+ * buildListenLayout der Web-App wie rasterBerechnen in iOS: alle Tage (Fahrten, Dienstanfragen, Stunden)
+ * sortiert, je Tag Dienste, Fahrten und am Ende des Tages die Stundenkarte.
+ */
+private fun rasterBerechnen(
+    alle: List<Fahrt>, anfragen: List<DienstAnfrage>, stundenKarten: List<de.trisar.kern.Stunden.Eintrag>,
+    hoehe: (Fahrt) -> Float, fahrzeugKarte: Float = 268f,
+): ListenRaster {
     fun minuten(zeit: String): Int {
         val t = zeit.split(":").mapNotNull { it.toIntOrNull() }
         return if (t.size >= 2) t[0] * 60 + t[1] else Int.MAX_VALUE
     }
     val fahrten = alle.sortedWith(compareBy<Fahrt>({ it.fahrtDatum }, { minuten(it.etd) }, { it.id }))
-    val proTag = LinkedHashMap<String, MutableList<DienstAnfrage>>()
+    val anfragenProTag = LinkedHashMap<String, MutableList<DienstAnfrage>>()
     for (a in anfragen) {
         val tag = a.service_date.orEmpty().take(10)
         if (tag.isEmpty()) continue
-        proTag.getOrPut(tag) { mutableListOf() }.add(a)
+        anfragenProTag.getOrPut(tag) { mutableListOf() }.add(a)
     }
-    val offeneTage = proTag.keys.toMutableSet()
+    val fahrtenProTag = fahrten.groupBy { it.fahrtDatum }
+    val stundenProTag = stundenKarten.groupBy { it.dienst.datum }
+    val tage = (fahrtenProTag.keys + anfragenProTag.keys + stundenProTag.keys).toSortedSet()
     val r = ListenRaster()
     // Fahrzeugkarte top 118, Hoehe je nach vorhandenen Angaben (mit allem 268).
     var cursor = 118f + fahrzeugKarte + TAG_UNTEN
 
-    fun tagBeginnen(tag: String, erster: Boolean) {
-        if (!erster) cursor += TAG_OBEN
+    tage.forEachIndexed { t, tag ->
+        if (t > 0) cursor += TAG_OBEN
         r.zeilen += tag to cursor
         cursor += TAG_HOEHE + TAG_UNTEN
-        val liste = proTag[tag].orEmpty()
+        val liste = anfragenProTag[tag].orEmpty()
         liste.forEachIndexed { i, a ->
             r.dienste += a to cursor
             cursor += if (a.angenommen) DIENST_HOEHE else DIENST_HOEHE + KNOPF_ABSTAND + KNOPF_HOEHE
             if (i < liste.size - 1) cursor += DIENST_ABSTAND
         }
         if (liste.isNotEmpty()) cursor += DIENST_LISTE
-        offeneTage.remove(tag)
-    }
-
-    var letzterTag: String? = null
-    fahrten.forEachIndexed { i, f ->
-        if (f.fahrtDatum != letzterTag) {
-            tagBeginnen(f.fahrtDatum, i == 0)
-            letzterTag = f.fahrtDatum
+        val tagesFahrten = fahrtenProTag[tag].orEmpty()
+        for (f in tagesFahrten) {
+            val mitKnoepfen = f.wartetAufAntwort
+            r.fahrten += Triple(f, cursor, mitKnoepfen)
+            val h = hoehe(f)
+            cursor += if (mitKnoepfen) h + KNOPF_ABSTAND + KNOPF_HOEHE + NACH_KNOPF else h + KARTEN_ABSTAND
         }
-        val mitKnoepfen = f.wartetAufAntwort
-        r.fahrten += Triple(f, cursor, mitKnoepfen)
-        val h = hoehe(f)
-        cursor += if (mitKnoepfen) h + KNOPF_ABSTAND + KNOPF_HOEHE + NACH_KNOPF else h + KARTEN_ABSTAND
+        for (e in stundenProTag[tag].orEmpty()) {
+            if (tagesFahrten.isNotEmpty()) cursor += KARTEN_ABSTAND
+            r.stunden += e to cursor
+            cursor += StundenKarteMass.hoehe(e) + if (StundenKarteMass.mitKnoepfen(e)) NACH_KNOPF else KARTEN_ABSTAND
+        }
     }
-    for (tag in offeneTage.sorted()) tagBeginnen(tag, r.zeilen.isEmpty())
     r.unterkante = cursor
     return r
 }
@@ -121,8 +128,9 @@ internal fun FahrtenListeSeite(
     oeffneProfil: () -> Unit,
     oeffneFahrzeug: () -> Unit,
     oeffneFahrt: (Fahrt) -> Unit,
-    stundenStand: Int = 0,
-    stundenErfassen: (de.trisar.kern.Stunden.Eintrag) -> Unit = {},
+    fahrerID: String,
+    stundenBearbeiten: (de.trisar.kern.Stunden.Eintrag) -> Unit,
+    stundenAblehnen: (de.trisar.kern.Stunden.Eintrag) -> Unit,
 ) {
     val fahrten by speicher.fahrten.collectAsState()
     val anfragen by speicher.dienstAnfragen.collectAsState()
@@ -135,7 +143,12 @@ internal fun FahrtenListeSeite(
 
     val kartenHoehe = kartenHoeheMesser()
     val fahrzeugHoehe = de.trisar.kern.fahrzeugKartenHoehe(fahrzeug)
-    val raster = remember(fahrten, anfragen, fahrzeugHoehe) { rasterBerechnen(fahrten, anfragen, kartenHoehe, fahrzeugHoehe) }
+    val stundenAlle by StundenSpeicher.eintraege.collectAsState()
+    val stundenArbeitet by StundenSpeicher.arbeitetID.collectAsState()
+    val stundenFehler by StundenSpeicher.fehler.collectAsState()
+    val stundenKarten = remember(stundenAlle) { StundenSpeicher.karten(stundenAlle) }
+    val stundenScope = androidx.compose.runtime.rememberCoroutineScope()
+    val raster = remember(fahrten, anfragen, fahrzeugHoehe, stundenKarten) { rasterBerechnen(fahrten, anfragen, stundenKarten, kartenHoehe, fahrzeugHoehe) }
 
     Box(Modifier.fillMaxSize()) {
         Leinwand(inhaltHoehe = raster.unterkante + VERSATZ + NACH_KNOPF + 64f + 40f) {
@@ -153,6 +166,18 @@ internal fun FahrtenListeSeite(
                 }
             }
 
+            // Stunden am Ende des Diensttages
+            for ((e, oben) in raster.stunden) {
+                androidx.compose.runtime.key(e.dienst.id) {
+                    StundenKarte(
+                        e, Modifier.platz(20f, VERSATZ + oben, 362f), beschaeftigt = stundenArbeitet == e.dienst.id,
+                        annehmen = { stundenScope.launch { StundenSpeicher.annehmen(fahrerID, e) } },
+                        bearbeiten = { stundenBearbeiten(e) },
+                        ablehnen = { stundenAblehnen(e) },
+                    )
+                }
+            }
+
             for ((fahrt, oben, mitKnoepfen) in raster.fahrten) {
                 AuftragsKarte(
                     fahrt = fahrt,
@@ -166,15 +191,11 @@ internal fun FahrtenListeSeite(
                 )
             }
         }
-        // Offene Stunden: Lime-Leiste ueber der Fusszeile (StundenHinweis).
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-            StundenHinweis(stundenStand, Modifier.navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 50.dp).fillMaxWidth(), stundenErfassen)
-        }
         FussleisteUnten()
 
-        val f = fehler
+        val f = fehler ?: stundenFehler
         if (f != null) {
-            Box(Modifier.fillMaxWidth().padding(top = 50.dp).background(Farbe.fehler).tippen { speicher.fehler.value = null }.padding(12.dp),
+            Box(Modifier.fillMaxWidth().padding(top = 50.dp).background(Farbe.fehler).tippen { speicher.fehler.value = null; StundenSpeicher.fehler.value = null }.padding(12.dp),
                 contentAlignment = Alignment.Center) {
                 Text(f, style = grotesk(13f, 500, farbe = Color.Black), textAlign = TextAlign.Center)
             }

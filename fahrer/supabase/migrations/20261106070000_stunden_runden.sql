@@ -40,3 +40,7 @@ $$;
 
 revoke all on function public.stunden_vorschlag_server(uuid) from public, anon, authenticated;
 grant execute on function public.stunden_vorschlag_server(uuid) to service_role;
+
+-- Ablehnen speichert 0 Stunden (Beginn = Ende), daher Ende gleich Beginn erlauben.
+alter table public.stundenzettel drop constraint if exists stundenzettel_check;
+alter table public.stundenzettel add constraint stundenzettel_check check (ende >= beginn);

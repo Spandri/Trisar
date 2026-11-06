@@ -105,23 +105,28 @@ object Stunden {
 
     // MARK: Schreiben
 
-    /** Fahrer reicht ein (neu oder Aenderung eines zurueckgegebenen Zettels). */
-    suspend fun einreichen(
-        fahrerID: String, e: Eintrag, beginn: String, ende: String, pauseMin: Int, arbeitsMin: Int, geaendert: Boolean, begruendung: String,
+    /**
+     * Fahrer reicht ein (neu oder Aenderung eines zurueckgegebenen Zettels), wie Stunden.speichern in iOS.
+     * Arbeitszeit immer auf halbe Stunden gerundet.
+     */
+    suspend fun speichern(
+        fahrerID: String, e: Eintrag, beginn: String, ende: String, pauseMin: Int, angepasst: Boolean, begruendung: String?,
     ) {
         val jetzt = Instant.now().toString()
+        val dauer = maxOf(0, minutenGanz(beginn, ende))
+        val arbeits = maxOf(0, Math.round((dauer - pauseMin) / 30.0).toInt() * 30)
         val zeile = buildJsonObject {
             put("driver_id", fahrerID)
             put("dienst_id", e.dienst.id)
             put("datum", e.dienst.datum)
             put("beginn", beginn)
             put("ende", ende)
-            put("pausen", if (geaendert) JsonArray(emptyList()) else ((e.vorschlag.roh as? JsonObject)?.get("pausen") ?: JsonArray(emptyList())))
+            put("pausen", if (angepasst) JsonArray(emptyList()) else ((e.vorschlag.roh as? JsonObject)?.get("pausen") ?: JsonArray(emptyList())))
             put("pause_min", pauseMin)
-            put("arbeits_min", arbeitsMin)
+            put("arbeits_min", arbeits)
             put("vorschlag", e.vorschlag.roh)
-            put("angepasst", geaendert)
-            put("begruendung", if (geaendert) JsonPrimitive(begruendung.trim()) else JsonNull)
+            put("angepasst", angepasst)
+            put("begruendung", if (angepasst && begruendung != null) JsonPrimitive(begruendung) else JsonNull)
             put("status", "eingereicht")
             put("eingereicht_am", jetzt)
             put("aktualisiert", jetzt)
@@ -129,6 +134,13 @@ object Stunden {
         val z = e.zettel
         if (z != null) Backend.client.from("stundenzettel").update(zeile) { filter { eq("id", z.id) } }
         else Backend.client.from("stundenzettel").insert(zeile)
+    }
+
+    /** Ganze Minuten zwischen zwei Zeitpunkten (abgeschnitten wie Int(interval / 60) in iOS). */
+    private fun minutenGanz(von: String, bis: String): Int {
+        val a = instant(von) ?: return 0
+        val b = instant(bis) ?: return 0
+        return ((b.toEpochMilli() - a.toEpochMilli()) / 60000L).toInt()
     }
 
     /** Dispo bestaetigt oder gibt zurueck. */

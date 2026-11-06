@@ -33,7 +33,9 @@ import de.trisar.fahrer.haupt.FahrtenSpeicher
 import de.trisar.fahrer.haupt.FahrzeugSeite
 import de.trisar.fahrer.haupt.KeineFahrtSeite
 import de.trisar.fahrer.haupt.ProfilSeite
-import de.trisar.fahrer.haupt.StundenErfassenSeite
+import de.trisar.fahrer.haupt.StundenAblehnenBlatt
+import de.trisar.fahrer.haupt.StundenBearbeitenSeite
+import de.trisar.fahrer.haupt.StundenSpeicher
 import de.trisar.fahrer.haupt.VerlaufSeite
 import de.trisar.fahrer.haupt.Vollbild
 import de.trisar.kern.Anmeldung
@@ -66,9 +68,15 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
     val fahrzeug by speicher.fahrzeug.collectAsState()
     var seite by remember { mutableStateOf<Seite?>(null) }
     var profilSeite by remember { mutableStateOf(ProfilUnterseite.PROFIL) }
-    // Stundenerfassung: offener Dienst im Vollbild, `stundenStand` laedt Verlauf und Hinweis neu.
-    var stundenErfassen by remember { mutableStateOf<de.trisar.kern.Stunden.Eintrag?>(null) }
+    // Stundenerfassung: Karte am Ende jedes Diensttages, Bearbeiten und Ablehnen im Vollbild.
+    // `stundenStand` laedt den Verlauf neu.
+    var stundenBearbeiten by remember { mutableStateOf<de.trisar.kern.Stunden.Eintrag?>(null) }
+    var stundenAblehnen by remember { mutableStateOf<de.trisar.kern.Stunden.Eintrag?>(null) }
     var stundenStand by remember { mutableStateOf(0) }
+    val stundenAlle by StundenSpeicher.eintraege.collectAsState()
+    val stundenKarten = StundenSpeicher.karten(stundenAlle)
+    // Stundenkarten: beim Start, nach jeder Aenderung am Fahrtenstatus und wenn die App wieder vorne ist.
+    LaunchedEffect(fahrerID, fahrten.map { it.status }) { StundenSpeicher.laden() }
 
     // Tipp auf eine Mitteilung: Fahrt, Chat (Fahrt der Kolonne) oder Fahrzeug oeffnen.
     val pushZiel by de.trisar.kern.Push.ziel.collectAsState()
@@ -120,6 +128,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                 FahrerOrtung.vordergrund()
                 speicher.neuLaden()
                 bereich.launch { anmeldung.profilLaden() }
+                bereich.launch { StundenSpeicher.laden() }
             }
         }
         lebenszyklus.addObserver(beobachter)
@@ -147,7 +156,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
         }
     }
 
-    BackHandler(enabled = aktuell != null && stundenErfassen == null) {
+    BackHandler(enabled = aktuell != null && stundenBearbeiten == null && stundenAblehnen == null) {
         if (aktuell == Seite.Profil && profilSeite != ProfilUnterseite.PROFIL) profilSeite = ProfilUnterseite.PROFIL
         else seite = null
     }
@@ -155,21 +164,21 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
     Box(Modifier.fillMaxSize()) {
         when {
             !geladen -> TrisarHintergrund()
-            fahrten.isEmpty() -> KeineFahrtSeite(
+            // Liste statt "Keine Fahrt", sobald Stundenkarten da sind.
+            fahrten.isEmpty() && stundenKarten.isEmpty() -> KeineFahrtSeite(
                 fahrzeug = fahrzeug,
                 oeffneProfil = { profilSeite = ProfilUnterseite.PROFIL; seite = Seite.Profil },
                 oeffneFahrzeug = { seite = Seite.Fahrzeug },
                 abmelden = { anmeldung.abmelden() },
-                stundenStand = stundenStand,
-                stundenErfassen = { stundenErfassen = it },
             )
             else -> FahrtenListeSeite(
                 speicher = speicher,
                 oeffneProfil = { profilSeite = ProfilUnterseite.PROFIL; seite = Seite.Profil },
                 oeffneFahrzeug = { seite = Seite.Fahrzeug },
                 oeffneFahrt = { seite = Seite.Fahrt(it.id) },
-                stundenStand = stundenStand,
-                stundenErfassen = { stundenErfassen = it },
+                fahrerID = fahrerID,
+                stundenBearbeiten = { stundenBearbeiten = it },
+                stundenAblehnen = { stundenAblehnen = it },
             )
         }
 
@@ -184,7 +193,10 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                         oeffneVerlauf = { profilSeite = ProfilUnterseite.VERLAUF },
                         oeffneEinstellungen = { profilSeite = ProfilUnterseite.EINSTELLUNGEN },
                     )
-                    ProfilUnterseite.VERLAUF -> VerlaufSeite(stundenStand, { profilSeite = ProfilUnterseite.PROFIL }) { stundenErfassen = it }
+                    ProfilUnterseite.VERLAUF -> VerlaufSeite(
+                        fahrerID, stundenStand, { profilSeite = ProfilUnterseite.PROFIL },
+                        bearbeiten = { stundenBearbeiten = it }, ablehnen = { stundenAblehnen = it },
+                    )
                     ProfilUnterseite.EINSTELLUNGEN -> EinstellungenSeite(anmeldung, fahrerID) { profilSeite = ProfilUnterseite.PROFIL }
                     ProfilUnterseite.SUPPORT -> SupportSeite { profilSeite = ProfilUnterseite.PROFIL }
                 }
@@ -200,12 +212,25 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
             }
         }
 
-        stundenErfassen?.let { e ->
-            BackHandler { stundenErfassen = null }
+        // Bearbeiten und Ablehnen als Vollbild, an einer Stelle fuer Fahrtenliste und Verlauf (StundenAktionen).
+        stundenBearbeiten?.let { e ->
+            BackHandler { stundenBearbeiten = null }
             Vollbild {
-                StundenErfassenSeite(e, fahrerID, schliessen = { stundenErfassen = null }) {
-                    stundenErfassen = null
-                    stundenStand++
+                StundenBearbeitenSeite(e, fahrerID, schliessen = { stundenBearbeiten = null }) {
+                    stundenBearbeiten = null
+                    bereich.launch { StundenSpeicher.laden(); stundenStand++ }
+                }
+            }
+        }
+        stundenAblehnen?.let { e ->
+            BackHandler { stundenAblehnen = null }
+            Vollbild {
+                StundenAblehnenBlatt(schliessen = { stundenAblehnen = null }) { notiz ->
+                    stundenAblehnen = null
+                    bereich.launch {
+                        StundenSpeicher.ablehnen(fahrerID, e, notiz.trim().ifEmpty { "ohne Angabe" })
+                        stundenStand++
+                    }
                 }
             }
         }

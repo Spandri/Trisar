@@ -54,8 +54,6 @@ internal fun KeineFahrtSeite(
     oeffneProfil: () -> Unit,
     oeffneFahrzeug: () -> Unit,
     abmelden: () -> Unit,
-    stundenStand: Int = 0,
-    stundenErfassen: (de.trisar.kern.Stunden.Eintrag) -> Unit = {},
 ) {
     Box(Modifier.fillMaxSize()) {
         Leinwand(breite = 393f) {
@@ -67,9 +65,6 @@ internal fun KeineFahrtSeite(
                 style = grotesk(34f, 500, zeilenHoehe = 34f * 1.18f, abstand = -0.5f),
                 modifier = Modifier.platz(20f, 194f, 362f),
             )
-
-            // Offene Stunden nach einem Dienst (StundenHinweis, top 380).
-            StundenHinweis(stundenStand, Modifier.platz(20f, 380f, 362f, 56f), stundenErfassen)
 
             if (fahrzeug != null) {
                 FahrzeugKarte(fahrzeug, listOf(fahrzeug.brand_model, fahrzeug.license_plate).map { it?.trim().orEmpty() }.firstOrNull { it.isNotEmpty() }.orEmpty(), Modifier.platz(20f, 462f).tippen(oeffneFahrzeug), bildOben = 55.57f)
