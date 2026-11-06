@@ -14,6 +14,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import java.util.Locale
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -141,6 +147,7 @@ fun ImportSeite(modus: ImportModus, zurueck: () -> Unit, zumZiel: () -> Unit) {
     var importe by remember { mutableStateOf<List<ImportDienst.Eintrag>>(emptyList()) }
     var beschaeftigt by remember { mutableStateOf(false) }
     var offenesMenue by remember { mutableStateOf<Int?>(null) }
+    var spaltenOffen by remember { mutableStateOf(false) }
 
     fun fehlerText(e: Throwable): String {
         val code = (e as? ImportFehler)?.code ?: e.message ?: ""
@@ -259,6 +266,20 @@ fun ImportSeite(modus: ImportModus, zurueck: () -> Unit, zumZiel: () -> Unit) {
     }
     val bereit = mitAdressen.filter { !it.aus && it.fehlt.isEmpty() }
     val unvollstaendig = mitAdressen.filter { !it.aus && it.fehlt.isNotEmpty() }
+    val ueberblick = Ueberblick(
+        bereit = bereit.size,
+        tage = if (fahrten) mitAdressen.map { ImportDienst.text(it.daten["ride_date"]) }.filter { it.isNotEmpty() }.distinct().size else 0,
+        gaeste = bereit.sumOf { personen(it.daten) },
+        fehlt = unvollstaendig.size,
+        pruefen = mitAdressen.count { !it.aus && it.fehlt.isEmpty() && it.hinweise.any { h -> h in WARNUNGEN } },
+        aus = mitAdressen.count { it.aus },
+    )
+    // Nach Tag gruppiert und nach Uhrzeit sortiert. Ohne Datum zuerst (muss ergaenzt werden).
+    val gruppen = if (!fahrten) listOf(Gruppe("alle", mitAdressen.mapIndexed { i, s -> i to s }))
+    else mitAdressen.mapIndexed { i, s -> i to s }
+        .groupBy { ImportDienst.text(it.second.daten["ride_date"]) }
+        .entries.sortedWith { a, b -> if (a.key == b.key) 0 else if (a.key.isEmpty()) -1 else if (b.key.isEmpty()) 1 else a.key.compareTo(b.key) }
+        .map { (tag, liste) -> Gruppe(tag, liste.sortedBy { ImportDienst.text(it.second.daten["etd"]) }) }
 
     fun importieren() {
         val a = analyse ?: return
@@ -311,7 +332,11 @@ fun ImportSeite(modus: ImportModus, zurueck: () -> Unit, zumZiel: () -> Unit) {
     // Liegt ueber dem Formular: Tipps nicht nach unten durchreichen.
     Box(Modifier.fillMaxSize().background(Color.Black).pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }) {
         DispoHintergrund()
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 60.dp, bottom = 90.dp)) {
+        val zuordnungSichtbar = schritt == Schritt.ZUORDNUNG && analyse != null
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, top = 60.dp, bottom = if (zuordnungSichtbar) 150.dp else 90.dp)
+        ) {
             ZurueckKnopf(aktion = zurueck)
             Text(t(if (fahrten) "sonstige.fahrtenImportTitle" else "sonstige.kundenImportTitle"), style = stil(42f, 700, 42f, farbe = LIME),
                 modifier = Modifier.padding(top = 30.dp))
@@ -357,22 +382,21 @@ fun ImportSeite(modus: ImportModus, zurueck: () -> Unit, zumZiel: () -> Unit) {
                         ZuordnungUndVorschau(
                             a = a,
                             fahrten = fahrten,
-                            saetze = mitAdressen,
-                            bereit = bereit.size,
-                            unvollstaendig = unvollstaendig.size,
+                            ueberblick = ueberblick,
+                            gruppen = gruppen,
                             adressen = adressen,
                             offen = offen,
                             offenesMenue = offenesMenue,
+                            spaltenOffen = spaltenOffen,
                             gesperrt = neuBerechnen,
-                            beschaeftigt = beschaeftigt,
                             neuStarten = { neuStarten() },
                             blattWechseln = { blattWechseln(it) },
+                            spaltenUmschalten = { spaltenOffen = !spaltenOffen },
                             menue = { offenesMenue = it },
                             zuordnen = { i, f -> zuordnen(i, f) },
                             umschalten = { i -> saetze = saetze.mapIndexed { j, s -> if (j == i) s.copy(aus = !s.aus) else s } },
                             oeffnen = { i -> offen = if (offen == i) null else i },
                             aendern = { i, w -> satzAendern(i, w) },
-                            importieren = { importieren() },
                         )
                     }
                 }
@@ -410,7 +434,9 @@ fun ImportSeite(modus: ImportModus, zurueck: () -> Unit, zumZiel: () -> Unit) {
                         a.blaetter.filter { it.index != a.blatt && it.fahrten > 0 }.forEach { b ->
                             Box(
                                 Modifier.padding(top = 10.dp).fillMaxWidth().height(48.dp).alpha(if (beschaeftigt) 0.4f else 1f).border(2.dp, LIME)
-                                    .tippen { if (!beschaeftigt) auswerten(q, blatt = b.index) }.padding(horizontal = 16.dp),
+                                    .tippen {
+                                        if (!beschaeftigt) { ergebnis = null; rueckgaengigText = ""; auswerten(q, blatt = b.index) }
+                                    }.padding(horizontal = 16.dp),
                                 contentAlignment = Alignment.CenterStart,
                             ) {
                                 Text(t("imp.blattImportieren", mapOf("name" to b.name)), style = stil(14f, 500, farbe = LIME),
@@ -426,8 +452,46 @@ fun ImportSeite(modus: ImportModus, zurueck: () -> Unit, zumZiel: () -> Unit) {
                         .padding(horizontal = 12.dp, vertical = 8.dp))
             }
         }
+
+        // Importknopf fest unten ueber der Fusszeile, mit Verlauf dahinter.
+        if (zuordnungSichtbar) {
+            val aus = beschaeftigt || neuBerechnen || bereit.isEmpty()
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                Box(
+                    Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 40.dp)
+                        .background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to Color.Black.copy(alpha = 0.95f), 1f to Color.Black))
+                        .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 10.dp)
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().height(56.dp).alpha(if (aus) 0.4f else 1f).background(LIME)
+                            .tippen { if (!aus) importieren() }.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            if (beschaeftigt) t("sonstige.uebernehme") else t(if (fahrten) "imp.fahrtenImportieren" else "imp.gaesteImportieren", mapOf("n" to "${bereit.size}")),
+                            style = stil(16f, 500, abstand = 0.4f, farbe = hex(0x1D1C1D)),
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Icon("Arrow_Trisar_Icons_01", Modifier.size(34.dp, 20.dp))
+                    }
+                }
+            }
+        }
         FussleisteUnten()
     }
+}
+
+/** Kennzahlen der Vorschau (Kacheln). */
+private class Ueberblick(val bereit: Int, val tage: Int, val gaeste: Int, val fehlt: Int, val pruefen: Int, val aus: Int)
+
+/** Saetze eines Tages (Index in der Liste, Satz). `tag` = ISO-Datum, "" = ohne Datum, "alle" = Gaeste. */
+private class Gruppe(val tag: String, val saetze: List<Pair<Int, Satz>>)
+
+/** Personen einer Fahrt: Namen oder Anzahl, je nachdem was groesser ist. */
+private fun personen(d: JsonObject): Int {
+    val namen = (d["passengers"] as? JsonArray)?.size ?: 0
+    val anzahl = (d["anzahl"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.toDoubleOrNull()?.toInt() ?: 0
+    return maxOf(namen, anzahl)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -435,25 +499,24 @@ fun ImportSeite(modus: ImportModus, zurueck: () -> Unit, zumZiel: () -> Unit) {
 private fun ZuordnungUndVorschau(
     a: Analyse,
     fahrten: Boolean,
-    saetze: List<Satz>,
-    bereit: Int,
-    unvollstaendig: Int,
+    ueberblick: Ueberblick,
+    gruppen: List<Gruppe>,
     adressen: Map<String, ImportDienst.Adresse>?,
     offen: Int?,
     offenesMenue: Int?,
+    spaltenOffen: Boolean,
     gesperrt: Boolean,
-    beschaeftigt: Boolean,
     neuStarten: () -> Unit,
     blattWechseln: (Int) -> Unit,
+    spaltenUmschalten: () -> Unit,
     menue: (Int?) -> Unit,
     zuordnen: (Int, String) -> Unit,
     umschalten: (Int) -> Unit,
     oeffnen: (Int) -> Unit,
     aendern: (Int, Map<String, JsonElement>) -> Unit,
-    importieren: () -> Unit,
 ) {
     val zugeordnet = a.spalten.count { a.zuordnung[it.index] != null }
-    Row(Modifier.padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(a.dateiname, style = stil(12f, 500, farbe = Color.White.copy(alpha = 0.5f)), maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false).padding(end = 12.dp))
         Spacer(Modifier.weight(1f))
@@ -461,90 +524,143 @@ private fun ZuordnungUndVorschau(
             modifier = Modifier.tippen { if (!gesperrt) neuStarten() })
     }
 
-    // Mehrere Tabellenblaetter: das passende ist gewaehlt, wechseln geht.
+    // Mehrere Tabellenblaetter in einer waagrecht scrollbaren Zeile.
     if (a.blaetter.size > 1) {
-        Text(t("imp.blatt"), style = stil(11f, 500, farbe = Color.White.copy(alpha = 0.5f)), modifier = Modifier.padding(top = 14.dp))
-        FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            Modifier.padding(top = 12.dp).layout { messbar, grenzen ->
+                // Bis an den Rand ziehen (-mx-20 im Web), damit die Zeile ueber die ganze Breite scrollt.
+                val rand = 20.dp.roundToPx()
+                val p = messbar.measure(grenzen.copy(maxWidth = grenzen.maxWidth + 2 * rand, minWidth = grenzen.maxWidth + 2 * rand))
+                layout(grenzen.maxWidth, p.height) { p.place(-rand, 0) }
+            }.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             a.blaetter.forEach { b ->
                 val aktiv = b.index == a.blatt
+                val zahl = b.fahrtenZahl
                 Box(
                     Modifier.height(30.dp).background(if (aktiv) LIME else Color.Transparent)
                         .border(1.dp, if (aktiv) LIME else Color.White.copy(alpha = 0.3f))
                         .tippen { if (!aktiv && !gesperrt) blattWechseln(b.index) }.padding(horizontal = 12.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text(b.name, style = stil(12f, 500, farbe = if (aktiv) Color.Black else Color.White.copy(alpha = 0.7f))) }
+                ) {
+                    Text(b.name + (if (zahl != null && zahl > 0 && !aktiv) " · $zahl" else ""), maxLines = 1, softWrap = false,
+                        style = stil(12f, 500, farbe = if (aktiv) Color.Black else Color.White.copy(alpha = 0.7f)))
+                }
             }
         }
     }
 
-    if (a.vorlageGenutzt) Banner(t("imp.vorlageGenutzt", mapOf("name" to a.vorlageName)), GRUEN)
-    if (a.kontextDatum.isNotEmpty() || a.kontextZiel.isNotEmpty()) {
-        val teile = listOfNotNull(
-            a.kontextDatum.takeIf { it.isNotEmpty() }?.let { t("imp.kontextDatum", mapOf("datum" to datumLang(it).ifEmpty { it })) },
-            a.kontextZiel.takeIf { it.isNotEmpty() }?.let { t("imp.kontextZiel", mapOf("ziel" to it)) },
-        )
-        Banner(teile.joinToString(" "), LIME.copy(alpha = 0.85f))
+    // Ueberblick in Zahlen, wie die Kennzahlen auf der Startseite.
+    val kacheln = buildList<@Composable (Modifier) -> Unit> {
+        add { m -> Kachel(ueberblick.bereit, t(if (fahrten) "imp.k.fahrten" else "imp.k.gaeste"), m, hell = true) }
+        if (fahrten) add { m -> Kachel(ueberblick.tage, t(if (ueberblick.tage == 1) "imp.k.tag" else "imp.k.tage"), m) }
+        if (fahrten) add { m -> Kachel(ueberblick.gaeste, t("imp.k.gaeste"), m) }
+        if (ueberblick.fehlt > 0) add { m -> Kachel(ueberblick.fehlt, t("imp.k.fehlt"), m, farbe = ROT) }
+        if (ueberblick.pruefen > 0) add { m -> Kachel(ueberblick.pruefen, t("imp.k.pruefen"), m, farbe = ORANGE) }
+        if (ueberblick.aus > 0) add { m -> Kachel(ueberblick.aus, t("imp.k.aus"), m, farbe = Color.White.copy(alpha = 0.35f)) }
     }
-    if (a.llamaGenutzt) Banner(t("imp.llamaGenutzt"), ORANGE)
-
-    Row(Modifier.padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        ImportFunken(pulsieren = false)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(t("imp.zuordnung"), style = stil(20f, 700, 20f, farbe = LIME))
-            Text(t("imp.zugeordnetVon", mapOf("n" to "$zugeordnet", "gesamt" to "${a.spalten.size}")), style = stil(12f, 500, farbe = LIME_HALB))
-        }
-    }
-    if (a.fehlendeZuordnung.isNotEmpty()) {
-        Text(t("imp.pflichtFehlt", mapOf("felder" to a.fehlendeZuordnung.joinToString(", ") { feldText(it) })),
-            style = stil(12f, 500, 16f, farbe = ORANGE), modifier = Modifier.padding(top = 10.dp))
-    }
-    Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        a.spalten.forEach { s ->
-            SpaltenKarte(s, a.zuordnung[s.index] ?: "", a.felder, offenesMenue == s.index, { menue(if (it && !gesperrt) s.index else null) }) { zuordnen(s.index, it) }
-        }
-    }
-
-    Text(t("imp.vorschau"), style = stil(20f, 700, farbe = LIME), modifier = Modifier.padding(top = 24.dp))
-    Text(buildAnnotatedString {
-        withStyle(SpanStyle(color = LIME_HALB)) { append(t("imp.bereit", mapOf("n" to "$bereit"))) }
-        if (unvollstaendig > 0) withStyle(SpanStyle(color = ROT)) { append(" · " + t("imp.unvollstaendigKurz", mapOf("n" to "$unvollstaendig"))) }
-    }, style = stil(12f, 500, 16f), modifier = Modifier.padding(top = 4.dp))
-    if (fahrten) {
-        val stand = adressen?.let { ad -> t("imp.adressenOk", mapOf("n" to "${ad.values.count { it.gefunden }}", "gesamt" to "${ad.size}")) } ?: t("imp.adressenPruefen")
-        Text(stand, style = stil(11f, 500, farbe = Color.White.copy(alpha = 0.45f)), modifier = Modifier.padding(top = 2.dp))
-    }
-
-    Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        saetze.forEachIndexed { index, s ->
-            key(index) {
-                VorschauZeile(s, fahrten, adressen, offen == index, { if (!gesperrt) umschalten(index) }, { if (!gesperrt) oeffnen(index) }) { aendern(index, it) }
+    Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        kacheln.chunked(3).forEach { reihe ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                reihe.forEach { it(Modifier.weight(1f)) }
+                repeat(3 - reihe.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
 
-    val aus = beschaeftigt || gesperrt || bereit == 0
+    // Herkunft in kurzen Chips statt Fliesstext.
+    FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (a.kontextDatum.isNotEmpty()) Chip(t("imp.c.datum", mapOf("datum" to datumLang(a.kontextDatum).ifEmpty { a.kontextDatum })))
+        if (a.kontextZiel.isNotEmpty()) Chip(t("imp.c.ziel", mapOf("ziel" to ImportDienst.kurzname(a.kontextZiel))))
+        if (a.vorlageGenutzt) Chip(t("imp.c.vorlage"), GRUEN)
+        if (a.llamaGenutzt) Chip(t("imp.c.llama"), ORANGE)
+        if (fahrten) {
+            Chip(
+                adressen?.let { ad -> t("imp.c.adressen", mapOf("n" to "${ad.values.count { it.gefunden }}", "gesamt" to "${ad.size}")) } ?: t("imp.c.adressenLaeuft"),
+                Color.White.copy(alpha = 0.6f),
+            )
+        }
+    }
+
+    // Spaltenzuordnung: zugeklappt, offen wenn etwas fehlt.
+    val fehltSpalte = a.fehlendeZuordnung.isNotEmpty()
+    val sichtbar = spaltenOffen || fehltSpalte
     Row(
-        Modifier.padding(top = 16.dp).fillMaxWidth().height(56.dp).alpha(if (aus) 0.4f else 1f).background(LIME)
-            .tippen { if (!aus) importieren() }.padding(horizontal = 16.dp),
+        Modifier.padding(top = 14.dp).fillMaxWidth().height(48.dp).background(Color.Black.copy(alpha = 0.4f))
+            .border(2.dp, if (fehltSpalte) ORANGE else LIME.copy(alpha = 0.45f)).tippen(spaltenUmschalten).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            if (beschaeftigt) t("sonstige.uebernehme") else t(if (fahrten) "imp.fahrtenImportieren" else "imp.gaesteImportieren", mapOf("n" to "$bereit")),
-            style = stil(16f, 500, abstand = 0.4f, farbe = hex(0x1D1C1D)),
-        )
+        ImportFunken(pulsieren = false)
+        Text(t("imp.spalten"), style = stil(15f, 700, farbe = LIME), modifier = Modifier.padding(start = 10.dp))
         Spacer(Modifier.weight(1f))
-        Icon("Arrow_Trisar_Icons_01", Modifier.size(34.dp, 20.dp))
+        Text(
+            (if (fehltSpalte) t("imp.fehltKurz", mapOf("felder" to a.fehlendeZuordnung.joinToString(", ") { feldText(it) }))
+            else t("imp.erkanntVon", mapOf("n" to "$zugeordnet", "gesamt" to "${a.spalten.size}"))) + if (sichtbar) " ▴" else " ▾",
+            style = stil(12f, 500, farbe = if (fehltSpalte) ORANGE else LIME.copy(alpha = 0.75f)), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 10.dp),
+        )
     }
-    if (unvollstaendig > 0) {
-        Text(t("imp.unvollstaendigHinweis"), style = stil(11f, 500, 16f, farbe = Color.White.copy(alpha = 0.45f)), modifier = Modifier.padding(top = 6.dp))
+    if (sichtbar) {
+        Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            a.spalten.forEach { s ->
+                SpaltenZeile(s, a.zuordnung[s.index] ?: "", a.felder, offenesMenue == s.index, { menue(if (it && !gesperrt) s.index else null) }) { zuordnen(s.index, it) }
+            }
+        }
+    }
+
+    // Fahrten nach Tagen, Karten wie in "Alle Fahrten".
+    Column(Modifier.padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        gruppen.forEachIndexed { gi, g ->
+            if (fahrten) {
+                val mit = g.saetze.filter { !it.second.aus }
+                TagKopf(g.tag, gi == 0, mit.size, mit.sumOf { personen(it.second.daten) })
+            }
+            g.saetze.forEach { (index, s) ->
+                key(index) {
+                    ImportKarte(s, fahrten, adressen, offen == index, { if (!gesperrt) umschalten(index) }, { if (!gesperrt) oeffnen(index) }) { aendern(index, it) }
+                }
+            }
+        }
+    }
+}
+
+/** Zahl gross, Bezeichnung klein, wie die Kennzahlen der Startseite. */
+@Composable
+private fun Kachel(zahl: Int, text: String, modifier: Modifier, hell: Boolean = false, farbe: Color? = null) {
+    val m = if (hell) modifier.background(LIME) else modifier.background(hex(0x0F0F0F)).border(1.dp, farbe ?: LIME.copy(alpha = 0.35f))
+    Column(m.height(64.dp).padding(horizontal = 12.dp), verticalArrangement = Arrangement.Center) {
+        Text("$zahl", style = stil(26f, 700, 28f, farbe = if (hell) Color.Black else (farbe ?: LIME)), maxLines = 1)
+        Text(text, style = stil(11f, 500, farbe = if (hell) Color.Black.copy(alpha = 0.7f) else Color.White.copy(alpha = 0.55f)), maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-private fun Banner(text: String, farbe: Color) {
-    Row(Modifier.padding(top = 14.dp).fillMaxWidth().height(IntrinsicSize.Min)) {
-        Box(Modifier.width(2.dp).fillMaxHeight().background(farbe))
-        Text(text, style = stil(12f, 500, 16f, farbe = farbe), modifier = Modifier.padding(start = 12.dp))
+private fun Chip(text: String, farbe: Color = LIME) {
+    Box(Modifier.height(24.dp).border(1.dp, farbe).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+        Text(text, style = stil(11f, 500, farbe = farbe), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Trennzeile wie in "Alle Fahrten": Striche aussen, Wochentag und Datum mittig, darunter die Zahl. */
+@Composable
+private fun TagKopf(iso: String, erster: Boolean, anzahl: Int, gaeste: Int) {
+    val datum = runCatching { LocalDate.parse(iso) }.getOrNull()
+    val farbe = if (datum != null) hex(0xE3F754) else ROT
+    val titel = datum?.format(DateTimeFormatter.ofPattern("EEEE dd.MM.", Locale.GERMANY)) ?: t("imp.ohneDatum")
+    Column(Modifier.fillMaxWidth().padding(top = if (erster) 0.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(44.dp, 2.dp).background(farbe))
+            Spacer(Modifier.weight(1f))
+            Text(titel, style = stil(26f, 700, 39f, -0.5f, farbe), maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            Box(Modifier.size(44.dp, 2.dp).background(farbe))
+        }
+        Text(
+            t(if (anzahl == 1) "imp.tagEine" else "imp.tagViele", mapOf("n" to "$anzahl")) + if (gaeste > 0) " · " + t("imp.tagGaeste", mapOf("n" to "$gaeste")) else "",
+            style = stil(12f, 500, farbe = LIME_HALB), modifier = Modifier.padding(top = 2.dp),
+        )
     }
 }
 
@@ -566,8 +682,9 @@ private fun ImportEintrag(imp: ImportDienst.Eintrag, beschaeftigt: Boolean, ruec
     }
 }
 
+/** Kompakte Spaltenzeile: Titel und zwei Beispiele links, Auswahl (150 dp) rechts. */
 @Composable
-private fun SpaltenKarte(
+private fun SpaltenZeile(
     spalte: ImportDienst.Spalte,
     feld: String,
     felder: List<String>,
@@ -576,46 +693,38 @@ private fun SpaltenKarte(
     waehlen: (String) -> Unit,
 ) {
     val sicher = feld.isNotEmpty() && (spalte.sicherheit >= 0.8 || spalte.grundVorlage)
-    val pruefen = feld.isNotEmpty() && !sicher
-    Column(
-        Modifier.fillMaxWidth().background(hex(0x0F0F0F))
-            .border(2.dp, if (feld.isEmpty()) Color.White.copy(alpha = 0.12f) else LIME.copy(alpha = 0.55f))
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+    val rand = if (feld.isEmpty()) Color.White.copy(alpha = 0.12f) else if (sicher) LIME.copy(alpha = 0.45f) else ORANGE
+    Row(
+        Modifier.fillMaxWidth().background(hex(0x0F0F0F)).border(1.dp, rand).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(spalte.titel, style = stil(15f, 700, farbe = if (feld.isEmpty()) Color.White.copy(alpha = 0.55f) else LIME), maxLines = 1,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            Spacer(Modifier.weight(1f))
-            if (sicher) Abzeichen(t("imp.sicher"), LIME)
-            if (pruefen) Abzeichen(t("imp.pruefen"), ORANGE)
+        Column(Modifier.weight(1f)) {
+            Text(spalte.titel, style = stil(14f, 700, farbe = if (feld.isEmpty()) Color.White.copy(alpha = 0.55f) else LIME), maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
+            Text(spalte.beispiele.take(2).joinToString(" · "), style = stil(11f, 500, farbe = Color.White.copy(alpha = 0.4f)), maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
         }
-        Text(spalte.beispiele.take(3).joinToString(" · "), style = stil(11f, 500, farbe = Color.White.copy(alpha = 0.45f)), maxLines = 1,
-            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
-        Box(Modifier.padding(top = 8.dp)) {
+        Box(Modifier.width(150.dp)) {
             Row(
-                Modifier.fillMaxWidth().height(38.dp).background(Color.Black)
-                    .border(1.dp, if (feld.isEmpty()) Color.White.copy(alpha = 0.25f) else LIME).tippen { menue(true) }.padding(horizontal = 12.dp),
+                Modifier.fillMaxWidth().height(34.dp).background(Color.Black)
+                    .border(1.dp, if (feld.isEmpty()) Color.White.copy(alpha = 0.25f) else LIME).tippen { menue(true) }.padding(start = 8.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(if (feld.isEmpty()) t("imp.nichtImportieren") else t("imp.feld.$feld"),
-                    style = stil(14f, 500, farbe = if (feld.isEmpty()) Color.White.copy(alpha = 0.6f) else LIME), maxLines = 1, modifier = Modifier.weight(1f))
-                Text("▾", style = TextStyle(fontSize = 12.sp, color = if (feld.isEmpty()) Color.White.copy(alpha = 0.5f) else LIME))
+                    style = stil(13f, 500, farbe = if (feld.isEmpty()) Color.White.copy(alpha = 0.55f) else LIME), maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text("▾", style = TextStyle(fontSize = 11.sp, color = if (feld.isEmpty()) Color.White.copy(alpha = 0.5f) else LIME))
             }
             MaterialTheme(colorScheme = darkColorScheme()) {
                 DropdownMenu(menueOffen, { menue(false) }) {
+                    Text(grundText(spalte), style = stil(11f, 500, 14f, farbe = Color.White.copy(alpha = 0.5f)),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).width(220.dp))
                     DropdownMenuItem({ Text(t("imp.nichtImportieren")) }, { menue(false); if (feld.isNotEmpty()) waehlen("") })
                     felder.forEach { f -> DropdownMenuItem({ Text(t("imp.feld.$f")) }, { menue(false); if (f != feld) waehlen(f) }) }
                 }
             }
         }
-        Text(grundText(spalte), style = stil(10f, 500, 13f, farbe = Color.White.copy(alpha = 0.4f)), modifier = Modifier.padding(top = 6.dp))
-    }
-}
-
-@Composable
-private fun Abzeichen(text: String, farbe: Color) {
-    Box(Modifier.height(20.dp).background(farbe).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
-        Text(text, style = stil(10f, 700, farbe = Color.Black))
     }
 }
 
@@ -629,10 +738,18 @@ private fun grundText(s: ImportDienst.Spalte): String {
     return teile.joinToString(" · ").ifEmpty { t("imp.vonHandGeaendert") }
 }
 
-// MARK: Vorschau-Zeile mit Editor
+// MARK: Importkarte mit Editor
 
+private val ROT_KARTE = hex(0xFB2C36)
+private val DUNKEL = hex(0x18181B)
+private val GRAU = hex(0x71717B)
+
+/**
+ * Fahrt wie die Karte in "Alle Fahrten": Namen gross, Route, Zeit rechts. Rot = es fehlt etwas,
+ * blass = wird nicht importiert. Antippen oeffnet die Bearbeitung in der Karte, Haken unten rechts.
+ */
 @Composable
-private fun VorschauZeile(
+private fun ImportKarte(
     s: Satz,
     fahrten: Boolean,
     adressen: Map<String, ImportDienst.Adresse>?,
@@ -641,36 +758,70 @@ private fun VorschauZeile(
     oeffnen: () -> Unit,
     aendern: (Map<String, JsonElement>) -> Unit,
 ) {
-    val warnt = s.hinweise.any { it in WARNUNGEN }
-    val rand = when {
-        s.aus -> Color.White.copy(alpha = 0.1f)
-        s.fehlt.isNotEmpty() -> ROT
-        warnt -> ORANGE
-        else -> LIME.copy(alpha = 0.4f)
-    }
-    val (titel, detail) = if (fahrten) fahrtZeile(s.daten) else gastZeile(s.daten)
-    Column(Modifier.fillMaxWidth().alpha(if (s.aus) 0.5f else 1f).background(hex(0x0F0F0F)).border(2.dp, rand)) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Haken(!s.aus, Modifier.padding(top = 2.dp).tippen(umschalten))
-            Column(Modifier.weight(1f).tippen(oeffnen)) {
-                Text(titel, style = stil(14f, 500, farbe = LIME), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (detail.isNotEmpty()) Text(detail, style = stil(11f, 500, farbe = Color.White.copy(alpha = 0.5f)), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (s.fehlt.isNotEmpty()) {
-                    Text(t("imp.fehltFeld", mapOf("felder" to s.fehlt.joinToString(", ") { feldText(it) })), style = stil(11f, 500, 15f, farbe = ROT))
+    val d = s.daten
+    val rot = s.fehlt.isNotEmpty()
+    val text = if (rot) Color.Black else DUNKEL
+    val warnungen = s.hinweise.filter { it in WARNUNGEN }
+    val infos = s.hinweise.filter { it !in WARNUNGEN }
+    val namen = if (fahrten) {
+        ((d["passengers"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content } ?: emptyList())
+            .joinToString(", ").ifEmpty { t("imp.ohneName") }
+    } else "${wert(d, "first_name")} ${wert(d, "last_name")}".trim().ifEmpty { t("imp.ohneName") }
+    val groesse = if (namen.length > 45) 18f else if (namen.length > 30) 20f else 24f
+    val route = if (fahrten) {
+        "${wert(d, "pickup_name").ifEmpty { wert(d, "pickup_address") }.ifEmpty { "—" }} → ${wert(d, "dropoff_name").ifEmpty { wert(d, "dropoff_address") }.ifEmpty { "—" }}"
+    } else listOf(wert(d, "company"), wert(d, "email"), wert(d, "phone")).filter { it.isNotEmpty() }.joinToString(" · ")
+    // Firma steht beim Import vorne in der Notiz ("Firma: X · Tel. ..."): eigene Zeile.
+    val teile = wert(d, "note").split(" · ").filter { it.isNotEmpty() }
+    val firma = teile.firstOrNull { it.startsWith("Firma: ") }?.removePrefix("Firma: ") ?: ""
+    val notiz = teile.filter { !it.startsWith("Firma: ") }.joinToString(" · ")
+    val extra = if (!fahrten) "" else listOf(
+        wert(d, "flight_number").ifEmpty { wert(d, "train_number") },
+        (d["anzahl"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.toDoubleOrNull()?.takeIf { it != 0.0 }
+            ?.let { t("imp.personen", mapOf("n" to if (it % 1.0 == 0.0) "${it.toLong()}" else "$it")) } ?: "",
+        if (wahr(d["needs_child_seat"])) feldText("kindersitz") else "",
+        if (wahr(d["is_vip"])) "VIP" else "",
+    ).filter { it.isNotEmpty() }.joinToString(" · ")
+
+    Box(Modifier.fillMaxWidth().alpha(if (s.aus) 0.45f else 1f).background(if (rot) ROT_KARTE else Color.White)) {
+        Column {
+            Row(Modifier.fillMaxWidth().heightIn(min = 120.dp).tippen(oeffnen).padding(18.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(namen, style = stil(groesse, 700, groesse * 1.3f, farbe = text), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (route.isNotEmpty()) Text(route, style = stil(12f, 500, 16f, 0.3f, text.copy(alpha = 0.8f)))
+                    if (firma.isNotEmpty()) Text(firma, style = stil(13f, 700, farbe = text), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (extra.isNotEmpty()) Text(extra, style = stil(13f, 700, farbe = text))
+                    if (rot) Text(t("imp.fehltFeld", mapOf("felder" to s.fehlt.joinToString(", ") { feldText(it) })), style = stil(12f, 700, farbe = Color.Black))
+                    if (warnungen.isNotEmpty()) {
+                        Text(warnungen.joinToString(" · ") { hinweisText(it, s) }, style = stil(12f, 700, farbe = if (rot) Color.Black else hex(0xFF8A00)))
+                    }
+                    if (infos.isNotEmpty()) {
+                        Text(infos.joinToString(" · ") { hinweisText(it, s) }, style = stil(11f, 500, farbe = if (rot) hex(0x262626) else GRAU))
+                    }
+                    if (notiz.isNotEmpty()) {
+                        Text(t("imp.notiz", mapOf("text" to notiz)), style = stil(12f, 500, 20f, farbe = if (rot) Color.Black else GRAU),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 36.dp))
+                    }
                 }
-                if (s.hinweise.isNotEmpty()) {
-                    Text(s.hinweise.joinToString(" · ") { hinweisText(it, s) }, style = stil(11f, 500, 15f, farbe = if (warnt) ORANGE else Color.White.copy(alpha = 0.45f)))
+                if (fahrten) Text(wert(d, "etd").ifEmpty { "--:--" }.take(5), style = stil(22f, 700, 24f, farbe = text))
+            }
+            if (istOffen) {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.Black.copy(alpha = 0.1f)))
+                Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 56.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (fahrten) FahrtEditor(d, adressen, aendern) else GastEditor(d, aendern)
                 }
             }
-            Text(if (istOffen) "▴" else "✎", style = stil(11f, 500, farbe = Color.White.copy(alpha = 0.4f)), modifier = Modifier.tippen(oeffnen))
         }
-        if (istOffen) {
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.1f)))
-            Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (fahrten) FahrtEditor(s.daten, adressen, aendern) else GastEditor(s.daten, aendern)
-            }
-        }
+        // Haken unten rechts: mit importieren ja/nein.
+        Haken(!s.aus, Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 14.dp).tippen(umschalten))
     }
+}
+
+/** JS-Wahrheitswert fuer Ja/Nein-Felder. */
+private fun wahr(w: JsonElement?): Boolean {
+    val p = w as? JsonPrimitive ?: return false
+    if (p is JsonNull) return false
+    return when (val c = p.content) { "true" -> true; "false", "", "0" -> false; else -> c.toDoubleOrNull()?.let { it != 0.0 } ?: true }
 }
 
 @Composable
@@ -718,7 +869,7 @@ private fun FahrtEditor(d: JsonObject, adressen: Map<String, ImportDienst.Adress
     EditFeld(feldText("notiz"), wert(d, "note")) { aendern(mapOf("note" to JsonPrimitive(it))) }
     if (adressen != null) {
         listOf(ImportDienst.text(d["pickup_address"]), ImportDienst.text(d["dropoff_address"])).filter { it.isNotEmpty() && adressen[it]?.gefunden == true }.distinct().forEach { a ->
-            Text("$a → ${adressen[a]?.name ?: ""}", style = stil(10f, 500, 13f, farbe = Color.White.copy(alpha = 0.4f)))
+            Text("$a → ${adressen[a]?.name ?: ""}", style = stil(10f, 500, 13f, farbe = GRAU))
         }
     }
 }
@@ -751,15 +902,15 @@ private fun EditFeld(
 ) {
     var text by remember { mutableStateOf(anfang) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(label, style = stil(10f, 500, farbe = Color.White.copy(alpha = 0.5f)))
+        Text(label, style = stil(10f, 500, farbe = GRAU))
         BasicTextField(
             value = text,
             onValueChange = { text = it; aendern(it) },
             singleLine = true,
-            textStyle = stil(13f, 500),
-            cursorBrush = SolidColor(LIME),
+            textStyle = stil(13f, 500, farbe = DUNKEL),
+            cursorBrush = SolidColor(DUNKEL),
             keyboardOptions = KeyboardOptions(capitalization = gross, autoCorrectEnabled = false, keyboardType = tastatur),
-            modifier = Modifier.fillMaxWidth().height(34.dp).background(Color.Black).border(1.dp, Color.White.copy(alpha = 0.25f)).padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxWidth().height(34.dp).background(Color.White).border(1.dp, hex(0xD4D4D8)).padding(horizontal = 8.dp),
             decorationBox = { feld -> Box(contentAlignment = Alignment.CenterStart) { feld() } },
         )
     }
@@ -769,20 +920,20 @@ private fun EditFeld(
 @Composable
 private fun WaehlFeld(label: String, anzeige: String, modifier: Modifier = Modifier, oeffnen: () -> Unit) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(label, style = stil(10f, 500, farbe = Color.White.copy(alpha = 0.5f)))
+        Text(label, style = stil(10f, 500, farbe = GRAU))
         Box(
-            Modifier.fillMaxWidth().height(34.dp).background(Color.Black).border(1.dp, Color.White.copy(alpha = 0.25f)).tippen(oeffnen).padding(horizontal = 8.dp),
+            Modifier.fillMaxWidth().height(34.dp).background(Color.White).border(1.dp, hex(0xD4D4D8)).tippen(oeffnen).padding(horizontal = 8.dp),
             contentAlignment = Alignment.CenterStart,
-        ) { Text(anzeige.ifEmpty { "—" }, style = stil(13f, 500, farbe = if (anzeige.isEmpty()) Color.White.copy(alpha = 0.4f) else Color.White)) }
+        ) { Text(anzeige.ifEmpty { "—" }, style = stil(13f, 500, farbe = if (anzeige.isEmpty()) GRAU else DUNKEL)) }
     }
 }
 
 @Composable
 private fun Haken(an: Boolean, modifier: Modifier = Modifier) {
     Box(
-        modifier.size(16.dp).background(if (an) LIME else Color.Transparent).border(1.dp, if (an) LIME else Color.White.copy(alpha = 0.5f)),
+        modifier.size(30.dp).background(if (an) DUNKEL else Color.Transparent).border(2.dp, DUNKEL),
         contentAlignment = Alignment.Center,
-    ) { if (an) Text("✓", style = TextStyle(fontSize = 11.sp, color = Color.Black)) }
+    ) { if (an) Text("✓", style = TextStyle(fontSize = 16.sp, color = LIME)) }
 }
 
 /** FunkenIcon aus ImportView.jsx (viewBox 29 x 29.14, Strich 2), mit animate-pulse waehrend der Erkennung. */
@@ -825,26 +976,7 @@ private fun wert(d: JsonObject, k: String): String {
     return p.content
 }
 
-private fun datumKurz(iso: String): String = if (iso.length >= 10) "${iso.substring(8, 10)}.${iso.substring(5, 7)}.${iso.substring(2, 4)}" else ""
 private fun datumLang(iso: String): String = if (iso.length >= 10) "${iso.substring(8, 10)}.${iso.substring(5, 7)}.${iso.substring(0, 4)}" else ""
-
-private fun fahrtZeile(d: JsonObject): Pair<String, String> {
-    val ab = wert(d, "pickup_name").ifEmpty { wert(d, "pickup_address") }.ifEmpty { "—" }
-    val an = wert(d, "dropoff_name").ifEmpty { wert(d, "dropoff_address") }.ifEmpty { "—" }
-    val titel = "${wert(d, "etd").ifEmpty { "--:--" }.take(5)} $ab → $an"
-    val gaeste = (d["passengers"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content } ?: emptyList()
-    val anzahl = (d["anzahl"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.toDoubleOrNull()
-        ?.takeIf { it != 0.0 }?.let { if (it % 1.0 == 0.0) "${it.toLong()} P." else "$it P." } ?: ""
-    val detail = listOf(datumKurz(wert(d, "ride_date")), wert(d, "flight_number").ifEmpty { wert(d, "train_number") }, gaeste.joinToString(", "), anzahl)
-        .filter { it.isNotEmpty() }.joinToString(" · ")
-    return titel to detail
-}
-
-private fun gastZeile(d: JsonObject): Pair<String, String> {
-    val titel = "${wert(d, "first_name")} ${wert(d, "last_name")}".trim().ifEmpty { "—" }
-    val detail = listOf(wert(d, "company"), wert(d, "email"), wert(d, "phone")).filter { it.isNotEmpty() }.joinToString(" · ")
-    return titel to detail
-}
 
 private fun hinweisText(h: String, s: Satz): String =
     if (h == "mehrereZeilen") t("imp.h.mehrereZeilen", mapOf("n" to "${s.zeilen.size}")) else t("imp.h.$h")
@@ -944,7 +1076,30 @@ private val texte = mapOf(
     "imp.h.mehrereZeilen" to "aus {n} Zeilen zusammengefasst",
     "imp.h.vergangen" to "Datum liegt in der Vergangenheit",
     "imp.h.zielAusDatei" to "Ziel aus dem Kopf der Datei",
-    "imp.hinweis" to "Beliebige Tabelle aus Excel (.xlsx, .xls) oder CSV, auch mit mehreren Blättern. Die Spalten werden erkannt, du prüfst den Vorschlag, ergänzt fehlende Angaben und importierst. Jeder Import lässt sich rückgängig machen.",
+    "imp.hinweis" to "Excel oder CSV. Spalten, Tage und Adressen werden automatisch erkannt.",
+    "imp.k.fahrten" to "Fahrten",
+    "imp.k.gaeste" to "Gäste",
+    "imp.k.tag" to "Tag",
+    "imp.k.tage" to "Tage",
+    "imp.k.fehlt" to "unvollständig",
+    "imp.k.pruefen" to "prüfen",
+    "imp.k.aus" to "abgewählt",
+    "imp.c.datum" to "Datum {datum} aus Datei",
+    "imp.c.ziel" to "Ziel {ziel}",
+    "imp.c.vorlage" to "Vorlage erkannt",
+    "imp.c.llama" to "Llama hat geholfen",
+    "imp.c.adressen" to "{n}/{gesamt} Adressen gefunden",
+    "imp.c.adressenLaeuft" to "Adressen werden geprüft …",
+    "imp.spalten" to "Spalten",
+    "imp.fehltKurz" to "fehlt: {felder}",
+    "imp.erkanntVon" to "{n} von {gesamt} erkannt",
+    "imp.ohneDatum" to "Ohne Datum",
+    "imp.tagEine" to "1 Fahrt",
+    "imp.tagViele" to "{n} Fahrten",
+    "imp.tagGaeste" to "{n} Gäste",
+    "imp.ohneName" to "Ohne Namen",
+    "imp.personen" to "{n} P.",
+    "imp.notiz" to "Notiz: {text}",
     "imp.keinTreffer" to "Keine passende Bedeutung erkannt",
     "imp.kontextDatum" to "Datum {datum} aus dem Kopf der Datei.",
     "imp.kontextZiel" to "Ziel aus der Datei: {ziel}.",
