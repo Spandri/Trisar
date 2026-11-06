@@ -42,6 +42,7 @@ targets:
       - ../ios-fahrer/TrisarFahrer/Dienste/FahrzeugDaten.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/Stil.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/Raster.swift
+      - ../ios-fahrer/TrisarFahrer/Ansichten/FahrzeugSkizze.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/WebText.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/LoginAnsicht.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/FahrzeugKarte.swift

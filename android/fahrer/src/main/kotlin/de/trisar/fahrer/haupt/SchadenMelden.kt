@@ -100,7 +100,7 @@ private val BAUTEILE = listOf(
  * Fotos ueber die Kamera des Systems oder die Galerie, wie im Web auf dem Handy.
  */
 @Composable
-internal fun SchadenMeldenSeite(schliessen: () -> Unit, melden: suspend (String, String, List<Bitmap>) -> Boolean) {
+internal fun SchadenMeldenSeite(schliessen: () -> Unit, melden: suspend (String, String, List<Bitmap>, kotlinx.serialization.json.JsonObject?) -> Boolean) {
     val ctx = LocalContext.current
     val bereich = rememberCoroutineScope()
     val fokus = LocalFocusManager.current
@@ -232,7 +232,14 @@ internal fun SchadenMeldenSeite(schliessen: () -> Unit, melden: suspend (String,
                         if (!bereit) return@tippen
                         fokus.clearFocus()
                         sendet = true
-                        bereich.launch { melden(stelleName, text, fotos); sendet = false }
+                        val genau = punkt?.let { p ->
+                            kotlinx.serialization.json.buildJsonObject {
+                                put("x", kotlinx.serialization.json.JsonPrimitive(p.x.toDouble()))
+                                put("y", kotlinx.serialization.json.JsonPrimitive(p.y.toDouble()))
+                                bauteil?.let { put("bauteil", kotlinx.serialization.json.JsonPrimitive(it)) }
+                            }
+                        }
+                        bereich.launch { melden(stelleName, text, fotos, genau); sendet = false }
                     }
                     .padding(horizontal = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,

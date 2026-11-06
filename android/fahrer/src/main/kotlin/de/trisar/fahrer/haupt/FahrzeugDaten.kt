@@ -47,7 +47,8 @@ data class Ort(val lat: Double, val lng: Double)
  * Fahrzeugdaten aus dem Tracker (fahrzeugTelemetrie.js) und Schadensbericht. Wie FahrzeugDaten.swift.
  */
 class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, private val bereich: CoroutineScope) {
-    data class Schaden(val id: String, val datum: String, val stelle: String, val beschreibung: String, val bilder: List<String>)
+    data class Schaden(val id: String, val datum: String, val stelle: String, val beschreibung: String, val bilder: List<String>,
+        val punkt: androidx.compose.ui.geometry.Offset? = null)
     data class TelemetrieZeile(val id: String, val titel: String, val wert: String, val warnung: Boolean)
     data class Ereignis(val id: String, val zeit: String, val text: String)
 
@@ -137,12 +138,13 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
         val description: String? = null,
         val image_url: String? = null,
         val image_urls: List<String>? = null,
+        val stelle: kotlinx.serialization.json.JsonObject? = null,
     )
 
     suspend fun schaedenLaden() {
         val id = fahrzeugID ?: run { schaeden.value = emptyList(); return }
         val zeilen = runCatching {
-            Backend.client.from("vehicle_damages").select(Columns.raw("id,report_date,part_name,description,image_url,image_urls")) {
+            Backend.client.from("vehicle_damages").select(Columns.ALL) {
                 filter { eq("vehicle_id", id) }
                 order("report_date", Order.DESCENDING)
             }.liste<SchadenZeile>()
@@ -150,7 +152,8 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
         schaeden.value = zeilen.map { z ->
             val bilder = (if (!z.image_urls.isNullOrEmpty()) z.image_urls else listOfNotNull(z.image_url))
                 .filter { it.isNotEmpty() && !it.startsWith("blob:") }
-            Schaden(z.id, datumKurz(z.report_date.orEmpty()), z.part_name.orEmpty(), z.description.orEmpty(), bilder)
+            Schaden(z.id, datumKurz(z.report_date.orEmpty()), z.part_name.orEmpty(), z.description.orEmpty(), bilder,
+                de.trisar.kern.FahrzeugSkizze.punkt(z.stelle))
         }
     }
 
@@ -158,7 +161,8 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
      * addVehicleDamage der Web-App. Fotos: Es gibt (noch) keinen Storage-Bucket, darum
      * verkleinert als data-URL in image_urls (die Web-App zeigt sie so direkt an).
      */
-    suspend fun melden(stelle: String, beschreibung: String, fotos: List<Bitmap>): Boolean {
+    suspend fun melden(stelle: String, beschreibung: String, fotos: List<Bitmap>,
+                       genau: kotlinx.serialization.json.JsonObject? = null): Boolean {
         val id = fahrzeugID ?: run { fehler.value = "Kein Fahrzeug zugeteilt."; return false }
         val heute = Datum.tagWert()
         val heuteKurz = datumKurz(heute)
@@ -166,13 +170,21 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
         if (schaeden.value.any { it.datum == heuteKurz && it.stelle == stelle && it.beschreibung == beschreibung }) return true
         // Lange Kante 900, JPEG 0,6 -> grob 60-120 KB je Foto.
         val bilder = fotos.take(3).map { ProfilDienst.datenURL(ProfilDienst.verkleinern(it, 900), 60) }
+        fun zeile(mitStelle: Boolean) = buildJsonObject {
+            put("vehicle_id", id); put("report_date", heute); put("part_name", stelle); put("description", beschreibung)
+            put("image_url", bilder.firstOrNull()?.let { JsonPrimitive(it) } ?: JsonNull)
+            put("image_urls", buildJsonArray { bilder.forEach { add(JsonPrimitive(it)) } })
+            put("reported_by_driver", true)
+            if (mitStelle && genau != null) put("stelle", genau)
+        }
         return try {
-            Backend.client.from("vehicle_damages").insert(buildJsonObject {
-                put("vehicle_id", id); put("report_date", heute); put("part_name", stelle); put("description", beschreibung)
-                put("image_url", bilder.firstOrNull()?.let { JsonPrimitive(it) } ?: JsonNull)
-                put("image_urls", buildJsonArray { bilder.forEach { add(JsonPrimitive(it)) } })
-                put("reported_by_driver", true)
-            })
+            try {
+                Backend.client.from("vehicle_damages").insert(zeile(true))
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException || genau == null) throw e
+                // Spalte stelle noch nicht ausgerollt: ohne Punkt speichern statt die Meldung zu verlieren.
+                Backend.client.from("vehicle_damages").insert(zeile(false))
+            }
             schaedenLaden()
             true
         } catch (e: Exception) {

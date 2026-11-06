@@ -493,6 +493,7 @@ struct SchadensBerichtDispo: View {
         let image_urls: [String]?
         let reported_by_driver: Bool?
         let reported_by: String?
+        let stelle: SchadenStelle?
         /// blob:-Adressen stammen aus einem alten Fehler der Web-App, das Bild gibt es nicht.
         var bilder: [String] { (image_urls?.isEmpty == false ? image_urls! : [image_url].compactMap { $0 }).filter { !$0.isEmpty && !$0.hasPrefix("blob:") } }
         var datum: String {
@@ -522,11 +523,25 @@ struct SchadensBerichtDispo: View {
                         }
                     }
                     .padding(.bottom, 6)
-                    Text((s.part_name ?? "").uppercased()).font(.grotesk(11, .bold)).tracking(-0.5)
-                        .foregroundStyle(Color(hex: 0x1D1C1C)).padding(.bottom, 4)
-                    Text(s.description ?? "").font(.grotesk(14, .bold)).tracking(-0.5)
-                        .foregroundStyle(Color(hex: 0x1D1C1C))
-                        .fixedSize(horizontal: false, vertical: true).padding(.bottom, 10)
+                    HStack(alignment: .top, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text((s.part_name ?? "").uppercased()).font(.grotesk(11, .bold)).tracking(-0.5)
+                                .foregroundStyle(Color(hex: 0x1D1C1C)).padding(.bottom, 4)
+                            Text(s.description ?? "").font(.grotesk(14, .bold)).tracking(-0.5)
+                                .foregroundStyle(Color(hex: 0x1D1C1C))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if let st = s.stelle {
+                            VStack(spacing: 4) {
+                                FahrzeugSkizze.Ansicht(punkt: st.punkt, hoehe: 110)
+                                if st.geschaetzt == true {
+                                    Text("ungefähre Stelle").font(.grotesk(9)).foregroundStyle(Color(hex: 0x71717B))
+                                }
+                            }
+                        }
+                    }
+                    .padding(.bottom, 10)
                     if !s.bilder.isEmpty {
                         HStack(spacing: 4) {
                             ForEach(s.bilder, id: \.self) { url in

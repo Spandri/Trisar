@@ -125,8 +125,8 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
 
         if (meldenOffen) {
             Vollbild {
-                SchadenMeldenSeite(schliessen = { meldenOffen = false }) { stelle, beschreibung, fotos ->
-                    val ok = daten.melden(stelle, beschreibung, fotos)
+                SchadenMeldenSeite(schliessen = { meldenOffen = false }) { stelle, beschreibung, fotos, genau ->
+                    val ok = daten.melden(stelle, beschreibung, fotos, genau)
                     if (ok) meldenOffen = false
                     ok
                 }
@@ -195,8 +195,13 @@ private fun SchadensBericht(schaeden: List<FahrzeugDaten.Schaden>, melden: () ->
         schaeden.forEachIndexed { i, s ->
             Column(Modifier.padding(bottom = 10.dp)) {
                 Text(s.datum, style = grotesk(15f, 700, abstand = -0.5f, farbe = hex(0xDDDCDC)), modifier = Modifier.padding(bottom = 10.dp))
-                Text(s.stelle, style = grotesk(10f, 700, abstand = -0.5f, farbe = hex(0x1D1C1C)), modifier = Modifier.padding(bottom = 5.dp))
-                Text(s.beschreibung, style = grotesk(14f, 700, abstand = -0.5f, farbe = hex(0x1D1C1C)), modifier = Modifier.padding(bottom = 10.dp))
+                Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(s.stelle, style = grotesk(10f, 700, abstand = -0.5f, farbe = hex(0x1D1C1C)), modifier = Modifier.padding(bottom = 5.dp))
+                        Text(s.beschreibung, style = grotesk(14f, 700, abstand = -0.5f, farbe = hex(0x1D1C1C)))
+                    }
+                    s.punkt?.let { de.trisar.kern.FahrzeugSkizzeAnsicht(it, 96f) }
+                }
                 if (s.bilder.isNotEmpty()) {
                     Row(Modifier.padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         for (url in s.bilder) {

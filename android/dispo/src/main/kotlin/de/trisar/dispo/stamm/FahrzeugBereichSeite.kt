@@ -551,8 +551,19 @@ private fun SchadensBerichtDispo(fahrzeugID: String, modifier: Modifier) {
                 if (melder.isNotEmpty()) Text("gemeldet von $melder", style = grotesk(11f, 400, farbe = grau))
                 else if (text(s, "reported_by_driver") == "true") Text("vom Fahrer gemeldet", style = grotesk(11f, 400, farbe = grau))
             }
-            Text(text(s, "part_name").uppercase(), style = grotesk(11f, 700, abstand = -0.5f, farbe = dunkel), modifier = Modifier.padding(bottom = 4.dp))
-            Text(text(s, "description"), style = grotesk(14f, 700, abstand = -0.5f, farbe = dunkel), modifier = Modifier.padding(bottom = 10.dp))
+            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(text(s, "part_name").uppercase(), style = grotesk(11f, 700, abstand = -0.5f, farbe = dunkel), modifier = Modifier.padding(bottom = 4.dp))
+                    Text(text(s, "description"), style = grotesk(14f, 700, abstand = -0.5f, farbe = dunkel))
+                }
+                val stelle = s["stelle"] as? JsonObject
+                de.trisar.kern.FahrzeugSkizze.punkt(stelle)?.let { p ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        de.trisar.kern.FahrzeugSkizzeAnsicht(p, 110f)
+                        if (de.trisar.kern.FahrzeugSkizze.geschaetzt(stelle)) Text("ungefähre Stelle", style = grotesk(9f, 400, farbe = grau))
+                    }
+                }
+            }
             val b = bilder(s)
             if (b.isNotEmpty()) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {

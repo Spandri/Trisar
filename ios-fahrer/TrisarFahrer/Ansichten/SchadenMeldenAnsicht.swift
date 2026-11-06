@@ -8,7 +8,7 @@ import UIKit
 struct SchadenMeldenAnsicht: View {
     var schliessen: () -> Void
     /// Stelle ("VL – Felge"), Beschreibung, Fotos. Liefert true bei Erfolg.
-    var melden: (String, String, [UIImage]) async -> Bool
+    var melden: (String, String, [UIImage], SchadenStelle?) async -> Bool
 
     @State private var fotos: [UIImage] = []
     @State private var punkt: Punkt?
@@ -143,7 +143,8 @@ struct SchadenMeldenAnsicht: View {
                     fokus = false
                     sendet = true
                     Task {
-                        _ = await melden(stelleName, text, fotos)
+                        _ = await melden(stelleName, text, fotos,
+                                         punkt.map { SchadenStelle(x: Double($0.x), y: Double($0.y), bauteil: bauteil) })
                         sendet = false
                     }
                 } label: {
@@ -210,27 +211,7 @@ struct SchadenMeldenAnsicht: View {
         return ZStack(alignment: .topLeading) {
             Canvas { k, _ in
                 k.scaleBy(x: s, y: s)
-                let schwarz = Color(hex: 0x1C1C1D)
-                for r in [CGRect(x: 5, y: 40, width: 13, height: 36), CGRect(x: 102, y: 40, width: 13, height: 36),
-                          CGRect(x: 5, y: 164, width: 13, height: 36), CGRect(x: 102, y: 164, width: 13, height: 36),
-                          CGRect(x: 6, y: 84, width: 14, height: 9), CGRect(x: 100, y: 84, width: 14, height: 9)] {
-                    k.fill(Path(r), with: .color(schwarz))
-                }
-                let koerper = Path(roundedRect: CGRect(x: 16, y: 4, width: 88, height: 232), cornerRadius: 24)
-                k.fill(koerper, with: .color(Color(hex: 0xF7F7F7)))
-                k.stroke(koerper, with: .color(schwarz), lineWidth: 3)
-                var vorne = Path(); vorne.addLines([CGPoint(x: 31, y: 100), CGPoint(x: 89, y: 100), CGPoint(x: 83, y: 72), CGPoint(x: 37, y: 72)]); vorne.closeSubpath()
-                var hinten = Path(); hinten.addLines([CGPoint(x: 31, y: 148), CGPoint(x: 89, y: 148), CGPoint(x: 83, y: 178), CGPoint(x: 37, y: 178)]); hinten.closeSubpath()
-                k.fill(vorne, with: .color(schwarz))
-                k.fill(hinten, with: .color(schwarz))
-                if let p = punkt {
-                    // Marke bleibt ganz im Bild (Radius 17 + 2 Rand).
-                    let x = min(Self.wagen.width - 19, max(19, p.x)), y = min(Self.wagen.height - 19, max(19, p.y))
-                    let ring = Path(ellipseIn: CGRect(x: x - 17, y: y - 17, width: 34, height: 34))
-                    k.fill(ring, with: .color(Color(hex: 0xE3F754)))
-                    k.stroke(ring, with: .color(schwarz), lineWidth: 2.5)
-                    k.fill(Path(ellipseIn: CGRect(x: x - 5, y: y - 5, width: 10, height: 10)), with: .color(schwarz))
-                }
+                FahrzeugSkizze.zeichnen(k, punkt: punkt.map { CGPoint(x: $0.x, y: $0.y) })
             }
         }
         .frame(width: breite, height: Self.feldHoehe)

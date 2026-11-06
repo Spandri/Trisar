@@ -13,6 +13,7 @@ final class FahrzeugDaten: ObservableObject {
         let stelle: String
         let beschreibung: String
         let bilder: [String]
+        var punkt: CGPoint? = nil
     }
 
     struct TelemetrieZeile: Identifiable, Equatable {
@@ -123,18 +124,19 @@ final class FahrzeugDaten: ObservableObject {
         let description: String?
         let image_url: String?
         let image_urls: [String]?
+        let stelle: SchadenStelle?
     }
 
     func schaedenLaden() async {
         guard let id = fahrzeugID else { schaeden = []; return }
         guard let zeilen: [SchadenZeile] = try? await Backend.client.from("vehicle_damages")
-            .select("id,report_date,part_name,description,image_url,image_urls")
+            .select("*")
             .eq("vehicle_id", value: id).order("report_date", ascending: false).execute().value else { return }
         schaeden = zeilen.map { z in
             let bilder = (z.image_urls?.isEmpty == false ? z.image_urls! : [z.image_url].compactMap { $0 })
                 .filter { !$0.isEmpty && !$0.hasPrefix("blob:") }
             return Schaden(id: z.id, datum: Self.datumKurz(z.report_date ?? ""), stelle: z.part_name ?? "",
-                           beschreibung: z.description ?? "", bilder: bilder)
+                           beschreibung: z.description ?? "", bilder: bilder, punkt: z.stelle?.punkt)
         }
     }
 
@@ -147,7 +149,7 @@ final class FahrzeugDaten: ObservableObject {
 
     /// addVehicleDamage der Web-App. Fotos: Es gibt (noch) keinen Storage-Bucket, darum
     /// verkleinert als data-URL in image_urls (die Web-App zeigt sie so direkt an).
-    func melden(stelle: String, beschreibung: String, fotos: [UIImage]) async -> Bool {
+    func melden(stelle: String, beschreibung: String, fotos: [UIImage], genau: SchadenStelle? = nil) async -> Bool {
         guard let id = fahrzeugID else { fehler = "Kein Fahrzeug zugeteilt."; return false }
         let heute = Datum.tagWert(Date())
         let heuteKurz = Self.datumKurz(heute)
@@ -157,11 +159,29 @@ final class FahrzeugDaten: ObservableObject {
         struct Neu: Encodable {
             let vehicle_id: UUID; let report_date: String; let part_name: String; let description: String
             let image_url: String?; let image_urls: [String]; let reported_by_driver: Bool
+            let stelle: SchadenStelle?
+            enum CodingKeys: String, CodingKey { case vehicle_id, report_date, part_name, description, image_url, image_urls, reported_by_driver, stelle }
+            func encode(to e: Encoder) throws {
+                var c = e.container(keyedBy: CodingKeys.self)
+                try c.encode(vehicle_id, forKey: .vehicle_id); try c.encode(report_date, forKey: .report_date)
+                try c.encode(part_name, forKey: .part_name); try c.encode(description, forKey: .description)
+                try c.encode(image_url, forKey: .image_url); try c.encode(image_urls, forKey: .image_urls)
+                try c.encode(reported_by_driver, forKey: .reported_by_driver)
+                // Ohne Stelle das Feld weglassen (aeltere Datenbank kennt die Spalte evtl. noch nicht).
+                if let stelle { try c.encode(stelle, forKey: .stelle) }
+            }
         }
         do {
-            try await Backend.client.from("vehicle_damages").insert(Neu(
-                vehicle_id: id, report_date: heute, part_name: stelle, description: beschreibung,
-                image_url: bilder.first, image_urls: bilder, reported_by_driver: true)).execute()
+            let neu = Neu(vehicle_id: id, report_date: heute, part_name: stelle, description: beschreibung,
+                          image_url: bilder.first, image_urls: bilder, reported_by_driver: true, stelle: genau)
+            do {
+                try await Backend.client.from("vehicle_damages").insert(neu).execute()
+            } catch where genau != nil {
+                // Spalte stelle noch nicht ausgerollt: ohne Punkt speichern statt die Meldung zu verlieren.
+                try await Backend.client.from("vehicle_damages").insert(Neu(
+                    vehicle_id: id, report_date: heute, part_name: stelle, description: beschreibung,
+                    image_url: bilder.first, image_urls: bilder, reported_by_driver: true, stelle: nil)).execute()
+            }
             await schaedenLaden()
             return true
         } catch {

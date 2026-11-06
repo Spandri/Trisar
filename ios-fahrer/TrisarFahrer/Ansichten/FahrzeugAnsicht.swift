@@ -65,8 +65,8 @@ private struct FahrzeugInhalt: View {
         .task { await daten.starten(fahrzeugID: speicher.fahrzeug?.id) }
         .onDisappear { Task { await daten.beenden() } }
         .webVollbild(isPresented: $meldenOffen) {
-            SchadenMeldenAnsicht(schliessen: { meldenOffen = false }) { stelle, beschreibung, fotos in
-                let ok = await daten.melden(stelle: stelle, beschreibung: beschreibung, fotos: fotos)
+            SchadenMeldenAnsicht(schliessen: { meldenOffen = false }) { stelle, beschreibung, fotos, genau in
+                let ok = await daten.melden(stelle: stelle, beschreibung: beschreibung, fotos: fotos, genau: genau)
                 if ok { meldenOffen = false }
                 return ok
             }
@@ -159,9 +159,16 @@ private struct FahrzeugInhalt: View {
             ForEach(Array(schaeden.enumerated()), id: \.element.id) { i, s in
                 VStack(alignment: .leading, spacing: 0) {
                     Text(s.datum).grotesk(15, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0xDDDCDC)).padding(.bottom, 10)
-                    Text(s.stelle).grotesk(10, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1D1C1C)).padding(.bottom, 5)
-                    Text(s.beschreibung).grotesk(14, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1D1C1C))
-                        .fixedSize(horizontal: false, vertical: true).padding(.bottom, 10)
+                    HStack(alignment: .top, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(s.stelle).grotesk(10, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1D1C1C)).padding(.bottom, 5)
+                            Text(s.beschreibung).grotesk(14, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1D1C1C))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if let p = s.punkt { FahrzeugSkizze.Ansicht(punkt: p, hoehe: 96) }
+                    }
+                    .padding(.bottom, 10)
                     if !s.bilder.isEmpty {
                         HStack(spacing: 4) {
                             ForEach(s.bilder, id: \.self) { url in

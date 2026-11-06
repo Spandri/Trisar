@@ -68,6 +68,31 @@ const datumKurz = (wert) => {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
 };
 
+// Aufsicht des Fahrzeugs (Front oben, 120 x 240) mit Marke, wie WagenAufsicht der Fahrer-App.
+function FahrzeugSkizze({ stelle, hoehe = 110 }) {
+  const x = Math.min(101, Math.max(19, Number(stelle?.x)));
+  const y = Math.min(221, Math.max(19, Number(stelle?.y)));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return (
+    <div className="flex flex-col items-center shrink-0">
+      <svg viewBox="0 0 120 240" style={{ height: `${hoehe}px`, width: `${(hoehe * 120) / 240}px` }}>
+        <rect x="5" y="40" width="13" height="36" fill="#1c1c1d" />
+        <rect x="102" y="40" width="13" height="36" fill="#1c1c1d" />
+        <rect x="5" y="164" width="13" height="36" fill="#1c1c1d" />
+        <rect x="102" y="164" width="13" height="36" fill="#1c1c1d" />
+        <rect x="6" y="84" width="14" height="9" fill="#1c1c1d" />
+        <rect x="100" y="84" width="14" height="9" fill="#1c1c1d" />
+        <rect x="16" y="4" width="88" height="232" rx="24" fill="#f7f7f7" stroke="#1c1c1d" strokeWidth="3" />
+        <path d="M31 100 L89 100 L83 72 L37 72 Z" fill="#1c1c1d" />
+        <path d="M31 148 L89 148 L83 178 L37 178 Z" fill="#1c1c1d" />
+        <circle cx={x} cy={y} r="17" fill="#e3f754" stroke="#1c1c1d" strokeWidth="2.5" />
+        <circle cx={x} cy={y} r="5" fill="#1c1c1d" />
+      </svg>
+      {stelle?.geschaetzt && <span className="text-[#71717b] text-[9px] mt-1">ungefähre Stelle</span>}
+    </div>
+  );
+}
+
 // Schadensbericht wie in der Fahrer-App (VehicleView), fuer die Dispo nur zum Lesen.
 // Fotos oeffnen sich gross in einem neuen Tab.
 function SchadensBericht({ schaeden, blockRef }) {
@@ -92,8 +117,13 @@ function SchadensBericht({ schaeden, blockRef }) {
                 </span>
               )}
             </div>
-            <div className="text-[#1d1c1c] text-[11px] font-bold tracking-[-0.5px] mb-[4px] uppercase">{schaden.part_name || ''}</div>
-            <div className="text-[#1d1c1c] text-[14px] font-bold tracking-[-0.5px] mb-[10px] whitespace-pre-wrap">{schaden.description}</div>
+            <div className="flex gap-[14px] mb-[10px]">
+              <div className="flex-1 min-w-0">
+                <div className="text-[#1d1c1c] text-[11px] font-bold tracking-[-0.5px] mb-[4px] uppercase">{schaden.part_name || ''}</div>
+                <div className="text-[#1d1c1c] text-[14px] font-bold tracking-[-0.5px] whitespace-pre-wrap">{schaden.description}</div>
+              </div>
+              {schaden.stelle ? <FahrzeugSkizze stelle={schaden.stelle} /> : null}
+            </div>
             {bilder.length > 0 && (
               <div className="flex gap-[4px] mb-[10px]">
                 {bilder.map((url) => (
