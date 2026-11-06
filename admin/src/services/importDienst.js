@@ -41,14 +41,39 @@ const blaetterLesen = (b64, dateiname) => {
   const roh = atob(b64);
   const bytes = Uint8Array.from(roh, (c) => c.charCodeAt(0));
   const istTabelle = (bytes[0] === 0x50 && bytes[1] === 0x4b) || (bytes[0] === 0xd0 && bytes[1] === 0xcf) || /\.(xlsx|xlsm|xls|ods)$/i.test(dateiname);
-  const lesen = (mappe) => mappe.SheetNames.map((n) => ({
-    name: n,
-    zeilen: XLSX.utils.sheet_to_json(mappe.Sheets[n], { header: 1, blankrows: false, defval: '', raw: true }),
-  })).filter((b) => b.zeilen.length);
-  if (istTabelle) return lesen(XLSX.read(bytes, { type: 'array', cellDates: true, UTC: true }));
+  // Wie auf dem Server (import.ts): Datums- und Zeitzellen als Excel-Zahl ohne Zeitzone umrechnen,
+  // sonst ist die Uhrzeit eine Stunde zu frueh.
+  const p2 = (n) => String(n).padStart(2, '0');
+  const excelText = (wert) => {
+    const tage = Math.floor(wert + 1e-9);
+    const minuten = Math.round((wert - tage) * 1440) % 1440;
+    const zeit = `${p2(Math.floor(minuten / 60))}:${p2(minuten % 60)}`;
+    if (tage < 1) return zeit;
+    const d = new Date(Date.UTC(1899, 11, 30) + tage * 86400000);
+    const datum = `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
+    return minuten ? `${datum} ${zeit}` : datum;
+  };
+  const blattZeilen = (blatt) => {
+    if (!blatt?.['!ref']) return [];
+    const bereich = XLSX.utils.decode_range(blatt['!ref']);
+    const zeilen = [];
+    for (let r = bereich.s.r; r <= Math.min(bereich.e.r, bereich.s.r + 2000); r += 1) {
+      const zeile = [];
+      for (let c = bereich.s.c; c <= bereich.e.c; c += 1) {
+        const zelle = blatt[XLSX.utils.encode_cell({ r, c })];
+        if (!zelle || zelle.v == null) zeile.push('');
+        else if (zelle.t === 'n' && zelle.z && XLSX.SSF.is_date(zelle.z)) zeile.push(excelText(zelle.v));
+        else zeile.push(zelle.v);
+      }
+      if (zeile.some((w) => K.text(w))) zeilen.push(zeile);
+    }
+    return zeilen;
+  };
+  const lesen = (mappe) => mappe.SheetNames.map((n) => ({ name: n, zeilen: blattZeilen(mappe.Sheets[n]) })).filter((b) => b.zeilen.length);
+  if (istTabelle) return lesen(XLSX.read(bytes, { type: 'array', cellDates: false, cellNF: true }));
   let inhalt;
   try { inhalt = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { inhalt = new TextDecoder('windows-1252').decode(bytes); }
-  inhalt = inhalt.replace(/^﻿/, '');
+  inhalt = inhalt.replace(/^\uFEFF/, '');
   return lesen(XLSX.read(inhalt, { type: 'string', raw: true, FS: trennzeichen(inhalt) }));
 };
 
