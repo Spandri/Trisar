@@ -673,6 +673,7 @@ private struct KarteZurueck: View {
         }
         .buttonStyle(.web)
         .accessibilityLabel("Zurück")
+        .zurueckPerWischen(aktion)
     }
 }
 

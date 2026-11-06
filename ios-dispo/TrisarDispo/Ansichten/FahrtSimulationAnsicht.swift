@@ -269,6 +269,7 @@ struct FahrtSimulationAnsicht: View {
         }
         .buttonStyle(.web)
         .accessibilityLabel("Zurück")
+        .zurueckPerWischen(zurueck)
         .platz(20, 60, 50, 50)
 
         Text(NebenRisiko.datumText(entry.dayIso)).font(.grotesk(16, .bold)).tracking(0.5).foregroundStyle(Self.lime)

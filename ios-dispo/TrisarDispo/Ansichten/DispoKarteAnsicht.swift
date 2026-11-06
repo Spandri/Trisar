@@ -145,6 +145,7 @@ struct DispoKarteAnsicht: View {
             }
             .buttonStyle(.web)
             .accessibilityLabel("Zurück")
+            .zurueckPerWischen { zeigen(.start) }
             .platz(20, 60, 50, 50)
 
             Button { filterOffen = true } label: {
@@ -518,6 +519,7 @@ private struct FahrerProfilFenster: View {
                 }
                 .buttonStyle(.web)
                 .accessibilityLabel("Zurück")
+                .zurueckPerWischen(schliessen)
                 .padding(.bottom, 18)
 
                 VStack(spacing: 0) {

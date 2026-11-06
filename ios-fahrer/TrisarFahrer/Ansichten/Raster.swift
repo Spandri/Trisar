@@ -112,6 +112,10 @@ struct ProfilKnopf: View {
 struct ZurueckKnopf: View {
     let aktion: () -> Void
     var body: some View {
+        knopf.zurueckPerWischen(aktion)
+    }
+
+    private var knopf: some View {
         Button(action: aktion) {
             ZStack(alignment: .topLeading) {
                 Circle().stroke(Color(hex: 0x747474), lineWidth: 1).frame(width: 50, height: 50)
@@ -179,6 +183,7 @@ private struct TastaturSchliesser: UIViewRepresentable {
         override func didMoveToWindow() {
             super.didMoveToWindow()
             TastaturSicht.einrichten()
+            if let fenster = window { RandWischen.einrichten(fenster) }
             guard let fenster = window,
                   !(fenster.gestureRecognizers ?? []).contains(where: { $0.name == Self.kennung }) else { return }
             let tipp = UITapGestureRecognizer(target: self, action: #selector(getippt))
@@ -268,5 +273,74 @@ enum TastaturSicht {
         if v.isFirstResponder { return v }
         for u in v.subviews { if let f = ersterAntworter(in: u) { return f } }
         return nil
+    }
+}
+
+// MARK: - Vom linken Rand wischen = Zurueck
+
+/// Wie in anderen iPhone-Apps: vom linken Bildschirmrand nach rechts wischen macht dasselbe
+/// wie der Zurueck-Knopf. Jeder sichtbare Zurueck-Knopf meldet sich hier an, das Wischen
+/// loest den zuletzt erschienenen aus (die oberste Seite). Ohne Zurueck-Knopf passiert nichts.
+@MainActor enum RandWischen {
+    private static var stapel: [(id: UUID, aktion: () -> Void)] = []
+    private static let kennung = "trisar.randWischen"
+
+    static func anmelden(_ id: UUID, _ aktion: @escaping () -> Void) {
+        stapel.removeAll { $0.id == id }
+        stapel.append((id, aktion))
+    }
+
+    static func abmelden(_ id: UUID) { stapel.removeAll { $0.id == id } }
+
+    static func einrichten(_ fenster: UIWindow) {
+        guard !(fenster.gestureRecognizers ?? []).contains(where: { $0.name == kennung }) else { return }
+        let rand = UIScreenEdgePanGestureRecognizer(target: Ziel.shared, action: #selector(Ziel.gewischt))
+        rand.edges = .left
+        rand.name = kennung
+        rand.delegate = Ziel.shared
+        fenster.addGestureRecognizer(rand)
+    }
+
+    fileprivate static func ausloesen() {
+        guard let oben = stapel.last else { return }
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        oben.aktion()
+    }
+
+    final class Ziel: NSObject, UIGestureRecognizerDelegate {
+        static let shared = Ziel()
+
+        @objc func gewischt(_ g: UIScreenEdgePanGestureRecognizer) {
+            guard g.state == .ended, let v = g.view else { return }
+            let weg = g.translation(in: v).x, tempo = g.velocity(in: v).x
+            // Weit genug oder schnell genug nach rechts, wie beim System-Zurueck.
+            if weg > 70 || (weg > 25 && tempo > 400) {
+                MainActor.assumeIsolated { RandWischen.ausloesen() }
+            }
+        }
+
+        func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+            MainActor.assumeIsolated { !RandWischen.stapel.isEmpty }
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+    }
+}
+
+private struct ZurueckPerWischen: ViewModifier {
+    let aktion: () -> Void
+    @State private var id = UUID()
+    func body(content: Content) -> some View {
+        content
+            .onAppear { RandWischen.anmelden(id, aktion) }
+            .onDisappear { RandWischen.abmelden(id) }
+    }
+}
+
+extension View {
+    /// Diesen Zurueck-Knopf auch per Wischen vom linken Rand ausloesen.
+    func zurueckPerWischen(_ aktion: @escaping () -> Void) -> some View {
+        modifier(ZurueckPerWischen(aktion: aktion))
     }
 }

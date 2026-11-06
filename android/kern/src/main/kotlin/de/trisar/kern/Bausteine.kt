@@ -62,6 +62,9 @@ fun FussleisteUnten() {
 /** Zurueck-Knopf (ZurueckKnopf.jsx): 50er Kreis, grauer Rand, gedrehter Pfeil. */
 @Composable
 fun ZurueckKnopf(modifier: Modifier = Modifier, aktion: () -> Unit) {
+    // Wischen vom Rand (System-Zurueck) macht genau dasselbe wie dieser Knopf. Der zuletzt
+    // gezeigte Knopf gewinnt, also immer die oberste Seite.
+    androidx.activity.compose.BackHandler(onBack = aktion)
     Box(modifier.size(50.dp).border(1.dp, hex(0x747474), CircleShape).tippen(aktion)) {
         Icon("Arrow_Trisar_Icons_01_grau",
             Modifier.padding(start = 12.5.dp, top = 17.05.dp).size(26.14.dp, 15.91.dp).rotate(180f).scale(1.2f))

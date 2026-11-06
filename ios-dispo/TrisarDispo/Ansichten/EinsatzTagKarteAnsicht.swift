@@ -49,6 +49,7 @@ struct EinsatzTagKarteAnsicht: View {
                     .background(Circle().fill(.black)).clipShape(Circle())
             }
             .buttonStyle(.web).accessibilityLabel("Zurück")
+            .zurueckPerWischen(zurueck)
             Spacer(minLength: 0)
             Text(EinsatzUhr.tagKurz(tagIso)).font(.grotesk(16, .bold)).tracking(0.5).foregroundStyle(EinsatzFarbe.lime)
                 .lineLimit(1).fixedSize().padding(.horizontal, 18).frame(height: 50).background(Capsule().fill(.black))
