@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import SchadenMelden from './SchadenMelden';
+import SchadenMelden, { WagenAufsicht } from './SchadenMelden';
 import TrisarFooter from '../../../components/ui/TrisarFooter';
 import { USER_LOCATION_DOT_URL } from '../../../shared/ui/icons';
 import { ColorBadge, EnergyBadge, FuelBadge, SeatBadge } from '../../../shared/vehicleBadges';
@@ -186,18 +186,34 @@ const SchadensBericht = ({ damages = [], onMelden, blockRef }) => {
             {damage.date || datumKurz(damage.report_date) || ''}
           </div>
           
-          <div 
-            className="text-[#1d1c1c] text-[10px] font-bold tracking-[-0.5px] mb-[5px]"
-            style={{ fontFamily: 'Space Grotesk' }}
-          >
-            {damage.part || damage.part_name || ''}
-          </div>
-          
-          <div 
-            className="text-[#1d1c1c] text-[14px] font-bold tracking-[-0.5px] mb-[10px]"
-            style={{ fontFamily: 'Space Grotesk' }}
-          >
-            {damage.description}
+          <div className="flex gap-[10px] items-start">
+            <div className="flex-1 min-w-0">
+              <div 
+                className="text-[#1d1c1c] text-[10px] font-bold tracking-[-0.5px] mb-[5px]"
+                style={{ fontFamily: 'Space Grotesk' }}
+              >
+                {damage.part || damage.part_name || ''}
+              </div>
+              
+              <div 
+                className="text-[#1d1c1c] text-[14px] font-bold tracking-[-0.5px] mb-[10px] break-words"
+                style={{ fontFamily: 'Space Grotesk' }}
+              >
+                {damage.description}
+              </div>
+            </div>
+            {/* Genaue Stelle auf dem Auto. Alte Meldungen kennen nur den Bereich,
+                dort steht der Punkt in dessen Mitte und "ungefaehre Stelle" darunter. */}
+            {Number.isFinite(damage.stelle?.x) && Number.isFinite(damage.stelle?.y) ? (
+              <div className="flex flex-col items-center mb-[10px]">
+                <WagenAufsicht punkt={damage.stelle} hoehe={110} />
+                {damage.stelle.geschaetzt ? (
+                  <span className="text-[#9a9a9a] text-[10px] mt-[4px]" style={{ fontFamily: 'Space Grotesk' }}>
+                    {t('misc.damageSpotApprox')}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {(damage.image_urls?.length ? damage.image_urls : [damage.image_url].filter(Boolean)).length ? (
@@ -305,8 +321,8 @@ export default function VehicleView({ setView, vehicle, damages, onAddDamage }) 
     {meldenOffen ? (
       <SchadenMelden
         onClose={() => setMeldenOffen(false)}
-        onConfirm={({ stelle, beschreibung, fotos }) => {
-          onAddDamage?.(stelle, beschreibung, fotos);
+        onConfirm={({ stelle, beschreibung, fotos, genau }) => {
+          onAddDamage?.(stelle, beschreibung, fotos, genau);
           setMeldenOffen(false);
         }}
       />

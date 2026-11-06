@@ -2683,7 +2683,7 @@ const FahrerApp = () => {
     }
   }, [view, activeChat?.id, activeChat?.type, selectedJob?.convoyId, session?.user?.id]);
 
-  const addVehicleDamage = async (part, description, images) => {
+  const addVehicleDamage = async (part, description, images, genau = null) => {
     const bilder = Array.isArray(images) ? images.filter(Boolean) : [images].filter(Boolean);
     if (!currentVehicle?.id) return;
     const heute = new Date().toISOString().slice(0, 10);
@@ -2692,17 +2692,19 @@ const FahrerApp = () => {
     const schonGemeldet = vehicleDamages.some((d) => d.report_date === heute
       && d.part_name === part && d.description === description);
     if (schonGemeldet) return;
-    await supabase.from('vehicle_damages').insert([
-      {
-        vehicle_id: currentVehicle.id,
-        report_date: heute,
-        part_name: part,
-        description,
-        image_url: bilder[0] || null,
-        image_urls: bilder,
-        reported_by_driver: true,
-      },
-    ]);
+    const zeile = {
+      vehicle_id: currentVehicle.id,
+      report_date: heute,
+      part_name: part,
+      description,
+      image_url: bilder[0] || null,
+      image_urls: bilder,
+      reported_by_driver: true,
+    };
+    // Genaue Stelle auf dem Auto mitschicken. Kennt die Datenbank die Spalte noch
+    // nicht, die Meldung ohne sie trotzdem speichern.
+    const { error } = await supabase.from('vehicle_damages').insert([genau ? { ...zeile, stelle: genau } : zeile]);
+    if (error && genau) await supabase.from('vehicle_damages').insert([zeile]);
     const { data: damages } = await supabase.from('vehicle_damages').select('*').eq('vehicle_id', currentVehicle.id).order('report_date', { ascending: false });
     setVehicleDamages(damages || []);
   };

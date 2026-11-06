@@ -174,6 +174,7 @@ export default {
   "misc.damageSample3Part": "Sağ – Ayna",
   "misc.damageSpot": "Bölge",
   "misc.damageSpotHint": "Araca dokun",
+  "misc.damageSpotApprox": "yaklaşık bölge",
   "misc.email": "E-posta",
   "misc.endRide": "Yolculuğu bitir",
   "misc.endRideQuestion": "Bu yolculuğu neden bitirmek istiyorsunuz?",

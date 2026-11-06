@@ -4,7 +4,8 @@
 #
 # 1. Migrationen: reported_by (wer hat gemeldet) und stelle (genauer Punkt auf dem Auto)
 # 2. Web-Dispo: Schadensbericht auf "Fahrzeug bearbeiten" (FahrzeugErstellenView.jsx)
-# 3. Web-Fahrer: Fotos beim Schaden melden wirklich speichern (SchadenMelden.jsx)
+# 3. Web-Fahrer: Fotos und genaue Stelle speichern, Skizze im Schadensbericht
+#    (SchadenMelden.jsx, VehicleView.jsx, FahrerApp.jsx, Uebersetzungen)
 # Mehrfach ausfuehren schadet nicht.
 
 set -euo pipefail
@@ -43,7 +44,11 @@ kopieren() { # app datei container
 echo "2/3 Web-Dispo"
 kopieren admin src/components/views/FahrzeugErstellenView.jsx fahrer-app-lokal-admin-1
 echo "3/3 Web-Fahrer"
-kopieren fahrer src/features/fahrer/views/SchadenMelden.jsx fahrer-app-lokal-fahrer-1
+for f in src/features/fahrer/views/SchadenMelden.jsx src/features/fahrer/views/VehicleView.jsx \
+         src/features/fahrer/FahrerApp.jsx src/i18n/de.js src/i18n/en.js src/i18n/es.js \
+         src/i18n/fr.js src/i18n/it.js src/i18n/tr.js; do
+  kopieren fahrer "$f" fahrer-app-lokal-fahrer-1
+done
 
 ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"select count(*) || ' Schaden/Schaeden, ' || count(reported_by) || ' mit Fahrer, ' || count(stelle) || ' mit Stelle' from public.vehicle_damages\""
 echo "Fertig."

@@ -174,6 +174,7 @@ export default {
   "misc.damageSample3Part": "D – Retrovisor",
   "misc.damageSpot": "Zona",
   "misc.damageSpotHint": "Toca el vehículo",
+  "misc.damageSpotApprox": "zona aproximada",
   "misc.email": "Correo",
   "misc.endRide": "Finalizar viaje",
   "misc.endRideQuestion": "¿Por qué desea finalizar este viaje?",

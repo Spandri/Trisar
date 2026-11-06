@@ -174,6 +174,7 @@ export default {
   "misc.damageSample3Part": "R – Mirror",
   "misc.damageSpot": "Location",
   "misc.damageSpotHint": "Tap the vehicle",
+  "misc.damageSpotApprox": "approximate spot",
   "misc.email": "Email",
   "misc.endRide": "End ride",
   "misc.endRideQuestion": "Why do you want to end this ride?",

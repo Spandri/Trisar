@@ -174,6 +174,7 @@ export default {
   "misc.damageSample3Part": "Dx – Specchietto",
   "misc.damageSpot": "Zona",
   "misc.damageSpotHint": "Tocca il veicolo",
+  "misc.damageSpotApprox": "zona approssimativa",
   "misc.email": "E-mail",
   "misc.endRide": "Termina corsa",
   "misc.endRideQuestion": "Perché vuole terminare questa corsa?",

@@ -174,6 +174,7 @@ export default {
   "misc.damageSample3Part": "D – Rétro",
   "misc.damageSpot": "Zone",
   "misc.damageSpotHint": "Touchez le véhicule",
+  "misc.damageSpotApprox": "zone approximative",
   "misc.email": "E-mail",
   "misc.endRide": "Fin de course",
   "misc.endRideQuestion": "Pourquoi voulez-vous terminer cette course ?",

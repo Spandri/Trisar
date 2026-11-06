@@ -93,10 +93,12 @@ const feldFuer = (x, y) => {
   return { zeile: reihe.zeile, seite: spalte.seite };
 };
 
-const WagenAufsicht = ({ punkt, onWaehlen }) => {
+// Ohne onWaehlen nur zur Anzeige (Schadensbericht): kleiner, nicht antippbar.
+export const WagenAufsicht = ({ punkt, onWaehlen, hoehe = WAGEN_FELD_HOEHE }) => {
   const ref = useRef(null);
 
   const tippen = (e) => {
+    if (!onWaehlen) return;
     const flaeche = ref.current?.getBoundingClientRect();
     if (!flaeche || !flaeche.width) return;
     const x = ((e.clientX - flaeche.left) / flaeche.width) * WAGEN.breite;
@@ -110,8 +112,8 @@ const WagenAufsicht = ({ punkt, onWaehlen }) => {
       viewBox={`0 0 ${WAGEN.breite} ${WAGEN.hoehe}`}
       preserveAspectRatio="xMidYMid meet"
       onClick={tippen}
-      data-tutorial="schaden-stelle"
-      style={{ height: `${WAGEN_FELD_HOEHE}px`, width: `${(WAGEN_FELD_HOEHE * WAGEN.breite) / WAGEN.hoehe}px`, cursor: 'pointer' }}
+      data-tutorial={onWaehlen ? 'schaden-stelle' : undefined}
+      style={{ height: `${hoehe}px`, width: `${(hoehe * WAGEN.breite) / WAGEN.hoehe}px`, cursor: onWaehlen ? 'pointer' : 'default', flexShrink: 0 }}
     >
       {/* Raeder */}
       <rect x="5" y="40" width="13" height="36" fill="#1c1c1d" />
@@ -141,7 +143,7 @@ const WagenAufsicht = ({ punkt, onWaehlen }) => {
             height={WAGEN.hoehe / 3}
             fill="transparent"
             pointerEvents="none"
-            data-tutorial={`schaden-stelle-${reihe.zeile}-${spalte.seite}`}
+            data-tutorial={onWaehlen ? `schaden-stelle-${reihe.zeile}-${spalte.seite}` : undefined}
             onClick={(e) => {
               e.stopPropagation();
               onWaehlen({
@@ -480,7 +482,9 @@ const SchadenMelden = ({ onClose, onConfirm }) => {
           onClick={() => {
             if (!bereit) return;
             setTastaturOben(false);
-            onConfirm?.({ stelle: stelleName, beschreibung: text, fotos });
+            // Genaue Stelle fuer Dispo und Fahrzeugseite: Aufsicht 120 x 240, Front oben.
+            const genau = { x: punkt.x, y: punkt.y, ...(bauteil ? { bauteil } : {}) };
+            onConfirm?.({ stelle: stelleName, beschreibung: text, fotos, genau });
           }}
         >
           <span
