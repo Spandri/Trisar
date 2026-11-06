@@ -31,6 +31,9 @@ final class FahrzeugDaten: ObservableObject {
 
     @Published private(set) var ausstattung = ""
     @Published private(set) var standort: CLLocationCoordinate2D?
+    /// Quelle des Standorts (source in driver_live_locations: teltonika_fmb010 oder App) und Zeitpunkt.
+    @Published private(set) var standortQuelle = ""
+    @Published private(set) var standortZeit: Date?
     @Published private(set) var schaeden: [Schaden] = []
     @Published private(set) var telemetrie: [TelemetrieZeile] = []
     @Published private(set) var ereignisse: [Ereignis] = []
@@ -69,7 +72,10 @@ final class FahrzeugDaten: ObservableObject {
         }
         try? await kanal.subscribeWithError()
         takt = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in await self?.telemetrieLaden() }
+            Task { @MainActor in
+                await self?.telemetrieLaden()
+                await self?.standortLaden()
+            }
         }
     }
 
@@ -98,19 +104,19 @@ final class FahrzeugDaten: ObservableObject {
         ausstattung = z.first?.trim ?? ""
     }
 
-    /// Web: letzter OBD-Standort des Fahrers (Quelle Teltonika/Tracker), ohne den keine Karte.
+    /// Standort fuer die Karte. driver_live_locations hat eine Zeile je Fahrer, die schreibt
+    /// zuletzt entweder das Teltonika-Gateway (OBD-Tracker) oder die Fahrer-App (Handy-GPS).
+    /// OBD bevorzugt, sonst Handy. Quelle und Alter stehen als Chip an der Karte.
     private func standortLaden() async {
-        struct Zeile: Decodable { let lat: Double?; let lng: Double?; let source: String? }
+        struct Zeile: Decodable { let lat: Double?; let lng: Double?; let source: String?; let captured_at: String?; let updated_at: String? }
         guard let zeilen: [Zeile] = try? await Backend.client.from("driver_live_locations")
-            .select("lat,lng,source").eq("driver_id", value: fahrerID).limit(5).execute().value else { return }
-        // OBD-Standort bevorzugt, sonst der Handy-Standort: Bei Ortungsart "Handy-App"
-        // ueberschreibt das Handy den Eintrag, dann gab es vorher gar keine Karte.
-        let obd = zeilen.first {
-            ($0.source ?? "").range(of: "teltonika|fmb\\d*|obd|telematik|telematics|tracker", options: [.regularExpression, .caseInsensitive]) != nil
-        }
+            .select("lat,lng,source,captured_at,updated_at").eq("driver_id", value: fahrerID).limit(5).execute().value else { return }
+        let obd = zeilen.first { StandortChip.istObd($0.source ?? "") }
         if let z = obd ?? zeilen.first, let lat = z.lat, let lng = z.lng {
             let neu = CLLocationCoordinate2D(latitude: lat, longitude: lng)
             standort = neu
+            standortQuelle = z.source ?? ""
+            standortZeit = (z.captured_at ?? z.updated_at).flatMap(Datum.ausISO)
             UserDefaults.standard.set([lat, lng], forKey: Self.standortSchluessel)
         }
     }

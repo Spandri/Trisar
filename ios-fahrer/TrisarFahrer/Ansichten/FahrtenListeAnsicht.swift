@@ -10,10 +10,13 @@ struct FahrtenListeAnsicht: View {
     var oeffneFahrt: (Fahrt) -> Void
 
     @State private var ablehnenFahrt: Fahrt?
+    /// Neu zeichnen, wenn ein Fahrzeugbild nicht laedt (Karte/Block werden kuerzer).
+    @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
 
     // Konstanten aus FahrtenScreen01View.jsx
     private let versatz: CGFloat = 20            // <div className="absolute left-0 top-[20px]">
-    private let fahrzeugUnterkante: CGFloat = 118 + 268
+    /// Fahrzeugkarte top 118, Hoehe je nach vorhandenen Angaben (mit allem 268).
+    private var fahrzeugUnterkante: CGFloat { 118 + FahrzeugKarte.hoehe(speicher.fahrzeug) }
     private let kartenAbstand: CGFloat = 12
     private let knopfAbstand: CGFloat = 12
     private let knopfHoehe: CGFloat = 51
@@ -40,7 +43,7 @@ struct FahrtenListeAnsicht: View {
                                   titel: speicher.fahrzeug?.license_plate ?? "Kein Kennzeichen")
                 }
                 .buttonStyle(.web)
-                .platz(20, versatz + 118, 362, 268)
+                .platz(20, versatz + 118, 362, FahrzeugKarte.hoehe(speicher.fahrzeug))
 
                 ForEach(raster.zeilen, id: \.datum) { zeile in
                     Tageszeile(datum: zeile.datum).platz(20, versatz + zeile.oben, 362, tagHoehe)

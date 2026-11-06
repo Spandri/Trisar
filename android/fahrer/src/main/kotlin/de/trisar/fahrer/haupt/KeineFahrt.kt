@@ -67,7 +67,7 @@ internal fun KeineFahrtSeite(
             )
 
             if (fahrzeug != null) {
-                FahrzeugKarte(fahrzeug, fahrzeug.brand_model.orEmpty(), Modifier.platz(20f, 462f).tippen(oeffneFahrzeug), bildOben = 55.57f)
+                FahrzeugKarte(fahrzeug, listOf(fahrzeug.brand_model, fahrzeug.license_plate).map { it?.trim().orEmpty() }.firstOrNull { it.isNotEmpty() }.orEmpty(), Modifier.platz(20f, 462f).tippen(oeffneFahrzeug), bildOben = 55.57f)
             } else {
                 Box(Modifier.platz(20f, 432f, 362f, 40f), contentAlignment = Alignment.CenterStart) {
                     Text("Komm später nochmal", style = grotesk(34f, 500, abstand = -0.5f), maxLines = 1)

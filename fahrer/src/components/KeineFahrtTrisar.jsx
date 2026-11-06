@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import TrisarFooter from './ui/TrisarFooter';
 import { TOP_RIGHT_TEAM_URL, TRISAR_LOGO_URL } from '../shared/ui/icons';
-import { ColorBadge, EnergyBadge, FuelBadge, SeatBadge } from '../shared/vehicleBadges';
+import { FahrzeugKarte } from '../shared/FahrzeugKarte';
 
 const screenBg = {
   backgroundImage:
@@ -11,10 +11,8 @@ const screenBg = {
 
 export default function KeineFahrtTrisar({ currentVehicle, onLogout, onOpenProfile, onOpenVehicle }) {
   const [scale, setScale] = useState(1);
-  const carName = currentVehicle?.brand_model || 'M PM 3214';
-  const vin = currentVehicle?.vin || '12345678910121314';
-  const image = currentVehicle?.image_url || '';
-  const fuelType = currentVehicle?.fuel_type || '';
+  // Ueberschrift: Modell, ohne Modell das Kennzeichen (keine erfundenen Werte).
+  const carName = currentVehicle?.brand_model || currentVehicle?.license_plate || '';
 
   useEffect(() => {
     const updateScale = () => {
@@ -49,41 +47,13 @@ export default function KeineFahrtTrisar({ currentVehicle, onLogout, onOpenProfi
             Hey aktuell gibt es keine Fahrt für dich!
           </h1>
 
-          <div
-            className={`absolute left-5 top-[462px] w-[362px] h-[268px] bg-white${onOpenVehicle ? ' cursor-pointer' : ''}`}
+          <FahrzeugKarte
+            vehicle={currentVehicle}
+            titel={carName}
+            bildOben={55.57}
+            top={462}
             onClick={onOpenVehicle}
-            role={onOpenVehicle ? 'button' : undefined}
-          >
-            <h2 className="absolute inset-x-0 h-[36.68px] text-center text-[#1c1c1d] text-[30px] leading-none tracking-[-0.5px] font-bold" style={{ top: '15.29px' }}>
-              {carName}
-            </h2>
-            <p className="absolute z-10 text-center text-[13px] inset-x-0 whitespace-nowrap" style={{ top: '51.97px' }}>
-              <span className="text-[rgba(28,28,29,0.15)] font-bold">VIN  </span>
-              <span className="text-[rgba(28,28,29,0.15)] tracking-[2px]">{vin}</span>
-            </p>
-
-            <div className="absolute" style={{ left: '63.9px', top: '55.57px', width: '234.53px', height: '114.91px' }}>
-              {image ? (
-                <img src={image} alt={carName} className="w-full h-full object-contain" />
-              ) : (
-                <div className="w-full h-full bg-[#ececec]" />
-              )}
-            </div>
-
-            {/* 4 Kacheln – identisch zur Admin-Fahrzeugliste (gemeinsames Badge-Modul) */}
-            <div className="absolute flex items-center gap-[16px]" style={{ left: '53px', top: '195.65px' }}>
-              <FuelBadge fuelType={fuelType} size={52} />
-              <ColorBadge color={currentVehicle?.color} size={52} />
-              <EnergyBadge
-                fuelType={fuelType}
-                seed={vin}
-                fillPercent={currentVehicle?.battery_fuel_percent}
-                fullRangeKm={currentVehicle?.range_km}
-                size={52}
-              />
-              <SeatBadge seatCount={currentVehicle?.seat_count} size={52} />
-            </div>
-          </div>
+          />
 
           <button
             type="button"

@@ -12,7 +12,7 @@ import {
   TOP_RIGHT_TEAM_URL,
   TRISAR_LOGO_URL,
 } from '../../../shared/ui/icons';
-import { ColorBadge, EnergyBadge, FuelBadge, SeatBadge } from '../../../shared/vehicleBadges';
+import { FahrzeugKarte } from '../../../shared/FahrzeugKarte';
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
@@ -105,7 +105,9 @@ const getDisplayLocationName = (location, fallback = '') => {
   return fallback;
 };
 
-const VEHICLE_CARD_BOTTOM = 118 + 268; // Fahrzeugkarte: top 118, Hoehe 268
+// Fahrzeugkarte: top 118, Hoehe 268 mit allen Angaben, ohne Bild/VIN/Kacheln kuerzer.
+const VEHICLE_CARD_TOP = 118;
+const VEHICLE_CARD_HEIGHT = 268;
 const CARD_HEIGHT = 187;
 
 // Kartenhoehe: 187 reicht fuer zwei Zeilen Ortsname. Laengere Namen machen die Karte
@@ -153,8 +155,6 @@ const DAY_DIVIDER_GAP_BOTTOM = 56;
 const DAY_DIVIDER_BLOCK = DAY_DIVIDER_GAP_TOP + DAY_DIVIDER_HEIGHT + DAY_DIVIDER_GAP_BOTTOM;
 // Ganz oben steht immer eine Tageszeile (ueber der Dienstanfrage oder der ersten
 // Fahrt), mit gleicher Luft darueber wie darunter. Die erste Karte folgt danach.
-const FIRST_DIVIDER_TOP = VEHICLE_CARD_BOTTOM + DAY_DIVIDER_GAP_BOTTOM;
-const LIST_START_TOP = FIRST_DIVIDER_TOP + DAY_DIVIDER_HEIGHT + DAY_DIVIDER_GAP_BOTTOM;
 const FIXED_FOOTER_HEIGHT = 40;
 const FIXED_FOOTER_CLEARANCE = 64;
 // Dienstplan-Anfrage: 19 Luft + 38 Dienststart + 20 Abstand + 24 Dienstende
@@ -210,7 +210,7 @@ const tagSchluessel = (job) => {
 // (Linie — Wochentag Datum — Linie), darunter die Dienstzeiten dieses Tages und
 // danach seine Fahrten. So gehoert die Dienstplan-Anfrage sichtbar zu dem Tag,
 // fuer den sie gilt, statt pauschal ganz oben zu stehen.
-const buildListenLayout = (jobs, anfragen) => {
+const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEIGHT) => {
   const anfragenProTag = new Map();
   (anfragen || []).forEach((request) => {
     const tag = String(request?.date || '').slice(0, 10);
@@ -223,7 +223,7 @@ const buildListenLayout = (jobs, anfragen) => {
   const dienste = [];
   const fahrten = [];
   const offeneTage = new Set(anfragenProTag.keys());
-  let cursorTop = FIRST_DIVIDER_TOP;
+  let cursorTop = VEHICLE_CARD_TOP + fahrzeugKarteHoehe + DAY_DIVIDER_GAP_BOTTOM;
 
   const tagBeginnen = (tag, istErster) => {
     if (!istErster) cursorTop += DAY_DIVIDER_GAP_TOP;
@@ -423,53 +423,18 @@ const RideCard = ({ job, layout, topOffset = 0, onOpen, onAction, onSheetOpen, a
   );
 };
 
-const VehicleBlock = ({ vehicle, onOpen }) => {
+const VehicleBlock = ({ vehicle, onOpen, onHoehe }) => {
   const { t } = useI18n();
-  const plateNumber = vehicle?.license_plate || t('screens.noPlate');
-  const vin = vehicle?.vin || '';
-  const image = vehicle?.image_url || '';
-  const fuelType = vehicle?.fuel_type || '';
-
   return (
-    <button
-      type="button"
+    <FahrzeugKarte
+      vehicle={vehicle}
+      titel={vehicle?.license_plate || t('screens.noPlate')}
+      top={118}
       onClick={onOpen}
-      className="absolute left-5 top-[118px] w-[362px] h-[268px] bg-white text-left cursor-pointer"
+      onHoehe={onHoehe}
       aria-label={t('screens.openVehicle')}
       data-tutorial="fahrzeugkarte"
-    >
-      <h2
-        className="absolute inset-x-0 h-[36.68px] text-center text-[#1c1c1d] text-[30px] leading-none tracking-[-0.5px] font-bold"
-        style={{ top: '15.29px' }}
-      >
-        {plateNumber}
-      </h2>
-      <p
-        className="absolute z-10 text-center text-[13px] inset-x-0 whitespace-nowrap"
-        style={{ top: '51.97px' }}
-      >
-        <span className="text-[rgba(28,28,29,0.15)] font-bold">VIN  </span>
-        <span className="text-[rgba(28,28,29,0.15)] tracking-[2px]">{vin}</span>
-      </p>
-
-      <div className="absolute" style={{ left: '63.9px', top: '63px', width: '234.53px', height: '114.91px' }}>
-        {image ? <img src={image} alt={plateNumber} className="w-full h-full object-contain" /> : <div className="w-full h-full bg-[#ececec]" />}
-      </div>
-
-      {/* 4 Kacheln – identisch zur Admin-Fahrzeugliste (gemeinsames Badge-Modul) */}
-      <div className="absolute flex items-center gap-[16px]" style={{ left: '53px', top: '195.65px' }} data-tutorial="kacheln">
-        <FuelBadge fuelType={fuelType} size={52} />
-        <ColorBadge color={vehicle?.color} size={52} />
-        <EnergyBadge
-          fuelType={fuelType}
-          seed={vin}
-          fillPercent={vehicle?.battery_fuel_percent}
-          fullRangeKm={vehicle?.range_km}
-          size={52}
-        />
-        <SeatBadge seatCount={vehicle?.seat_count} size={52} />
-      </div>
-    </button>
+    />
   );
 };
 
@@ -611,10 +576,11 @@ const FahrtenScreen01View = ({
     document.fonts.ready.then(() => { if (aktiv) setSchriftGeladen(true); });
     return () => { aktiv = false; };
   }, [schriftGeladen]);
+  const [fahrzeugKartenHoehe, setFahrzeugKartenHoehe] = useState(VEHICLE_CARD_HEIGHT);
   const listenLayout = useMemo(
-    () => buildListenLayout(visibleJobs, activeServiceRequests),
+    () => buildListenLayout(visibleJobs, activeServiceRequests, fahrzeugKartenHoehe),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visibleJobs, activeServiceRequests, schriftGeladen],
+    [visibleJobs, activeServiceRequests, schriftGeladen, fahrzeugKartenHoehe],
   );
   const rideLayouts = listenLayout.fahrten;
   const ridesBottom = listenLayout.unterkante;
@@ -745,7 +711,7 @@ const FahrtenScreen01View = ({
                   <img src={TOP_RIGHT_TEAM_URL} alt="" className="w-[24px] h-[24px] object-contain opacity-90" />
                 </button>
 
-                <VehicleBlock vehicle={currentVehicle} onOpen={() => setView('vehicle')} />
+                <VehicleBlock vehicle={currentVehicle} onOpen={() => setView('vehicle')} onHoehe={setFahrzeugKartenHoehe} />
 
                 {listenLayout.zeilen.map((zeile) => (
                   <div

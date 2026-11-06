@@ -46,7 +46,11 @@ import coil3.request.allowHardware
 import coil3.svg.SvgDecoder
 import coil3.toBitmap
 import de.trisar.kern.FahrzeugBild
+import de.trisar.kern.FahrzeugAngaben
+import de.trisar.kern.FahrzeugFoto
 import de.trisar.kern.FahrzeugKacheln
+import de.trisar.kern.FahrzeugTest
+import de.trisar.kern.StandortChip
 import de.trisar.kern.FahrzeugZeile
 import de.trisar.kern.FussleisteUnten
 import de.trisar.kern.Icon
@@ -77,7 +81,7 @@ import kotlin.math.max
 
 /**
  * Nachbau von VehicleView.jsx wie FahrzeugAnsicht.swift (Raster 402 x 1264, Inhalt in einem Block bei top 20):
- * Zurueck, Karte mit OBD-Standort, Fahrzeugblock, Fahrzeugdaten (OBD), Schadensbericht.
+ * Zurueck, Karte mit Standort (Quelle + Alter als Chip), Fahrzeugblock, Fahrzeugdaten (OBD), Schadensbericht.
  */
 @Composable
 internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: () -> Unit) {
@@ -85,6 +89,8 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
     val bereich = rememberCoroutineScope()
     val daten = remember(fahrerID) { FahrzeugDaten(ctx.applicationContext, fahrerID, bereich) }
     val standort by daten.standort.collectAsState()
+    val standortQuelle by daten.standortQuelle.collectAsState()
+    val standortZeit by daten.standortZeit.collectAsState()
     val ausstattung by daten.ausstattung.collectAsState()
     val telemetrie by daten.telemetrie.collectAsState()
     val ereignisse by daten.ereignisse.collectAsState()
@@ -100,8 +106,14 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
     }
 
     val versatz = 20f
+    val angaben = FahrzeugAngaben.aus(fahrzeug, ausstattung)
+    val raster = angaben.blockRaster()
+    // Ohne Standort rueckt der Fahrzeugblock an die Stelle der Karte, darunter folgt alles
+    // seiner Hoehe (die je nach vorhandenen Angaben schrumpft).
+    val blockOben = if (standort == null) 99f else 440f
+    val unterBlock = blockOben + raster.hoehe - 1f
     // Web: max(1264, Unterkante Bericht) + 40 Seitenversatz + 70 Platz fuer die Fussleiste.
-    val inhalt = max(1264f, 771f + unterHoehe) + 40f + 70f
+    val inhalt = max(1264f, unterBlock + unterHoehe) + 40f + 70f
 
     Box(Modifier.fillMaxSize()) {
         Leinwand(inhaltHoehe = inhalt, mitHintergrund = false) { rahmen ->
@@ -109,15 +121,21 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
 
             ZurueckKnopf(Modifier.platz(20f, versatz + 40f), zurueck)
 
-            standort?.let { StandortKarte(it, Modifier.platz(24.5f, versatz + 99f, 353f, 324f)) }
+            standort?.let {
+                Box(Modifier.platz(24.5f, versatz + 99f, 353f, 324f), contentAlignment = Alignment.BottomStart) {
+                    StandortKarte(it, Modifier.fillMaxSize())
+                    // Woher der Standort kommt und wie alt er ist.
+                    if (standortQuelle.isNotEmpty()) StandortChip(standortQuelle, standortZeit, Modifier.padding(10.dp))
+                }
+            }
 
-            FahrzeugBlock(fahrzeug, ausstattung, Modifier.platz(24.5f, versatz + 440f, 353f, 332f))
+            FahrzeugBlock(angaben, raster, Modifier.platz(24.5f, versatz + blockOben, 353f, raster.hoehe))
 
             Column(
-                Modifier.platz(24.5f, versatz + 771f, 353f).onSizeChanged { unterHoehe = with(dichte) { it.height.toDp().value } },
+                Modifier.platz(24.5f, versatz + unterBlock, 353f).onSizeChanged { unterHoehe = with(dichte) { it.height.toDp().value } },
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (telemetrie.isNotEmpty()) TelemetrieBlock(telemetrie, ereignisse, stand)
+                if (telemetrie.isNotEmpty() && !FahrzeugTest.nurKennzeichen) TelemetrieBlock(telemetrie, ereignisse, stand)
                 SchadensBericht(schaeden) { meldenOffen = true }
             }
         }
@@ -135,19 +153,21 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
     }
 }
 
-/** Fahrzeugblock (353 x 332, weiss). */
+/** Fahrzeugblock (353 breit, weiss, mit allen Angaben 332 hoch). Nur Angaben mit Wert. */
 @Composable
-private fun FahrzeugBlock(f: FahrzeugZeile?, ausstattung: String, modifier: Modifier) {
+private fun FahrzeugBlock(a: FahrzeugAngaben, r: FahrzeugAngaben.BlockRaster, modifier: Modifier) {
     val blass = Color(28, 28, 29).copy(alpha = 0.15f)
     Box(modifier.background(Color.White)) {
-        SchrumpfText(f?.license_plate ?: "Kein Fahrzeug", grotesk(30f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 353f,
+        SchrumpfText(a.kennzeichen.ifEmpty { "Kein Fahrzeug" }, grotesk(30f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 353f,
             Modifier.platz(0f, 15.29f, 353f, 36.68f))
-        FahrzeugBild(f?.image_url, Modifier.platz(51f, 75f, 250f, 122f))
-        VinZeile(f?.vin, Modifier.platz(0f, 51.97f, 353f))
-        Text(f?.brand_model.orEmpty(), style = grotesk(20f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), textAlign = TextAlign.Center,
-            modifier = Modifier.platz(0f, 210f, 353f))
-        Text(ausstattung, style = grotesk(13f, farbe = blass), textAlign = TextAlign.Center, modifier = Modifier.platz(0f, 230f, 353f))
-        FahrzeugKacheln(f, Modifier.platz(53f, 270f))
+        val bild = a.bild
+        r.bild?.let { o -> if (bild != null) FahrzeugFoto(bild, Modifier.platz(51f, o, 250f, 122f)) }
+        r.vin?.let { VinZeile(a.vin, Modifier.platz(0f, it, 353f)) }
+        r.modell?.let { SchrumpfText(a.modell, grotesk(20f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 353f,
+            Modifier.platz(0f, it, 353f), minFaktor = 0.6f) }
+        r.ausstattung?.let { Text(a.ausstattung, style = grotesk(13f, farbe = blass), textAlign = TextAlign.Center,
+            modifier = Modifier.platz(0f, it, 353f)) }
+        r.kacheln?.let { FahrzeugKacheln(a, Modifier.platz(0f, it, 353f)) }
     }
 }
 

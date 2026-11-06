@@ -44,7 +44,6 @@ import de.trisar.kern.tippen
 
 // Konstanten aus FahrtenScreen01View.jsx
 private const val VERSATZ = 20f            // <div className="absolute left-0 top-[20px]">
-private const val FAHRZEUG_UNTERKANTE = 118f + 268f
 private const val KARTEN_ABSTAND = 12f
 private const val KNOPF_ABSTAND = 12f
 private const val KNOPF_HOEHE = 51f
@@ -64,7 +63,7 @@ private class ListenRaster {
 }
 
 /** buildListenLayout der Web-App. */
-private fun rasterBerechnen(alle: List<Fahrt>, anfragen: List<DienstAnfrage>, hoehe: (Fahrt) -> Float): ListenRaster {
+private fun rasterBerechnen(alle: List<Fahrt>, anfragen: List<DienstAnfrage>, hoehe: (Fahrt) -> Float, fahrzeugKarte: Float = 268f): ListenRaster {
     fun minuten(zeit: String): Int {
         val t = zeit.split(":").mapNotNull { it.toIntOrNull() }
         return if (t.size >= 2) t[0] * 60 + t[1] else Int.MAX_VALUE
@@ -78,7 +77,8 @@ private fun rasterBerechnen(alle: List<Fahrt>, anfragen: List<DienstAnfrage>, ho
     }
     val offeneTage = proTag.keys.toMutableSet()
     val r = ListenRaster()
-    var cursor = FAHRZEUG_UNTERKANTE + TAG_UNTEN
+    // Fahrzeugkarte top 118, Hoehe je nach vorhandenen Angaben (mit allem 268).
+    var cursor = 118f + fahrzeugKarte + TAG_UNTEN
 
     fun tagBeginnen(tag: String, erster: Boolean) {
         if (!erster) cursor += TAG_OBEN
@@ -131,7 +131,8 @@ internal fun FahrtenListeSeite(
     var ablehnenFahrt by remember { mutableStateOf<Fahrt?>(null) }
 
     val kartenHoehe = kartenHoeheMesser()
-    val raster = remember(fahrten, anfragen) { rasterBerechnen(fahrten, anfragen, kartenHoehe) }
+    val fahrzeugHoehe = de.trisar.kern.fahrzeugKartenHoehe(fahrzeug)
+    val raster = remember(fahrten, anfragen, fahrzeugHoehe) { rasterBerechnen(fahrten, anfragen, kartenHoehe, fahrzeugHoehe) }
 
     Box(Modifier.fillMaxSize()) {
         Leinwand(inhaltHoehe = raster.unterkante + VERSATZ + NACH_KNOPF + 64f + 40f) {

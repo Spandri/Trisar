@@ -54,6 +54,9 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
 
     val ausstattung = MutableStateFlow("")
     val standort = MutableStateFlow<Ort?>(null)
+    /** Quelle (driver_live_locations.source) und Zeitpunkt des Standorts, fuer den Chip an der Karte. */
+    val standortQuelle = MutableStateFlow("")
+    val standortZeit = MutableStateFlow<Long?>(null)
     val schaeden = MutableStateFlow<List<Schaden>>(emptyList())
     val telemetrie = MutableStateFlow<List<TelemetrieZeile>>(emptyList())
     val ereignisse = MutableStateFlow<List<Ereignis>>(emptyList())
@@ -83,7 +86,7 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
         stroeme.forEach { s -> beobachter += s.onEach { telemetrieLaden() }.launchIn(bereich) }
         runCatching { k.subscribe() }
         beobachter += bereich.launch {
-            while (isActive) { delay(30_000); telemetrieLaden() }
+            while (isActive) { delay(30_000); telemetrieLaden(); standortLaden() }
         }
     }
 
@@ -102,7 +105,10 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
     }
 
     @Serializable private data class TrimZeile(val trim: String? = null)
-    @Serializable private data class OrtZeile(val lat: Double? = null, val lng: Double? = null, val source: String? = null)
+    @Serializable private data class OrtZeile(
+        val lat: Double? = null, val lng: Double? = null, val source: String? = null,
+        val captured_at: String? = null, val updated_at: String? = null,
+    )
 
     private suspend fun ausstattungLaden() {
         val id = fahrzeugID ?: run { ausstattung.value = ""; return }
@@ -112,19 +118,23 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
         ausstattung.value = z.firstOrNull()?.trim.orEmpty()
     }
 
-    /** Web: letzter OBD-Standort des Fahrers, sonst der Handy-Standort. */
+    /**
+     * Standort fuer die Karte. driver_live_locations hat eine Zeile je Fahrer, die schreibt zuletzt
+     * das Teltonika-Gateway (OBD-Tracker) oder die Fahrer-App (Handy-GPS). OBD bevorzugt, sonst Handy.
+     */
     private suspend fun standortLaden() {
         val zeilen = runCatching {
-            Backend.client.from("driver_live_locations").select(Columns.raw("lat,lng,source")) {
+            Backend.client.from("driver_live_locations").select(Columns.raw("lat,lng,source,captured_at,updated_at")) {
                 filter { eq("driver_id", fahrerID) }; limit(5)
             }.liste<OrtZeile>()
         }.getOrNull() ?: return
-        val muster = Regex("teltonika|fmb\\d*|obd|telematik|telematics|tracker", RegexOption.IGNORE_CASE)
-        val obd = zeilen.firstOrNull { muster.containsMatchIn(it.source.orEmpty()) }
+        val obd = zeilen.firstOrNull { de.trisar.kern.istObdQuelle(it.source) }
         val z = obd ?: zeilen.firstOrNull() ?: return
         val lat = z.lat ?: return
         val lng = z.lng ?: return
         standort.value = Ort(lat, lng)
+        standortQuelle.value = z.source.orEmpty()
+        standortZeit.value = (z.captured_at ?: z.updated_at)?.let { Datum.ausISO(it)?.toEpochMilli() }
         prefs.edit().putString(STANDORT_SCHLUESSEL, "$lat,$lng").apply()
     }
 

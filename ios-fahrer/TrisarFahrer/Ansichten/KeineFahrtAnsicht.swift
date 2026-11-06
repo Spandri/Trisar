@@ -7,6 +7,7 @@ struct KeineFahrtAnsicht: View {
     var oeffneProfil: () -> Void
     var oeffneFahrzeug: () -> Void
     var abmelden: () -> Void
+    @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
 
     var body: some View {
         Leinwand(breite: 393) { _ in
@@ -26,11 +27,13 @@ struct KeineFahrtAnsicht: View {
                 if let fahrzeug {
                     Button(action: oeffneFahrzeug) {
                         FahrzeugKarte(fahrzeug: fahrzeug,
-                                      titel: fahrzeug.brand_model ?? "",
+                                      titel: [fahrzeug.brand_model, fahrzeug.license_plate]
+                                          .compactMap { $0?.trimmingCharacters(in: .whitespaces) }
+                                          .first { !$0.isEmpty } ?? "",
                                       bildOben: 55.57)
                     }
                     .buttonStyle(.web)
-                    .platz(20, 462, 362, 268)
+                    .platz(20, 462, 362, FahrzeugKarte.hoehe(fahrzeug, bildOben: 55.57))
                 } else {
                     Text("Komm später nochmal")
                         .grotesk(34, .medium, abstand: -0.5)

@@ -15,6 +15,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.height
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -108,30 +115,146 @@ fun VinZeile(vin: String?, modifier: Modifier) {
     )
 }
 
+/** Bilder, die nicht laden. Karten und Fahrzeugblock lassen den Bildplatz dann weg. */
+object FahrzeugBildSpeicher {
+    val kaputt = mutableStateListOf<String>()
+    fun melden(url: String) { if (url !in kaputt) kaputt.add(url) }
+}
+
+/** Testansicht "nur Kennzeichen + Standort" (nur Debug-Build, per Intent-Extra TRISAR_NUR_KENNZEICHEN). */
+object FahrzeugTest { var nurKennzeichen = false }
+
 /**
- * Weisse Fahrzeugkarte (362 x 268) aus Fahrtenliste und „Keine Fahrt“, wie FahrzeugKarte.swift
- * (VehicleBlock in FahrtenScreen01View.jsx). titel: Liste zeigt das Kennzeichen, „Keine Fahrt“ das Modell.
+ * Was wir ueber das Fahrzeug wissen (fahrzeugAngaben.js der Web-App, FahrzeugAngaben in iOS).
+ * Leere Felder werden nicht gezeigt: kein "–", keine graue Bildflaeche.
+ */
+data class FahrzeugAngaben(
+    val kennzeichen: String = "",
+    val vin: String = "",
+    val bild: String? = null,
+    val modell: String = "",
+    val ausstattung: String = "",
+    val kraftstoff: String = "",
+    val farbe: String = "",
+    val sitze: Int? = null,
+    val fuellstand: Double? = null,
+    val reichweite: Double? = null,
+) {
+    val energie get() = fuellstand != null
+    val hatKacheln get() = kraftstoff.isNotEmpty() || farbe.isNotEmpty() || energie || sitze != null
+
+    data class KartenRaster(val vin: Float?, val bild: Float?, val kacheln: Float?, val hoehe: Float)
+    data class BlockRaster(val vin: Float?, val bild: Float?, val modell: Float?, val ausstattung: Float?, val kacheln: Float?, val hoehe: Float)
+
+    /** Startseiten-Karte (362 breit). Mit allem 268 hoch. */
+    fun kartenRaster(bildOben: Float = 63f): KartenRaster {
+        var y = 52f
+        var v: Float? = null; var b: Float? = null
+        if (vin.isNotEmpty()) { v = 51.97f; y = 68f }
+        if (bild != null) { b = bildOben; y = bildOben + 114.91f }
+        return if (hatKacheln) KartenRaster(v, b, y + 17.65f, y + 17.65f + 52f + 20.35f) else KartenRaster(v, b, null, y + 16f)
+    }
+
+    /** Fahrzeugblock der Fahrzeug-Seite (353 breit). Mit allem 332 hoch. */
+    fun blockRaster(): BlockRaster {
+        var y = 52f
+        var v: Float? = null; var b: Float? = null; var m: Float? = null; var a: Float? = null
+        if (vin.isNotEmpty()) { v = 51.97f; y = 68f }
+        if (bild != null) { b = 75f; y = 197f }
+        if (modell.isNotEmpty()) { m = y + 13f; y += 33f }
+        if (ausstattung.isNotEmpty()) { val o = if (modell.isEmpty()) y + 8f else y; a = o; y = o + 16f }
+        return if (hatKacheln) BlockRaster(v, b, m, a, y + 24f, y + 24f + 52f + 10f) else BlockRaster(v, b, m, a, null, y + 16f)
+    }
+
+    companion object {
+        /** Liest FahrzeugBildSpeicher (Compose-Zustand): neu berechnen, sobald ein Bild ausfaellt. */
+        fun aus(f: FahrzeugZeile?, ausstattung: String = ""): FahrzeugAngaben {
+            fun t(v: String?) = v?.trim().orEmpty()
+            val kennzeichen = t(f?.license_plate)
+            if (FahrzeugTest.nurKennzeichen) return FahrzeugAngaben(kennzeichen = kennzeichen)
+            val bild = fahrzeugBildURL(f?.image_url)?.takeIf { it !in FahrzeugBildSpeicher.kaputt }
+            return FahrzeugAngaben(
+                kennzeichen = kennzeichen, vin = t(f?.vin), bild = bild, modell = t(f?.brand_model), ausstattung = t(ausstattung),
+                kraftstoff = t(f?.fuel_type), farbe = t(f?.color), sitze = f?.seat_count?.takeIf { it > 0 },
+                fuellstand = f?.battery_fuel_percent, reichweite = f?.range_km,
+            )
+        }
+    }
+}
+
+/** Hoehe der Startseiten-Karte fuer die Listen darunter. */
+fun fahrzeugKartenHoehe(f: FahrzeugZeile?, bildOben: Float = 63f) = FahrzeugAngaben.aus(f).kartenRaster(bildOben).hoehe
+
+/** Fahrzeugfoto ohne Platzhalter. Laedt es nicht, verschwindet es (und der Platz dafuer). */
+@Composable
+fun FahrzeugFoto(adresse: String, modifier: Modifier) {
+    SubcomposeAsyncImage(
+        model = adresse, contentDescription = null, modifier = modifier, contentScale = ContentScale.Fit,
+        loading = { Box(Modifier.fillMaxSize()) },
+        error = { LaunchedEffect(adresse) { FahrzeugBildSpeicher.melden(adresse) } },
+    )
+}
+
+/**
+ * Weisse Fahrzeugkarte (362 breit, mit allen Angaben 268 hoch) aus Fahrtenliste und „Keine Fahrt“,
+ * wie FahrzeugKarte.swift / shared/FahrzeugKarte.jsx. titel: Liste Kennzeichen, „Keine Fahrt“ Modell.
  * bildOben: Liste 63, „Keine Fahrt“ 55.57.
  */
 @Composable
 fun FahrzeugKarte(fahrzeug: FahrzeugZeile?, titel: String, modifier: Modifier = Modifier, bildOben: Float = 63f) {
-    Box(modifier.size(362.dp, 268.dp).background(Color.White)) {
-        SchrumpfText(titel, grotesk(30f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 362f,
-            Modifier.platz(0f, 15.29f, 362f, 36.68f))
-        FahrzeugBild(fahrzeug?.image_url, Modifier.platz(63.9f, bildOben, 234.53f, 114.91f))
-        VinZeile(fahrzeug?.vin, Modifier.platz(0f, 51.97f, 362f))
-        FahrzeugKacheln(fahrzeug, Modifier.platz(53f, 195.65f))
+    val a = FahrzeugAngaben.aus(fahrzeug)
+    val r = a.kartenRaster(bildOben)
+    Box(modifier.size(362.dp, r.hoehe.dp).background(Color.White)) {
+        SchrumpfText(titel, grotesk(30f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 338f,
+            Modifier.platz(12f, 15.29f, 338f, 36.68f))
+        if (r.bild != null && a.bild != null) FahrzeugFoto(a.bild, Modifier.platz(63.9f, r.bild, 234.53f, 114.91f))
+        if (r.vin != null) VinZeile(a.vin, Modifier.platz(0f, r.vin, 362f))
+        if (r.kacheln != null) FahrzeugKacheln(a, Modifier.platz(0f, r.kacheln, 362f))
     }
 }
 
-/** Vier Kacheln: Kraftstoff, Farbe, Energie, Sitze (16 Abstand). */
+/** Nur Kacheln mit Wert (Kraftstoff, Farbe, Energie, Sitze), mittig, 16 Abstand. */
 @Composable
-fun FahrzeugKacheln(f: FahrzeugZeile?, modifier: Modifier = Modifier) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        KraftstoffKachel(f?.fuel_type)
-        FarbKachel(f?.color)
-        EnergieKachel(f?.fuel_type, f?.battery_fuel_percent, f?.range_km)
-        SitzKachel(f?.seat_count)
+fun FahrzeugKacheln(a: FahrzeugAngaben, modifier: Modifier = Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)) {
+        if (a.kraftstoff.isNotEmpty()) KraftstoffKachel(a.kraftstoff)
+        if (a.farbe.isNotEmpty()) FarbKachel(a.farbe)
+        if (a.energie) EnergieKachel(a.kraftstoff, a.fuellstand, a.reichweite)
+        a.sitze?.let { SitzKachel(it) }
+    }
+}
+
+/** Woher der Standort kommt: driver_live_locations.source (teltonika_fmb010 = Tracker, sonst App). */
+fun istObdQuelle(quelle: String?) =
+    Regex("teltonika|fmb\\d*|obd|telematik|telematics|tracker", RegexOption.IGNORE_CASE).containsMatchIn(quelle.orEmpty())
+
+/** 'gerade eben', 'vor 3 Min.', 'vor 2 Std.', 'vor 4 Tagen' */
+fun standortAlter(erfasstMs: Long?, jetztMs: Long = System.currentTimeMillis()): String {
+    if (erfasstMs == null) return ""
+    val min = max(0L, (jetztMs - erfasstMs) / 60_000)
+    if (min < 1) return "gerade eben"
+    if (min < 60) return "vor $min Min."
+    val std = min / 60
+    if (std < 24) return "vor $std Std."
+    val tage = std / 24
+    return if (tage == 1L) "vor 1 Tag" else "vor $tage Tagen"
+}
+
+/** Chip an der Karte: "Standort: OBD-Tracker  vor 3 Min." Aktualisiert sich alle 30 s. */
+@Composable
+fun StandortChip(quelle: String, erfasstMs: Long?, modifier: Modifier = Modifier) {
+    var jetzt by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { delay(30_000); jetzt = System.currentTimeMillis() } }
+    Row(
+        modifier.height(28.dp).background(Color.Black).padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        Box(Modifier.size(7.dp).background(hex(0xE3F654), CircleShape))
+        Text(if (istObdQuelle(quelle)) "Standort: OBD-Tracker" else "Standort: Fahrer-App",
+            style = grotesk(12f, 700, farbe = hex(0xE3F654)), maxLines = 1)
+        val alter = standortAlter(erfasstMs, jetzt)
+        if (alter.isNotEmpty()) Text(alter, style = grotesk(12f, 500, farbe = Color.White.copy(alpha = 0.7f)), maxLines = 1)
     }
 }
 

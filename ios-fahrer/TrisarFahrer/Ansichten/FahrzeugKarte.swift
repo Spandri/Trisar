@@ -1,15 +1,127 @@
 import SwiftUI
 
-/// Weisse Fahrzeugkarte (362 x 268) aus Fahrtenliste und „Keine Fahrt“.
-/// Nachbau von VehicleBlock (FahrtenScreen01View.jsx) und KeineFahrtTrisar.jsx.
+/// Was wir ueber das Fahrzeug wissen (fahrzeugAngaben.js der Web-App). Leere Felder
+/// werden nicht gezeigt: kein "–", keine graue Bildflaeche.
+struct FahrzeugAngaben: Equatable {
+    var kennzeichen = ""
+    var vin = ""
+    var bild: URL?
+    var modell = ""
+    var ausstattung = ""
+    var kraftstoff = ""
+    var farbe = ""
+    var sitze: Int?
+    var fuellstand: Double?
+    var reichweite: Double?
+
+    @MainActor init(_ f: FahrzeugZeile?, ausstattung: String = "") {
+        func t(_ v: String?) -> String { (v ?? "").trimmingCharacters(in: .whitespacesAndNewlines) }
+        kennzeichen = t(f?.license_plate)
+        vin = t(f?.vin)
+        // Bild, das nicht geladen werden konnte, zaehlt wie kein Bild.
+        bild = FahrzeugKarte.bildURL(f?.image_url).flatMap { FahrzeugBildSpeicher.shared.kaputt.contains($0) ? nil : $0 }
+        modell = t(f?.brand_model)
+        self.ausstattung = t(ausstattung)
+        kraftstoff = t(f?.fuel_type)
+        farbe = t(f?.color)
+        sitze = (f?.seat_count ?? 0) > 0 ? f?.seat_count : nil
+        fuellstand = f?.battery_fuel_percent
+        reichweite = f?.range_km
+        #if DEBUG
+        // Testansicht "nur Kennzeichen + Standort": Start mit Argument -TRISAR_NUR_KENNZEICHEN.
+        if Self.nurKennzeichenTest {
+            vin = ""; bild = nil; modell = ""; self.ausstattung = ""; kraftstoff = ""; farbe = ""
+            sitze = nil; fuellstand = nil; reichweite = nil
+        }
+        #endif
+    }
+
+    #if DEBUG
+    static let nurKennzeichenTest = ProcessInfo.processInfo.arguments.contains("-TRISAR_NUR_KENNZEICHEN")
+    #else
+    static let nurKennzeichenTest = false
+    #endif
+
+    var energie: Bool { fuellstand != nil }
+    var hatKacheln: Bool { !kraftstoff.isEmpty || !farbe.isEmpty || energie || sitze != nil }
+
+    /// Startseiten-Karte (362 breit), kartenRaster der Web-App. Mit allem: 268 hoch.
+    struct KartenRaster { var vin: CGFloat?; var bild: CGFloat?; var kacheln: CGFloat?; var hoehe: CGFloat }
+    func kartenRaster(bildOben: CGFloat = 63) -> KartenRaster {
+        var r = KartenRaster(hoehe: 0)
+        var y: CGFloat = 52
+        if !vin.isEmpty { r.vin = 51.97; y = 68 }
+        if bild != nil { r.bild = bildOben; y = bildOben + 114.91 }
+        if hatKacheln { r.kacheln = y + 17.65; r.hoehe = y + 17.65 + 52 + 20.35 } else { r.hoehe = y + 16 }
+        return r
+    }
+
+    /// Fahrzeugblock der Fahrzeug-Seite (353 breit), blockRaster der Web-App. Mit allem: 332 hoch.
+    struct BlockRaster { var vin: CGFloat?; var bild: CGFloat?; var modell: CGFloat?; var ausstattung: CGFloat?; var kacheln: CGFloat?; var hoehe: CGFloat }
+    func blockRaster() -> BlockRaster {
+        var r = BlockRaster(hoehe: 0)
+        var y: CGFloat = 52
+        if !vin.isEmpty { r.vin = 51.97; y = 68 }
+        if bild != nil { r.bild = 75; y = 197 }
+        if !modell.isEmpty { r.modell = y + 13; y = y + 33 }
+        if !ausstattung.isEmpty { let o = modell.isEmpty ? y + 8 : y; r.ausstattung = o; y = o + 16 }
+        if hatKacheln { r.kacheln = y + 24; r.hoehe = y + 24 + 52 + 10 } else { r.hoehe = y + 16 }
+        return r
+    }
+}
+
+/// Nur Kacheln mit Wert, mittig. Ohne jede Angabe leer.
+struct FahrzeugKacheln: View {
+    let a: FahrzeugAngaben
+    var body: some View {
+        HStack(spacing: 16) {
+            if !a.kraftstoff.isEmpty { KraftstoffKachel(kraftstoff: a.kraftstoff) }
+            if !a.farbe.isEmpty { FarbKachel(farbe: a.farbe) }
+            if a.energie { EnergieKachel(kraftstoff: a.kraftstoff, fuellstand: a.fuellstand, reichweite: a.reichweite) }
+            if let s = a.sitze { SitzKachel(sitze: s) }
+        }
+    }
+}
+
+/// Merkt sich Bilder, die nicht laden. Karten und Fahrzeugblock lassen den Bildplatz dann weg.
+@MainActor
+final class FahrzeugBildSpeicher: ObservableObject {
+    static let shared = FahrzeugBildSpeicher()
+    @Published private(set) var kaputt: Set<URL> = []
+    func melden(_ url: URL) { if !kaputt.contains(url) { kaputt.insert(url) } }
+}
+
+/// Fahrzeugbild, das bei Ladefehler verschwindet statt grau zu bleiben.
+struct FahrzeugBild: View {
+    let url: URL
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case let .success(bild): bild.resizable().scaledToFit()
+            case .failure: Color.clear.onAppear { FahrzeugBildSpeicher.shared.melden(url) }
+            default: Color.clear
+            }
+        }
+    }
+}
+
+/// Weisse Fahrzeugkarte (362 breit, mit allen Angaben 268 hoch) aus Fahrtenliste und „Keine Fahrt“.
+/// Nachbau von FahrzeugKarte (shared/FahrzeugKarte.jsx).
 struct FahrzeugKarte: View {
     let fahrzeug: FahrzeugZeile?
     /// Ueberschrift: Fahrtenliste zeigt das Kennzeichen, „Keine Fahrt“ das Modell.
     var titel: String
     /// Bild-Oberkante: Liste 63, „Keine Fahrt“ 55.57.
     var bildOben: CGFloat = 63
+    @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
+
+    @MainActor static func hoehe(_ f: FahrzeugZeile?, bildOben: CGFloat = 63) -> CGFloat {
+        FahrzeugAngaben(f).kartenRaster(bildOben: bildOben).hoehe
+    }
 
     var body: some View {
+        let a = FahrzeugAngaben(fahrzeug)
+        let r = a.kartenRaster(bildOben: bildOben)
         ZStack(alignment: .topLeading) {
             Color.white
 
@@ -18,39 +130,27 @@ struct FahrzeugKarte: View {
                 .foregroundStyle(Color(hex: 0x1C1C1D))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
+                .padding(.horizontal, 12)
                 .platz(0, 15.29, 362, 36.68, .top)
 
-            Group {
-                if let url = FahrzeugKarte.bildURL(fahrzeug?.image_url) {
-                    AsyncImage(url: url) { phase in
-                        if let bild = phase.image {
-                            bild.resizable().scaledToFit()
-                        } else {
-                            Color(hex: 0xECECEC)
-                        }
-                    }
-                } else {
-                    Color(hex: 0xECECEC)
-                }
+            if let oben = r.bild, let url = a.bild {
+                FahrzeugBild(url: url).platz(63.9, oben, 234.53, 114.91)
             }
-            .platz(63.9, bildOben, 234.53, 114.91)
 
             // Im Web mit z-10 ueber dem Bild.
-            (Text("VIN  ").bold() + Text(fahrzeug?.vin ?? "").kerning(2))
-                .font(.grotesk(13))
-                .foregroundStyle(Color(red: 28 / 255, green: 28 / 255, blue: 29 / 255, opacity: 0.15))
-                .lineLimit(1)
-                .platz(0, 51.97, 362, nil, .top)
-
-            HStack(spacing: 16) {
-                KraftstoffKachel(kraftstoff: fahrzeug?.fuel_type)
-                FarbKachel(farbe: fahrzeug?.color)
-                EnergieKachel(kraftstoff: fahrzeug?.fuel_type, fuellstand: fahrzeug?.battery_fuel_percent, reichweite: fahrzeug?.range_km)
-                SitzKachel(sitze: fahrzeug?.seat_count)
+            if let oben = r.vin {
+                (Text("VIN  ").bold() + Text(a.vin).kerning(2))
+                    .font(.grotesk(13))
+                    .foregroundStyle(Color(red: 28 / 255, green: 28 / 255, blue: 29 / 255, opacity: 0.15))
+                    .lineLimit(1)
+                    .platz(0, oben, 362, nil, .top)
             }
-            .platz(53, 195.65)
+
+            if let oben = r.kacheln {
+                FahrzeugKacheln(a: a).platz(0, oben, 362, 52, .top)
+            }
         }
-        .frame(width: 362, height: 268)
+        .frame(width: 362, height: r.hoehe)
     }
 
     /// Bilder liegen teils als Pfad der Web-App vor (/fahrzeuge/...).
@@ -58,6 +158,46 @@ struct FahrzeugKarte: View {
         guard let roh = wert?.trimmingCharacters(in: .whitespaces), !roh.isEmpty else { return nil }
         if roh.hasPrefix("http") { return URL(string: roh) }
         return URL(string: "https://fahrer.trisar.de" + (roh.hasPrefix("/") ? roh : "/" + roh))
+    }
+}
+
+/// Chip an der Karte: woher der Standort kommt und wie alt er ist.
+/// "Standort: OBD-Tracker  vor 3 Min." (StandortChip in shared/FahrzeugKarte.jsx).
+struct StandortChip: View {
+    let quelle: String
+    let erfasst: Date?
+
+    static func istObd(_ q: String) -> Bool {
+        q.range(of: "teltonika|fmb\\d*|obd|telematik|telematics|tracker", options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    static func alter(_ d: Date?, jetzt: Date = Date()) -> String {
+        guard let d else { return "" }
+        let min = max(0, Int(jetzt.timeIntervalSince(d) / 60))
+        if min < 1 { return "gerade eben" }
+        if min < 60 { return "vor \(min) Min." }
+        let std = min / 60
+        if std < 24 { return "vor \(std) Std." }
+        let tage = std / 24
+        return tage == 1 ? "vor 1 Tag" : "vor \(tage) Tagen"
+    }
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { kontext in
+            HStack(spacing: 7) {
+                Circle().fill(Color(hex: 0xE3F654)).frame(width: 7, height: 7)
+                Text(Self.istObd(quelle) ? "Standort: OBD-Tracker" : "Standort: Fahrer-App")
+                    .font(.grotesk(12, .bold)).foregroundStyle(Color(hex: 0xE3F654))
+                let alter = Self.alter(erfasst, jetzt: kontext.date)
+                if !alter.isEmpty {
+                    Text(alter).font(.grotesk(12, .medium)).foregroundStyle(.white.opacity(0.7))
+                }
+            }
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(Color.black)
+        }
     }
 }
 

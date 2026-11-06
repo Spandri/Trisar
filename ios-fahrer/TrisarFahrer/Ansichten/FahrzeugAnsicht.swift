@@ -2,7 +2,7 @@ import MapLibre
 import SwiftUI
 
 /// Nachbau von VehicleView.jsx (Raster 402 x 1264, Inhalt in einem Block bei top 20):
-/// Zurueck, Karte mit OBD-Standort, Fahrzeugblock, Fahrzeugdaten (OBD), Schadensbericht.
+/// Zurueck, Karte mit Standort (Quelle + Alter als Chip), Fahrzeugblock, Fahrzeugdaten (OBD), Schadensbericht.
 struct FahrzeugAnsicht: View {
     var zurueck: () -> Void
     @EnvironmentObject private var anmeldung: Anmeldung
@@ -22,6 +22,8 @@ private struct FahrzeugInhalt: View {
     @EnvironmentObject private var speicher: FahrtenSpeicher
     @StateObject private var daten: FahrzeugDaten
     @State private var meldenOffen = false
+    /// Neu zeichnen, wenn ein Fahrzeugbild nicht laedt (Karte/Block werden kuerzer).
+    @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
 
     init(fahrerID: UUID, zurueck: @escaping () -> Void) {
         self.zurueck = zurueck
@@ -33,8 +35,14 @@ private struct FahrzeugInhalt: View {
 
     var body: some View {
         let fahrzeug = speicher.fahrzeug
+        let angaben = FahrzeugAngaben(fahrzeug, ausstattung: daten.ausstattung)
+        let raster = angaben.blockRaster()
+        // Ohne Standort rueckt der Fahrzeugblock an die Stelle der Karte, darunter folgt
+        // alles seiner Hoehe (die je nach vorhandenen Angaben schrumpft).
+        let blockOben: CGFloat = daten.standort == nil ? 99 : 440
+        let unterBlock = blockOben + raster.hoehe - 1
         // Web: max(1264, Unterkante Bericht) + 40 Seitenversatz + 70 Platz fuer die Fussleiste.
-        let inhalt = max(1264, 771 + unterHoehe) + 40 + 70
+        let inhalt = max(1264, unterBlock + unterHoehe) + 40 + 70
         Leinwand(inhaltHoehe: inhalt, mitHintergrund: false) { rahmen in
             ZStack(alignment: .topLeading) {
                 TrisarHintergrund().frame(width: 402, height: max(inhalt, rahmen))
@@ -42,22 +50,29 @@ private struct FahrzeugInhalt: View {
                 ZurueckKnopf(aktion: zurueck).platz(20, versatz + 40, 50, 50)
 
                 if let ort = daten.standort {
-                    StandortKarte(ort: ort)
-                        .platz(24.5, versatz + 99, 353, 324)
+                    ZStack(alignment: .bottomLeading) {
+                        StandortKarte(ort: ort)
+                        if !daten.standortQuelle.isEmpty {
+                            StandortChip(quelle: daten.standortQuelle, erfasst: daten.standortZeit)
+                                .padding(10)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .platz(24.5, versatz + 99, 353, 324)
                 }
 
-                fahrzeugBlock(fahrzeug)
-                    .platz(24.5, versatz + 440, 353, 332)
+                fahrzeugBlock(angaben, raster)
+                    .platz(24.5, versatz + blockOben, 353, raster.hoehe)
 
                 VStack(spacing: 10) {
-                    if !daten.telemetrie.isEmpty { telemetrieBlock(daten) }
+                    if !daten.telemetrie.isEmpty && !FahrzeugAngaben.nurKennzeichenTest { telemetrieBlock(daten) }
                     schadensBericht
                 }
                 .frame(width: 353)
                 .background(GeometryReader { g in
                     Color.clear.preference(key: HoeheSchluessel.self, value: g.size.height)
                 })
-                .platz(24.5, versatz + 771, 353, nil)
+                .platz(24.5, versatz + unterBlock, 353, nil)
             }
         }
         .onPreferenceChange(HoeheSchluessel.self) { unterHoehe = $0 }
@@ -73,42 +88,38 @@ private struct FahrzeugInhalt: View {
         }
     }
 
-    // MARK: Fahrzeugblock (353 x 332, weiss)
+    // MARK: Fahrzeugblock (353 breit, weiss, mit allen Angaben 332 hoch)
 
-    private func fahrzeugBlock(_ f: FahrzeugZeile?) -> some View {
-        ZStack(alignment: .topLeading) {
+    private func fahrzeugBlock(_ a: FahrzeugAngaben, _ r: FahrzeugAngaben.BlockRaster) -> some View {
+        let blass = Color(red: 28 / 255, green: 28 / 255, blue: 29 / 255, opacity: 0.15)
+        return ZStack(alignment: .topLeading) {
             Color.white
-            Text(f?.license_plate ?? "Kein Fahrzeug")
+            Text(a.kennzeichen.isEmpty ? "Kein Fahrzeug" : a.kennzeichen)
                 .grotesk(30, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1C1C1D))
                 .lineLimit(1).minimumScaleFactor(0.5)
                 .platz(0, 15.29, 353, 36.68, .top)
-            Group {
-                if let url = FahrzeugKarte.bildURL(f?.image_url) {
-                    AsyncImage(url: url) { phase in
-                        if let bild = phase.image { bild.resizable().scaledToFit() } else { Color(hex: 0xECECEC) }
-                    }
-                } else { Color(hex: 0xECECEC) }
+            if let oben = r.bild, let url = a.bild {
+                FahrzeugBild(url: url).platz(51, oben, 250, 122)
             }
-            .platz(51, 75, 250, 122)
-            (Text("VIN  ").bold() + Text(f?.vin ?? "").kerning(2))
-                .font(.grotesk(13))
-                .foregroundStyle(Color(red: 28 / 255, green: 28 / 255, blue: 29 / 255, opacity: 0.15))
-                .lineLimit(1)
-                .platz(0, 51.97, 353, nil, .top)
-            Text(f?.brand_model ?? "").grotesk(20, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1C1C1D))
-                .platz(0, 210, 353, nil, .top)
-            Text(daten.ausstattung).font(.grotesk(13))
-                .foregroundStyle(Color(red: 28 / 255, green: 28 / 255, blue: 29 / 255, opacity: 0.15))
-                .platz(0, 230, 353, nil, .top)
-            HStack(spacing: 16) {
-                KraftstoffKachel(kraftstoff: f?.fuel_type)
-                FarbKachel(farbe: f?.color)
-                EnergieKachel(kraftstoff: f?.fuel_type, fuellstand: f?.battery_fuel_percent, reichweite: f?.range_km)
-                SitzKachel(sitze: f?.seat_count)
+            if let oben = r.vin {
+                (Text("VIN  ").bold() + Text(a.vin).kerning(2))
+                    .font(.grotesk(13)).foregroundStyle(blass).lineLimit(1)
+                    .platz(0, oben, 353, nil, .top)
             }
-            .platz(53, 270)
+            if let oben = r.modell {
+                Text(a.modell).grotesk(20, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1C1C1D))
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                    .platz(0, oben, 353, nil, .top)
+            }
+            if let oben = r.ausstattung {
+                Text(a.ausstattung).font(.grotesk(13)).foregroundStyle(blass)
+                    .platz(0, oben, 353, nil, .top)
+            }
+            if let oben = r.kacheln {
+                FahrzeugKacheln(a: a).platz(0, oben, 353, 52, .top)
+            }
         }
-        .frame(width: 353, height: 332)
+        .frame(width: 353, height: r.hoehe)
     }
 
     // MARK: Fahrzeugdaten (FahrzeugTelemetrie.jsx)
