@@ -97,31 +97,3 @@ private struct ProfilZeile: View {
     }
 }
 
-/// Nachbau von Verlauf.jsx. Live gibt es noch keinen Dienst-Verlauf, dann steht der Hinweis da
-/// (die Demo-Dienste der Web-App werden nicht nachgebaut).
-struct VerlaufAnsicht: View {
-    var zurueck: () -> Void
-
-    var body: some View {
-        Leinwand(basisHoehe: 874, inhaltHoehe: 1481 + 43, mitHintergrund: false) { _ in
-            ZStack(alignment: .topLeading) {
-                ProfilHintergrund().frame(width: 402, height: 1524)
-                UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12)
-                    .fill(Color(hex: 0x18181B))
-                    .platz(0, 218, 402, 1046)
-
-                ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
-
-                Text("Verlauf").font(.grotesk(42, .bold)).tracking(-0.5)
-                    .foregroundStyle(Color(hex: 0xE3F654))
-                    .frame(height: 42).fixedSize()
-                    .platz(20, 140)
-
-                WebText(text: "Noch keine abgeschlossenen Dienste.", groesse: 16, gewicht: .medium, zeilenHoehe: 24,
-                        abstand: 0.5, farbe: UIColor.white.withAlphaComponent(0.7))
-                    .platz(20, 242, 362, nil)
-            }
-        }
-        .overlay { FussleisteUnten() }
-    }
-}

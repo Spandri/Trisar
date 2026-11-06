@@ -71,6 +71,11 @@ struct FahrtenListeAnsicht: View {
             }
         }
         .overlay { FussleisteUnten() }
+        // Offene Stunden nach einem Dienst: Leiste ueber der Fusszeile.
+        .overlay(alignment: .bottom) {
+            StundenHinweis().frame(maxWidth: 362).padding(.bottom, 50)
+                .shadow(color: .black.opacity(0.6), radius: 12, y: -4)
+        }
         .overlay(alignment: .top) { fehlerHinweis }
         .webVollbild(item: $ablehnenFahrt) { fahrt in
             AblehnenBlatt(schliessen: { ablehnenFahrt = nil }) { notiz in
