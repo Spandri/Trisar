@@ -3,6 +3,7 @@ import TrisarFooter from '../../../components/ui/TrisarFooter';
 import { useI18n } from '../../../i18n';
 import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
 import { DEMO_MODE } from '../../../datenquelle';
+import { StundenVerlauf } from './Stunden';
 
 const BASE_WIDTH = 402;
 const CONTENT_SHIFT = 43;
@@ -66,6 +67,22 @@ export default function Verlauf({ setView }) {
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
   }, []);
+
+  // Live: echte Dienste mit Fahrten und Stundenerfassung, im Fluss statt festem Raster.
+  if (!DEMO_MODE) {
+    return (
+      <>
+        <div className="h-dvh w-full overflow-y-auto overscroll-none" style={{ ...screenBg, fontFamily: 'Space Grotesk, sans-serif' }}>
+          <div className="w-[min(402px,100vw)] mx-auto px-[20px] pt-[60px] pb-[90px]">
+            <div className="relative h-[50px]"><ZurueckKnopf onClick={() => setView('profilFahrer')} marker="verlauf-zurueck" links={0} oben={0} /></div>
+            <h1 className="mt-[30px] text-[#E3F654] text-[42px] leading-[42px] font-bold tracking-[-0.5px]">{t('misc.history')}</h1>
+            <div className="mt-[24px]"><StundenVerlauf /></div>
+          </div>
+        </div>
+        <TrisarFooter className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[min(402px,100vw)] h-10 bg-black z-30" />
+      </>
+    );
+  }
 
   return (
     <>

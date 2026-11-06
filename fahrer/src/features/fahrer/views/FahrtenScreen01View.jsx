@@ -1,3 +1,5 @@
+import { StundenHinweis } from './Stunden';
+import { DEMO_MODE } from '../../../datenquelle';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import TrisarFooter from '../../../components/ui/TrisarFooter';
 import CancelRideSheet from './CancelRideSheet';
@@ -800,6 +802,13 @@ const FahrtenScreen01View = ({
               </div>
             </div>
           </div>
+
+          {/* Offene Stunden nach einem Dienst: Leiste ueber der Fusszeile (nur live) */}
+          {!DEMO_MODE ? (
+            <div className="absolute left-5 right-5 z-20" style={{ bottom: `${FIXED_FOOTER_HEIGHT + 10}px` }}>
+              <StundenHinweis className="w-full shadow-[0_-8px_24px_rgba(0,0,0,0.6)]" />
+            </div>
+          ) : null}
 
           <div
             className="absolute left-0 right-0 bottom-0 h-10 z-20 bg-black"

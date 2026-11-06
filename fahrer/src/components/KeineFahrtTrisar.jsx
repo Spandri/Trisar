@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import TrisarFooter from './ui/TrisarFooter';
 import { TOP_RIGHT_TEAM_URL, TRISAR_LOGO_URL } from '../shared/ui/icons';
 import { FahrzeugKarte } from '../shared/FahrzeugKarte';
+import { StundenHinweis } from '../features/fahrer/views/Stunden';
+import { DEMO_MODE } from '../datenquelle';
 
 const screenBg = {
   backgroundImage:
@@ -46,6 +48,11 @@ export default function KeineFahrtTrisar({ currentVehicle, onLogout, onOpenProfi
           <h1 className="absolute left-5 top-[194px] w-[362px] text-white text-[34px] leading-[1.18] tracking-[-0.5px] font-medium">
             Hey aktuell gibt es keine Fahrt für dich!
           </h1>
+
+          {/* Offene Stunden nach einem Dienst (nur live) */}
+          {!DEMO_MODE ? (
+            <div className="absolute left-5 top-[380px] w-[362px]"><StundenHinweis className="w-full" /></div>
+          ) : null}
 
           <FahrzeugKarte
             vehicle={currentVehicle}
