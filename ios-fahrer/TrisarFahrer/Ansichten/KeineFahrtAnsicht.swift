@@ -24,9 +24,6 @@ struct KeineFahrtAnsicht: View {
                         groesse: 34, gewicht: .medium, zeilenHoehe: 34 * 1.18, abstand: -0.5)
                     .platz(20, 194, 362, nil)
 
-                // Offene Stunden nach einem Dienst
-                StundenHinweis().platz(20, 370, 362, 56)
-
                 if let fahrzeug {
                     Button(action: oeffneFahrzeug) {
                         FahrzeugKarte(fahrzeug: fahrzeug,

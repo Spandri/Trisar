@@ -9,12 +9,13 @@ struct HauptAnsicht: View {
     @State private var offeneFahrt: Fahrt?
     @State private var supportOffen = false
     @State private var fahrzeugOffen = false
+    @ObservedObject private var stunden = StundenSpeicher.shared
 
     var body: some View {
         Group {
             if !speicher.geladen {
                 TrisarHintergrund()
-            } else if speicher.fahrten.isEmpty {
+            } else if speicher.fahrten.isEmpty && stunden.karten.isEmpty {
                 KeineFahrtAnsicht(
                     fahrzeug: speicher.fahrzeug,
                     oeffneProfil: { profilOffen = true },
@@ -28,6 +29,12 @@ struct HauptAnsicht: View {
                     oeffneFahrt: { offeneFahrt = $0 }
                 )
             }
+        }
+        // Stundenkarten: beim Start, nach jeder Aenderung an Fahrten und wenn die App wieder vorne ist.
+        .task { await stunden.laden() }
+        .onChange(of: speicher.fahrten.map(\.status)) { _, _ in Task { await stunden.laden() } }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            Task { await stunden.laden() }
         }
         .webVollbild(isPresented: $profilOffen) {
             ProfilFluss { profilOffen = false }

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import TrisarFooter from './ui/TrisarFooter';
 import { TOP_RIGHT_TEAM_URL, TRISAR_LOGO_URL } from '../shared/ui/icons';
 import { FahrzeugKarte } from '../shared/FahrzeugKarte';
-import { StundenHinweis } from '../features/fahrer/views/Stunden';
+import { useStundenKarten } from '../features/fahrer/views/Stunden';
+import FahrtenScreen01View from '../features/fahrer/views/FahrtenScreen01View';
 import { DEMO_MODE } from '../datenquelle';
 
 const screenBg = {
@@ -15,6 +16,8 @@ export default function KeineFahrtTrisar({ currentVehicle, onLogout, onOpenProfi
   const [scale, setScale] = useState(1);
   // Ueberschrift: Modell, ohne Modell das Kennzeichen (keine erfundenen Werte).
   const carName = currentVehicle?.brand_model || currentVehicle?.license_plate || '';
+  // Offene Stunden: dann die Fahrtenliste (ohne Fahrten) mit der Stundenkarte am Diensttag.
+  const { karten } = useStundenKarten();
 
   useEffect(() => {
     const updateScale = () => {
@@ -26,6 +29,19 @@ export default function KeineFahrtTrisar({ currentVehicle, onLogout, onOpenProfi
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
   }, []);
+
+  if (karten.length && !DEMO_MODE) {
+    return (
+      <FahrtenScreen01View
+        jobs={[]}
+        currentVehicle={currentVehicle}
+        onOpenProfile={onOpenProfile}
+        setView={(ziel) => { if (ziel === 'vehicle') onOpenVehicle?.(); }}
+        setSelectedJob={() => {}}
+        handleJobAction={async () => false}
+      />
+    );
+  }
 
   return (
     <div
@@ -48,11 +64,6 @@ export default function KeineFahrtTrisar({ currentVehicle, onLogout, onOpenProfi
           <h1 className="absolute left-5 top-[194px] w-[362px] text-white text-[34px] leading-[1.18] tracking-[-0.5px] font-medium">
             Hey aktuell gibt es keine Fahrt für dich!
           </h1>
-
-          {/* Offene Stunden nach einem Dienst (nur live) */}
-          {!DEMO_MODE ? (
-            <div className="absolute left-5 top-[380px] w-[362px]"><StundenHinweis className="w-full" /></div>
-          ) : null}
 
           <FahrzeugKarte
             vehicle={currentVehicle}

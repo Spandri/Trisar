@@ -30,7 +30,8 @@ const ArrowIcon = () => (
   </svg>
 );
 
-const CancelRideSheet = ({ onClose, onConfirm }) => {
+// titel, knopf und farbe optional (z. B. Stunden ablehnen), sonst Fahrt stornieren.
+const CancelRideSheet = ({ onClose, onConfirm, titel, knopf, farbe = '#e3f754' }) => {
   const { t } = useI18n();
   const [notes, setNotes] = useState('');
 
@@ -53,10 +54,10 @@ const CancelRideSheet = ({ onClose, onConfirm }) => {
           style={{ height: '150px' }}
         >
           <h1 
-            className="text-[#e3f754] text-[42px] font-bold tracking-[-0.5px] leading-[48px]"
-            style={{ fontFamily: 'Space Grotesk' }}
+            className="text-[42px] font-bold tracking-[-0.5px] leading-[48px]"
+            style={{ fontFamily: 'Space Grotesk', color: farbe }}
           >
-            {t('misc.cancelRideQuestion')}
+            {titel || t('misc.cancelRideQuestion')}
           </h1>
         </div>
 
@@ -93,8 +94,8 @@ const CancelRideSheet = ({ onClose, onConfirm }) => {
         {/* Cancel Button */}
         <button 
           type="button"
-          className="absolute left-[20px] right-[20px] bg-[#e3f754] flex items-center justify-between px-6"
-          style={{ top: '742px', height: '56px' }}
+          className="absolute left-[20px] right-[20px] flex items-center justify-between px-6"
+          style={{ top: '742px', height: '56px', background: farbe }}
           onClick={() => {
             if (onConfirm) {
               onConfirm(notes);
@@ -105,7 +106,7 @@ const CancelRideSheet = ({ onClose, onConfirm }) => {
             className="text-black text-[16px] font-bold tracking-[-0.5px]"
             style={{ fontFamily: 'Space Grotesk' }}
           >
-            {t('misc.cancelRideConfirm')}
+            {knopf || t('misc.cancelRideConfirm')}
           </span>
           <ArrowIcon />
         </button>

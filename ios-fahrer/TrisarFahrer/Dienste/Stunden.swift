@@ -44,7 +44,8 @@ enum Stunden {
             throw TrisarFehler.text("Nicht angemeldet.")
         }
         let jetzt = iso.string(from: Date())
-        let arbeits = max(0, Int(ende.timeIntervalSince(beginn) / 60) - pauseMin)
+        // Immer auf halbe Stunden gerundet.
+        let arbeits = max(0, Int((Double(Int(ende.timeIntervalSince(beginn) / 60) - pauseMin) / 30).rounded()) * 30)
         let zeile = Neu(driver_id: fahrer, dienst_id: e.dienst.id.uuidString.lowercased(), datum: e.dienst.datum,
                         beginn: iso.string(from: beginn), ende: iso.string(from: ende),
                         pausen: angepasst ? [] : (e.vorschlag?.pausen ?? []), pause_min: pauseMin, arbeits_min: arbeits,

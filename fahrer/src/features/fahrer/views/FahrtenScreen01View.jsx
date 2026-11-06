@@ -1,4 +1,4 @@
-import { StundenHinweis } from './Stunden';
+import { StundenKarte, stundenKartenHoehe, stundenMitKnoepfen, useStundenAktionen, useStundenKarten } from './Stunden';
 import { DEMO_MODE } from '../../../datenquelle';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import TrisarFooter from '../../../components/ui/TrisarFooter';
@@ -212,7 +212,9 @@ const tagSchluessel = (job) => {
 // (Linie — Wochentag Datum — Linie), darunter die Dienstzeiten dieses Tages und
 // danach seine Fahrten. So gehoert die Dienstplan-Anfrage sichtbar zu dem Tag,
 // fuer den sie gilt, statt pauschal ganz oben zu stehen.
-const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEIGHT) => {
+// Stundenkarten stehen am Ende ihres Diensttages (nach dessen Fahrten). Tage ohne
+// Fahrten (z. B. ein vergangener Dienst) bekommen ihre eigene Tageszeile, chronologisch.
+const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEIGHT, stundenKarten = []) => {
   const anfragenProTag = new Map();
   (anfragen || []).forEach((request) => {
     const tag = String(request?.date || '').slice(0, 10);
@@ -220,15 +222,23 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
     if (!anfragenProTag.has(tag)) anfragenProTag.set(tag, []);
     anfragenProTag.get(tag).push(request);
   });
+  const stundenProTag = new Map();
+  (stundenKarten || []).forEach((eintrag) => {
+    const tag = String(eintrag?.dienst?.datum || '').slice(0, 10);
+    if (!tag) return;
+    if (!stundenProTag.has(tag)) stundenProTag.set(tag, []);
+    stundenProTag.get(tag).push(eintrag);
+  });
 
   const zeilen = [];
   const dienste = [];
   const fahrten = [];
-  const offeneTage = new Set(anfragenProTag.keys());
+  const stunden = [];
+  const offeneTage = new Set([...anfragenProTag.keys(), ...stundenProTag.keys()]);
   let cursorTop = VEHICLE_CARD_TOP + fahrzeugKarteHoehe + DAY_DIVIDER_GAP_BOTTOM;
 
-  const tagBeginnen = (tag, istErster) => {
-    if (!istErster) cursorTop += DAY_DIVIDER_GAP_TOP;
+  const tagBeginnen = (tag) => {
+    if (zeilen.length) cursorTop += DAY_DIVIDER_GAP_TOP;
     zeilen.push({ top: cursorTop, datum: tag });
     cursorTop += DAY_DIVIDER_HEIGHT + DAY_DIVIDER_GAP_BOTTOM;
     const tagesAnfragen = anfragenProTag.get(tag) || [];
@@ -240,12 +250,28 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
     if (tagesAnfragen.length) cursorTop += SERVICE_REQUEST_LIST_GAP;
     offeneTage.delete(tag);
   };
+  const tagBeenden = (tag, mitFahrten) => {
+    (stundenProTag.get(tag) || []).forEach((eintrag) => {
+      if (mitFahrten) cursorTop += CARD_GAP;
+      stunden.push({ eintrag, top: cursorTop });
+      cursorTop += stundenKartenHoehe(eintrag) + (stundenMitKnoepfen(eintrag) ? AFTER_ACTION_GAP : CARD_GAP);
+    });
+  };
+  // Tage ohne Fahrten, die vor einem Tag liegen, kommen vorher dran.
+  const leereTageBis = (grenze) => {
+    Array.from(offeneTage).sort().filter((tag) => grenze === null || tag < grenze).forEach((tag) => {
+      tagBeginnen(tag);
+      tagBeenden(tag, false);
+    });
+  };
 
   let letzterTag = null;
-  (jobs || []).forEach((job, index) => {
+  (jobs || []).forEach((job) => {
     const tag = tagSchluessel(job);
     if (tag && tag !== letzterTag) {
-      tagBeginnen(tag, index === 0);
+      if (letzterTag) tagBeenden(letzterTag, true);
+      leereTageBis(tag);
+      tagBeginnen(tag);
       letzterTag = tag;
     }
     const cardTop = cursorTop;
@@ -257,14 +283,12 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
       : cardTop + cardHeight + CARD_GAP;
     fahrten.push({ cardTop, actionTop, cardHeight });
   });
+  if (letzterTag) tagBeenden(letzterTag, true);
 
-  // Dienstzeiten fuer Tage ohne Fahrten gehen nicht verloren, sie haengen
-  // chronologisch hinten an.
-  Array.from(offeneTage).sort().forEach((tag) => {
-    tagBeginnen(tag, zeilen.length === 0);
-  });
+  // Uebrige Tage ohne Fahrten haengen chronologisch hinten an.
+  leereTageBis(null);
 
-  return { zeilen, dienste, fahrten, unterkante: cursorTop };
+  return { zeilen, dienste, fahrten, stunden, unterkante: cursorTop };
 };
 
 const RideCard = ({ job, layout, topOffset = 0, onOpen, onAction, onSheetOpen, actionBusy, tutorialId, ungelesen = 0 }) => {
@@ -579,10 +603,14 @@ const FahrtenScreen01View = ({
     return () => { aktiv = false; };
   }, [schriftGeladen]);
   const [fahrzeugKartenHoehe, setFahrzeugKartenHoehe] = useState(VEHICLE_CARD_HEIGHT);
+  // Stunden am Ende des Diensttages (nur live).
+  const { karten: stundenKarten, laden: stundenLaden } = useStundenKarten();
+  const sichtbareStunden = DEMO_MODE ? [] : stundenKarten;
+  const stundenAktionen = useStundenAktionen(stundenLaden);
   const listenLayout = useMemo(
-    () => buildListenLayout(visibleJobs, activeServiceRequests, fahrzeugKartenHoehe),
+    () => buildListenLayout(visibleJobs, activeServiceRequests, fahrzeugKartenHoehe, sichtbareStunden),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visibleJobs, activeServiceRequests, schriftGeladen, fahrzeugKartenHoehe],
+    [visibleJobs, activeServiceRequests, schriftGeladen, fahrzeugKartenHoehe, sichtbareStunden],
   );
   const rideLayouts = listenLayout.fahrten;
   const ridesBottom = listenLayout.unterkante;
@@ -785,6 +813,18 @@ const FahrtenScreen01View = ({
                   );
                 })}
 
+                {listenLayout.stunden.map(({ eintrag, top }) => (
+                  <div key={`stunden-${eintrag.dienst.id}`} className="absolute left-5" style={{ top }}>
+                    <StundenKarte
+                      eintrag={eintrag}
+                      busy={stundenAktionen.busyId === eintrag.dienst.id}
+                      annehmen={() => stundenAktionen.annehmen(eintrag)}
+                      bearbeiten={() => stundenAktionen.bearbeiten(eintrag)}
+                      ablehnen={() => stundenAktionen.ablehnen(eintrag)}
+                    />
+                  </div>
+                ))}
+
                 {visibleJobs.map((job, index) => (
                   <RideCard
                     key={job.id}
@@ -803,13 +843,6 @@ const FahrtenScreen01View = ({
             </div>
           </div>
 
-          {/* Offene Stunden nach einem Dienst: Leiste ueber der Fusszeile (nur live) */}
-          {!DEMO_MODE ? (
-            <div className="absolute left-5 right-5 z-20" style={{ bottom: `${FIXED_FOOTER_HEIGHT + 10}px` }}>
-              <StundenHinweis className="w-full shadow-[0_-8px_24px_rgba(0,0,0,0.6)]" />
-            </div>
-          ) : null}
-
           <div
             className="absolute left-0 right-0 bottom-0 h-10 z-20 bg-black"
             style={{ height: `${FIXED_FOOTER_HEIGHT}px` }}
@@ -819,6 +852,8 @@ const FahrtenScreen01View = ({
         </div>
       </div>
       
+      {stundenAktionen.ebene}
+
       {/* Cancel Ride Sheet */}
       {showCancelSheet && (
         <CancelRideSheet 

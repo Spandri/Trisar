@@ -3,11 +3,11 @@
 #   bash werkzeuge/stunden-ausrollen.sh
 # Vorher bash werkzeuge/fahrzeugseite-ausrollen.sh (bringt die Fahrzeugkarte, die die Startseite braucht).
 #
-# 1. Migrationen 20261106050000_push_aenderungen_fix und 20261106060000_stundenerfassung (Pausen am Dienst, Stundenzettel, Status-Protokoll,
-#    Vorschlag und Verlauf, Mitteilungen)
+# 1. Migrationen 20261106050000_push_aenderungen_fix, 20261106060000_stundenerfassung (Pausen am Dienst, Stundenzettel, Status-Protokoll,
+#    Vorschlag und Verlauf, Mitteilungen) und 20261106070000_stunden_runden (halbe Stunden)
 # 2. Funktion dispo-admin (Import neu, Stunden-Export)
 # 3. Web-Dispo: Import im TRISAR-Stil, Stunden beim Fahrer
-# 4. Web-Fahrer: Verlauf mit Diensten, Stunden erfassen, Hinweis auf der Startseite
+# 4. Web-Fahrer: Stundenkarte am Ende des Diensttages (Ablehnen, Bearbeiten, Annehmen), Verlauf
 # Mehrfach ausfuehren schadet nicht.
 
 set -euo pipefail
@@ -30,7 +30,7 @@ fi
 
 echo "1/4 Migrationen"
 # Zuerst die Korrektur des Push-Triggers (Fahrt speichern schlug fehl), dann die Stundenerfassung.
-for m in 20261106050000_push_aenderungen_fix 20261106060000_stundenerfassung; do
+for m in 20261106050000_push_aenderungen_fix 20261106060000_stundenerfassung 20261106070000_stunden_runden; do
   v=${m%%_*}; n=${m#*_}
   if ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"select 1 from supabase_migrations.schema_migrations where version='$v'\"" | grep -q 1; then
     echo "   $m schon eingespielt"
@@ -67,9 +67,9 @@ for d in src/services/importKern.js src/services/importDienst.js src/i18n/de.js 
 done
 
 echo "4/4 Web-Fahrer"
-# Stunden.jsx zuerst, die anderen Dateien importieren es.
-for d in src/features/fahrer/views/Stunden.jsx src/features/fahrer/views/Verlauf.jsx \
-         src/components/KeineFahrtTrisar.jsx src/features/fahrer/views/FahrtenScreen01View.jsx; do
+# CancelRideSheet und Stunden.jsx zuerst, die anderen Dateien importieren sie.
+for d in src/features/fahrer/views/CancelRideSheet.jsx src/features/fahrer/views/Stunden.jsx src/features/fahrer/views/Verlauf.jsx \
+         src/features/fahrer/views/FahrtenScreen01View.jsx src/components/KeineFahrtTrisar.jsx; do
   kopieren fahrer "$d" fahrer-app-lokal-fahrer-1
 done
 

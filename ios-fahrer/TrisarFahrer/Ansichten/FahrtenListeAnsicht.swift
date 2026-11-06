@@ -10,6 +10,9 @@ struct FahrtenListeAnsicht: View {
     var oeffneFahrt: (Fahrt) -> Void
 
     @State private var ablehnenFahrt: Fahrt?
+    @ObservedObject private var stunden = StundenSpeicher.shared
+    @State private var stundenBearbeiten: Stunden.Eintrag?
+    @State private var stundenAblehnen: Stunden.Eintrag?
     /// Neu zeichnen, wenn ein Fahrzeugbild nicht laedt (Karte/Block werden kuerzer).
     @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
 
@@ -56,6 +59,15 @@ struct FahrtenListeAnsicht: View {
                     .platz(20, versatz + eintrag.oben, 362, nil)
                 }
 
+                // Stunden am Ende des Diensttages
+                ForEach(raster.stunden, id: \.eintrag.id) { s in
+                    StundenKarte(eintrag: s.eintrag, beschaeftigt: stunden.arbeitetID == s.eintrag.id,
+                                 annehmen: { Task { await stunden.annehmen(s.eintrag) } },
+                                 bearbeiten: { stundenBearbeiten = s.eintrag },
+                                 ablehnen: { stundenAblehnen = s.eintrag })
+                    .platz(20, versatz + s.oben, 362, nil)
+                }
+
                 ForEach(raster.fahrten, id: \.fahrt.id) { eintrag in
                     AuftragsKarte(
                         fahrt: eintrag.fahrt,
@@ -71,11 +83,7 @@ struct FahrtenListeAnsicht: View {
             }
         }
         .overlay { FussleisteUnten() }
-        // Offene Stunden nach einem Dienst: Leiste ueber der Fusszeile.
-        .overlay(alignment: .bottom) {
-            StundenHinweis().frame(maxWidth: 362).padding(.bottom, 50)
-                .shadow(color: .black.opacity(0.6), radius: 12, y: -4)
-        }
+        .modifier(StundenAktionen(bearbeiten: $stundenBearbeiten, ablehnen: $stundenAblehnen))
         .overlay(alignment: .top) { fehlerHinweis }
         .webVollbild(item: $ablehnenFahrt) { fahrt in
             AblehnenBlatt(schliessen: { ablehnenFahrt = nil }) { notiz in
@@ -86,14 +94,14 @@ struct FahrtenListeAnsicht: View {
     }
 
     @ViewBuilder private var fehlerHinweis: some View {
-        if let fehler = speicher.fehler {
+        if let fehler = speicher.fehler ?? stunden.fehler {
             Text(fehler)
                 .font(.grotesk(13, .medium))
                 .foregroundStyle(.black)
                 .padding(12)
                 .frame(maxWidth: .infinity)
                 .background(Farbe.fehler)
-                .onTapGesture { speicher.fehler = nil }
+                .onTapGesture { speicher.fehler = nil; stunden.fehler = nil }
                 .padding(.top, 50)
         }
     }
@@ -104,6 +112,7 @@ struct FahrtenListeAnsicht: View {
         var zeilen: [(datum: String, oben: CGFloat)] = []
         var dienste: [(anfrage: DienstAnfrage, oben: CGFloat)] = []
         var fahrten: [(fahrt: Fahrt, oben: CGFloat, mitKnoepfen: Bool)] = []
+        var stunden: [(eintrag: Stunden.Eintrag, oben: CGFloat)] = []
         var unterkante: CGFloat = 0
     }
 
@@ -120,12 +129,17 @@ struct FahrtenListeAnsicht: View {
             guard !tag.isEmpty else { continue }
             anfragenProTag[tag, default: []].append(anfrage)
         }
-        var offeneTage = Set(anfragenProTag.keys)
+        var fahrtenProTag: [String: [Fahrt]] = [:]
+        for fahrt in fahrten { fahrtenProTag[fahrt.fahrtDatum, default: []].append(fahrt) }
+        var stundenProTag: [String: [Stunden.Eintrag]] = [:]
+        for e in stunden.karten { stundenProTag[e.dienst.datum, default: []].append(e) }
+        // Alle Tage in Reihenfolge: Dienste, Fahrten, am Ende des Tages die Stunden.
+        let tage = Set(fahrtenProTag.keys).union(anfragenProTag.keys).union(stundenProTag.keys).sorted()
         var r = Raster()
         var cursor = fahrzeugUnterkante + tagUnten
 
-        func tagBeginnen(_ tag: String, erster: Bool) {
-            if !erster { cursor += tagOben }
+        for (t, tag) in tage.enumerated() {
+            if t > 0 { cursor += tagOben }
             r.zeilen.append((tag, cursor))
             cursor += tagHoehe + tagUnten
             let anfragen = anfragenProTag[tag] ?? []
@@ -135,21 +149,18 @@ struct FahrtenListeAnsicht: View {
                 if i < anfragen.count - 1 { cursor += dienstAbstand }
             }
             if !anfragen.isEmpty { cursor += dienstListe }
-            offeneTage.remove(tag)
-        }
-
-        var letzterTag: String?
-        for (i, fahrt) in fahrten.enumerated() {
-            if fahrt.fahrtDatum != letzterTag {
-                tagBeginnen(fahrt.fahrtDatum, erster: i == 0)
-                letzterTag = fahrt.fahrtDatum
+            for fahrt in fahrtenProTag[tag] ?? [] {
+                let mitKnoepfen = fahrt.wartetAufAntwort
+                r.fahrten.append((fahrt, cursor, mitKnoepfen))
+                let h = AuftragsKarte.hoehe(fahrt)
+                cursor += mitKnoepfen ? h + knopfAbstand + knopfHoehe + nachKnopf : h + kartenAbstand
             }
-            let mitKnoepfen = fahrt.wartetAufAntwort
-            r.fahrten.append((fahrt, cursor, mitKnoepfen))
-            let h = AuftragsKarte.hoehe(fahrt)
-            cursor += mitKnoepfen ? h + knopfAbstand + knopfHoehe + nachKnopf : h + kartenAbstand
+            for e in stundenProTag[tag] ?? [] {
+                if !(fahrtenProTag[tag] ?? []).isEmpty { cursor += kartenAbstand }
+                r.stunden.append((e, cursor))
+                cursor += StundenKarte.hoehe(e) + (StundenKarte.mitKnoepfen(e) ? nachKnopf : kartenAbstand)
+            }
         }
-        for tag in offeneTage.sorted() { tagBeginnen(tag, erster: r.zeilen.isEmpty) }
         r.unterkante = cursor
         return r
     }
