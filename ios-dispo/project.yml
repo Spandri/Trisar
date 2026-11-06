@@ -18,7 +18,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "10"
+    CURRENT_PROJECT_VERSION: "11"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
@@ -40,6 +40,7 @@ targets:
       - ../ios-fahrer/TrisarFahrer/Dienste/FahrtDetails.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Routen.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/FahrzeugDaten.swift
+      - ../ios-fahrer/TrisarFahrer/Dienste/Stunden.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/Stil.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/Raster.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/FahrzeugSkizze.swift

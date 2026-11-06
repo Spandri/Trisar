@@ -10,12 +10,15 @@ struct FahrerErstellenAnsicht: View {
     @FocusState private var fokus: Feld?
     @State private var menue: Menue?
     @State private var passwortSichtbar = false
+    @State private var stundenOffen = false
+    private let fahrer: DispoFahrer?
 
     enum Feld: Hashable { case vorname, nachname, email, benutzername, passwort, vorwahl, telefon, strasse, hausnummer, ort, plz, nummer, imei }
     enum Menue { case sprache, fahrzeug, tracker }
 
     init(fahrer: DispoFahrer?, zurueck: @escaping () -> Void) {
         self.zurueck = zurueck
+        self.fahrer = fahrer
         _m = StateObject(wrappedValue: FahrerEditorModell(fahrer: fahrer))
     }
 
@@ -33,6 +36,16 @@ struct FahrerErstellenAnsicht: View {
         Leinwand(basisHoehe: 913, inhaltHoehe: 913 + zugangsZeile + ortungsHoehe) { _ in
             ZStack(alignment: .topLeading) {
                 ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
+
+                // Stunden des Fahrers: pruefen, Pausen planen, Excel
+                if fahrer != nil {
+                    Button { stundenOffen = true } label: {
+                        Text("Stunden").font(.grotesk(15, .bold)).foregroundStyle(.black)
+                            .padding(.horizontal, 16).frame(height: 38).background(lime)
+                    }
+                    .buttonStyle(.web)
+                    .platz(402 - 20 - 104, 66, 104, 38)
+                }
 
                 Text(m.bearbeiten ? "Fahrer bearbeiten" : "Fahrer erstellen").grotesk(42, .bold, abstand: -0.5)
                     .foregroundStyle(Color(hex: 0xE2F754))
@@ -177,6 +190,9 @@ struct FahrerErstellenAnsicht: View {
         }
         .overlay { FussleisteUnten() }
         .task { await m.start() }
+        .webVollbild(isPresented: $stundenOffen) {
+            if let fahrer { DispoStundenAnsicht(fahrer: fahrer) { stundenOffen = false } }
+        }
         // Wie onFocus am IMEI-Feld: Tracker-Liste zu.
         .onChange(of: fokus) { _, neu in if neu == .imei, menue == .tracker { menue = nil } }
     }
