@@ -83,7 +83,7 @@ struct ImportAnsicht: View {
             .scrollDismissesKeyboard(.interactively)
             .ignoresSafeArea()
             FussleisteUnten()
-            if schritt == .zuordnung && analyse != nil { importLeiste.padding(.bottom, 40) }
+            if schritt == .zuordnung && analyse != nil { importLeiste }
         }
         .fileImporter(isPresented: $waehlen, allowedContentTypes: Self.dateiTypen) { antwort in
             if case let .success(url) = antwort { dateiGewaehlt(url) }
@@ -285,10 +285,11 @@ struct ImportAnsicht: View {
         .buttonStyle(.web)
         .disabled(beschaeftigt || bereit.isEmpty || neuBerechnen)
         .opacity(beschaeftigt || bereit.isEmpty ? 0.4 : 1)
-        .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 10)
+        .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 50)
         .frame(maxWidth: 402)
         .frame(maxWidth: .infinity)
-        .background(LinearGradient(colors: [.black.opacity(0), .black.opacity(0.95), .black], startPoint: .top, endPoint: .bottom))
+        .background(LinearGradient(stops: [.init(color: .black.opacity(0), location: 0), .init(color: .black, location: 0.25)],
+                                   startPoint: .top, endPoint: .bottom))
     }
 
     private func kachel(_ zahl: Int, _ text: String, hell: Bool = false, farbe: Color? = nil) -> some View {
