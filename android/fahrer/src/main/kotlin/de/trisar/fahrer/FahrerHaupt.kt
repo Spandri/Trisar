@@ -33,6 +33,7 @@ import de.trisar.fahrer.haupt.FahrtenSpeicher
 import de.trisar.fahrer.haupt.FahrzeugSeite
 import de.trisar.fahrer.haupt.KeineFahrtSeite
 import de.trisar.fahrer.haupt.ProfilSeite
+import de.trisar.fahrer.haupt.StundenErfassenSeite
 import de.trisar.fahrer.haupt.VerlaufSeite
 import de.trisar.fahrer.haupt.Vollbild
 import de.trisar.kern.Anmeldung
@@ -65,6 +66,9 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
     val fahrzeug by speicher.fahrzeug.collectAsState()
     var seite by remember { mutableStateOf<Seite?>(null) }
     var profilSeite by remember { mutableStateOf(ProfilUnterseite.PROFIL) }
+    // Stundenerfassung: offener Dienst im Vollbild, `stundenStand` laedt Verlauf und Hinweis neu.
+    var stundenErfassen by remember { mutableStateOf<de.trisar.kern.Stunden.Eintrag?>(null) }
+    var stundenStand by remember { mutableStateOf(0) }
 
     // Tipp auf eine Mitteilung: Fahrt, Chat (Fahrt der Kolonne) oder Fahrzeug oeffnen.
     val pushZiel by de.trisar.kern.Push.ziel.collectAsState()
@@ -76,6 +80,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
             "fahrt" -> fahrten.firstOrNull { it.id == z["job_id"] }?.let { Seite.Fahrt(it.id) }
             "chat" -> fahrten.firstOrNull { it.kolonnenID != null && it.kolonnenID == z["kolonne_id"] }?.let { Seite.Fahrt(it.id) }
             "fahrzeug" -> Seite.Fahrzeug
+            "verlauf" -> { profilSeite = ProfilUnterseite.VERLAUF; stundenStand++; Seite.Profil }
             else -> null
         }
     }
@@ -142,7 +147,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
         }
     }
 
-    BackHandler(enabled = aktuell != null) {
+    BackHandler(enabled = aktuell != null && stundenErfassen == null) {
         if (aktuell == Seite.Profil && profilSeite != ProfilUnterseite.PROFIL) profilSeite = ProfilUnterseite.PROFIL
         else seite = null
     }
@@ -155,12 +160,16 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                 oeffneProfil = { profilSeite = ProfilUnterseite.PROFIL; seite = Seite.Profil },
                 oeffneFahrzeug = { seite = Seite.Fahrzeug },
                 abmelden = { anmeldung.abmelden() },
+                stundenStand = stundenStand,
+                stundenErfassen = { stundenErfassen = it },
             )
             else -> FahrtenListeSeite(
                 speicher = speicher,
                 oeffneProfil = { profilSeite = ProfilUnterseite.PROFIL; seite = Seite.Profil },
                 oeffneFahrzeug = { seite = Seite.Fahrzeug },
                 oeffneFahrt = { seite = Seite.Fahrt(it.id) },
+                stundenStand = stundenStand,
+                stundenErfassen = { stundenErfassen = it },
             )
         }
 
@@ -175,7 +184,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                         oeffneVerlauf = { profilSeite = ProfilUnterseite.VERLAUF },
                         oeffneEinstellungen = { profilSeite = ProfilUnterseite.EINSTELLUNGEN },
                     )
-                    ProfilUnterseite.VERLAUF -> VerlaufSeite { profilSeite = ProfilUnterseite.PROFIL }
+                    ProfilUnterseite.VERLAUF -> VerlaufSeite(stundenStand, { profilSeite = ProfilUnterseite.PROFIL }) { stundenErfassen = it }
                     ProfilUnterseite.EINSTELLUNGEN -> EinstellungenSeite(anmeldung, fahrerID) { profilSeite = ProfilUnterseite.PROFIL }
                     ProfilUnterseite.SUPPORT -> SupportSeite { profilSeite = ProfilUnterseite.PROFIL }
                 }
@@ -187,6 +196,16 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                     seite = null
                     // Nach der Fahrt (beendet, abgelehnt) die Liste gleich neu.
                     speicher.neuLaden()
+                }
+            }
+        }
+
+        stundenErfassen?.let { e ->
+            BackHandler { stundenErfassen = null }
+            Vollbild {
+                StundenErfassenSeite(e, fahrerID, schliessen = { stundenErfassen = null }) {
+                    stundenErfassen = null
+                    stundenStand++
                 }
             }
         }

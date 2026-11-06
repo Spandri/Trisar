@@ -64,6 +64,8 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
     val fokusManager = LocalFocusManager.current
     var menue by remember { mutableStateOf<EditorMenue?>(null) }
     var pwSichtbar by remember { mutableStateOf(false) }
+    // Stunden des Fahrers (FahrerStunden.jsx): pruefen, Pausen planen, Excel. Nur beim Bearbeiten.
+    var stundenOffen by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { m.start(this) }
 
     val o = 20f // Container `top-[20px]`
@@ -151,6 +153,11 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
         TrisarHintergrund()
         Leinwand(913f + z, 913f + z + ortungsHoehe) {
             ZurueckKnopf(Modifier.platz(20f, 60f), zurueck)
+            if (m.bearbeiten && fahrer != null) {
+                Box(Modifier.platz(402f - 20f - 98f, 66f, 98f, 38f).background(LIME).tippen { stundenOffen = true }, contentAlignment = Alignment.Center) {
+                    Text("Stunden", style = grotesk(15f, 700, farbe = Color.Black))
+                }
+            }
 
             StammTitel(if (m.bearbeiten) "Fahrer bearbeiten" else "Fahrer erstellen", Modifier.platz(20f, o + 120f), abstand = -0.5f, farbe = 0xE2F754)
 
@@ -288,5 +295,8 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
             }
         }
         FussleisteUnten()
+        if (stundenOffen && fahrer != null) {
+            FahrerStundenSeite(fahrer.id, "${m.vorname} ${m.nachname}".trim().ifEmpty { "Fahrer" }) { stundenOffen = false }
+        }
     }
 }

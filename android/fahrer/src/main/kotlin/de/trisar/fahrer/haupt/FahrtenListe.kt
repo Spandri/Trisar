@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -120,6 +121,8 @@ internal fun FahrtenListeSeite(
     oeffneProfil: () -> Unit,
     oeffneFahrzeug: () -> Unit,
     oeffneFahrt: (Fahrt) -> Unit,
+    stundenStand: Int = 0,
+    stundenErfassen: (de.trisar.kern.Stunden.Eintrag) -> Unit = {},
 ) {
     val fahrten by speicher.fahrten.collectAsState()
     val anfragen by speicher.dienstAnfragen.collectAsState()
@@ -162,6 +165,10 @@ internal fun FahrtenListeSeite(
                     ablehnen = { ablehnenFahrt = fahrt },
                 )
             }
+        }
+        // Offene Stunden: Lime-Leiste ueber der Fusszeile (StundenHinweis).
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+            StundenHinweis(stundenStand, Modifier.navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 50.dp).fillMaxWidth(), stundenErfassen)
         }
         FussleisteUnten()
 

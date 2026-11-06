@@ -89,23 +89,3 @@ private fun ProfilZeile(text: String, modifier: Modifier, aktion: () -> Unit) {
         Icon("Arrow_Trisar_Icons_01", Modifier.size(34.dp, 19.92.dp))
     }
 }
-
-/**
- * Nachbau von Verlauf.jsx. Live gibt es noch keinen Dienst-Verlauf, dann steht der Hinweis da
- * (die Demo-Dienste der Web-App werden nicht nachgebaut), wie VerlaufAnsicht.swift.
- */
-@Composable
-internal fun VerlaufSeite(zurueck: () -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        Leinwand(basisHoehe = 874f, inhaltHoehe = 1481f + 43f, mitHintergrund = false) {
-            ProfilHintergrund(Modifier.size(402.dp, 1524.dp))
-            Box(Modifier.platz(0f, 218f, 402f, 1046f).background(hex(0x18181B), RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)))
-            ZurueckKnopf(Modifier.platz(20f, 60f), zurueck)
-            Text("Verlauf", style = grotesk(42f, 700, zeilenHoehe = 42f, abstand = -0.5f, farbe = hex(0xE3F654)), maxLines = 1,
-                modifier = Modifier.platz(20f, 140f))
-            Text("Noch keine abgeschlossenen Dienste.", style = grotesk(16f, 500, zeilenHoehe = 24f, abstand = 0.5f, farbe = Color.White.copy(alpha = 0.7f)),
-                modifier = Modifier.platz(20f, 242f, 362f))
-        }
-        FussleisteUnten()
-    }
-}
