@@ -4,6 +4,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { importAktion } from './import.ts';
+import { stundenExport } from './stunden.ts';
 
 const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator']);
 
@@ -58,6 +59,12 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
+
+    // Stundenerfassung: Excel-Export (siehe stunden.ts).
+    if (body?.aktion === 'stunden_export') {
+      const { status, daten } = await stundenExport(admin, body);
+      return jsonResponse(status, daten);
+    }
 
     // Excel-/CSV-Import (siehe import.ts).
     if (typeof body?.aktion === 'string' && body.aktion.startsWith('import_')) {
