@@ -107,6 +107,8 @@ internal fun FahrerStundenSeite(fahrerID: String, fahrerName: String, schliessen
     var fahrtenJe by remember { mutableStateOf<Map<String, List<TagFahrt>>>(emptyMap()) }
     var alleFahrer by remember { mutableStateOf<List<FahrerWahl>>(emptyList()) }
     var stand by remember { mutableStateOf(0) }
+    // Schalter: bekommt dieser Fahrer die Stundenerfassung (Standard an).
+    var erfassungAn by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
     BackHandler(onBack = schliessen)
@@ -138,6 +140,12 @@ internal fun FahrerStundenSeite(fahrerID: String, fahrerName: String, schliessen
                 .decodeList<JsonObject>()
         }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it; emptyList() }
 
+        val einstellung = runCatching {
+            Backend.client.from("fahrer_einstellungen").select(Columns.raw("stundenerfassung")) { filter { eq("driver_id", fahrerID) } }
+                .decodeList<JsonObject>().firstOrNull()
+        }.getOrElse { if (it is kotlinx.coroutines.CancellationException) throw it; null }
+        erfassungAn = (einstellung?.get("stundenerfassung") as? JsonPrimitive)?.booleanOrNull ?: true
+
         verlauf = v
         dienste = kommende
         pausenJe.clear()
@@ -162,6 +170,20 @@ internal fun FahrerStundenSeite(fahrerID: String, fahrerName: String, schliessen
         }
     }
 
+    fun erfassungSchalten() {
+        val neu = !erfassungAn
+        erfassungAn = neu
+        scope.launch {
+            runCatching {
+                Backend.client.from("fahrer_einstellungen").upsert(buildJsonObject {
+                    put("driver_id", fahrerID)
+                    put("stundenerfassung", neu)
+                    put("aktualisiert", Instant.now().toString())
+                })
+            }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; erfassungAn = !neu }
+        }
+    }
+
     val liste = verlauf.orEmpty()
     val zuPruefen = liste.filter { it.zettel?.status == "eingereicht" }
     val erledigt = liste.filter { it.zettel != null && it.zettel?.status != "eingereicht" }
@@ -176,6 +198,26 @@ internal fun FahrerStundenSeite(fahrerID: String, fahrerName: String, schliessen
                 ZurueckKnopf(aktion = schliessen)
                 Text("Stunden", style = grotesk(42f, 700, zeilenHoehe = 42f, abstand = -0.5f, farbe = S_LIME), modifier = Modifier.padding(top = 30.dp))
                 Text(fahrerName, style = st(16f, 500, Color.White.copy(alpha = 0.7f)), modifier = Modifier.padding(top = 6.dp))
+
+                // Schalter: Stundenerfassung fuer diesen Fahrer an oder aus
+                Row(
+                    Modifier.padding(top = 16.dp).fillMaxWidth().height(56.dp).background(hex(0x0F0F0F))
+                        .border(2.dp, if (erfassungAn) S_LIME else Color.White.copy(alpha = 0.3f))
+                        .tippen { erfassungSchalten() }.padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Stundenerfassung", style = st(16f, 700, if (erfassungAn) S_LIME else Color.White.copy(alpha = 0.7f)))
+                        Text(if (erfassungAn) "Fahrer erfasst nach jedem Dienst seine Stunden" else "Fahrer sieht keine Stundenerfassung",
+                            style = st(11f, 500, Color.White.copy(alpha = 0.5f)))
+                    }
+                    Box(
+                        Modifier.width(52.dp).height(30.dp).background(if (erfassungAn) S_LIME else Color.White.copy(alpha = 0.2f), androidx.compose.foundation.shape.RoundedCornerShape(15.dp)).padding(3.dp),
+                        contentAlignment = if (erfassungAn) Alignment.CenterEnd else Alignment.CenterStart,
+                    ) {
+                        Box(Modifier.width(24.dp).height(24.dp).background(if (erfassungAn) Color.Black else Color.White, androidx.compose.foundation.shape.CircleShape))
+                    }
+                }
 
                 Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Kachel("${zuPruefen.size}", "zu prüfen", Modifier.weight(1f), if (zuPruefen.isNotEmpty()) S_ORANGE else null)

@@ -14,6 +14,8 @@ struct DispoStundenAnsicht: View {
     @State private var fahrtenJe: [String: [TagFahrt]] = [:]
     @State private var alleFahrer: [(id: String, name: String)] = []
     @State private var exportDatei: URL?
+    /// Schalter: bekommt dieser Fahrer die Stundenerfassung (Standard an).
+    @State private var erfassungAn = true
 
     private let lime = Color(hex: 0xE3F654)
     private let orange = Color(hex: 0xFFCD8A)
@@ -44,6 +46,28 @@ struct DispoStundenAnsicht: View {
                     ZurueckKnopf(aktion: schliessen).frame(width: 50, height: 50)
                     StammTitel(text: "Stunden").padding(.top, 30)
                     Text(fahrer.name).font(.grotesk(16, .medium)).foregroundStyle(.white.opacity(0.7)).padding(.top, 6)
+
+                    // Schalter: Stundenerfassung fuer diesen Fahrer an oder aus
+                    Button { Task { await erfassungSchalten() } } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Stundenerfassung").font(.grotesk(16, .bold)).foregroundStyle(erfassungAn ? lime : .white.opacity(0.7))
+                                Text(erfassungAn ? "Fahrer erfasst nach jedem Dienst seine Stunden" : "Fahrer sieht keine Stundenerfassung")
+                                    .font(.grotesk(11, .medium)).foregroundStyle(.white.opacity(0.5))
+                            }
+                            Spacer(minLength: 0)
+                            Capsule().fill(erfassungAn ? lime : .white.opacity(0.2)).frame(width: 52, height: 30)
+                                .overlay(alignment: erfassungAn ? .trailing : .leading) {
+                                    Circle().fill(erfassungAn ? Color.black : Color.white).frame(width: 24, height: 24).padding(3)
+                                }
+                        }
+                        .padding(.horizontal, 16).frame(height: 56)
+                        .background(Color(hex: 0x0F0F0F))
+                        .overlay(Rectangle().strokeBorder(erfassungAn ? lime : .white.opacity(0.3), lineWidth: 2))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 16)
 
                     HStack(spacing: 8) {
                         kachel("\(zuPruefen.count)", "zu prüfen", zuPruefen.isEmpty ? nil : orange)
@@ -151,6 +175,9 @@ struct DispoStundenAnsicht: View {
             .eq("driver_id", value: fahrer.id).gte("service_date", value: heute).in("status", values: ["pending", "accepted"])
             .order("service_date").limit(30).execute().value) ?? []
         dienste = kommende
+        let einstellung: [Einstellung] = (try? await c.from("fahrer_einstellungen").select("driver_id, stundenerfassung")
+            .eq("driver_id", value: fahrer.id).execute().value) ?? []
+        erfassungAn = einstellung.first?.stundenerfassung ?? true
         if !kommende.isEmpty {
             struct Zeile: Decodable { let dienst_id: String; let pausen: [PausePlan] }
             let p: [Zeile] = (try? await c.from("dienst_pausen").select("dienst_id, pausen").in("dienst_id", values: kommende.map(\.id)).execute().value) ?? []
@@ -166,6 +193,19 @@ struct DispoStundenAnsicht: View {
     }
 
     private struct StundenParameter: Encodable { let p_driver: String; let p_tage: Int }
+
+    private struct Einstellung: Codable { let driver_id: String; let stundenerfassung: Bool; var aktualisiert: String? }
+
+    private func erfassungSchalten() async {
+        let neu = !erfassungAn
+        erfassungAn = neu
+        do {
+            try await Backend.client.from("fahrer_einstellungen")
+                .upsert(Einstellung(driver_id: fahrer.id, stundenerfassung: neu, aktualisiert: Stunden.iso.string(from: Date()))).execute()
+        } catch {
+            erfassungAn = !neu
+        }
+    }
 
     private func pausenSpeichern(_ dienstId: String, _ pausen: [PausePlan]) async {
         struct Zeile: Encodable { let dienst_id: String; let pausen: [PausePlan]; let aktualisiert: String }

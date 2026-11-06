@@ -238,16 +238,19 @@ export default function FahrerStunden({ fahrer, schliessen }) {
   const [fahrtenJe, setFahrtenJe] = useState({});
   const [alleFahrer, setAlleFahrer] = useState([]);
   const [stand, setStand] = useState(0);
+  // Schalter: bekommt dieser Fahrer die Stundenerfassung (Standard an).
+  const [erfassungAn, setErfassungAn] = useState(true);
 
   useEffect(() => {
     let aktiv = true;
     (async () => {
       const heute = isoTag(new Date());
-      const [{ data: v }, { data: d }, { data: f }] = await Promise.all([
+      const [{ data: v }, { data: d }, { data: f }, { data: es }] = await Promise.all([
         supabase.rpc('stunden_verlauf', { p_driver: fahrer.id, p_tage: 60 }),
         supabase.from('driver_service_requests').select('id, service_date, service_start_time, service_end_time, status')
           .eq('driver_id', fahrer.id).gte('service_date', heute).in('status', ['pending', 'accepted']).order('service_date').limit(30),
         supabase.from('profiles').select('id, first_name, last_name, role, is_dispo').order('first_name'),
+        supabase.from('fahrer_einstellungen').select('stundenerfassung').eq('driver_id', fahrer.id).maybeSingle(),
       ]);
       const kommende = d || [];
       const ids = kommende.map((x) => x.id);
@@ -258,6 +261,7 @@ export default function FahrerStunden({ fahrer, schliessen }) {
       ]);
       if (!aktiv) return;
       setVerlauf(v || []);
+      setErfassungAn(es ? es.stundenerfassung !== false : true);
       setDienste(kommende);
       setPausenJe(Object.fromEntries((p || []).map((x) => [x.dienst_id, x.pausen || []])));
       const nachTag = {};
@@ -275,6 +279,14 @@ export default function FahrerStunden({ fahrer, schliessen }) {
     await supabase.from('dienst_pausen').upsert({ dienst_id: dienstId, pausen, aktualisiert: new Date().toISOString() });
   };
 
+  const erfassungSchalten = async () => {
+    const neuWert = !erfassungAn;
+    setErfassungAn(neuWert);
+    const { error } = await supabase.from('fahrer_einstellungen')
+      .upsert({ driver_id: fahrer.id, stundenerfassung: neuWert, aktualisiert: new Date().toISOString() });
+    if (error) setErfassungAn(!neuWert);
+  };
+
   const zuPruefen = useMemo(() => (verlauf || []).filter((e) => e.zettel?.status === 'eingereicht'), [verlauf]);
   const erledigt = useMemo(() => (verlauf || []).filter((e) => e.zettel && e.zettel.status !== 'eingereicht'), [verlauf]);
   const offen = useMemo(() => (verlauf || []).filter((e) => !e.zettel && e.vorbei), [verlauf]);
@@ -289,6 +301,22 @@ export default function FahrerStunden({ fahrer, schliessen }) {
         </button>
         <h1 className={`mt-[30px] text-[42px] leading-[42px] font-bold ${schrift}`} style={{ color: LIME }}>Stunden</h1>
         <div className={`mt-[6px] text-[16px] font-medium ${schrift} text-white/70`}>{fahrer.name}</div>
+
+        {/* Schalter: Stundenerfassung fuer diesen Fahrer an oder aus */}
+        <button
+          type="button"
+          onClick={erfassungSchalten}
+          className="mt-[16px] w-full h-[56px] px-4 flex items-center justify-between border-2"
+          style={{ borderColor: erfassungAn ? LIME : 'rgba(255,255,255,0.3)', background: '#0f0f0f' }}
+        >
+          <span className="flex flex-col items-start">
+            <span className={`text-[16px] font-bold ${schrift}`} style={{ color: erfassungAn ? LIME : 'rgba(255,255,255,0.7)' }}>Stundenerfassung</span>
+            <span className={`text-[11px] font-medium ${schrift} text-white/50`}>{erfassungAn ? 'Fahrer erfasst nach jedem Dienst seine Stunden' : 'Fahrer sieht keine Stundenerfassung'}</span>
+          </span>
+          <span className="w-[52px] h-[30px] rounded-full p-[3px] flex transition-colors" style={{ background: erfassungAn ? LIME : 'rgba(255,255,255,0.2)', justifyContent: erfassungAn ? 'flex-end' : 'flex-start' }}>
+            <span className="w-[24px] h-[24px] rounded-full" style={{ background: erfassungAn ? '#000' : '#fff' }} />
+          </span>
+        </button>
 
         <div className="mt-[16px] grid grid-cols-3 gap-2">
           {[[zuPruefen.length, 'zu prüfen', zuPruefen.length ? ORANGE : null], [offen.length, 'nicht erfasst', offen.length ? ROT : null], [hmm(summeMonat), 'bestätigt (Monat)', null]].map(([zahl, text, farbe], i) => (

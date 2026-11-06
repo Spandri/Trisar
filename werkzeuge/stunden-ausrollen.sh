@@ -4,7 +4,7 @@
 # Vorher bash werkzeuge/fahrzeugseite-ausrollen.sh (bringt die Fahrzeugkarte, die die Startseite braucht).
 #
 # 1. Migrationen 20261106050000_push_aenderungen_fix, 20261106060000_stundenerfassung (Pausen am Dienst, Stundenzettel, Status-Protokoll,
-#    Vorschlag und Verlauf, Mitteilungen) 20261106070000_stunden_runden und 20261106080000_stunden_runden_fahrer (halbe Stunden zugunsten des Fahrers)
+#    Vorschlag und Verlauf, Mitteilungen) 20261106070000_stunden_runden 20261106080000_stunden_runden_fahrer (halbe Stunden zugunsten des Fahrers) und 20261106090000_stundenerfassung_schalter (an/aus je Fahrer)
 # 2. Funktion dispo-admin (Import neu, Stunden-Export)
 # 3. Web-Dispo: Import im TRISAR-Stil, Stunden beim Fahrer
 # 4. Web-Fahrer: Stundenkarte am Ende des Diensttages (Ablehnen, Bearbeiten, Annehmen), Verlauf
@@ -30,7 +30,7 @@ fi
 
 echo "1/4 Migrationen"
 # Zuerst die Korrektur des Push-Triggers (Fahrt speichern schlug fehl), dann die Stundenerfassung.
-for m in 20261106050000_push_aenderungen_fix 20261106060000_stundenerfassung 20261106070000_stunden_runden 20261106080000_stunden_runden_fahrer; do
+for m in 20261106050000_push_aenderungen_fix 20261106060000_stundenerfassung 20261106070000_stunden_runden 20261106080000_stunden_runden_fahrer 20261106090000_stundenerfassung_schalter; do
   v=${m%%_*}; n=${m#*_}
   if ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"select 1 from supabase_migrations.schema_migrations where version='$v'\"" | grep -q 1; then
     echo "   $m schon eingespielt"
