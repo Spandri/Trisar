@@ -234,19 +234,19 @@ begin
   end if;
 
   -- Fahrdaten geaendert. Eine reine ETD-Verschiebung durch den Flugabgleich meldet der Flug-Teil.
-  if new.ride_date is distinct from old.ride_date then aenderungen := aenderungen || 'Datum'; end if;
+  if new.ride_date is distinct from old.ride_date then aenderungen := array_append(aenderungen, 'Datum'); end if;
   if new.etd is distinct from old.etd
      and not (new.ext_flight_payload is distinct from old.ext_flight_payload) then
-    aenderungen := aenderungen || ('Zeit ' || coalesce(to_char(old.etd, 'HH24:MI'), '–') || ' → ' || coalesce(to_char(new.etd, 'HH24:MI'), '–'));
+    aenderungen := array_append(aenderungen, 'Zeit ' || coalesce(to_char(old.etd, 'HH24:MI'), '–') || ' → ' || coalesce(to_char(new.etd, 'HH24:MI'), '–'));
   end if;
   if new.pickup_name is distinct from old.pickup_name or new.pickup_address is distinct from old.pickup_address then
-    aenderungen := aenderungen || 'Abholort';
+    aenderungen := array_append(aenderungen, 'Abholort');
   end if;
   if new.dropoff_name is distinct from old.dropoff_name or new.dropoff_address is distinct from old.dropoff_address then
-    aenderungen := aenderungen || 'Ziel';
+    aenderungen := array_append(aenderungen, 'Ziel');
   end if;
-  if new.flight_number is distinct from old.flight_number then aenderungen := aenderungen || 'Flugnummer'; end if;
-  if new.train_number is distinct from old.train_number then aenderungen := aenderungen || 'Zugnummer'; end if;
+  if new.flight_number is distinct from old.flight_number then aenderungen := array_append(aenderungen, 'Flugnummer'); end if;
+  if new.train_number is distinct from old.train_number then aenderungen := array_append(aenderungen, 'Zugnummer'); end if;
   if cardinality(aenderungen) > 0 and new.driver_id is not distinct from old.driver_id then
     for f in select public.push_fahrer_der_fahrt(new.id) loop
       perform public.push_melden(f, 'fahrer', 'fahrt_geaendert', 'Fahrt geändert',
