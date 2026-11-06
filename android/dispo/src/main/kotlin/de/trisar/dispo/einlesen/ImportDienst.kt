@@ -75,6 +75,8 @@ object ImportDienst {
         val fehlendeZuordnung: List<String>,
         val datensaetze: List<Satz>,
         val llamaGenutzt: Boolean,
+        val kontextDatum: String = "",
+        val kontextZiel: String = "",
     )
 
     class Adresse(val gefunden: Boolean, val name: String)
@@ -230,6 +232,8 @@ object ImportDienst {
                 )
             },
             llamaGenutzt = (llama?.get("genutzt") as? JsonPrimitive)?.booleanOrNull ?: false,
+            kontextDatum = str((a["kontext"] as? JsonObject)?.get("datum")),
+            kontextZiel = str((a["kontext"] as? JsonObject)?.get("ziel")),
         )
     }
 

@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -476,6 +478,13 @@ private fun ZuordnungUndVorschau(
     }
 
     if (a.vorlageGenutzt) Banner(t("imp.vorlageGenutzt", mapOf("name" to a.vorlageName)), GRUEN)
+    if (a.kontextDatum.isNotEmpty() || a.kontextZiel.isNotEmpty()) {
+        val teile = listOfNotNull(
+            a.kontextDatum.takeIf { it.isNotEmpty() }?.let { t("imp.kontextDatum", mapOf("datum" to datumLang(it).ifEmpty { it })) },
+            a.kontextZiel.takeIf { it.isNotEmpty() }?.let { t("imp.kontextZiel", mapOf("ziel" to it)) },
+        )
+        Banner(teile.joinToString(" "), LIME.copy(alpha = 0.85f))
+    }
     if (a.llamaGenutzt) Banner(t("imp.llamaGenutzt"), ORANGE)
 
     Row(Modifier.padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -533,8 +542,8 @@ private fun ZuordnungUndVorschau(
 
 @Composable
 private fun Banner(text: String, farbe: Color) {
-    Row(Modifier.padding(top = 14.dp).fillMaxWidth()) {
-        Box(Modifier.width(2.dp).height(32.dp).background(farbe))
+    Row(Modifier.padding(top = 14.dp).fillMaxWidth().height(IntrinsicSize.Min)) {
+        Box(Modifier.width(2.dp).fillMaxHeight().background(farbe))
         Text(text, style = stil(12f, 500, 16f, farbe = farbe), modifier = Modifier.padding(start = 12.dp))
     }
 }
@@ -937,6 +946,8 @@ private val texte = mapOf(
     "imp.h.zielAusDatei" to "Ziel aus dem Kopf der Datei",
     "imp.hinweis" to "Beliebige Tabelle aus Excel (.xlsx, .xls) oder CSV, auch mit mehreren Blättern. Die Spalten werden erkannt, du prüfst den Vorschlag, ergänzt fehlende Angaben und importierst. Jeder Import lässt sich rückgängig machen.",
     "imp.keinTreffer" to "Keine passende Bedeutung erkannt",
+    "imp.kontextDatum" to "Datum {datum} aus dem Kopf der Datei.",
+    "imp.kontextZiel" to "Ziel aus der Datei: {ziel}.",
     "imp.letzteImporte" to "Letzte Importe",
     "imp.llamaGenutzt" to "Llama hat Spalten zugeordnet, die die Regeln nicht sicher erkannt haben. Bitte die markierten Spalten prüfen.",
     "imp.mitImportieren" to "Mit importieren",
