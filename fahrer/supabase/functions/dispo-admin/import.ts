@@ -48,9 +48,37 @@ const trennzeichen = (inhalt: string) => {
   return bestes[1] > 0 ? bestes[0] : ';';
 };
 
-const blattZeilen = (blatt: any) => (XLSX.utils.sheet_to_json(blatt, {
-  header: 1, blankrows: false, defval: '', raw: true,
-}) as unknown[][]).slice(0, MAX_ZEILEN);
+// Zellen selbst lesen: Excel-Datums- und Zeitzellen als Zahl (Tage seit 1899-12-30) und ohne
+// Zeitzone umrechnen. Ueber Date-Objekte verschiebt sich die Uhrzeit um die historische
+// Zeitzonen-Abweichung von 1899 (eine Stunde zu frueh).
+const p2 = (n: number) => String(n).padStart(2, '0');
+const excelText = (wert: number) => {
+  const tage = Math.floor(wert + 1e-9);
+  const minuten = Math.round((wert - tage) * 1440) % 1440;
+  const zeit = `${p2(Math.floor(minuten / 60))}:${p2(minuten % 60)}`;
+  if (tage < 1) return zeit;
+  const d = new Date(Date.UTC(1899, 11, 30) + tage * 86400000);
+  const datum = `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
+  return minuten ? `${datum} ${zeit}` : datum;
+};
+
+const blattZeilen = (blatt: any) => {
+  if (!blatt?.['!ref']) return [];
+  const bereich = XLSX.utils.decode_range(blatt['!ref']);
+  const zeilen: unknown[][] = [];
+  for (let r = bereich.s.r; r <= Math.min(bereich.e.r, bereich.s.r + MAX_ZEILEN); r += 1) {
+    const zeile: unknown[] = [];
+    for (let c = bereich.s.c; c <= bereich.e.c; c += 1) {
+      const zelle = blatt[XLSX.utils.encode_cell({ r, c })];
+      if (!zelle || zelle.v == null) { zeile.push(''); continue; }
+      if (zelle.t === 'n' && zelle.z && XLSX.SSF.is_date(zelle.z)) zeile.push(excelText(zelle.v));
+      else if (zelle.t === 'd' && zelle.v instanceof Date) zeile.push(K.text(zelle.v));
+      else zeile.push(zelle.v);
+    }
+    if (zeile.some((w) => K.text(w))) zeilen.push(zeile);
+  }
+  return zeilen;
+};
 
 export const dateiLesen = (b64: string, dateiname: string) => {
   const bytes = base64ZuBytes(b64);
@@ -59,7 +87,7 @@ export const dateiLesen = (b64: string, dateiname: string) => {
   const istZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
   const istXls = bytes[0] === 0xd0 && bytes[1] === 0xcf;
   if (istZip || istXls || /\.(xlsx|xlsm|xls|ods)$/.test(name)) {
-    const mappe = XLSX.read(bytes, { type: 'array', cellDates: true, UTC: true });
+    const mappe = XLSX.read(bytes, { type: 'array', cellDates: false, cellNF: true });
     return mappe.SheetNames.map((n: string) => ({ name: n, zeilen: blattZeilen(mappe.Sheets[n]) }))
       .filter((b: any) => b.zeilen.length);
   }
@@ -255,18 +283,18 @@ const analysieren = async (admin: Admin, body: any) => {
     ? Object.fromEntries(Object.entries(body.zuordnung).filter(([, f]) => typeof f === 'string' && K.feldNamen(modus).includes(f as string))) as Record<string, string>
     : K.zuordnungAus(erkennung.spalten);
 
-  let { datensaetze } = K.bauen(modus, erkennung.datenzeilen, zuordnung);
+  const kontext = K.kontextAus(blaetter, blatt, erkennung.kopfzeile);
+  let { datensaetze } = K.bauen(modus, erkennung.datenzeilen, zuordnung, kontext);
 
-  // Llama nur, wenn die Regeln Luecken lassen: Datensaetze mit fehlenden Angaben oder Spalten
-  // mit Inhalt, die keinem Feld zugeordnet sind. Nie bei Vorlage oder eigener Zuordnung.
+  // Llama nur, wenn die Regeln Luecken lassen (Datensaetze mit fehlenden Angaben).
+  // Nie bei Vorlage oder eigener Zuordnung.
   let llama: any = { genutzt: false, erreichbar: null };
-  const luecken = datensaetze.some((s: any) => s.fehlt.length)
-    || erkennung.spalten.some((s: any) => !zuordnung[s.index]);
+  const luecken = datensaetze.some((s: any) => s.fehlt.length);
   if (!vorlage && !body?.zuordnung && body?.llama !== false && luecken) {
     llama = await llamaZuordnen(admin, modus, erkennung, zuordnung);
     if (llama.genutzt) {
       zuordnung = llama.zuordnung;
-      ({ datensaetze } = K.bauen(modus, erkennung.datenzeilen, zuordnung));
+      ({ datensaetze } = K.bauen(modus, erkennung.datenzeilen, zuordnung, kontext));
     }
   }
 
@@ -295,6 +323,7 @@ const analysieren = async (admin: Admin, body: any) => {
     // Nur Felder, die in mindestens einem Datensatz wirklich fehlen (Datum kann aus Zwischenzeilen kommen).
     fehlendeZuordnung: K.fehlendeZuordnung(zuordnung, modus).filter((f: string) => datensaetze.some((d: any) => d.fehlt.includes(f))),
     datensaetze,
+    kontext: { datum: kontext.datum || null, ziel: kontext.ziel || null },
     llama: { genutzt: Boolean(llama.genutzt), erreichbar: llama.erreichbar },
   });
 };

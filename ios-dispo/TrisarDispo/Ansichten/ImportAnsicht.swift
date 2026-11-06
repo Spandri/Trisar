@@ -519,6 +519,17 @@ struct ImportAnsicht: View {
             if !rueckgaengigText.isEmpty {
                 Text(rueckgaengigText).font(.grotesk(13, .medium)).foregroundStyle(Color(hex: 0x8DFFAF)).padding(.top, 10)
             }
+            // Weitere Blaetter derselben Datei (schon importierte Fahrten kommen als Dublette abgewaehlt).
+            if let analyse, analyse.blaetter.count > 1, quelle != nil {
+                ForEach(analyse.blaetter.filter { $0.index != analyse.blatt }, id: \.self) { b in
+                    randKnopf(t("imp.blattImportieren", ["name": b.name]), lime) {
+                        ergebnis = nil
+                        rueckgaengigText = ""
+                        schritt = .erkennung
+                        neuAuswerten(blatt: b.index, zuordnung: nil, erster: true)
+                    }
+                }
+            }
         }
     }
 
@@ -780,6 +791,9 @@ struct ImportAnsicht: View {
         "imp.h.gleicheAdresse": "Abholort und Ziel sind gleich",
         "imp.h.emailUngueltig": "E-Mail-Adresse ungültig",
         "imp.h.llama": "von Llama gelesen",
+        "imp.h.datumAusDatei": "Datum aus dem Kopf der Datei",
+        "imp.h.zielAusDatei": "Ziel aus dem Kopf der Datei",
+        "imp.blattImportieren": "Blatt „{name}“ importieren",
         "imp.letzteImporte": "Letzte Importe",
         "imp.nochDa": "{n} von {gesamt} noch da",
         "imp.wurdeRueckgaengig": "rückgängig gemacht",

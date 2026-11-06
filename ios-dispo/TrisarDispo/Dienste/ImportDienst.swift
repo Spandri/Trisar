@@ -145,7 +145,7 @@ enum ImportDienst {
         if text(d["pickup_address"]).isEmpty { fehlt.append("abholort") }
         if text(d["dropoff_address"]).isEmpty { fehlt.append("zielort") }
         satz.fehlt = fehlt
-        var h = satz.hinweise.filter { ["mehrereZeilen", "datumUebernommen", "llama", "doppelt", "adresseUnbekannt"].contains($0) }
+        var h = satz.hinweise.filter { ["mehrereZeilen", "datumUebernommen", "datumAusDatei", "zielAusDatei", "llama", "doppelt", "adresseUnbekannt"].contains($0) }
         let heute = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withFullDate])
         let datum = text(d["ride_date"])
         if !datum.isEmpty && datum < heute { h.append("vergangen") }

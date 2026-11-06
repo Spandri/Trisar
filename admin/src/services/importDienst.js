@@ -59,7 +59,8 @@ const demoAnalysieren = ({ modus, datei, dateiname, blatt, zuordnung }) => {
   const erkennung = K.spaltenErkennen(blaetter[nr].zeilen, modus);
   if (!erkennung.spalten.length || !erkennung.datenzeilen.length) throw Object.assign(new Error('datei_leer'), { code: 'datei_leer' });
   const zu = zuordnung || K.zuordnungAus(erkennung.spalten);
-  const { datensaetze } = K.bauen(modus, erkennung.datenzeilen, zu);
+  const kontext = K.kontextAus(blaetter, nr, erkennung.kopfzeile);
+  const { datensaetze } = K.bauen(modus, erkennung.datenzeilen, zu, kontext);
   return {
     modus,
     dateiname,

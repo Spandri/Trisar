@@ -121,8 +121,8 @@ export const MUSTER = {
   flughafenCode: (t) => (/\(([A-Z]{3})\)|^[A-Z]{3}$/.test(t.trim())) && !/^(VIP|PAX|TBA|TBC|N\/A|USD|EUR)$/i.test(t.trim()),
   ort: (t) => !datumLesen(t) && !MUSTER_UHR(t) && (/(stra(ß|ss)e|str\.|platz|weg|allee|ring|gasse|damm|ufer|road|street|avenue|hotel|flughafen|airport|terminal|bahnhof|hbf|messe|zentrum|center|centre|halle|restaurant|büro|office)/i.test(t)
     || /\b\d{5}\b/.test(t) || /\b[A-ZÄÖÜ][a-zäöüß]+\s\d{1,4}[a-z]?\b/.test(t) || /\b(MUC|FRA|BER|HAM|DUS|STR|NUE|CGN)\b/.test(t)),
-  name: (t) => /^([A-ZÄÖÜ][a-zäöüß'-]+\.?\s){1,3}[A-ZÄÖÜ][a-zäöüß'-]+(\s*[,;&/+]\s*([A-ZÄÖÜ][a-zäöüß'-]+\.?\s){0,3}[A-ZÄÖÜ][a-zäöüß'-]+)*$/.test(t.replace(/^(herr|frau|mr|mrs|ms|dr|prof)\.?\s+/i, '').trim())
-    || /^[A-ZÄÖÜ][a-zäöüß'-]+,\s*[A-ZÄÖÜ][a-zäöüß'-]+$/.test(t.trim()),
+  name: (t0) => { const t = t0.replace(/^[^:]{2,60}:\s*/, ''); return /^([A-ZÄÖÜ][a-zäöüß'-]+\.?\s){1,3}[A-ZÄÖÜ][a-zäöüß'-]+(\s*[,;&/+]\s*([A-ZÄÖÜ][a-zäöüß'-]+\.?\s){0,3}[A-ZÄÖÜ][a-zäöüß'-]+)*$/.test(t.replace(/^(herr|frau|mr|mrs|ms|dr|prof)\.?\s+/i, '').trim())
+    || /^[A-ZÄÖÜ][a-zäöüß'-]+,\s*[A-ZÄÖÜ][a-zäöüß'-]+$/.test(t.trim()); },
   anzahl: (t) => /^\d{1,2}$/.test(t.trim()) && Number(t) >= 1 && Number(t) <= 30,
   janein: (t) => /^(ja|nein|yes|no|x|true|false|1|0|y|n|✓|✔|wahr|falsch)$/i.test(t.trim()),
   email: (t) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(t.trim()),
@@ -148,13 +148,16 @@ const FAHRT_FELDER = [
   { key: 'flugnummer', kopf: ['flug', 'flugnummer', 'flight', 'flight no', 'flight nr', 'flight number', 'flightnumber', 'arrival flight', 'zug flug', 'flug zug', 'flugnr', 'fl'], werte: ['flug', 'zug'] },
   { key: 'zugnummer', kopf: ['zug', 'zugnummer', 'train', 'train number', 'train no'], werte: ['zug'] },
   { key: 'herkunft', kopf: ['herkunft', 'abflugort', 'aus', 'arriving from', 'origin', 'kommt aus', 'abflughafen', 'departure airport'], werte: ['flughafenCode'] },
-  { key: 'gaeste', kopf: ['gast', 'gäste', 'gaeste', 'fahrgast', 'fahrgäste', 'passagier', 'passagiere', 'guest', 'guest name', 'guests', 'passenger', 'passengers', 'passenger name', 'pax name', 'name', 'names', 'kunde', 'reisender', 'teilnehmer name', 'vip name'], werte: ['name'] },
+  { key: 'gaeste', kopf: ['gast', 'gäste', 'gaeste', 'fahrgast', 'fahrgäste', 'passagier', 'passagiere', 'guest', 'guest name', 'guests', 'passenger', 'passengers', 'passenger name', 'pax name', 'name', 'names', 'kunde', 'reisender', 'teilnehmer name', 'vip name', 'firma gäste', 'firma gaeste', 'firma gast', 'gäste firma'], werte: ['name'] },
   { key: 'anzahl', kopf: ['anzahl', 'anz', 'personen', 'pers', 'pax', 'persons', 'people', 'teilnehmer', 'number of guests', 'no of pax', 'no pax', 'gästeanzahl'], werte: ['anzahl'] },
   { key: 'vip', kopf: ['vip'], werte: ['janein'] },
   { key: 'kindersitz', kopf: ['kindersitz', 'child seat', 'kindersitze', 'baby seat', 'booster'], werte: ['janein', 'anzahl'] },
   { key: 'rollstuhl', kopf: ['rollstuhl', 'barrierefrei', 'wheelchair', 'rollstuhlgerecht', 'accessibility'], werte: ['janein'] },
   { key: 'gepaeck', kopf: ['gepäck', 'gepaeck', 'koffer', 'luggage', 'baggage', 'sondergepäck', 'bags'], werte: ['janein', 'anzahl'] },
   { key: 'notiz', kopf: ['notiz', 'notizen', 'bemerkung', 'bemerkungen', 'hinweis', 'hinweise', 'kommentar', 'note', 'notes', 'remarks', 'comment', 'comments', 'info', 'details', 'special requests', 'besonderheiten'], werte: ['freitext'] },
+  // Kein eigenes Feld in jobs: beides kommt in die Notiz der Fahrt.
+  { key: 'firma', kopf: ['firma', 'unternehmen', 'company', 'organisation', 'organization', 'kunde firma', 'auftraggeber'], werte: [] },
+  { key: 'telefon', kopf: ['telefon', 'tel', 'phone', 'mobil', 'handy', 'mobile', 'telefonnummer', 'kontakt telefon'], werte: ['telefon'] },
 ];
 
 const GAST_FELDER = [
@@ -234,6 +237,53 @@ export const kopfSignatur = (spalten) => spalten
   .sort()
   .join('|');
 
+// "1. Abholung: Firma / Gaeste | Adresse | Pax | Abholzeit | 2. Abholung: ... | Adresse | Pax | Abholzeit":
+// dieselbe Spaltengruppe mehrfach nebeneinander. Jede Gruppe wird eine eigene Zeile, die
+// uebrigen Spalten (Chauffeur, Hinweis ...) gelten fuer alle.
+const ohneOrdnung = (t) => schluessel(t).replace(/^\d+\s+/, '').replace(/^(erste|zweite|dritte|vierte|1st|2nd|3rd|4th)\s+/, '');
+
+const gruppeFinden = (titel) => {
+  const norm = titel.map(ohneOrdnung);
+  let beste = null;
+  for (let laenge = 2; laenge <= Math.floor(norm.length / 2); laenge += 1) {
+    for (let start = 0; start + 2 * laenge <= norm.length; start += 1) {
+      const block = norm.slice(start, start + laenge);
+      if (block.filter(Boolean).length < 2) continue;
+      let wdh = 1;
+      while (start + (wdh + 1) * laenge <= norm.length
+        && norm.slice(start + wdh * laenge, start + (wdh + 1) * laenge).every((t, i) => t === block[i])) wdh += 1;
+      if (wdh >= 2 && (!beste || laenge * wdh > beste.laenge * beste.wdh)) beste = { start, laenge, wdh };
+    }
+  }
+  return beste;
+};
+
+const gruppenAufteilen = (titel, datenzeilen) => {
+  const g = gruppeFinden(titel);
+  if (!g) return { titel, datenzeilen, gruppen: 1 };
+  const ende = g.start + g.laenge * g.wdh;
+  const vor = [...Array(g.start).keys()];
+  const nach = [...Array(Math.max(0, titel.length - ende)).keys()].map((i) => ende + i);
+  const neueTitel = [
+    ...vor.map((i) => titel[i]),
+    ...titel.slice(g.start, g.start + g.laenge).map((t) => text(t).replace(/^\s*\d+\.\s*/, '')),
+    ...nach.map((i) => titel[i]),
+  ];
+  const zeilen = [];
+  datenzeilen.forEach((z) => {
+    const teile = [];
+    for (let k = 0; k < g.wdh; k += 1) {
+      const block = z.slice(g.start + k * g.laenge, g.start + (k + 1) * g.laenge);
+      // Leere Gruppe oder nur ein Vermerk ("Bereitschaft am Kongress") ist keine Fahrt.
+      if (block.slice(1).every((w) => !text(w))) continue;
+      teile.push(block);
+    }
+    if (!teile.length) { zeilen.push([...vor.map((i) => z[i]), ...Array(g.laenge).fill(''), ...nach.map((i) => z[i])]); return; }
+    teile.forEach((block) => zeilen.push([...vor.map((i) => z[i]), ...block, ...nach.map((i) => z[i])]));
+  });
+  return { titel: neueTitel, datenzeilen: zeilen, gruppen: g.wdh };
+};
+
 // Tabelle in Kopf und Datenzeilen zerlegen. Datenzeilen behalten auch Zeilen mit nur einer
 // Zelle (Folgezeilen mit weiterem Gast, Zwischenzeilen mit Datum).
 export const tabelleZerlegen = (rohzeilen) => {
@@ -243,14 +293,23 @@ export const tabelleZerlegen = (rohzeilen) => {
   const breite = Math.max(...zeilen.map((z) => z.length));
   const titel = Array.from({ length: breite }, (_, i) => (kopf >= 0 ? text(zeilen[kopf][i]) : ''));
   // Summenzeilen am Ende ("Gesamt", "Total") gehoeren nicht zu den Daten.
-  const datenzeilen = zeilen.slice(kopf + 1).filter((z) => !/^(gesamt|summe|total|sum)\b/i.test(text(z.find((w) => text(w)))));
-  return { kopfzeile: kopf, titel, datenzeilen };
+  // Weitere Kopfzeilen mitten in der Tabelle (zweite Teiltabelle) auch nicht.
+  const kopfWorte = new Set(titel.map(ohneOrdnung).filter(Boolean));
+  const datenzeilen = zeilen.slice(kopf + 1)
+    .filter((z) => !/^(gesamt|summe|total|sum)\b/i.test(text(z.find((w) => text(w)))))
+    .filter((z) => {
+      const zellen = z.map(ohneOrdnung).filter(Boolean);
+      return !(zellen.length >= 3 && zellen.filter((t) => kopfWorte.has(t)).length >= zellen.length * 0.5);
+    });
+  return { kopfzeile: kopf, ...gruppenAufteilen(titel, datenzeilen) };
 };
+
+const NIE_ZUORDNEN = new Set(['nr', 'no', 'nummer', 'lfd nr', 'lfd', 'pos', 'position', 'id', 'zeile', 'row', 'fahrt nr', 'status']);
 
 // Liefert die Spalten mit Beispielwerten, Vorschlag, Sicherheit und Begruendung.
 // vorlage: { "<Ueberschrift normalisiert>": "<Feld>" } aus einem frueheren Import.
 export const spaltenErkennen = (rohzeilen, modus = 'rides', { vorlage = null } = {}) => {
-  const { kopfzeile, titel, datenzeilen } = tabelleZerlegen(rohzeilen);
+  const { kopfzeile, titel, datenzeilen, gruppen } = tabelleZerlegen(rohzeilen);
   if (!datenzeilen.length) return { spalten: [], datenzeilen: [], kopfzeile, signatur: '' };
 
   const breiteDaten = datenzeilen.filter((z) => gefuellt(z) >= 2);
@@ -270,11 +329,12 @@ export const spaltenErkennen = (rohzeilen, modus = 'rides', { vorlage = null } =
         ? { ...spalte, vorschlag: feld, sicherheit: 1, grund: { vorlage: true } }
         : { ...spalte, vorschlag: null, sicherheit: 0, grund: { art: 'keinTreffer' } };
     });
-    return { spalten: ergebnis, datenzeilen, kopfzeile, signatur, ausVorlage: true };
+    return { spalten: ergebnis, datenzeilen, kopfzeile, signatur, gruppen, ausVorlage: true };
   }
 
   const kandidaten = [];
   spalten.forEach((spalte) => {
+    if (NIE_ZUORDNEN.has(schluessel(spalte.titel))) return;
     felder.forEach((feld, rang) => {
       const k = kopfTreffer(spalte.ohneTitel ? '' : spalte.titel, feld);
       const w = werteTreffer(spalte.beispiele, feld);
@@ -320,7 +380,7 @@ export const spaltenErkennen = (rohzeilen, modus = 'rides', { vorlage = null } =
     };
   });
 
-  return { spalten: ergebnis, datenzeilen, kopfzeile, signatur };
+  return { spalten: ergebnis, datenzeilen, kopfzeile, signatur, gruppen };
 };
 
 // Zuordnung {spaltenIndex: feld} aus dem Erkennungsergebnis.
@@ -343,20 +403,23 @@ export const fehlendeZuordnung = (zuordnung, modus) => {
   return fehlt;
 };
 
-// Wie gut passt ein Tabellenblatt? Fuer die Wahl des Blatts bei mehreren.
-export const blattBewerten = (rohzeilen, modus) => {
-  const e = spaltenErkennen(rohzeilen, modus);
+// Wie gut passt ein Tabellenblatt? Zaehlt die vollstaendigen Fahrten bzw. Fahrgaeste, die daraus
+// entstehen (mit Datum und Ziel aus dem Dateikopf), bei Gleichstand die Sicherheit der Zuordnung.
+export const blattBewerten = (blaetter, index, modus) => {
+  const e = spaltenErkennen(blaetter[index].zeilen, modus);
   if (!e.spalten.length) return 0;
   const zuordnung = zuordnungAus(e.spalten);
-  const pflichtDa = pflichtFelder(modus).length - fehlendeZuordnung(zuordnung, modus).length;
+  const kontext = kontextAus(blaetter, index, e.kopfzeile);
+  const { datensaetze } = bauen(modus, e.datenzeilen, zuordnung, kontext);
+  const vollstaendig = datensaetze.filter((d) => !d.fehlt.length).length;
   const sicherheit = e.spalten.reduce((s, x) => s + (x.sicherheit || 0), 0);
-  return pflichtDa * 10 + sicherheit + Math.min(e.datenzeilen.length, 50) / 10;
+  return vollstaendig * 10 + sicherheit;
 };
 
 export const blattWaehlen = (blaetter, modus) => {
   let bestes = 0; let punkte = -1;
-  (blaetter || []).forEach((b, i) => {
-    const p = blattBewerten(b.zeilen, modus);
+  (blaetter || []).forEach((_, i) => {
+    const p = blattBewerten(blaetter, i, modus);
     if (p > punkte) { punkte = p; bestes = i; }
   });
   return bestes;
@@ -392,7 +455,78 @@ const namenTeilen = (gaesteText) => {
     const [nach, vor] = t.split(/,\s*/);
     return [`${vor} ${nach}`];
   }
-  return t.split(NAMEN_TRENNER).map((n) => n.trim()).filter(Boolean);
+  const teile = t.split(/\s*[,;&/+]\s*|\n/).map((n) => n.trim()).filter(Boolean);
+  const namen = [];
+  teile.forEach((teil) => {
+    // "Philipp und Tina Zimmermann": beide heissen Zimmermann.
+    const paar = teil.split(/\s+(?:und|and)\s+/i).map((n) => n.trim()).filter(Boolean);
+    if (paar.length === 2 && !/\s/.test(paar[0]) && /\s/.test(paar[1])) {
+      const nachname = paar[1].split(/\s+/).pop();
+      namen.push(`${paar[0]} ${nachname}`, paar[1]);
+    } else namen.push(...paar);
+  });
+  return namen;
+};
+
+// ---------------------------------------------------------------------------
+// Kontext aus der ganzen Datei
+// ---------------------------------------------------------------------------
+
+// Echte Listen schreiben Datum und Ziel oft nur einmal oben hin ("Samstag, 07.11.2026",
+// "Ziel: Kongress am Park, ...") oder in ein anderes Blatt. Ortsnamen stehen in einer Zelle
+// kurz ("Hotel Maximilian's") und woanders mit Anschrift.
+const ZIEL_LABEL = new Set(['ziel', 'zielort', 'zieladresse', 'destination', 'veranstaltungsort', 'veranstaltung', 'location', 'venue', 'event location', 'ort der veranstaltung', 'eventlocation']);
+const DATUM_LABEL = new Set(['datum', 'date', 'veranstaltungsdatum', 'event date', 'tag', 'termin']);
+const NICHT_DATUM = /(stand|erstellt|gedruckt|version|as of|updated|aktualisiert)\W*$/i;
+
+const datumImText = (t) => {
+  // Daten hinter "Stand", "erstellt" usw. sind kein Fahrtdatum.
+  const muster = /\d{1,2}\.\d{1,2}\.(\d{2,4})?|\d{4}-\d{2}-\d{2}/g;
+  let m;
+  while ((m = muster.exec(t))) {
+    if (NICHT_DATUM.test(t.slice(Math.max(0, m.index - 20), m.index))) continue;
+    const d = datumLesen(m[0].endsWith('.') || /\d{4}$/.test(m[0]) || m[0].includes('-') ? m[0] : `${m[0]}.`);
+    if (d) return d;
+  }
+  return '';
+};
+
+export const kontextAus = (blaetter, blattIndex = 0, kopfzeile = -1) => {
+  const kontext = { datum: '', datumQuelle: '', ziel: '', orte: {} };
+  const blatt = blaetter?.[blattIndex];
+  const titelZeilen = (b, bis) => (b?.zeilen || []).slice(0, Math.max(0, bis)).map((z) => z.map(text).filter(Boolean).join(' | '));
+
+  // Datum: Titelzeilen dieses Blatts, dann sein Name, dann die ersten Zeilen der anderen Blaetter.
+  const quellen = [
+    ...titelZeilen(blatt, kopfzeile >= 0 ? kopfzeile : 3).map((t) => [t, 'titel']),
+    [text(blatt?.name), 'blatt'],
+    ...(blaetter || []).flatMap((b, i) => (i === blattIndex ? [] : [...titelZeilen(b, 3).map((t) => [t, 'datei']), [text(b.name), 'datei']])),
+  ];
+  for (const [t, quelle] of quellen) {
+    const d = datumImText(t);
+    if (d) { kontext.datum = d; kontext.datumQuelle = quelle; break; }
+  }
+
+  (blaetter || []).forEach((b) => (b.zeilen || []).forEach((z) => {
+    const zellen = z.map(text).filter(Boolean);
+    // Schluessel-Wert-Zeilen: "Ziel | Kongress am Park, Goegginger Str. 10, 86159 Augsburg"
+    if (zellen.length === 2) {
+      const label = schluessel(zellen[0]).replace(/\s*:$/, '');
+      if (!kontext.ziel && ZIEL_LABEL.has(label) && /[a-zäöü]{3}/i.test(zellen[1])) kontext.ziel = zellen[1];
+      if (!kontext.datum && DATUM_LABEL.has(label) && datumLesen(zellen[1])) { kontext.datum = datumLesen(zellen[1]); kontext.datumQuelle = 'datei'; }
+    }
+    // Orte mit Anschrift: "Hotel Maximilian's, Maximilianstr. 40" -> "hotel maximilian s"
+    zellen.forEach((zelle) => {
+      zelle.split(/\s+und\s+(?=[A-ZÄÖÜ])/).forEach((teil) => {
+        const [kurz, ...rest] = teil.split(',').map((x) => x.trim());
+        if (!rest.length || !/\d/.test(rest.join(',')) || kurz.length < 3 || kurz.length > 45 || /\d/.test(kurz)) return;
+        const k = schluessel(kurz);
+        const voll = [kurz, ...rest].filter(Boolean).join(', ').replace(/[\s,]+$/, '');
+        if (!kontext.orte[k] || kontext.orte[k].length < voll.length) kontext.orte[k] = voll;
+      });
+    });
+  }));
+  return kontext;
 };
 
 const heuteIso = () => new Date().toISOString().slice(0, 10);
@@ -403,7 +537,7 @@ const fahrtSchluessel = (d) => [d.ride_date, d.etd, adresseVergleich(d.pickup_ad
 // Aus Datenzeilen und Zuordnung Fahrten bauen.
 // Rueckgabe: { datensaetze: [{ zeilen: [Zeilennummern], daten, fehlt, hinweise }] }
 // Zeilennummern zaehlen ab der ersten Datenzeile (1 = erste Zeile unter der Kopfzeile).
-export const fahrtenBauen = (datenzeilen, zuordnung) => {
+export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
   const spalteVon = (feld) => {
     const eintrag = Object.entries(zuordnung || {}).find(([, f]) => f === feld);
     return eintrag ? Number(eintrag[0]) : null;
@@ -416,6 +550,7 @@ export const fahrtenBauen = (datenzeilen, zuordnung) => {
 
   const datensaetze = [];
   let tagDerGruppe = '';
+  let tagAusDatei = false;
   let letzte = null;
   const nachSchluessel = new Map();
 
@@ -434,8 +569,13 @@ export const fahrtenBauen = (datenzeilen, zuordnung) => {
     const kombi = wert(zeile, 'datumUhrzeit');
     let datum = datumLesen(kombi) || datumLesen(wert(zeile, 'datum'));
     const uhrzeit = (kombi ? uhrzeitLesen(ohneDatum(kombi)) : '') || uhrzeitLesen(wert(zeile, 'uhrzeit'));
-    const abholort = wert(zeile, 'abholort');
-    const zielort = wert(zeile, 'zielort');
+    // Kurzname, der woanders in der Datei mit Anschrift steht, bekommt die Anschrift.
+    const ergaenzt = (ort) => (ort && !ort.includes(',') && kontext?.orte?.[schluessel(ort)]) || ort;
+    const abholort = ergaenzt(wert(zeile, 'abholort'));
+    let zielort = ergaenzt(wert(zeile, 'zielort'));
+    // Keine Zielspalte, aber die Datei nennt ein Ziel ("Ziel: Kongress am Park, ...").
+    const zielAusDatei = !zielort && spalteVon('zielort') == null && kontext?.ziel;
+    if (zielAusDatei) zielort = kontext.ziel;
     const flugOderZug = wert(zeile, 'flugnummer');
     const zug = wert(zeile, 'zugnummer') || (MUSTER.zug(flugOderZug) ? flugOderZug : '');
     let flug = MUSTER.zug(flugOderZug) ? '' : flugNummerAus(flugOderZug) || flugOderZug.toUpperCase();
@@ -443,7 +583,10 @@ export const fahrtenBauen = (datenzeilen, zuordnung) => {
     if (!flug && (FLUGHAFEN.test(abholort) || FLUGHAFEN.test(zielort))) {
       flug = [abholort, zielort, wert(zeile, 'notiz')].map((z) => flugNummerAus(z)).find(Boolean) || '';
     }
-    const gaesteRoh = wert(zeile, 'gaeste');
+    let gaesteRoh = wert(zeile, 'gaeste');
+    // "Baker Tilly: Dr. Thomas Gemmeke, Tanja Wuzik": vor dem Doppelpunkt die Firma.
+    const firmaVorn = gaesteRoh.match(/^([^:]{2,60}):\s*(.+)$/);
+    if (firmaVorn) gaesteRoh = firmaVorn[2];
     const inKlammern = gaesteRoh.match(/\((\d{1,2})\s*(?:pers\.?|personen|pax|p)?\)/i);
     const gaeste = namenTeilen(gaesteRoh.replace(/\(\d{1,2}[^)]*\)/g, ''));
     let anzahl = Number.parseInt(wert(zeile, 'anzahl'), 10);
@@ -451,7 +594,7 @@ export const fahrtenBauen = (datenzeilen, zuordnung) => {
     const hinweise = [];
 
     // Folgezeile: nur weitere Gaeste (oder Notiz) ohne eigene Fahrtangaben. Gehoert zur Fahrt darueber.
-    const eigeneAngaben = datum || uhrzeit || abholort || zielort || flug || zug;
+    const eigeneAngaben = datum || uhrzeit || abholort || (!zielAusDatei && zielort) || flug || zug;
     if (!eigeneAngaben && letzte && (gaeste.length || wert(zeile, 'notiz'))) {
       letzte.daten.passengers.push(...gaeste.filter((g) => !letzte.daten.passengers.includes(g)));
       if (wert(zeile, 'notiz')) letzte.daten.note = [letzte.daten.note, wert(zeile, 'notiz')].filter(Boolean).join(' · ');
@@ -462,12 +605,20 @@ export const fahrtenBauen = (datenzeilen, zuordnung) => {
     // Zeilen ohne irgendeine zugeordnete Angabe (z. B. Leerzeilen mit Formatierung) ueberspringen.
     if (!genutzteSpalten.some((i) => text(zeile[i]))) { letzte = null; return; }
 
-    if (!datum && tagDerGruppe) { datum = tagDerGruppe; hinweise.push('datumUebernommen'); }
+    if (!datum && tagDerGruppe) { datum = tagDerGruppe; hinweise.push(tagAusDatei ? 'datumAusDatei' : 'datumUebernommen'); }
+    if (zielAusDatei) hinweise.push('zielAusDatei');
     // Datum nur in der ersten Zeile eines Tages: von der Fahrt darueber uebernehmen.
-    if (!datum && uhrzeit && letzte?.daten.ride_date) { datum = letzte.daten.ride_date; hinweise.push('datumUebernommen'); }
+    if (!datum && uhrzeit && letzte?.daten.ride_date) { datum = letzte.daten.ride_date; hinweise.push(tagAusDatei ? 'datumAusDatei' : 'datumUebernommen'); }
+    // Kein Datum in der Tabelle: das Datum aus dem Kopf der Datei ("Samstag, 07.11.2026").
+    if (!datum && !tagDerGruppe && kontext?.datum) { datum = kontext.datum; hinweise.push('datumAusDatei'); tagAusDatei = true; }
+    else if (datum && datum !== tagDerGruppe && !hinweise.includes('datumAusDatei')) tagAusDatei = false;
     if (datum) tagDerGruppe = datum;
 
-    const notiz = wert(zeile, 'notiz');
+    const notiz = [
+      (wert(zeile, 'firma') || firmaVorn?.[1]) && `Firma: ${wert(zeile, 'firma') || firmaVorn[1].trim()}`,
+      wert(zeile, 'telefon') && `Tel. ${wert(zeile, 'telefon')}`,
+      wert(zeile, 'notiz'),
+    ].filter(Boolean).join(' · ');
     // Ja/Nein-Spalten: Ja-Woerter oder das Stichwort selbst ("Kindersitz x2"). Stichworte in der
     // Bemerkung zaehlen auch ("bitte Kindersitz").
     const flag = (feld) => ja(wert(zeile, feld)) || STICHWORT[feld].test(wert(zeile, feld)) || STICHWORT[feld].test(notiz);
@@ -493,7 +644,8 @@ export const fahrtenBauen = (datenzeilen, zuordnung) => {
 
     // Gleiche Fahrt in mehreren Zeilen (ein Gast je Zeile): zusammenfassen.
     const sch = fahrtSchluessel(daten);
-    const gleiche = datum && uhrzeit && (abholort || zielort) ? nachSchluessel.get(sch) : null;
+    // Nur bei Namen (ein Gast je Zeile). Gleiche Fahrt ohne Namen in zwei Zeilen sind zwei Fahrzeuge.
+    const gleiche = datum && uhrzeit && (abholort || zielort) && gaeste.length ? nachSchluessel.get(sch) : null;
     if (gleiche) {
       gleiche.daten.passengers.push(...gaeste.filter((g) => !gleiche.daten.passengers.includes(g)));
       if (daten.anzahl && (!gleiche.daten.anzahl || gleiche.daten.anzahl < daten.anzahl)) gleiche.daten.anzahl = daten.anzahl;
@@ -523,7 +675,7 @@ export const fahrtPruefen = (satz) => {
   if (!d.etd) satz.fehlt.push('uhrzeit');
   if (!text(d.pickup_address)) satz.fehlt.push('abholort');
   if (!text(d.dropoff_address)) satz.fehlt.push('zielort');
-  const behalten = (satz.hinweise || []).filter((h) => ['mehrereZeilen', 'datumUebernommen', 'llama', 'doppelt', 'adresseUnbekannt'].includes(h));
+  const behalten = (satz.hinweise || []).filter((h) => ['mehrereZeilen', 'datumUebernommen', 'datumAusDatei', 'zielAusDatei', 'llama', 'doppelt', 'adresseUnbekannt'].includes(h));
   if (d.ride_date && d.ride_date < heuteIso()) behalten.push('vergangen');
   if (d.anzahl && d.passengers.length > d.anzahl) behalten.push('mehrNamenAlsPersonen');
   if (d.pickup_address && d.dropoff_address && adresseVergleich(d.pickup_address) === adresseVergleich(d.dropoff_address)) behalten.push('gleicheAdresse');
@@ -616,5 +768,5 @@ export const gastPruefen = (satz) => {
   return satz;
 };
 
-export const bauen = (modus, datenzeilen, zuordnung) => (modus === 'guests' ? gaesteBauen(datenzeilen, zuordnung) : fahrtenBauen(datenzeilen, zuordnung));
+export const bauen = (modus, datenzeilen, zuordnung, kontext = null) => (modus === 'guests' ? gaesteBauen(datenzeilen, zuordnung) : fahrtenBauen(datenzeilen, zuordnung, kontext));
 export const pruefen = (modus, satz) => (modus === 'guests' ? gastPruefen(satz) : fahrtPruefen(satz));

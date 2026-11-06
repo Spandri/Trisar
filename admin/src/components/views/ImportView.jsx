@@ -614,6 +614,18 @@ export default function ImportView({ setView, mode = 'rides' }) {
                 </button>
               ) : null}
               {rueckgaengigText ? <div className={`mt-[10px] text-[13px] font-medium ${schrift}`} style={{ color: '#8DFFAF' }}>{rueckgaengigText}</div> : null}
+              {/* Weitere Blaetter derselben Datei (schon importierte Fahrten kommen als Dublette abgewaehlt). */}
+              {analyse?.blaetter?.length > 1 && quelle ? analyse.blaetter.filter((b) => b.index !== analyse.blatt).map((b) => (
+                <button
+                  key={b.index}
+                  type="button"
+                  onClick={() => { setErgebnis(null); setRueckgaengigText(''); auswerten(quelle, { blatt: b.index }); }}
+                  className="mt-[10px] w-full h-12 border-2 px-4 flex items-center justify-between"
+                  style={{ borderColor: LIME }}
+                >
+                  <span className={`text-[14px] font-medium truncate ${schrift}`} style={{ color: LIME }}>{t('imp.blattImportieren', { name: b.name })}</span>
+                </button>
+              )) : null}
             </>
           ) : null}
 
