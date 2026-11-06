@@ -239,9 +239,9 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
     /** Fahrt wie loadData() in FahrerApp.jsx (eine Fahrt, mit Kolonnen-Zuordnungen). */
     suspend fun fahrtLaden() {
         try {
-            val zeile = Backend.client.from("jobs").select(Columns.raw(
-                "id,status,trip_type,pickup_name,pickup_address,dropoff_name,dropoff_address,train_number,flight_number,ride_date,pickup_date,service_date,created_at,etd,original_etd,convoy_id,driver_id"
-            )) { filter { eq("id", fahrtID) }; limit(1) }.decodeList<FahrtZeileB>().firstOrNull()
+            // Alle Spalten: eine feste Liste scheitert, wenn eine Spalte live fehlt (pickup_date).
+            val zeile = Backend.client.from("jobs").select(Columns.raw("*")) { filter { eq("id", fahrtID) }; limit(1) }
+                .let { de.trisar.kern.Backend.json.decodeFromString<List<FahrtZeileB>>(it.data) }.firstOrNull()
             val zuordnungen = runCatching {
                 Backend.client.from("convoy_assignments").select(Columns.raw("job_id,driver_id,response_status")) {
                     filter { eq("job_id", fahrtID) }

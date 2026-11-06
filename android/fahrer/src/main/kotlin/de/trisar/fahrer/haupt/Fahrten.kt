@@ -68,8 +68,9 @@ internal data class FahrtZeile(
     val driver_id: String? = null,
 ) {
     companion object {
-        const val SPALTEN = "id,status,trip_type,pickup_name,pickup_address,dropoff_name,dropoff_address,train_number," +
-            "flight_number,ride_date,pickup_date,service_date,created_at,etd,original_etd,convoy_id,driver_id"
+        // Alle Spalten wie iOS (select()). Eine feste Liste bricht das ganze Laden ab, sobald eine
+        // Spalte live fehlt (pickup_date gibt es nicht ueberall). Unbekannte Felder ignoriert Backend.json.
+        const val SPALTEN = "*"
     }
 }
 
