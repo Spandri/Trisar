@@ -471,6 +471,8 @@ export default {
   "imp.zuDenFahrten": "Go to rides",
   "imp.zugeordnetVon": "{n} of {gesamt} columns mapped",
   "imp.zuordnung": "Mapping",
+  "imp.kontextDatum": "Date {datum} taken from the file header.",
+  "imp.kontextZiel": "Destination from the file: {ziel}.",
   "imp.blattImportieren": "Import sheet “{name}”",
   "imp.h.datumAusDatei": "date from the file header",
   "imp.h.zielAusDatei": "destination from the file header",

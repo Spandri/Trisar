@@ -298,6 +298,13 @@ const analysieren = async (admin: Admin, body: any) => {
     }
   }
 
+  // Gilt "Datum/Ziel aus dem Kopf der Datei" fuer alle Zeilen, steht es einmal oben (kontext)
+  // statt in jeder Zeile.
+  for (const h of ['datumAusDatei', 'zielAusDatei']) {
+    if (datensaetze.length && datensaetze.every((d: any) => d.hinweise.includes(h))) {
+      datensaetze.forEach((d: any) => { d.hinweise = d.hinweise.filter((x: string) => x !== h); });
+    }
+  }
   await dublettenMarkieren(admin, modus, datensaetze);
   datensaetze.forEach((s: any) => K.pruefen(modus, s));
 
@@ -323,7 +330,11 @@ const analysieren = async (admin: Admin, body: any) => {
     // Nur Felder, die in mindestens einem Datensatz wirklich fehlen (Datum kann aus Zwischenzeilen kommen).
     fehlendeZuordnung: K.fehlendeZuordnung(zuordnung, modus).filter((f: string) => datensaetze.some((d: any) => d.fehlt.includes(f))),
     datensaetze,
-    kontext: { datum: kontext.datum || null, ziel: kontext.ziel || null },
+    // Nur was wirklich in die Fahrten eingeflossen ist.
+    kontext: {
+      datum: datensaetze.some((d: any) => d.daten?.ride_date === kontext.datum) && !Object.values(zuordnung).some((f) => f === 'datum' || f === 'datumUhrzeit') ? kontext.datum : null,
+      ziel: modus === 'rides' && !Object.values(zuordnung).includes('zielort') ? kontext.ziel || null : null,
+    },
     llama: { genutzt: Boolean(llama.genutzt), erreichbar: llama.erreichbar },
   });
 };
@@ -351,6 +362,38 @@ const adressVarianten = (roh: string) => {
   return [...new Set(varianten.filter((v) => v && v.length >= 3))].slice(0, 4);
 };
 
+const vergleichsText = (t: string) => t.toLowerCase()
+  .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+  .replace(/[^a-z0-9]+/g, ' ').trim();
+
+const STRASSE = /([A-ZÄÖÜa-zäöüß.'-]{3,})(?:-|\s)?(str\.?|straße|strasse|weg|platz|allee|ring|gasse|damm|ufer|steig)\b/i;
+
+// Stadt einer Eingabe: "86159 Augsburg" oder der letzte Teil nach Komma, der wie ein Ort aussieht.
+const stadtVon = (a: string) => {
+  const plz = a.match(/\b\d{5}\s+([A-ZÄÖÜ][\wäöüß-]+)/);
+  if (plz) return plz[1];
+  const teile = a.split(',').map((t) => t.trim()).slice(1).reverse();
+  const ort = teile.find((t) => /^[A-ZÄÖÜ]/.test(t) && !/\d/.test(t) && !STRASSE.test(t) && t.length <= 40);
+  return ort ? ort.split(/[\s-]/)[0] : '';
+};
+
+// Passt der Treffer zur Eingabe? Postleitzahl, Ort und Strassenname muessen sich wiederfinden.
+// Sonst ist es ein Zufallstreffer (gleicher Strassenname in einem anderen Ort).
+const passt = (eingabe: string, treffer: string, stadt: string) => {
+  const t = vergleichsText(treffer);
+  const plz = eingabe.match(/\b\d{5}\b/)?.[0];
+  const plzTreffer = treffer.match(/\b\d{5}\b/)?.[0];
+  if (plz && plzTreffer && plz !== plzTreffer) return false;
+  const ort = stadtVon(eingabe) || stadt;
+  if (ort && !t.includes(vergleichsText(ort))) return false;
+  const str = eingabe.match(STRASSE);
+  if (str) {
+    const stamm = vergleichsText(str[1]).slice(0, 8);
+    if (stamm.length >= 4 && !t.replace(/\s/g, '').includes(stamm.replace(/\s/g, ''))) return false;
+  }
+  return true;
+};
+
 const adressenPruefen = async (admin: Admin, body: any) => {
   const adressen = [...new Set((Array.isArray(body?.adressen) ? body.adressen : []).map((a: unknown) => K.text(a)).filter(Boolean))].slice(0, 200) as string[];
   const basis = (await einstellung(admin, 'nominatim_url', 'http://host.docker.internal:8088')).replace(/\/$/, '');
@@ -370,23 +413,79 @@ const adressenPruefen = async (admin: Admin, body: any) => {
       clearTimeout(zeit);
     }
   };
+  // Der eigene Kartendienst kennt Strassen nur im eigenen Gebiet (Oberbayern). Ausserhalb
+  // (Augsburg, Lauingen ...) fragt der Import TomTom, aber nur fuer das, was dort fehlt.
+  const tomtomKey = await einstellung(admin, 'tomtom_routing_key', '');
+  const tomtom = async (q: string) => {
+    if (!tomtomKey) return null;
+    const ctrl = new AbortController();
+    const zeit = setTimeout(() => ctrl.abort(), 6000);
+    try {
+      const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(q)}.json?key=${tomtomKey}&countrySet=DE,AT,CH&limit=1&language=de-DE&typeahead=false`;
+      let r = await fetch(url, { signal: ctrl.signal });
+      // Zu viele Anfragen pro Sekunde: kurz warten, einmal neu.
+      if (r.status === 429) { await new Promise((w) => setTimeout(w, 600)); r = await fetch(url, { signal: ctrl.signal }); }
+      if (!r.ok) return null;
+      const t = (await r.json())?.results?.[0];
+      // Nur eine Stadt oder ein Gebiet ist keine Adresse.
+      if (!t || t.type === 'Geography' || (t.score != null && t.score < 2)) return null;
+      return { name: t.address?.freeformAddress || t.poi?.name, lat: t.position?.lat, lng: t.position?.lon, quelle: 'tomtom' };
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(zeit);
+    }
+  };
+  // Haeufigste Stadt der Liste gilt fuer Eingaben ohne Ort ("Hotel Maximilian's, Maximilianstr. 40").
+  const zaehler = new Map<string, number>();
+  adressen.forEach((a) => { const st = stadtVon(a); if (st) zaehler.set(st, (zaehler.get(st) || 0) + 1); });
+  const haeufigste = [...zaehler.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] || '';
+
   const ergebnis: Record<string, any> = {};
   let i = 0;
   const arbeiter = async () => {
     while (i < adressen.length) {
       const a = adressen[i++];
-      let treffer = null;
-      for (const nurGebiet of [true, false]) {
-        for (const v of adressVarianten(a)) {
-          treffer = await suchen(v, nurGebiet);
+      const stadt = stadtVon(a) ? '' : haeufigste;
+      const varianten = adressVarianten(a);
+      // Zuerst mit der Stadt der Liste (muss dann im Treffer stehen), danach ohne. Ohne zaehlt
+      // nur ein Ort, der in der Eingabe selbst steht ("Flughafen Muenchen" ist kein Augsburg).
+      const runden: [string[], string][] = [];
+      if (stadt) runden.push([varianten.slice(1, 3).map((v) => `${v}, ${stadt}`), stadt]);
+      runden.push([varianten, '']);
+      let treffer: any = null;
+      for (const [liste, muss] of runden) {
+        for (const nurGebiet of [true, false]) {
+          for (const v of liste) {
+            const kandidat = await suchen(v, nurGebiet);
+            if (kandidat && passt(a, kandidat.name, muss)) { treffer = kandidat; break; }
+          }
           if (treffer) break;
         }
-        if (treffer) { if (!nurGebiet) (treffer as any).ausserhalb = true; break; }
+        // Ausserhalb des eigenen Gebiets kennt der Kartendienst die Strassen nicht: TomTom.
+        for (const v of treffer ? [] : liste.slice(0, 2)) {
+          const t = await tomtom(v);
+          if (t && passt(a, t.name || '', muss)) { treffer = t; break; }
+        }
+        if (treffer) break;
       }
       ergebnis[a] = treffer ? { gefunden: true, ...treffer } : { gefunden: false };
     }
   };
   await Promise.all([arbeiter(), arbeiter(), arbeiter()]);
+
+  // Treffer ohne Ort in der Eingabe, die weit weg von allen anderen liegen, sind Zufall
+  // ("Siemens Campus Perlach" -> Erlangen). Mitte = Median der uebrigen Treffer.
+  const punkte = Object.values(ergebnis).filter((e: any) => e.gefunden && Number.isFinite(e.lat));
+  if (punkte.length >= 3) {
+    const median = (w: number[]) => w.sort((x, y) => x - y)[Math.floor(w.length / 2)];
+    const mLat = median(punkte.map((e: any) => e.lat));
+    const mLng = median(punkte.map((e: any) => e.lng));
+    const km = (e: any) => Math.hypot((e.lat - mLat) * 111, (e.lng - mLng) * 111 * Math.cos(mLat * Math.PI / 180));
+    for (const [a, e] of Object.entries(ergebnis) as [string, any][]) {
+      if (e.gefunden && !stadtVon(a) && !/\b\d{5}\b/.test(a) && km(e) > 120) ergebnis[a] = { gefunden: false, weitWeg: e.name };
+    }
+  }
   return antwort(200, { adressen: ergebnis });
 };
 

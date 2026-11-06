@@ -7,6 +7,7 @@ enum ImportDienst {
     struct Blatt: Decodable, Hashable { let index: Int; let name: String; let zeilen: Int }
     struct Vorlage: Decodable { let name: String? }
     struct Llama: Decodable { let genutzt: Bool; let erreichbar: Bool? }
+    struct Kontext: Decodable { let datum: String?; let ziel: String? }
     struct Grund: Decodable {
         let kopf: String?; let werte: String?; let anteil: Int?; let vorlage: Bool?; let llama: Bool?
     }
@@ -36,6 +37,7 @@ enum ImportDienst {
         let zuordnung: [String: String]
         let fehlendeZuordnung: [String]?
         let datensaetze: [Satz]
+        let kontext: Kontext?
         let llama: Llama?
     }
     struct Adresse: Decodable { let gefunden: Bool; let name: String? }

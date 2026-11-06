@@ -198,6 +198,11 @@ struct ImportAnsicht: View {
                 if analyse.vorlage != nil {
                     hinweisBalken(t("imp.vorlageGenutzt", ["name": analyse.vorlage?.name ?? ""]), Color(hex: 0x8DFFAF))
                 }
+                if let k = analyse.kontext, k.datum != nil || k.ziel != nil {
+                    let datum = k.datum.map { d in d.count == 10 ? "\(d.suffix(2)).\(d.dropFirst(5).prefix(2)).\(d.prefix(4))" : d }
+                    hinweisBalken([datum.map { t("imp.kontextDatum", ["datum": $0]) }, k.ziel.map { t("imp.kontextZiel", ["ziel": $0]) }]
+                        .compactMap { $0 }.joined(separator: " "), lime.opacity(0.85))
+                }
                 if analyse.llama?.genutzt == true {
                     hinweisBalken(t("imp.llamaGenutzt"), orange)
                 }
@@ -692,7 +697,10 @@ struct ImportAnsicht: View {
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let d = f.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
         guard let d else { return "" }
-        return d.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year(.twoDigits).hour().minute())
+        let f2 = DateFormatter()
+        f2.locale = Locale(identifier: "de_DE")
+        f2.dateFormat = "dd.MM.yy, HH:mm"
+        return f2.string(from: d)
     }
 
     // MARK: Texte aus admin/src/i18n/de.js
@@ -794,6 +802,8 @@ struct ImportAnsicht: View {
         "imp.h.datumAusDatei": "Datum aus dem Kopf der Datei",
         "imp.h.zielAusDatei": "Ziel aus dem Kopf der Datei",
         "imp.blattImportieren": "Blatt „{name}“ importieren",
+        "imp.kontextDatum": "Datum {datum} aus dem Kopf der Datei.",
+        "imp.kontextZiel": "Ziel aus der Datei: {ziel}.",
         "imp.letzteImporte": "Letzte Importe",
         "imp.nochDa": "{n} von {gesamt} noch da",
         "imp.wurdeRueckgaengig": "rückgängig gemacht",

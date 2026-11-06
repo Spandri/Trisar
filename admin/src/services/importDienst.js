@@ -61,6 +61,9 @@ const demoAnalysieren = ({ modus, datei, dateiname, blatt, zuordnung }) => {
   const zu = zuordnung || K.zuordnungAus(erkennung.spalten);
   const kontext = K.kontextAus(blaetter, nr, erkennung.kopfzeile);
   const { datensaetze } = K.bauen(modus, erkennung.datenzeilen, zu, kontext);
+  ['datumAusDatei', 'zielAusDatei'].forEach((h) => {
+    if (datensaetze.length && datensaetze.every((d) => d.hinweise.includes(h))) datensaetze.forEach((d) => { d.hinweise = d.hinweise.filter((x) => x !== h); });
+  });
   return {
     modus,
     dateiname,
@@ -78,6 +81,10 @@ const demoAnalysieren = ({ modus, datei, dateiname, blatt, zuordnung }) => {
     zuordnung: zu,
     fehlendeZuordnung: K.fehlendeZuordnung(zu, modus).filter((f) => datensaetze.some((d) => d.fehlt.includes(f))),
     datensaetze,
+    kontext: {
+      datum: !Object.values(zu).some((f) => f === 'datum' || f === 'datumUhrzeit') && datensaetze.some((d) => d.daten?.ride_date === kontext.datum) ? kontext.datum : null,
+      ziel: modus === 'rides' && !Object.values(zu).includes('zielort') ? kontext.ziel || null : null,
+    },
     llama: { genutzt: false, erreichbar: null },
   };
 };

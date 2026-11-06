@@ -62,6 +62,7 @@ const PfeilIcon = () => (
 );
 
 const datumKurz = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(2, 4)}` : '');
+const datumLang = (iso) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '');
 
 const Feld = ({ label, value, onChange, typ = 'text', breit = true }) => (
   <label className={`flex flex-col gap-[3px] ${breit ? 'col-span-2' : ''}`}>
@@ -410,6 +411,14 @@ export default function ImportView({ setView, mode = 'rides' }) {
               {analyse.vorlage ? (
                 <div className={`mt-[14px] border-l-2 pl-3 text-[12px] leading-4 font-medium ${schrift}`} style={{ borderColor: '#8DFFAF', color: '#8DFFAF' }}>
                   {t('imp.vorlageGenutzt', { name: analyse.vorlage.name || '' })}
+                </div>
+              ) : null}
+              {analyse.kontext?.datum || analyse.kontext?.ziel ? (
+                <div className={`mt-[14px] border-l-2 pl-3 text-[12px] leading-4 font-medium ${schrift}`} style={{ borderColor: LIME, color: 'rgba(227,246,84,0.85)' }}>
+                  {[
+                    analyse.kontext.datum ? t('imp.kontextDatum', { datum: datumLang(analyse.kontext.datum) }) : '',
+                    analyse.kontext.ziel ? t('imp.kontextZiel', { ziel: analyse.kontext.ziel }) : '',
+                  ].filter(Boolean).join(' ')}
                 </div>
               ) : null}
               {analyse.llama?.genutzt ? (

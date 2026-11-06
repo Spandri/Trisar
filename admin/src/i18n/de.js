@@ -462,6 +462,8 @@ export default {
   "imp.zuDenFahrten": "Zu den Fahrten",
   "imp.zugeordnetVon": "{n} von {gesamt} Spalten zugeordnet",
   "imp.zuordnung": "Zuordnung",
+  "imp.kontextDatum": "Datum {datum} aus dem Kopf der Datei.",
+  "imp.kontextZiel": "Ziel aus der Datei: {ziel}.",
   "imp.blattImportieren": "Blatt „{name}“ importieren",
   "imp.h.datumAusDatei": "Datum aus dem Kopf der Datei",
   "imp.h.zielAusDatei": "Ziel aus dem Kopf der Datei",
