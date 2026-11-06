@@ -3,7 +3,7 @@
 #   bash werkzeuge/stunden-ausrollen.sh
 # Vorher bash werkzeuge/fahrzeugseite-ausrollen.sh (bringt die Fahrzeugkarte, die die Startseite braucht).
 #
-# 1. Migration 20261106050000_stundenerfassung (Pausen am Dienst, Stundenzettel, Status-Protokoll,
+# 1. Migrationen 20261106050000_push_aenderungen_fix und 20261106060000_stundenerfassung (Pausen am Dienst, Stundenzettel, Status-Protokoll,
 #    Vorschlag und Verlauf, Mitteilungen)
 # 2. Funktion dispo-admin (Import neu, Stunden-Export)
 # 3. Web-Dispo: Import im TRISAR-Stil, Stunden beim Fahrer
@@ -17,7 +17,6 @@ DOCKER=/usr/local/bin/docker
 DB=supabase_db_fahrer-app-lokal
 R=Documents/Projekte/Trisar/__TRI-26-001_flottenmanagement_webapp_ss/Programm
 HIER="$(cd "$(dirname "$0")/.." && pwd)"
-MIGRATION=20261106050000_stundenerfassung
 FN="fahrer/supabase/functions/dispo-admin"
 
 if ! cmp -s "$HIER/$FN/importKern.js" "$HIER/admin/src/services/importKern.js"; then
@@ -29,19 +28,22 @@ if ! ssh "$SERVER" "test -f $R/fahrer-app-lokal/.docker-sync/fahrer/src/shared/F
   exit 1
 fi
 
-echo "1/4 Migration"
-v=${MIGRATION%%_*}; n=${MIGRATION#*_}
-if ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"select 1 from supabase_migrations.schema_migrations where version='$v'\"" | grep -q 1; then
-  echo "   schon eingespielt"
-else
+echo "1/4 Migrationen"
+# Zuerst die Korrektur des Push-Triggers (Fahrt speichern schlug fehl), dann die Stundenerfassung.
+for m in 20261106050000_push_aenderungen_fix 20261106060000_stundenerfassung; do
+  v=${m%%_*}; n=${m#*_}
+  if ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"select 1 from supabase_migrations.schema_migrations where version='$v'\"" | grep -q 1; then
+    echo "   $m schon eingespielt"
+    continue
+  fi
   {
     echo "begin;"
-    cat "$HIER/fahrer/supabase/migrations/$MIGRATION.sql"
+    cat "$HIER/fahrer/supabase/migrations/$m.sql"
     echo "insert into supabase_migrations.schema_migrations (version, name) values ('$v', '$n') on conflict do nothing;"
     echo "commit;"
   } | ssh "$SERVER" "$DOCKER exec -i $DB psql -U postgres -v ON_ERROR_STOP=1 -q" 2>&1 | grep -v '^NOTICE' || true
-  echo "   eingespielt"
-fi
+  echo "   $m eingespielt"
+done
 
 echo "2/4 Funktion dispo-admin"
 for datei in index.ts import.ts importKern.js stunden.ts; do
