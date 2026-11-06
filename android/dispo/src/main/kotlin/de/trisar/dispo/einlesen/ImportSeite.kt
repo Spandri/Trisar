@@ -582,7 +582,7 @@ private fun SpaltenKarte(
             .border(2.dp, if (feld.isEmpty()) Color.White.copy(alpha = 0.12f) else LIME.copy(alpha = 0.55f))
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(spalte.titel, style = stil(15f, 700, farbe = if (feld.isEmpty()) Color.White.copy(alpha = 0.55f) else LIME), maxLines = 1,
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             Spacer(Modifier.weight(1f))

@@ -63,12 +63,15 @@ class Anmeldung(
                             zustand.value = Zustand.Abgemeldet
                             return@collect
                         }
-                        zustand.value = Zustand.Angemeldet(id)
+                        if ((zustand.value as? Zustand.Angemeldet)?.id != id) zustand.value = Zustand.Angemeldet(id)
                         profilLaden()
                     }
                     is SessionStatus.NotAuthenticated -> { zustand.value = Zustand.Abgemeldet; profil.value = null }
                     is SessionStatus.RefreshFailure -> { /* bleibt angemeldet, naechster Versuch automatisch */ }
-                    is SessionStatus.Initializing -> zustand.value = Zustand.Pruefe
+                    // Beim Zurueckkehren in die App (z. B. aus der Dateiauswahl) prueft die Bibliothek die
+                    // Sitzung kurz neu. Eine bestehende Anmeldung bleibt dabei stehen, sonst wuerde die
+                    // ganze Oberflaeche neu aufgebaut und landete auf der Startseite.
+                    is SessionStatus.Initializing -> if (zustand.value !is Zustand.Angemeldet) zustand.value = Zustand.Pruefe
                 }
             }
         }

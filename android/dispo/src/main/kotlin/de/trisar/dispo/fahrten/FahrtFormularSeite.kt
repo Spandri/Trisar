@@ -143,7 +143,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
     var stornoFrage by remember { mutableStateOf(false) }
     var statusOffen by remember { mutableStateOf(false) }
     /** Sammel-Import (setView('importFahrten')), als Vollbild ueber dem Formular. */
-    var importOffen by remember { mutableStateOf(false) }
+    var importOffen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var fokus by remember { mutableStateOf<String?>(null) }
 
     val ctx = LocalContext.current
