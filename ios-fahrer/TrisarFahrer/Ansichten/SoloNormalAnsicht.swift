@@ -738,6 +738,7 @@ struct KollegenKarte: View {
                         .overlay(Circle().stroke(Color(hex: 0xE3F654), lineWidth: 2))
                 }
                 .buttonStyle(.web)
+                .zurueckPerWischen(schliessen)
                 .padding(.bottom, 18)
 
                 VStack(spacing: 0) {
