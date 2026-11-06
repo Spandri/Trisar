@@ -221,6 +221,9 @@ Antworte nur mit JSON in der Form {"<Spaltennummer>": "<feld>"}.`;
 // ---------------------------------------------------------------------------
 
 const vergleich = (a: unknown) => K.schluessel(a).replace(/\b(str|strasse|straße)\b/g, 'str');
+// Fuer Dubletten nur der erste Teil der Adresse ("Friedberger Str. 71"): Listen haengen oft
+// noch Ort oder Vermerke an ("..., Augsburg, nach Abstimmung").
+const ort1 = (a: unknown) => vergleich(K.text(a).split(',')[0]);
 
 const dublettenMarkieren = async (admin: Admin, modus: string, datensaetze: any[]) => {
   if (modus === 'guests') {
@@ -240,10 +243,10 @@ const dublettenMarkieren = async (admin: Admin, modus: string, datensaetze: any[
   const { data } = await admin.from('jobs').select('ride_date, etd, pickup_address, dropoff_address, status').in('ride_date', tage);
   const vorhanden = new Set((data || [])
     .filter((j: any) => !/cancel|storn|refused/i.test(String(j.status || '')))
-    .map((j: any) => `${j.ride_date}|${String(j.etd || '').slice(0, 5)}|${vergleich(j.pickup_address)}|${vergleich(j.dropoff_address)}`));
+    .map((j: any) => `${j.ride_date}|${String(j.etd || '').slice(0, 5)}|${ort1(j.pickup_address)}|${ort1(j.dropoff_address)}`));
   datensaetze.forEach((s) => {
     const d = s.daten;
-    const sch = `${d.ride_date}|${String(d.etd || '').slice(0, 5)}|${vergleich(d.pickup_address)}|${vergleich(d.dropoff_address)}`;
+    const sch = `${d.ride_date}|${String(d.etd || '').slice(0, 5)}|${ort1(d.pickup_address)}|${ort1(d.dropoff_address)}`;
     if (vorhanden.has(sch)) s.hinweise.push('doppelt');
   });
 };
@@ -311,7 +314,8 @@ const analysieren = async (admin: Admin, body: any) => {
   return antwort(200, {
     modus,
     dateiname,
-    blaetter: blaetter.map((b: any, i: number) => ({ index: i, name: b.name, zeilen: b.zeilen.length })),
+    // fahrten: vollstaendige Datensaetze, die das Blatt ergibt (0 = nur Text, z. B. "Uebersicht").
+    blaetter: blaetter.map((b: any, i: number) => ({ index: i, name: b.name, zeilen: b.zeilen.length, fahrten: Math.floor(K.blattBewerten(blaetter, i, modus) / 10) })),
     blatt,
     kopfzeile: erkennung.kopfzeile,
     signatur: erkennung.signatur,
@@ -416,7 +420,14 @@ const adressenPruefen = async (admin: Admin, body: any) => {
   // Der eigene Kartendienst kennt Strassen nur im eigenen Gebiet (Oberbayern). Ausserhalb
   // (Augsburg, Lauingen ...) fragt der Import TomTom, aber nur fuer das, was dort fehlt.
   const tomtomKey = await einstellung(admin, 'tomtom_routing_key', '');
-  const tomtom = async (q: string) => {
+  // Nacheinander mit Abstand, sonst lehnt TomTom bei mehreren gleichzeitigen Anfragen ab (429).
+  let tomtomKette: Promise<unknown> = Promise.resolve();
+  const tomtom = (q: string) => {
+    const lauf = tomtomKette.then(() => new Promise((w) => setTimeout(w, 250))).then(() => tomtomEinzeln(q));
+    tomtomKette = lauf.catch(() => null);
+    return lauf;
+  };
+  const tomtomEinzeln = async (q: string): Promise<any> => {
     if (!tomtomKey) return null;
     const ctrl = new AbortController();
     const zeit = setTimeout(() => ctrl.abort(), 6000);
@@ -424,7 +435,7 @@ const adressenPruefen = async (admin: Admin, body: any) => {
       const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(q)}.json?key=${tomtomKey}&countrySet=DE,AT,CH&limit=1&language=de-DE&typeahead=false`;
       let r = await fetch(url, { signal: ctrl.signal });
       // Zu viele Anfragen pro Sekunde: kurz warten, einmal neu.
-      if (r.status === 429) { await new Promise((w) => setTimeout(w, 600)); r = await fetch(url, { signal: ctrl.signal }); }
+      if (r.status === 429) { await new Promise((w) => setTimeout(w, 1200)); r = await fetch(url, { signal: ctrl.signal }); }
       if (!r.ok) return null;
       const t = (await r.json())?.results?.[0];
       // Nur eine Stadt oder ein Gebiet ist keine Adresse.
@@ -464,7 +475,7 @@ const adressenPruefen = async (admin: Admin, body: any) => {
         }
         // Ausserhalb des eigenen Gebiets kennt der Kartendienst die Strassen nicht: TomTom.
         for (const v of treffer ? [] : liste.slice(0, 2)) {
-          const t = await tomtom(v);
+          const t: any = await tomtom(v);
           if (t && passt(a, t.name || '', muss)) { treffer = t; break; }
         }
         if (treffer) break;

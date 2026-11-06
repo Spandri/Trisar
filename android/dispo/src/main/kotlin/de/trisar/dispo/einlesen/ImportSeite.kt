@@ -407,7 +407,7 @@ fun ImportSeite(modus: ImportModus, zurueck: () -> Unit, zumZiel: () -> Unit) {
                     val a = analyse
                     val q = quelle
                     if (a != null && q != null && a.blaetter.size > 1) {
-                        a.blaetter.filter { it.index != a.blatt }.forEach { b ->
+                        a.blaetter.filter { it.index != a.blatt && it.fahrten > 0 }.forEach { b ->
                             Box(
                                 Modifier.padding(top = 10.dp).fillMaxWidth().height(48.dp).alpha(if (beschaeftigt) 0.4f else 1f).border(2.dp, LIME)
                                     .tippen { if (!beschaeftigt) auswerten(q, blatt = b.index) }.padding(horizontal = 16.dp),

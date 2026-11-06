@@ -37,7 +37,7 @@ object ImportDienst {
 
     // MARK: Datenmodell der Antworten
 
-    class Blatt(val index: Int, val name: String)
+    class Blatt(val index: Int, val name: String, val fahrten: Int = 1)
 
     class Spalte(
         val index: Int,
@@ -193,7 +193,7 @@ object ImportDienst {
             dateiname = str(a["dateiname"]),
             blaetter = (a["blaetter"] as? JsonArray).orEmpty().mapNotNull { b ->
                 val o = b as? JsonObject ?: return@mapNotNull null
-                Blatt(zahl(o["index"]), str(o["name"]))
+                Blatt(zahl(o["index"]), str(o["name"]), if (o["fahrten"] == null) 1 else zahl(o["fahrten"]))
             },
             blatt = zahl(a["blatt"]),
             signatur = str(a["signatur"]),

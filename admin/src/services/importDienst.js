@@ -67,7 +67,7 @@ const demoAnalysieren = ({ modus, datei, dateiname, blatt, zuordnung }) => {
   return {
     modus,
     dateiname,
-    blaetter: blaetter.map((b, i) => ({ index: i, name: b.name, zeilen: b.zeilen.length })),
+    blaetter: blaetter.map((b, i) => ({ index: i, name: b.name, zeilen: b.zeilen.length, fahrten: Math.floor(K.blattBewerten(blaetter, i, modus) / 10) })),
     blatt: nr,
     signatur: erkennung.signatur,
     vorlage: null,

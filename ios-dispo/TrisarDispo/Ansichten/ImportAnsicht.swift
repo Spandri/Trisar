@@ -526,7 +526,7 @@ struct ImportAnsicht: View {
             }
             // Weitere Blaetter derselben Datei (schon importierte Fahrten kommen als Dublette abgewaehlt).
             if let analyse, analyse.blaetter.count > 1, quelle != nil {
-                ForEach(analyse.blaetter.filter { $0.index != analyse.blatt }, id: \.self) { b in
+                ForEach(analyse.blaetter.filter { $0.index != analyse.blatt && ($0.fahrten ?? 1) > 0 }, id: \.self) { b in
                     randKnopf(t("imp.blattImportieren", ["name": b.name]), lime) {
                         ergebnis = nil
                         rueckgaengigText = ""

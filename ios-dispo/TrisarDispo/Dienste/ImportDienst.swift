@@ -4,7 +4,7 @@ import Supabase
 /// Excel-/CSV-Import ueber die Funktion dispo-admin (Aktionen import_*), wie importDienst.js der Web-Dispo.
 /// Erkennung, Blattwahl, Llama, Dubletten und Adresspruefung laufen auf dem Server, hier nur Anzeige und Bearbeiten.
 enum ImportDienst {
-    struct Blatt: Decodable, Hashable { let index: Int; let name: String; let zeilen: Int }
+    struct Blatt: Decodable, Hashable { let index: Int; let name: String; let zeilen: Int; let fahrten: Int? }
     struct Vorlage: Decodable { let name: String? }
     struct Llama: Decodable { let genutzt: Bool; let erreichbar: Bool? }
     struct Kontext: Decodable { let datum: String?; let ziel: String? }

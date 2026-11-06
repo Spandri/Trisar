@@ -624,7 +624,7 @@ export default function ImportView({ setView, mode = 'rides' }) {
               ) : null}
               {rueckgaengigText ? <div className={`mt-[10px] text-[13px] font-medium ${schrift}`} style={{ color: '#8DFFAF' }}>{rueckgaengigText}</div> : null}
               {/* Weitere Blaetter derselben Datei (schon importierte Fahrten kommen als Dublette abgewaehlt). */}
-              {analyse?.blaetter?.length > 1 && quelle ? analyse.blaetter.filter((b) => b.index !== analyse.blatt).map((b) => (
+              {analyse?.blaetter?.length > 1 && quelle ? analyse.blaetter.filter((b) => b.index !== analyse.blatt && (b.fahrten ?? 1) > 0).map((b) => (
                 <button
                   key={b.index}
                   type="button"
