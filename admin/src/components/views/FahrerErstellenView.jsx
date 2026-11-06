@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import TrisarFooter from '../ui/TrisarFooter';
 import BackCircleButton from '../ui/BackCircleButton';
 import { supabase, supabaseAdmin } from '../../services/supabase';
+import FahrerStunden from './FahrerStunden';
 import FahrerAutocomplete from '../ui/FahrerAutocomplete';
 import { useI18n } from '../../i18n';
 
@@ -87,6 +88,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
   const [trackerImei, setTrackerImei] = useState('');
   const [trackerList, setTrackerList] = useState([]);
   const [showTrackerMenu, setShowTrackerMenu] = useState(false);
+  const [stundenOffen, setStundenOffen] = useState(false);
   const isEditMode = Boolean(initialDriver?.id);
 
   const firstNameRef = useRef(null);
@@ -567,6 +569,17 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
       <div className="relative shrink-0" style={{ width: `${BASE_WIDTH * scale}px`, height: `${contentHeight * scale}px` }}>
         <div className="absolute left-0 top-0 w-[402px] origin-top-left" style={{ ...screenBg, transform: `scale(${scale})`, height: `${contentHeight}px` }}>
           <BackCircleButton onClick={() => setView('alleFahrer')} className="absolute left-5 top-[60px]" />
+          {/* Stunden des Fahrers: pruefen, Pausen planen, Excel */}
+          {isEditMode ? (
+            <button
+              type="button"
+              onClick={() => setStundenOffen(true)}
+              data-tutorial="fahrer-stunden"
+              className="absolute right-5 top-[66px] h-[38px] px-4 bg-[#E3F654] text-black text-[15px] font-bold z-10"
+            >
+              Stunden
+            </button>
+          ) : null}
 
           <div className="absolute left-0 top-[20px] w-[402px]">
             <h1 className="absolute left-5 top-[120px] text-[#e2f754] text-[42px] leading-[42px] tracking-[-0.5px] font-bold whitespace-nowrap">
@@ -920,6 +933,12 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
     {/* Footer fest am unteren Rand — ausserhalb des skalierten Inhalts, weil
         position: fixed sich sonst am transform-Elternteil ausrichten wuerde. */}
     <TrisarFooter className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[min(402px,100vw)] h-10 bg-black z-[70]" />
+    {stundenOffen ? (
+      <FahrerStunden
+        fahrer={{ id: initialDriver.id, name: `${firstName} ${lastName}`.trim() || 'Fahrer' }}
+        schliessen={() => setStundenOffen(false)}
+      />
+    ) : null}
     </>
   );
 }
