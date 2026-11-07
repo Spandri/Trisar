@@ -5,9 +5,9 @@
 | 1 | FMB010 (2G) | 357544371355146 | …825295 |
 | 2 | FMC003 | 860848088205357 | …825298 (MSISDN 882285106290470) |
 | 3 | FMC003 | 860848088432159 | …825299 (MSISDN 882285106290471) |
-| 4 | FMC003 | 860848088205365 | ? |
-| 5 | FMC003 | 860848087764214 | ? |
-| 6 | FMC003 | 860848087756004 | ? |
+| 4 | FMC003 | 860848088205365 | …825294 |
+| 5 | FMC003 | 860848087764214 | …825296 |
+| 6 | FMC003 | 860848087756004 | …825297 |
 
 Einrichtung FMC003 im Configurator: GPRS (APN iot.1nce.net, obd.trisar.de:5027 TCP),
 Codec 8 Extended, System → Records ohne GPS-Fix auf "Always" (sonst sendet er drinnen nie).
