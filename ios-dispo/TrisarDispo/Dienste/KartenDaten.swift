@@ -358,8 +358,10 @@ final class KartenDaten: ObservableObject {
                 .filter { !KartenRegeln.istErledigt($0["status"]) && !KartenRegeln.istAktiv($0["status"]) }
                 .compactMap { j in KartenRegeln.zeitpunkt(j).map { (j, $0) } }
                 .sorted { $0.1 < $1.1 }
-            let naechster = kommende.first { $0.1 >= jetzt } ?? kommende.first
-            let imFenster = naechster.map { $0.1 >= jetzt && $0.1 <= jetzt.addingTimeInterval(fenster) } ?? false
+            // Ueberfaellige, noch offene Fahrt (bis 6 h zurueck) bleibt die naechste.
+            let ueberfaelligAb = jetzt.addingTimeInterval(-6 * 3600)
+            let naechster = kommende.first { $0.1 >= ueberfaelligAb } ?? kommende.first
+            let imFenster = naechster.map { $0.1 >= ueberfaelligAb && $0.1 <= jetzt.addingTimeInterval(fenster) } ?? false
             let zustand: FahrerZustand = aktiverJob != nil ? .aktiv : (imFenster ? .inaktiv : .frei)
 
             let info = KartenRegeln.fahrtInfo(aktiv: aktiverJob, naechster: naechster?.0, alle: seineJobs,

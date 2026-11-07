@@ -385,8 +385,10 @@ internal class KartenDaten {
                 .filter { !KartenRegeln.istErledigt(it["status"]) && !KartenRegeln.istAktiv(it["status"]) }
                 .mapNotNull { j -> KartenRegeln.zeitpunkt(j)?.let { j to it } }
                 .sortedBy { it.second }
-            val naechster = kommende.firstOrNull { !it.second.isBefore(jetzt) } ?: kommende.firstOrNull()
-            val imFenster = naechster?.let { !it.second.isBefore(jetzt) && !it.second.isAfter(jetzt.plusMinutes(fensterMin)) } ?: false
+            // Ueberfaellige, noch offene Fahrt (bis 6 h zurueck) bleibt die naechste.
+            val ueberfaelligAb = jetzt.minusHours(6)
+            val naechster = kommende.firstOrNull { !it.second.isBefore(ueberfaelligAb) } ?: kommende.firstOrNull()
+            val imFenster = naechster?.let { !it.second.isBefore(ueberfaelligAb) && !it.second.isAfter(jetzt.plusMinutes(fensterMin)) } ?: false
             val zustand = if (aktiverJob != null) FahrerZustand.AKTIV else if (imFenster) FahrerZustand.INAKTIV else FahrerZustand.FREI
 
             val info = KartenRegeln.fahrtInfo(
