@@ -1,5 +1,6 @@
 package de.trisar.dispo.stamm
 
+import de.trisar.dispo.fahrten.Rueckfrage
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.layout.onSizeChanged
 import io.github.jan.supabase.postgrest.from
@@ -370,6 +371,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
     var kraftstoff by remember { mutableStateOf(fahrzeug?.fuelType ?: "") }
     var bildURL by remember { mutableStateOf(fahrzeug?.imageUrl ?: "") }
     var speichert by remember { mutableStateOf(false) }
+    var loeschFrage by remember { mutableStateOf(false) }
     var rueckmeldung by remember { mutableStateOf("") }
     var kraftstoffOffen by remember { mutableStateOf(false) }
 
@@ -429,7 +431,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
     }
 
     var schadenHoehe by remember { mutableStateOf(0f) }
-    val inhalt = if (bearbeiten) max(913f, 842f + schadenHoehe + 70f) else 913f
+    val inhalt = if (bearbeiten) max(913f, 898f + schadenHoehe + 70f) else 913f
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         Leinwand(874f, inhalt) { rahmen ->
             DispoHintergrund(Modifier.platz(0f, 0f, 402f, max(rahmen, inhalt)))
@@ -488,12 +490,43 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
 
             val fid = fahrzeug?.id
             if (bearbeiten && fid != null) {
+                Box(
+                    Modifier.platz(20f, 830f, 362f, 48f).border(2.dp, hex(0xFF3B30)).alpha(if (speichert) 0.6f else 1f)
+                        .tippen { if (!speichert) loeschFrage = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Fahrzeug löschen", style = grotesk(16f, 500, farbe = hex(0xFF3B30)))
+                }
                 val dichte = androidx.compose.ui.platform.LocalDensity.current
-                SchadensBerichtDispo(fid, Modifier.platz(20f, 842f, 362f)
+                SchadensBerichtDispo(fid, Modifier.platz(20f, 898f, 362f)
                     .then(Modifier.onSizeChanged { schadenHoehe = with(dichte) { it.height.toDp().value } }))
             }
         }
         FussleisteUnten()
+        val fidLoeschen = fahrzeug?.id
+        if (loeschFrage && fidLoeschen != null) {
+            Rueckfrage(
+                "${kennzeichen.ifEmpty { "Fahrzeug" }} endgültig löschen? Das Fahrzeug und seine Schadensmeldungen werden gelöscht, Fahrer und Fahrten verlieren die Zuordnung. Das lässt sich nicht rückgängig machen.",
+                ok = {
+                    loeschFrage = false
+                    speichert = true
+                    rueckmeldung = ""
+                    scope.launch {
+                        try {
+                            FahrzeugeDienst.loeschen(fidLoeschen)
+                            speichert = false
+                            zurListe()
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            rueckmeldung = "Löschen fehlgeschlagen: ${dbMeldung(e)}"
+                            speichert = false
+                        }
+                    }
+                },
+                abbrechen = { loeschFrage = false },
+            )
+        }
     }
 }
 

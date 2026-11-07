@@ -38,6 +38,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.trisar.dispo.fahrten.Rueckfrage
 import de.trisar.kern.FussleisteUnten
 import de.trisar.kern.Icon
 import de.trisar.kern.TrisarHintergrund
@@ -67,6 +68,7 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
     var pwSichtbar by remember { mutableStateOf(false) }
     // Stunden des Fahrers (FahrerStunden.jsx): pruefen, Pausen planen, Excel. Nur beim Bearbeiten.
     var stundenOffen by remember { mutableStateOf(false) }
+    var loeschFrage by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { m.start(this) }
 
     val o = 20f // Container `top-[20px]`
@@ -152,7 +154,8 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         TrisarHintergrund()
-        Leinwand(913f + z, 913f + z + ortungsHoehe) {
+        // Im Bearbeiten unten zusaetzlich „Fahrer löschen“ (48 hoch).
+        Leinwand(913f + z, 913f + z + ortungsHoehe + (if (fahrer != null) 60f else 0f)) {
             ZurueckKnopf(Modifier.platz(20f, 60f), zurueck)
             if (m.bearbeiten && fahrer != null) {
                 Box(Modifier.platz(402f - 20f - 98f, 66f, 98f, 38f).background(LIME).tippen { stundenOffen = true }, contentAlignment = Alignment.Center) {
@@ -274,6 +277,17 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
                 )
             }
 
+            if (fahrer != null) {
+                Box(
+                    Modifier.platz(20f, o + z + (if (warnung) 832f else 810f) + ortungsHoehe, 362f, 48f)
+                        .border(2.dp, hex(0xFF3B30)).alpha(if (m.speichert) 0.6f else 1f)
+                        .tippen { if (!m.speichert) loeschFrage = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Fahrer löschen", style = grotesk(16f, 500, farbe = hex(0xFF3B30)))
+                }
+            }
+
             // Aufgeklappte Listen zuletzt, damit sie ueber allem liegen.
             if (menue == EditorMenue.SPRACHE) {
                 liste(204f, z + 526f, 178f, 192f, FahrerEditorModell.sprachen.size) {
@@ -303,6 +317,13 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
             }
         }
         FussleisteUnten()
+        if (loeschFrage && fahrer != null) {
+            Rueckfrage(
+                "${"${m.vorname} ${m.nachname}".trim().ifEmpty { "Fahrer" }} endgültig löschen? Konto, Standorte, Stunden und Tracker-Zuordnung werden gelöscht, offene Fahrten wieder frei. Das lässt sich nicht rückgängig machen.",
+                ok = { loeschFrage = false; scope.launch { if (m.loeschen()) zurueck() } },
+                abbrechen = { loeschFrage = false },
+            )
+        }
         if (stundenOffen && fahrer != null) {
             FahrerStundenSeite(fahrer.id, "${m.vorname} ${m.nachname}".trim().ifEmpty { "Fahrer" }) { stundenOffen = false }
         }

@@ -564,6 +564,24 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
     }
 
     /** createDriver aus FahrerErstellenView.jsx. Wird nur durch den Knopf ausgeloest. */
+    /** Fahrer endgueltig loeschen (dispo-admin, aktion konto_loeschen). true = geloescht. */
+    suspend fun loeschen(): Boolean {
+        val id = ursprung?.id ?: return false
+        if (speichert) return false
+        speichert = true
+        return try {
+            konto(buildJsonObject { put("aktion", "konto_loeschen"); put("user_id", id) })
+            true
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            rueckmeldung = e.message ?: "Löschen fehlgeschlagen."
+            false
+        } finally {
+            speichert = false
+        }
+    }
+
     suspend fun speichern() {
         if (vorname.isBlank() || nachname.isBlank()) { rueckmeldung = "Bitte Vorname und Nachname angeben."; return }
         val name = benutzername.trim().lowercase()
@@ -730,6 +748,9 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
         "not_signed_in" -> "Sitzung abgelaufen. Bitte einmal abmelden und neu anmelden, dann erneut speichern."
         "not_dispo" -> "Nur die Disposition darf Konten anlegen."
         "user_not_found" -> "Konto des Fahrers nicht gefunden."
+        "ride_running" -> "Löschen nicht möglich: Der Fahrer hat gerade eine laufende Fahrt."
+        "not_a_driver" -> "Dispo- und Admin-Konten lassen sich hier nicht löschen."
+        "self_delete" -> "Das eigene Konto lässt sich nicht löschen."
         else -> "Konto konnte nicht gespeichert werden: $code"
     }
 

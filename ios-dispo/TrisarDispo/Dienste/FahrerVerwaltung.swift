@@ -638,6 +638,22 @@ final class FahrerEditorModell: ObservableObject {
         ortung = "app"; imei = ""
     }
 
+    /// Fahrer endgueltig loeschen (dispo-admin, aktion konto_loeschen). true = geloescht.
+    /// Offene Fahrten werden frei, Standorte/Stunden/Tracker-Zuordnung fallen mit.
+    func loeschen() async -> Bool {
+        guard let id = ursprung?.id, !speichert else { return false }
+        struct Koerper: Encodable { let aktion = "konto_loeschen"; let user_id: String }
+        speichert = true
+        defer { speichert = false }
+        do {
+            _ = try await dispoAdmin(Koerper(user_id: id), fehlschlag: "Löschen fehlgeschlagen")
+            return true
+        } catch {
+            rueckmeldung = error.localizedDescription
+            return false
+        }
+    }
+
     /// createDriver aus FahrerErstellenView.jsx. Wird nur durch den Knopf ausgeloest.
     func speichern() async {
         if vorname.trimmingCharacters(in: .whitespaces).isEmpty || nachname.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -872,6 +888,8 @@ final class FahrerEditorModell: ObservableObject {
         case "password_too_short": return "Passwort zu kurz. Mindestens 8 Zeichen."
         case "password_missing": return "Bitte ein Passwort angeben (mindestens 8 Zeichen)."
         case "login_missing": return "Benutzername oder E-Mail fehlt."
+        case "ride_running": return "Löschen nicht möglich: Der Fahrer hat gerade eine laufende Fahrt."
+        case "not_a_driver": return "Dispo- und Admin-Konten lassen sich hier nicht löschen."
         case "not_dispo": return "Keine Berechtigung für die Fahrerverwaltung."
         case "not_signed_in":
             // Sitzung ist serverseitig weg, Token im Geraet noch da.

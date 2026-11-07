@@ -168,6 +168,44 @@ Deno.serve(async (req) => {
       return jsonResponse(200, { user_id: userId });
     }
 
+    // Fahrer endgueltig loeschen: Auth-Konto weg, alles am Profil faellt per ON DELETE CASCADE
+    // mit (Standorte, Tracker-Zuordnung, Stunden, Push, ...). Fahrten bleiben, nur ohne Fahrer.
+    if (body?.aktion === 'konto_loeschen') {
+      const userId = String(body.user_id || '').trim();
+      if (!userId) return jsonResponse(400, { error: 'user_id_missing' });
+      if (userId === aufrufer.user.id) return jsonResponse(400, { error: 'self_delete' });
+      const { data: ziel } = await admin
+        .from('profiles')
+        .select('id, role, is_dispo')
+        .eq('id', userId)
+        .maybeSingle();
+      if (!ziel) return jsonResponse(404, { error: 'user_not_found' });
+      if (ziel.is_dispo === true || DISPO_ROLLEN.has(String(ziel.role || '').toLowerCase())) {
+        return jsonResponse(400, { error: 'not_a_driver' });
+      }
+      const laufend = ['in_progress', 'unterwegs', 'started', 'on_trip', 'ongoing', 'active', 'at_pickup', 'beim_pickup'];
+      const { data: aktiv, error: aktivFehler } = await admin
+        .from('jobs')
+        .select('id')
+        .eq('driver_id', userId)
+        .in('status', laufend)
+        .limit(1);
+      if (aktivFehler) return jsonResponse(400, { error: aktivFehler.message });
+      if (aktiv?.length) return jsonResponse(400, { error: 'ride_running' });
+      // Zugewiesene, noch offene Fahrten wieder freigeben, damit sie neu vergeben werden.
+      const { error: freiFehler } = await admin
+        .from('jobs')
+        .update({ status: 'pending', driver_id: null })
+        .eq('driver_id', userId)
+        .in('status', ['assigned', 'zugewiesen', 'offered']);
+      if (freiFehler) return jsonResponse(400, { error: freiFehler.message });
+      const { error } = await admin.auth.admin.deleteUser(userId);
+      if (error) return jsonResponse(400, { error: error.message });
+      // Falls das Profil (Altdaten) nicht am Auth-Konto hing.
+      await admin.from('profiles').delete().eq('id', userId);
+      return jsonResponse(200, { user_id: userId });
+    }
+
     return jsonResponse(400, { error: 'unknown_action' });
   } catch (error) {
     return jsonResponse(500, { error: error instanceof Error ? error.message : String(error) });

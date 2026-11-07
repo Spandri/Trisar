@@ -213,6 +213,14 @@ final class FahrzeugeDienst: ObservableObject {
         return zeile
     }
 
+    /// Fahrzeug endgueltig loeschen. Schaeden fallen per CASCADE mit, Fahrer/Fahrten verlieren die Zuordnung.
+    static func loeschen(id: String) async throws {
+        struct Id: Decodable { let id: String }
+        let weg: [Id] = try await Backend.client.from("vehicles").delete(returning: .representation)
+            .eq("id", value: id).select("id").execute().value
+        if weg.isEmpty { throw StammFehler("Fahrzeug nicht gelöscht (nicht gefunden oder keine Rechte).") }
+    }
+
     /// prepareVehicleImageDataUrl: laengste Seite hoechstens 1000, sonst Originaldatei als Data-URL.
     static func bildDataURL(_ daten: Data) -> String? {
         guard let bild = UIImage(data: daten) else { return nil }

@@ -97,7 +97,7 @@ function FahrzeugSkizze({ stelle, hoehe = 110 }) {
 // Fotos oeffnen sich gross in einem neuen Tab.
 function SchadensBericht({ schaeden, blockRef }) {
   return (
-    <div ref={blockRef} className="absolute left-5 w-[362px] bg-white p-[24px]" style={{ top: '822px' }}>
+    <div ref={blockRef} className="absolute left-5 w-[362px] bg-white p-[24px]" style={{ top: '882px' }}>
       <h3 className="text-[#1d1c1c] text-[18px] font-bold tracking-[-0.5px] mb-[10px]">
         Schadensbericht{schaeden.length ? ` (${schaeden.length})` : ''}
       </h3>
@@ -198,8 +198,8 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
     setSchadenHoehe(el.offsetHeight);
     return () => beobachter.disconnect();
   }, [isEditMode, schaeden]);
-  // Seite waechst mit dem Schadensbericht (beginnt bei 20 + 822).
-  const seitenHoehe = isEditMode ? Math.max(BASE_HEIGHT, 20 + 822 + schadenHoehe + 70) : BASE_HEIGHT;
+  // Seite waechst mit dem Schadensbericht (beginnt bei 20 + 882, darueber „Fahrzeug löschen“).
+  const seitenHoehe = isEditMode ? Math.max(BASE_HEIGHT, 20 + 882 + schadenHoehe + 70) : BASE_HEIGHT;
 
   useEffect(() => {
     const updateScale = () => setScale(Math.min(window.innerWidth / BASE_WIDTH, 1));
@@ -236,6 +236,26 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
     setSeatCount('');
     setFuelType('');
     setImageUrl('');
+  };
+
+  // Fahrzeug endgueltig loeschen. Schaeden fallen per CASCADE mit, Fahrten und Fahrer
+  // verlieren nur die Zuordnung (SET NULL).
+  const deleteVehicle = async () => {
+    if (!isEditMode || isSubmitting) return;
+    const name = String(initialVehicle?.license_plate || initialVehicle?.plate || initialVehicle?.model || 'dieses Fahrzeug');
+    if (!window.confirm(`${name} endgültig löschen?\n\nDas Fahrzeug und seine Schadensmeldungen werden gelöscht. Fahrer und Fahrten verlieren die Zuordnung. Das lässt sich nicht rückgängig machen.`)) return;
+    setIsSubmitting(true);
+    setFeedback('');
+    try {
+      const { data, error } = await supabase.from('vehicles').delete().eq('id', initialVehicle.id).select('id');
+      if (error) throw error;
+      if (!data?.length) throw new Error('nicht gelöscht (keine Berechtigung?)');
+      setView('fahrzeugListe');
+    } catch (error) {
+      setFeedback(`Löschen fehlgeschlagen: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const saveVehicle = async () => {
@@ -493,6 +513,17 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
             <div className="absolute left-5 top-[742px] w-[362px] min-h-[56px] px-3 py-2 border border-[#7f8a2b] text-[#c8d85d] text-[12px] leading-[1.3]">
               {feedback || (isEditMode ? t('erstellen.vehicleEditHint') : t('erstellen.vehicleCreateHint'))}
             </div>
+
+            {isEditMode && (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={deleteVehicle}
+                className="absolute left-5 top-[810px] w-[362px] h-12 border-2 border-[#ff3b30] text-[#ff3b30] text-[16px] font-medium disabled:opacity-60"
+              >
+                Fahrzeug löschen
+              </button>
+            )}
 
             {isEditMode && (
               <SchadensBericht schaeden={schaeden} blockRef={schadenRef} />

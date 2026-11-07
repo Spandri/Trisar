@@ -296,6 +296,24 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
     };
   }, [isEditMode, initialDriver]);
 
+  // Fahrer endgueltig loeschen (dispo-admin, aktion konto_loeschen). Fahrten bleiben ohne Fahrer.
+  const deleteDriver = async () => {
+    if (!isEditMode || isSubmitting) return;
+    const name = `${firstName} ${lastName}`.trim() || username || 'diesen Fahrer';
+    if (!window.confirm(`${name} endgültig löschen?\n\nKonto, Standorte, Stunden und Tracker-Zuordnung werden gelöscht. Offene Fahrten werden wieder frei. Das lässt sich nicht rückgängig machen.`)) return;
+    setIsSubmitting(true);
+    setFeedback('');
+    const { code } = await kontoAufruf({ aktion: 'konto_loeschen', user_id: initialDriver.id });
+    setIsSubmitting(false);
+    if (!code) {
+      setView('alleFahrer');
+      return;
+    }
+    if (code === 'ride_running') setFeedback('Löschen nicht möglich: Der Fahrer hat gerade eine laufende Fahrt.');
+    else if (code === 'not_a_driver') setFeedback('Dispo- und Admin-Konten lassen sich hier nicht löschen.');
+    else setFeedback(`Löschen fehlgeschlagen: ${code}`);
+  };
+
   const createDriver = async () => {
     console.log('🚗 createDriver wurde aufgerufen');
     console.log('Daten:', { firstName, lastName, email, driverNumber, isEditMode });
@@ -558,7 +576,8 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
   // Platz fuer die Ortungs-Zeilen: Auswahl (68) plus bei OBD IMEI-Feld und Hinweiszeile (88).
   // Dazu die Konto-Zeile (Benutzername + Passwort, 68), die alles darunter nach unten schiebt.
   const trackingRowsHeight = (trackingMode === 'obd' ? 156 : 68) + 68;
-  const contentHeight = BASE_HEIGHT + trackingRowsHeight;
+  // Im Bearbeiten unten zusaetzlich „Fahrer löschen“ (48 hoch).
+  const contentHeight = BASE_HEIGHT + trackingRowsHeight + (isEditMode ? 60 : 0);
 
   const handleDriverNumberChange = (e) => {
     const value = e.target.value.replace(/[^\d]/g, '');
@@ -946,6 +965,18 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
             <div className="absolute left-5 w-[362px] min-h-[56px] px-3 py-2 border border-[#7f8a2b] text-[#c8d85d] text-[12px] leading-[1.3]" style={{ top: `${(driverNumberWarning ? 764 : 742) + trackingRowsHeight}px` }}>
               {feedback || (isEditMode ? t('erstellen.driverEditHint') : t('erstellen.driverCreateHint'))}
             </div>
+
+            {isEditMode ? (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={deleteDriver}
+                className="absolute left-5 w-[362px] h-12 border-2 border-[#ff3b30] text-[#ff3b30] text-[16px] font-medium disabled:opacity-60"
+                style={{ top: `${(driverNumberWarning ? 832 : 810) + trackingRowsHeight}px` }}
+              >
+                Fahrer löschen
+              </button>
+            ) : null}
 
           </div>
         </div>

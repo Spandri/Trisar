@@ -255,6 +255,7 @@ struct FahrzeugFormularSeite: View {
     @State private var bildURL = ""
     @State private var speichert = false
     @State private var rueckmeldung = ""
+    @State private var loeschFrage = false
     @State private var bildWaehlen = false
     @State private var bildAuswahl: PhotosPickerItem?
     @FocusState private var fokus: Feld?
@@ -269,7 +270,7 @@ struct FahrzeugFormularSeite: View {
     private var bearbeiten: Bool { !(fahrzeug?.id ?? "").isEmpty }
 
     var body: some View {
-        Leinwand(basisHoehe: 874, inhaltHoehe: bearbeiten ? max(913, 842 + schadenHoehe + 70) : 913, mitHintergrund: false) { rahmen in
+        Leinwand(basisHoehe: 874, inhaltHoehe: bearbeiten ? max(913, 898 + schadenHoehe + 70) : 913, mitHintergrund: false) { rahmen in
             ZStack(alignment: .topLeading) {
                 DispoHintergrund().frame(width: 402, height: max(rahmen, 913))
                 ZurueckKnopf(aktion: zurListe).platz(20, 60, 50, 50)
@@ -320,9 +321,19 @@ struct FahrzeugFormularSeite: View {
                     .platz(20, 762, 362, nil)
 
                 if bearbeiten, let id = fahrzeug?.id {
+                    Button { loeschFrage = true } label: {
+                        Text("Fahrzeug löschen").font(.grotesk(16, .medium)).foregroundStyle(Color(hex: 0xFF3B30))
+                            .frame(width: 362, height: 48)
+                            .overlay(Rectangle().strokeBorder(Color(hex: 0xFF3B30), lineWidth: 2))
+                            .opacity(speichert ? 0.6 : 1)
+                    }
+                    .buttonStyle(.web)
+                    .disabled(speichert)
+                    .platz(20, 830, 362, 48)
+
                     SchadensBerichtDispo(fahrzeugID: id)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { schadenHoehe = $0 }
-                        .platz(20, 842, 362, nil)
+                        .platz(20, 898, 362, nil)
                 }
             }
         }
@@ -330,6 +341,28 @@ struct FahrzeugFormularSeite: View {
         .photosPicker(isPresented: $bildWaehlen, selection: $bildAuswahl, matching: .images)
         .onChange(of: bildAuswahl) { _, neu in Task { await bildUebernehmen(neu) } }
         .onAppear(perform: uebernehmen)
+        .alert("\((fahrzeug?.licensePlate).flatMap { $0.isEmpty ? nil : $0 } ?? "Fahrzeug") endgültig löschen?", isPresented: $loeschFrage) {
+            Button("Löschen", role: .destructive, action: loeschen)
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Das Fahrzeug und seine Schadensmeldungen werden gelöscht. Fahrer und Fahrten verlieren die Zuordnung. Das lässt sich nicht rückgängig machen.")
+        }
+    }
+
+    private func loeschen() {
+        guard let id = fahrzeug?.id, !speichert else { return }
+        speichert = true
+        rueckmeldung = ""
+        Task {
+            do {
+                try await FahrzeugeDienst.loeschen(id: id)
+                speichert = false
+                zurListe()
+            } catch {
+                rueckmeldung = "Löschen fehlgeschlagen: \(dbMeldung(error))"
+                speichert = false
+            }
+        }
     }
 
     /// Select mit festen Kraftstoffen, ein abweichender gespeicherter Wert bleibt waehlbar.

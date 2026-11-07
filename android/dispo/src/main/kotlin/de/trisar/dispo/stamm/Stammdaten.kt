@@ -188,6 +188,15 @@ internal class FahrzeugeDienst {
             }
             return Backend.client.from("vehicles").insert(inhalt) { select() }.decodeList<JsonObject>().firstOrNull()
         }
+
+        /** Fahrzeug endgueltig loeschen. Schaeden fallen per CASCADE mit, Fahrer/Fahrten verlieren die Zuordnung. */
+        suspend fun loeschen(id: String) {
+            val weg = Backend.client.from("vehicles").delete {
+                select()
+                filter { eq("id", id) }
+            }.decodeList<JsonObject>()
+            if (weg.isEmpty()) throw StammFehler("Fahrzeug nicht gelöscht (nicht gefunden oder keine Rechte).")
+        }
     }
 }
 

@@ -11,6 +11,7 @@ struct FahrerErstellenAnsicht: View {
     @State private var menue: Menue?
     @State private var passwortSichtbar = false
     @State private var stundenOffen = false
+    @State private var loeschFrage = false
     private let fahrer: DispoFahrer?
 
     enum Feld: Hashable { case vorname, nachname, email, benutzername, passwort, vorwahl, telefon, strasse, hausnummer, ort, plz, nummer, imei }
@@ -33,7 +34,8 @@ struct FahrerErstellenAnsicht: View {
         let ortungsHoehe: CGFloat = m.ortung == "obd" ? 156 : 68
         let warnung = !m.nummerWarnung.isEmpty
 
-        Leinwand(basisHoehe: 913, inhaltHoehe: 913 + zugangsZeile + ortungsHoehe) { _ in
+        // Im Bearbeiten unten zusaetzlich „Fahrer löschen“ (48 hoch).
+        Leinwand(basisHoehe: 913, inhaltHoehe: 913 + zugangsZeile + ortungsHoehe + (fahrer != nil ? 60 : 0)) { _ in
             ZStack(alignment: .topLeading) {
                 ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
 
@@ -160,7 +162,19 @@ struct FahrerErstellenAnsicht: View {
                     .frame(width: 362, alignment: .topLeading)
                     .frame(minHeight: 56, alignment: .topLeading)
                     .overlay(Rectangle().strokeBorder(Color(hex: 0x7F8A2B), lineWidth: 1))
-                    .platz(20, o + (warnung ? 832 : 810) + ortungsHoehe, 362, nil)
+                    .platz(20, o + (warnung ? 900 : 878) + ortungsHoehe, 362, nil)
+
+                if fahrer != nil {
+                    Button { loeschFrage = true } label: {
+                        Text("Fahrer löschen").grotesk(16, .medium).foregroundStyle(Color(hex: 0xFF3B30))
+                            .frame(width: 362, height: 48)
+                            .overlay(Rectangle().strokeBorder(Color(hex: 0xFF3B30), lineWidth: 2))
+                            .opacity(m.speichert ? 0.6 : 1)
+                    }
+                    .buttonStyle(.web)
+                    .disabled(m.speichert)
+                    .platz(20, o + (warnung ? 968 : 946) + ortungsHoehe, 362, 48)
+                }
 
                 // Aufgeklappte Listen zuletzt, damit sie ueber allem liegen.
                 if menue == .sprache {
@@ -199,6 +213,14 @@ struct FahrerErstellenAnsicht: View {
         }
         .overlay { FussleisteUnten() }
         .task { await m.start() }
+        .alert("\(fahrer?.name ?? "Fahrer") endgültig löschen?", isPresented: $loeschFrage) {
+            Button("Löschen", role: .destructive) {
+                Task { if await m.loeschen() { zurueck() } }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Konto, Standorte, Stunden und Tracker-Zuordnung werden gelöscht. Offene Fahrten werden wieder frei. Das lässt sich nicht rückgängig machen.")
+        }
         .webVollbild(isPresented: $stundenOffen) {
             if let fahrer { DispoStundenAnsicht(fahrer: fahrer) { stundenOffen = false } }
         }
