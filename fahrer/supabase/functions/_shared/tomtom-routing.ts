@@ -58,7 +58,46 @@ const koordinatenAusText = (text: string) => {
   return m ? { lat: Number(m[1]), lon: Number(m[2]) } : null;
 };
 
-// Adresse -> Koordinaten. 30 Tage in api_route_cache, damit jede Adresse nur einmal kostet.
+// Flughaefen fest: TomTom macht aus "MUC Terminal 2" sonst einen Ort bei Altoetting.
+// Terminal-Vorfahrten, geprueft auf der Karte.
+// Flughaefen fest: TomTom macht aus "MUC Terminal 2" sonst einen Ort bei Altoetting.
+// Kuerzel nur in Grossbuchstaben ("STR" ja, "Str." als Strasse nein), Namen ohne Gross/klein.
+const FLUGHAEFEN: Array<{ kuerzel: string; name: RegExp; lat: number; lon: number; t1?: { lat: number; lon: number } }> = [
+  { kuerzel: 'MUC', name: /flughafen m(ü|ue)nchen|munich airport|franz[- ]josef[- ]strau(ß|ss)/i, lat: 48.35337, lon: 11.78606,
+    t1: { lat: 48.35345, lon: 11.78175 } },
+  { kuerzel: 'FRA', name: /flughafen frankfurt|frankfurt airport/i, lat: 50.05073, lon: 8.57062 },
+  { kuerzel: 'NUE', name: /flughafen n(ü|ue)rnberg|nuremberg airport/i, lat: 49.49868, lon: 11.06694 },
+  { kuerzel: 'STR', name: /flughafen stuttgart|stuttgart airport/i, lat: 48.69004, lon: 9.19214 },
+  { kuerzel: 'BER', name: /flughafen berlin|berlin brandenburg airport/i, lat: 52.36484, lon: 13.51007 },
+  { kuerzel: 'FMM', name: /flughafen memmingen|memmingen airport|allg(ä|ae)u airport/i, lat: 47.98880, lon: 10.23950 },
+];
+
+const flughafen = (adresse: string) => {
+  // Kuerzel klein geschrieben nur zusammen mit Terminal/Flughafen/Airport ("muc terminal 2").
+  const mitHinweis = /terminal|flughafen|airport/i.test(adresse);
+  const f = FLUGHAEFEN.find((x) => new RegExp(`\\b${x.kuerzel}\\b`, mitHinweis ? 'i' : '').test(adresse) || x.name.test(adresse));
+  if (!f) return null;
+  if (f.t1 && /\b(terminal|t)\s*1\b/i.test(adresse)) return { ...f.t1 };
+  return { lat: f.lat, lon: f.lon };
+};
+
+// Eigener Ort der Dispo (Tabelle orte, gleiche Regel wie die automatische Zuordnung in der DB).
+const eigenerOrt = async (admin: AdminClient, adresse: string) => {
+  const { data: id } = await admin.rpc('trisar_ort_finden', { p_adresse: adresse, p_lat: null, p_lng: null });
+  let ortId = typeof id === 'string' ? id : null;
+  if (!ortId) {
+    const { data: perName } = await admin.from('orte').select('id').ilike('name', adresse.trim()).limit(1).maybeSingle();
+    ortId = perName?.id || null;
+  }
+  if (!ortId) return null;
+  const { data: ort } = await admin.from('orte').select('lat, lng').eq('id', ortId).maybeSingle();
+  const lat = Number(ort?.lat);
+  const lon = Number(ort?.lng);
+  return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+};
+
+// Adresse -> Koordinaten. Reihenfolge: Koordinaten im Text, eigener Ort, bekannter Flughafen,
+// dann TomTom (30 Tage in api_route_cache, damit jede Adresse nur einmal kostet).
 export const geocode = async (
   admin: AdminClient,
   schluessel: string,
@@ -68,6 +107,10 @@ export const geocode = async (
   if (direkt) return direkt;
   const norm = adresse.trim().toLowerCase();
   if (!norm) return null;
+  const ort = await eigenerOrt(admin, adresse).catch(() => null);
+  if (ort) return ort;
+  const fest = flughafen(adresse);
+  if (fest) return fest;
   const key = await sha256(`tomtom-geo|${norm}`);
   const { data: alt } = await admin
     .from('api_route_cache')
