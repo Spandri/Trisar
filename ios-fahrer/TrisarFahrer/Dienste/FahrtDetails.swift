@@ -32,6 +32,10 @@ final class FahrtDetails: ObservableObject {
     /// Gespeicherte TomTom-Linien der Fahrt (Rueckfall, wenn die Live-Route von OSRM ausfaellt).
     @Published private(set) var tomtomFahrt: [CLLocationCoordinate2D] = []    // ext_route_polyline
     @Published private(set) var tomtomAnfahrt: [CLLocationCoordinate2D] = []  // ext_driver_to_pickup_polyline
+    /// Abholort und Ziel aus den TomTom-Payloads (wie trisar_evaluate_job_status). Die Karte
+    /// nimmt sie vor der Adresssuche, der Pin eines eigenen Orts geht noch vor.
+    @Published private(set) var payloadAbhol: CLLocationCoordinate2D?
+    @Published private(set) var payloadZiel: CLLocationCoordinate2D?
     @Published private(set) var fahrerNummer: String = ""
     @Published private(set) var standortDB: CLLocationCoordinate2D?
     // Flug (ext_flight_payload, wie extractFlightLiveTracking/extractFlightSummary im Web)
@@ -88,6 +92,10 @@ final class FahrtDetails: ObservableObject {
         let ext_driver_to_pickup_polyline: String?
         let flight_origin: String?
         let flug_text: String?
+        let route_von: Routen.PayloadPunkt?
+        let route_nach: Routen.PayloadPunkt?
+        let anfahrt_nach: Routen.PayloadPunkt?
+        let zielfahrt_nach: Routen.PayloadPunkt?
     }
 
     private struct NotizZeile: Decodable { let note_text: String?; let created_at: String?; let author_name: String? }
@@ -108,7 +116,7 @@ final class FahrtDetails: ObservableObject {
     func laden() async {
         do {
             async let zeileAbfrage: [DetailZeile] = Backend.client.from("jobs")
-                .select("passengers,anonymous_guests,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,ext_route_polyline,ext_driver_to_pickup_polyline,flight_origin,flug_text:ext_flight_payload::text")
+                .select("passengers,anonymous_guests,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,ext_route_polyline,ext_driver_to_pickup_polyline,flight_origin,flug_text:ext_flight_payload::text,route_von:ext_route_payload->von,route_nach:ext_route_payload->nach,anfahrt_nach:ext_driver_to_pickup_payload->nach,zielfahrt_nach:ext_driver_to_dropoff_payload->nach")
                 .eq("id", value: fahrtID).limit(1).execute().value
             async let notizAbfrage: [NotizZeile] = Backend.client.from("job_notes")
                 .select("note_text,created_at,author_name").eq("job_id", value: fahrtID)
@@ -153,6 +161,8 @@ final class FahrtDetails: ObservableObject {
             fahrzeitMin = zeile?.ext_route_duration_in_traffic_mins ?? zeile?.ext_route_duration_mins ?? 0
             tomtomFahrt = Self.polylineLesen(zeile?.ext_route_polyline)
             tomtomAnfahrt = Self.polylineLesen(zeile?.ext_driver_to_pickup_polyline)
+            payloadAbhol = zeile?.route_von?.punkt ?? zeile?.anfahrt_nach?.punkt
+            payloadZiel = zeile?.route_nach?.punkt ?? zeile?.zielfahrt_nach?.punkt
             let rest = zeile?.ext_driver_to_dropoff_duration_in_traffic_mins ?? zeile?.ext_driver_to_dropoff_duration_mins
             if let rest, let sync = zeile?.ext_driver_to_dropoff_last_sync_at.flatMap(Datum.ausISO),
                Date().timeIntervalSince(sync) < 600 {

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.location.Location
 import de.trisar.kern.Backend
+import de.trisar.kern.Routen
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -79,21 +80,28 @@ internal object DispoRouten {
         val schluessel = text.trim().lowercase().replace(Regex("\\s+"), " ")
         if (schluessel.isEmpty()) return null
         orte[schluessel]?.let { return it }
+        if (Routen.fehltrefferAktiv(schluessel)) return null
         laufend[schluessel]?.let { return it.await() }
         val lauf = CompletableDeferred<KartenPunkt?>()
         laufend[schluessel] = lauf
-        val adresse = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + URLEncoder.encode(text, "UTF-8")
-        val ergebnis = holen(adresse)?.let { (code, inhalt) ->
-            if (code != 200) return@let null
-            runCatching {
-                val erster = (Backend.json.parseToJsonElement(inhalt) as JsonArray).firstOrNull()?.jsonObject ?: return@runCatching null
-                val lat = erster["lat"]?.jsonPrimitive?.content?.toDoubleOrNull()
-                val lng = erster["lon"]?.jsonPrimitive?.content?.toDoubleOrNull()
-                if (lat != null && lng != null) KartenPunkt(lat, lng) else null
-            }.getOrNull()
+        // Erst der ganze Text, dann ohne das erste Stueck (Ortsname vorne).
+        var ergebnis: KartenPunkt? = null
+        for (suche in Routen.suchTexte(text)) {
+            val adresse = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + URLEncoder.encode(suche, "UTF-8")
+            ergebnis = holen(adresse)?.let { (code, inhalt) ->
+                if (code != 200) return@let null
+                runCatching {
+                    val erster = (Backend.json.parseToJsonElement(inhalt) as JsonArray).firstOrNull()?.jsonObject ?: return@runCatching null
+                    val lat = erster["lat"]?.jsonPrimitive?.content?.toDoubleOrNull()
+                    val lng = erster["lon"]?.jsonPrimitive?.content?.toDoubleOrNull()
+                    if (lat != null && lng != null) KartenPunkt(lat, lng) else null
+                }.getOrNull()
+            }
+            if (ergebnis != null) break
         }
         laufend.remove(schluessel)
         lauf.complete(ergebnis)
+        Routen.fehltrefferMerken(schluessel, ergebnis != null)
         if (ergebnis != null) {
             orte[schluessel] = ergebnis
             orteMerken()
@@ -171,7 +179,7 @@ internal object KartenRouten {
         var bild = KartenRoutenBild(schluessel = schluessel(fahrer))
         // Aktive Fahrer haben den Gast schon an Bord: fuer sie gibt es keine Anfahrt.
         val mitAnfahrt = KartenRegeln.istOffen(ride.status) && fahrer.zustand != FahrerZustand.AKTIV
-        // Eigener Ort: sein Pin (Einfahrt) statt der gesuchten Adresse.
+        // Eigener Ort (Pin, Einfahrt) oder TomTom-Payload, erst ohne beide die Adresssuche.
         val abholort = ride.vonPunkt ?: DispoRouten.punkt(ride.vonSuche)
         val ziel = ride.nachPunkt ?: DispoRouten.punkt(ride.nachSuche)
         val anfahrtGeplant = mitAnfahrt && ursprung != null && abholort != null

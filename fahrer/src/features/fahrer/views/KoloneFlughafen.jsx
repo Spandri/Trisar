@@ -23,6 +23,7 @@ import {
   RIDE_HOTEL_URL,
 } from '../../../shared/ui/icons';
 import { karteBereitstellen } from '../../../shared/karte/maplibreKarte';
+import { routenOrtText } from '../../../shared/utils/routenPunkt';
 import { gleicherOrt } from '../../../shared/utils/vorherigeFahrt';
 import { useDemoAnflug } from '../../../demo/flugAnflug';
 import { DEMO_MODE } from '../../../datenquelle';
@@ -1102,12 +1103,15 @@ const GoogleMapComponent = ({ origin, destination, driverCoords, fahrerNummer = 
 export function RouteMapTop({ job, onBack, showBack = true, onDurationUpdate, openToken, sheetHeight }) {
   const { t, locale } = useI18n();
   const kollegen = useKollegenStandorte(job);
-  const origin = job?.from?.address
+  // Vorhandene Koordinate (eigener Ort, TomTom-Payload) vor der Adresse.
+  const origin = routenOrtText(job?.from)
+    || job?.from?.address
     || job?.from?.name
     || job?.from?.shortFormattedAddress
     || job?.from?.short_formatted_address
     || '';
-  const destination = job?.to?.address
+  const destination = routenOrtText(job?.to)
+    || job?.to?.address
     || job?.to?.name
     || job?.to?.shortFormattedAddress
     || job?.to?.short_formatted_address

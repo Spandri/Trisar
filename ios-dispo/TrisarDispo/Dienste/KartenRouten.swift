@@ -3,7 +3,8 @@ import Foundation
 
 /// Route des gewaehlten Fahrers wie im Routen-Effekt von GoogleMapSurface (KartenView.jsx),
 /// Live-Zweig: Anfahrt (gelb gestrichelt) vom Fahrer zum Abholort nur bei offener Fahrt und
-/// nicht aktivem Fahrer, Fahrt (blau) vom Abholort zum Ziel. Orte ueber Nominatim, Strecken
+/// nicht aktivem Fahrer, Fahrt (blau) vom Abholort zum Ziel. Orte aus der Fahrt (eigener Ort,
+/// TomTom-Payload), sonst ueber Nominatim, Strecken
 /// ueber OSRM (Routen.swift, wie maplibreKarte.js).
 struct KartenRoutenBild: Equatable {
     var schluessel = ""
@@ -31,7 +32,8 @@ enum KartenRouten {
     /// routeFitKey: neu rechnen, wenn sich Fahrer, Fahrt, Status oder Orte aendern.
     static func schluessel(_ f: KartenFahrer?) -> String {
         guard let f, let r = f.fahrt else { return "" }
-        return [f.id, r.id, r.status, r.vonSuche, r.nachSuche].joined(separator: "|")
+        func text(_ p: CLLocationCoordinate2D?) -> String { p.map { "\($0.latitude),\($0.longitude)" } ?? "-" }
+        return [f.id, r.id, r.status, r.vonSuche, r.nachSuche, text(r.vonPunkt), text(r.nachPunkt)].joined(separator: "|")
     }
 
     @MainActor
@@ -40,8 +42,11 @@ enum KartenRouten {
         var bild = KartenRoutenBild(schluessel: schluessel(fahrer))
         // Aktive Fahrer haben den Gast schon an Bord: fuer sie gibt es keine Anfahrt.
         let mitAnfahrt = KartenRegeln.istOffen(ride.status) && fahrer.zustand != .aktiv
-        let abholort = await Routen.punkt(fuer: ride.vonSuche)
-        let ziel = await Routen.punkt(fuer: ride.nachSuche)
+        // Vorhandene Koordinaten (eigener Ort, TomTom-Payload) zuerst, erst dann die Adresssuche.
+        var abholort = ride.vonPunkt
+        if abholort == nil { abholort = await Routen.punkt(fuer: ride.vonSuche) }
+        var ziel = ride.nachPunkt
+        if ziel == nil { ziel = await Routen.punkt(fuer: ride.nachSuche) }
         let anfahrtGeplant = mitAnfahrt && ursprung != nil && abholort != nil
 
         if mitAnfahrt, let von = ursprung, let bis = abholort {

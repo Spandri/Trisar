@@ -419,18 +419,22 @@ struct SoloNormalAnsicht: View {
     private var routenSchluessel: String {
         let f = fahrerOrt.map { "\(Int($0.latitude * 200)),\(Int($0.longitude * 200))" } ?? "-"
         return "\(fahrt?.abholAdresse ?? "")|\(fahrt?.zielAdresse ?? "")|\(unterwegs)|\(details.fahrerNummer)|\(f)|\(details.tomtomFahrt.count)|\(details.tomtomAnfahrt.count)"
+            + "|\(details.payloadAbhol?.latitude ?? 0)|\(details.payloadZiel?.latitude ?? 0)"
     }
 
     private func routenBerechnen() async {
         guard let fahrt else { return }
         let abholText = fahrt.abholAdresse.isEmpty ? fahrt.abholName : fahrt.abholAdresse
         let zielText = fahrt.zielAdresse.isEmpty ? fahrt.zielName : fahrt.zielAdresse
-        async let abholAbfrage = Routen.punkt(fuer: abholText)
-        async let zielAbfrage = Routen.punkt(fuer: zielText)
-        // Eigener Ort: sein Pin (auf die Einfahrt gesetzt) statt der gesuchten Adresse.
+        // Eigener Ort: sein Pin (auf die Einfahrt gesetzt), dann der TomTom-Payload der Fahrt.
+        // Erst ohne beide wird die Adresse gesucht.
+        let abholBekannt = orte.ort(fahrt.abholOrtID)?.punkt ?? details.payloadAbhol
+        let zielBekannt = orte.ort(fahrt.zielOrtID)?.punkt ?? details.payloadZiel
+        async let abholAbfrage = abholBekannt == nil ? Routen.punkt(fuer: abholText) : nil
+        async let zielAbfrage = zielBekannt == nil ? Routen.punkt(fuer: zielText) : nil
         let abholGesucht = await abholAbfrage, zielGesucht = await zielAbfrage
-        let abhol = orte.ort(fahrt.abholOrtID)?.punkt ?? abholGesucht
-        let ziel = orte.ort(fahrt.zielOrtID)?.punkt ?? zielGesucht
+        let abhol = abholBekannt ?? abholGesucht
+        let ziel = zielBekannt ?? zielGesucht
         let fahrer = fahrerOrt
         var neu = KarteAnsicht.Inhalt()
         neu.ziel = ziel

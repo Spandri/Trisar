@@ -130,22 +130,27 @@ internal object PlanRouten {
         if (schluessel.isEmpty()) return null
         val gemerkt = orteLaden()
         gemerkt[schluessel]?.let { return it }
+        if (de.trisar.kern.Routen.fehltrefferAktiv(schluessel)) return null
         laufend[schluessel]?.let { return it.await() }
         val lauf = planLauf.async {
             withContext(Dispatchers.IO) {
-                val url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + URLEncoder.encode(text, "UTF-8")
-                val (status, inhalt) = lesen(url) ?: return@withContext null
-                if (status != 200) return@withContext null
-                val erster = runCatching { (planJson.parseToJsonElement(inhalt) as JsonArray).firstOrNull() as? JsonObject }.getOrNull()
-                    ?: return@withContext null
-                val lat = erster.text("lat").toDoubleOrNull() ?: return@withContext null
-                val lng = erster.text("lon").toDoubleOrNull() ?: return@withContext null
-                GeoPunkt(lat, lng)
+                // Erst der ganze Text, dann ohne das erste Stueck (Ortsname vorne).
+                de.trisar.kern.Routen.suchTexte(text).firstNotNullOfOrNull { suche ->
+                    val url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + URLEncoder.encode(suche, "UTF-8")
+                    val (status, inhalt) = lesen(url) ?: return@firstNotNullOfOrNull null
+                    if (status != 200) return@firstNotNullOfOrNull null
+                    val erster = runCatching { (planJson.parseToJsonElement(inhalt) as JsonArray).firstOrNull() as? JsonObject }.getOrNull()
+                        ?: return@firstNotNullOfOrNull null
+                    val lat = erster.text("lat").toDoubleOrNull() ?: return@firstNotNullOfOrNull null
+                    val lng = erster.text("lon").toDoubleOrNull() ?: return@firstNotNullOfOrNull null
+                    GeoPunkt(lat, lng)
+                }
             }
         }
         laufend[schluessel] = lauf
         val ergebnis = lauf.await()
         laufend.remove(schluessel)
+        de.trisar.kern.Routen.fehltrefferMerken(schluessel, ergebnis != null)
         if (ergebnis != null) {
             gemerkt[schluessel] = ergebnis
             PlanAblage.setzen(ORT_SCHLUESSEL, JsonObject(gemerkt.mapValues { JsonArray(listOf(JsonPrimitive(it.value.lat), JsonPrimitive(it.value.lng))) }).toString())

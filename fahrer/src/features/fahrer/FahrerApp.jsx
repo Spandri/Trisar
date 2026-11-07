@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { kurzAdresse } from '../../shared/adresseKurz';
 import { orteLaden, ortNachId } from '../../shared/orte';
+import { fahrtRoutenPunkte } from '../../shared/utils/routenPunkt';
 import { SUPABASE_FUNCTIONS } from '../../shared/supabase/functions';
 import { supabase } from '../../shared/supabase/client';
 import { DEMO_MODE } from '../../datenquelle';
@@ -2492,6 +2493,7 @@ const FahrerApp = () => {
           const flightSummary = extractFlightSummary(dbJob.ext_flight_payload);
           const pickupOrt = ortNachId(dbJob.pickup_ort_id);
           const dropoffOrt = ortNachId(dbJob.dropoff_ort_id);
+          const routenPunkte = fahrtRoutenPunkte(dbJob, pickupOrt, dropoffOrt);
           // Mit eigenem Ort: Icon des Orts und sein Pin (lat/lng) fuer Google Maps.
           const ortFelder = (ort, ortId, name) => {
             if (!ortId) return {};
@@ -2516,6 +2518,7 @@ const FahrerApp = () => {
               address: dbJob.pickup_address,
               shortFormattedAddress: toShortFormattedAddress(dbJob.pickup_name, dbJob.pickup_address),
               ...ortFelder(pickupOrt, dbJob.pickup_ort_id, dbJob.pickup_name),
+              routenPunkt: routenPunkte.von,
             },
             to: {
               name: dbJob.dropoff_name,
@@ -2523,6 +2526,7 @@ const FahrerApp = () => {
               address: dbJob.dropoff_address,
               shortFormattedAddress: toShortFormattedAddress(dbJob.dropoff_name, dbJob.dropoff_address),
               ...ortFelder(dropoffOrt, dbJob.dropoff_ort_id, dbJob.dropoff_name),
+              routenPunkt: routenPunkte.nach,
             },
             trainNumber: dbJob.train_number || null,
             rideDate: getRideDateFromJob(dbJob),

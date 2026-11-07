@@ -49,6 +49,56 @@ object Routen {
     private var strecken: JsonObject? = null
     private val laufend = mutableMapOf<String, CompletableDeferred<GeoPunkt?>>()
 
+    /**
+     * Erfolglose Suchen nur kurz und nur im Speicher merken, damit nicht jede Ansicht
+     * Nominatim erneut fragt, ein spaeterer Versuch aber wieder durchgeht.
+     */
+    private val fehltreffer = mutableMapOf<String, Long>()
+    private const val FEHLTREFFER_MS = 10 * 60 * 1000L
+
+    /** Kurz gemerkter Fehltreffer? (fuer alle Adresssuchen der Apps) */
+    fun fehltrefferAktiv(schluessel: String): Boolean {
+        val seit = synchronized(fehltreffer) { fehltreffer[schluessel] } ?: return false
+        return System.currentTimeMillis() - seit < FEHLTREFFER_MS
+    }
+
+    fun fehltrefferMerken(schluessel: String, gefunden: Boolean) {
+        synchronized(fehltreffer) { if (gefunden) fehltreffer.remove(schluessel) else fehltreffer[schluessel] = System.currentTimeMillis() }
+    }
+
+    /**
+     * Suchtexte fuer Nominatim: erst der ganze Text, dann ohne das erste Stueck. Steht ein
+     * Ortsname vorne ("Kongress am Park, Goegginger Str. 10, 86159 Augsburg"), findet die
+     * Freitextsuche sonst oft nichts.
+     */
+    fun suchTexte(text: String): List<String> {
+        val stuecke = text.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        return if (stuecke.size >= 2) listOf(text, stuecke.drop(1).joinToString(", ")) else listOf(text)
+    }
+
+    /** Punkt aus einem TomTom-Payload ({"lat": .., "lon": ..}, auch "lng"). 0/0 gilt als leer. */
+    fun koordinate(wert: kotlinx.serialization.json.JsonElement?): GeoPunkt? {
+        val o = wert as? JsonObject ?: return null
+        fun zahl(k: String) = (o[k] as? JsonPrimitive)?.content?.toDoubleOrNull()
+        val lat = zahl("lat") ?: return null
+        val lng = zahl("lng") ?: zahl("lon") ?: return null
+        if (!lat.isFinite() || !lng.isFinite() || (lat == 0.0 && lng == 0.0) || kotlin.math.abs(lat) > 90 || kotlin.math.abs(lng) > 180) return null
+        return GeoPunkt(lat, lng)
+    }
+
+    /** Spaltenauswahl fuer die Punkte aus den TomTom-Payloads (wie JOBS_SELECT_PUNKTE im Web). */
+    const val PAYLOAD_SPALTEN = "route_von:ext_route_payload->von, route_nach:ext_route_payload->nach, " +
+        "anfahrt_nach:ext_driver_to_pickup_payload->nach, zielfahrt_nach:ext_driver_to_dropoff_payload->nach"
+
+    /**
+     * Abholort und Ziel aus einer Fahrtzeile in der Reihenfolge von trisar_evaluate_job_status:
+     * TomTom-Payload der Fahrt (von/nach), dann die Anfahrts-Payloads. Der Pin des eigenen
+     * Orts kommt beim Aufrufer davor.
+     */
+    fun payloadPunkte(zeile: JsonObject): Pair<GeoPunkt?, GeoPunkt?> =
+        (koordinate(zeile["route_von"]) ?: koordinate(zeile["anfahrt_nach"])) to
+            (koordinate(zeile["route_nach"]) ?: koordinate(zeile["zielfahrt_nach"]))
+
     private fun prefs(ctx: Context) = ctx.applicationContext.getSharedPreferences(SPEICHER, Context.MODE_PRIVATE)
 
     private fun orteLaden(ctx: Context): MutableMap<String, GeoPunkt> = orte ?: run {
@@ -70,21 +120,25 @@ object Routen {
         if (schluessel.isEmpty()) return null
         val gemerkt = orteLaden(ctx)
         gemerkt[schluessel]?.let { return it }
+        if (fehltrefferAktiv(schluessel)) return null
         laufend[schluessel]?.let { return it.await() }
         val lauf = CompletableDeferred<GeoPunkt?>()
         laufend[schluessel] = lauf
         val ergebnis = withContext(Dispatchers.IO) {
-            runCatching {
-                val url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + URLEncoder.encode(text, "UTF-8")
-                val antwort = holen(url, mapOf("Accept" to "application/json", "User-Agent" to "TRISAR-Fahrer-Android/0.1")) ?: return@runCatching null
-                val erster = Backend.json.parseToJsonElement(antwort).jsonArray.firstOrNull()?.jsonObject ?: return@runCatching null
-                val lat = erster["lat"]?.jsonPrimitive?.content?.toDoubleOrNull()
-                val lng = erster["lon"]?.jsonPrimitive?.content?.toDoubleOrNull()
-                if (lat != null && lng != null) GeoPunkt(lat, lng) else null
-            }.getOrNull()
+            suchTexte(text).firstNotNullOfOrNull { suche ->
+                runCatching {
+                    val url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + URLEncoder.encode(suche, "UTF-8")
+                    val antwort = holen(url, mapOf("Accept" to "application/json", "User-Agent" to "TRISAR-Fahrer-Android/0.1")) ?: return@runCatching null
+                    val erster = Backend.json.parseToJsonElement(antwort).jsonArray.firstOrNull()?.jsonObject ?: return@runCatching null
+                    val lat = erster["lat"]?.jsonPrimitive?.content?.toDoubleOrNull()
+                    val lng = erster["lon"]?.jsonPrimitive?.content?.toDoubleOrNull()
+                    if (lat != null && lng != null) GeoPunkt(lat, lng) else null
+                }.getOrNull()
+            }
         }
         laufend.remove(schluessel)
         lauf.complete(ergebnis)
+        fehltrefferMerken(schluessel, ergebnis != null)
         if (ergebnis != null) {
             gemerkt[schluessel] = ergebnis
             val json = buildJsonObject {

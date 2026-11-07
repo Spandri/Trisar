@@ -195,14 +195,15 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
     /** Neu rechnen, wenn sich Fahrt, Status oder (grob) der Standort aendert. */
     val routenSchluessel = "${fahrt?.abholAdresse}|${fahrt?.zielAdresse}|$unterwegs|${details.fahrerNummer}|" +
         (fahrerOrt?.let { "${(it.lat * 200).toInt()},${(it.lng * 200).toInt()}" } ?: "-") + "|$neuRechnen" +
-        "|${details.tomtomFahrt.size}|${details.tomtomAnfahrt.size}|${EigeneOrte.liste.size}"
+        "|${details.tomtomFahrt.size}|${details.tomtomAnfahrt.size}|${EigeneOrte.liste.size}" +
+        "|${details.payloadAbhol}|${details.payloadZiel}"
     LaunchedEffect(routenSchluessel) {
         val f = fahrt ?: return@LaunchedEffect
         val abholText = f.abholAdresse.ifEmpty { f.abholName }
         val zielText = f.zielAdresse.ifEmpty { f.zielName }
-        // Eigener Ort: sein Pin (Einfahrt), sonst die Adresse suchen.
-        val abholOrt = EigeneOrte.zuID(f.abholOrtID)?.punkt
-        val zielOrt = EigeneOrte.zuID(f.zielOrtID)?.punkt
+        // Eigener Ort: sein Pin (Einfahrt), dann der TomTom-Payload der Fahrt, sonst die Adresse suchen.
+        val abholOrt = EigeneOrte.zuID(f.abholOrtID)?.punkt ?: details.payloadAbhol
+        val zielOrt = EigeneOrte.zuID(f.zielOrtID)?.punkt ?: details.payloadZiel
         val abholA = async { abholOrt ?: Routen.punkt(ctx, abholText) }
         val zielA = async { zielOrt ?: Routen.punkt(ctx, zielText) }
         val abhol = abholA.await()

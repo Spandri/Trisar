@@ -55,7 +55,18 @@ struct KartenFahrt: Equatable {
     var status: String
     var vonSuche: String
     var nachSuche: String
+    /// Koordinaten, die die Fahrt schon mitbringt (Pin des eigenen Orts, sonst TomTom-Payload).
+    /// Nur ohne sie wird die Adresse gesucht.
+    var vonPunkt: CLLocationCoordinate2D? = nil
+    var nachPunkt: CLLocationCoordinate2D? = nil
     var kolonnenFahrerIDs: [String] = []
+
+    static func == (a: KartenFahrt, b: KartenFahrt) -> Bool {
+        a.id == b.id && a.status == b.status && a.vonSuche == b.vonSuche && a.nachSuche == b.nachSuche
+            && a.vonPunkt?.latitude == b.vonPunkt?.latitude && a.vonPunkt?.longitude == b.vonPunkt?.longitude
+            && a.nachPunkt?.latitude == b.nachPunkt?.latitude && a.nachPunkt?.longitude == b.nachPunkt?.longitude
+            && a.kolonnenFahrerIDs == b.kolonnenFahrerIDs
+    }
 }
 
 struct KartenFahrer: Identifiable, Equatable {
@@ -234,8 +245,10 @@ final class KartenDaten: ObservableObject {
                 + "ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at"
             // Eigene Orte (pickup_ort_id / dropoff_ort_id) zuerst, ohne die Spalten wie bisher.
             let jobsMitOrt = jobsMitZeit + ", pickup_ort_id, dropoff_ort_id"
+            // Dazu die Punkte aus den TomTom-Payloads, damit die Route nicht an der Adresssuche haengt.
+            let jobsMitPunkten = jobsMitOrt + ", " + Routen.payloadSpalten
             var jobs: [Zeile] = []
-            for spalten in [jobsMitOrt, jobsMitZeit, jobsBasis] {
+            for spalten in [jobsMitPunkten, jobsMitOrt, jobsMitZeit, jobsBasis] {
                 do {
                     let d = try await Backend.client.from("jobs").select(spalten)
                         .order("ride_date", ascending: true).order("etd", ascending: true).execute().data
@@ -319,7 +332,12 @@ final class KartenDaten: ObservableObject {
         let fenster = max(0, vorschauStunden) * 3600
         // Graues Icon je eigenem Ort (id klein geschrieben wie in den Zeilen der Datenbank).
         var ortIcons: [String: String] = [:]
-        for o in OrteSpeicher.geteilt.orte { ortIcons[o.id.uuidString.lowercased()] = o.symbol.grau }
+        // Pin je eigenem Ort: Start und Ziel der Route, ehe die Adresse gesucht wird.
+        var ortPunkte: [String: CLLocationCoordinate2D] = [:]
+        for o in OrteSpeicher.geteilt.orte {
+            ortIcons[o.id.uuidString.lowercased()] = o.symbol.grau
+            ortPunkte[o.id.uuidString.lowercased()] = o.punkt
+        }
 
         let liste: [KartenFahrer] = live.compactMap { zeile in
             let id = Self.text(zeile["driver_id"])
@@ -349,7 +367,7 @@ final class KartenDaten: ObservableObject {
                                               dienstEnde: Self.text(p?["service_end_time"]), jetzt: jetzt,
                                               ortIcons: ortIcons)
             let routenJob = aktiverJob ?? naechster?.0
-            var fahrt = routenJob.flatMap(KartenRegeln.fahrt)
+            var fahrt = routenJob.flatMap { KartenRegeln.fahrt($0, ortPunkte: ortPunkte) }
             if let f = fahrt, let kolonne = kolonneJeFahrt[f.id], kolonne.count > 1 {
                 fahrt?.kolonnenFahrerIDs = Array(kolonne)
             }
@@ -574,11 +592,16 @@ enum KartenRegeln {
     }
 
     /// buildDriverActiveRide: ohne Abhol- oder Zieltext keine Route.
-    static func fahrt(_ job: [String: Any]) -> KartenFahrt? {
+    static func fahrt(_ job: [String: Any], ortPunkte: [String: CLLocationCoordinate2D] = [:]) -> KartenFahrt? {
         let (vn, va) = abholung(job), (zn, za) = ziel(job)
         let von = suche(vn, va), nach = suche(zn, za)
         guard !von.isEmpty, !nach.isEmpty else { return nil }
         let id = KartenDaten.text(job["id"])
-        return KartenFahrt(id: id, status: status(job["status"]), vonSuche: von, nachSuche: nach)
+        // Wie trisar_evaluate_job_status: Pin des eigenen Orts, dann TomTom-Payloads.
+        let payload = Routen.payloadPunkte(job)
+        let vonOrt = ortPunkte[KartenDaten.text(job["pickup_ort_id"]).lowercased()]
+        let nachOrt = ortPunkte[KartenDaten.text(job["dropoff_ort_id"]).lowercased()]
+        return KartenFahrt(id: id, status: status(job["status"]), vonSuche: von, nachSuche: nach,
+                           vonPunkt: vonOrt ?? payload.von, nachPunkt: nachOrt ?? payload.nach)
     }
 }

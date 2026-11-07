@@ -830,6 +830,10 @@ const ortNormalisieren = (text) => String(text || '')
 const ORTE_TABELLE = new Map(Object.entries(orteDerDemo).map(([text, punkt]) => [ortNormalisieren(text), punkt]));
 const ORTE_SPEICHER = new Map();
 const ORTE_LAUFEND = new Map();
+// Erfolglose Suchen nur kurz und nur im Speicher merken: nicht jede Ansicht fragt
+// Nominatim erneut, ein spaeterer Versuch geht aber wieder durch.
+const ORTE_FEHLTREFFER = new Map();
+const FEHLTREFFER_MS = 10 * 60 * 1000;
 const ORTE_SCHLUESSEL = 'trisar-orte';
 
 try {
@@ -864,25 +868,48 @@ export const adresseAufloesen = (text) => {
   if (name && name !== schluessel && ORTE_TABELLE.has(name)) return Promise.resolve(ORTE_TABELLE.get(name));
   if (ORTE_SPEICHER.has(schluessel)) return Promise.resolve(ORTE_SPEICHER.get(schluessel));
   if (ORTE_LAUFEND.has(schluessel)) return ORTE_LAUFEND.get(schluessel);
+  const fehlSeit = ORTE_FEHLTREFFER.get(schluessel);
+  if (fehlSeit && Date.now() - fehlSeit < FEHLTREFFER_MS) return Promise.resolve(null);
 
-  const adresse = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(text)}`;
-  const lauf = fetch(adresse, { headers: { Accept: 'application/json' } })
+  const nominatim = (suche) => fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(suche)}`,
+    { headers: { Accept: 'application/json' } },
+  )
     .then((antwort) => (antwort.ok ? antwort.json() : []))
     .then((treffer) => {
       const erster = Array.isArray(treffer) ? treffer[0] : null;
       const punkt = erster ? { lat: Number(erster.lat), lng: Number(erster.lon) } : null;
-      if (punkt) ortMerken(schluessel, punkt);
+      return punkt && Number.isFinite(punkt.lat) && Number.isFinite(punkt.lng) ? punkt : null;
+    })
+    .catch(() => null);
+  // Steht ein Ortsname vorne ("Kongress am Park, Goegginger Str. 10, 86159 Augsburg"),
+  // findet die Freitextsuche oft nichts. Dann ohne das erste Stueck.
+  const ohneErstes = String(text).split(',').map((stueck) => stueck.trim()).filter(Boolean).slice(1).join(', ');
+  const lauf = nominatim(text)
+    .then((punkt) => (punkt || !ohneErstes ? punkt : nominatim(ohneErstes)))
+    .then((punkt) => {
+      if (punkt) {
+        ORTE_FEHLTREFFER.delete(schluessel);
+        ortMerken(schluessel, punkt);
+      } else {
+        ORTE_FEHLTREFFER.set(schluessel, Date.now());
+      }
       return punkt;
     })
-    .catch(() => null)
     .finally(() => ORTE_LAUFEND.delete(schluessel));
   ORTE_LAUFEND.set(schluessel, lauf);
   return lauf;
 };
 
 // Routenziele kommen als Text oder als Koordinate herein.
+// "48.36,10.89" ist schon eine Koordinate (wie bei Google), die wird nicht gesucht.
+const KOORDINATE_TEXT = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
 const ortBestimmen = (wert) => {
-  if (typeof wert === 'string') return adresseAufloesen(wert);
+  if (typeof wert === 'string') {
+    const treffer = wert.match(KOORDINATE_TEXT);
+    if (treffer) return Promise.resolve({ lat: Number(treffer[1]), lng: Number(treffer[2]) });
+    return adresseAufloesen(wert);
+  }
   return Promise.resolve(zuLngLat(wert));
 };
 

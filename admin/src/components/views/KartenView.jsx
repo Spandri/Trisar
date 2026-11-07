@@ -34,6 +34,8 @@ const MISSING_JOBS_EXT_COLUMN_RE = /column .*ext_route_|column .*ext_driver_to_p
 const JOBS_SELECT_FULL = 'id, driver_id, ride_date, etd, status, route, pickup_name, pickup_address, dropoff_name, dropoff_address, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_polyline, ext_driver_to_pickup_duration_mins, ext_driver_to_pickup_duration_in_traffic_mins, ext_driver_to_pickup_polyline, ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at';
 const JOBS_SELECT_NO_ROUTE = 'id, driver_id, ride_date, etd, status, pickup_name, pickup_address, dropoff_name, dropoff_address, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_polyline, ext_driver_to_pickup_duration_mins, ext_driver_to_pickup_duration_in_traffic_mins, ext_driver_to_pickup_polyline, ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at';
 const JOBS_SELECT_BASE = 'id, driver_id, ride_date, etd, status, pickup_name, pickup_address, dropoff_name, dropoff_address';
+// Nur die Punkte aus den TomTom-Payloads, nicht die ganzen JSON-Objekte.
+const JOBS_SELECT_PUNKTE = 'route_von:ext_route_payload->von, route_nach:ext_route_payload->nach, anfahrt_nach:ext_driver_to_pickup_payload->nach, zielfahrt_nach:ext_driver_to_dropoff_payload->nach';
 const JOBS_SELECT_PREFERENCE_KEY = 'koordinator_karten_jobs_select_preference';
 const IN_QUERY_BATCH_SIZE = 30;
 const EDGE_FUNCTIONS = {
@@ -535,8 +537,30 @@ const buildLocationQuery = (name, address) => {
   return safeName || safeAddress || '';
 };
 
+// Koordinaten, die die Fahrt schon mitbringt, in der Reihenfolge wie
+// trisar_evaluate_job_status: Pin des eigenen Orts, dann der TomTom-Payload der
+// Fahrt (von/nach), dann die Anfahrts-Payloads. Erst ohne sie wird die Adresse gesucht.
+const punktAus = (wert) => {
+  if (!wert || typeof wert !== 'object') return null;
+  const lat = Number(wert.lat);
+  const lng = Number(wert.lng ?? wert.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return null;
+  return { lat, lng };
+};
+const fahrtPunkte = (job) => {
+  const startOrt = ortNachId(job?.pickup_ort_id);
+  const zielOrt = ortNachId(job?.dropoff_ort_id);
+  return {
+    von: punktAus(startOrt) || punktAus(job?.route_von) || punktAus(job?.ext_route_payload?.von)
+      || punktAus(job?.anfahrt_nach) || punktAus(job?.ext_driver_to_pickup_payload?.nach),
+    nach: punktAus(zielOrt) || punktAus(job?.route_nach) || punktAus(job?.ext_route_payload?.nach)
+      || punktAus(job?.zielfahrt_nach) || punktAus(job?.ext_driver_to_dropoff_payload?.nach),
+  };
+};
+
 const buildDriverActiveRide = (job, t) => {
   if (!job) return null;
+  const punkte = fahrtPunkte(job);
   const pickupValues = getPickupValuesFromJob(job);
   const dropoffValues = getDropoffValuesFromJob(job);
   const fromQuery = buildLocationQuery(pickupValues.name, pickupValues.address);
@@ -553,11 +577,13 @@ const buildDriverActiveRide = (job, t) => {
       type: t('karten.pickup'),
       label: extractLocationLabel(pickupValues.name, pickupValues.address),
       query: fromQuery,
+      ...(punkte.von || {}),
     },
     to: {
       type: t('karten.destination'),
       label: extractLocationLabel(dropoffValues.name, dropoffValues.address),
       query: toQuery,
+      ...(punkte.nach || {}),
     },
     via: [],
     extRoutePolyline: String(job?.ext_route_polyline || '').trim(),
@@ -1401,6 +1427,10 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
       String(ride?.status || ''),
       String(ride?.from?.query || ''),
       String(ride?.to?.query || ''),
+      String(ride?.from?.lat ?? ''),
+      String(ride?.from?.lng ?? ''),
+      String(ride?.to?.lat ?? ''),
+      String(ride?.to?.lng ?? ''),
       String(ride?.extDriverToPickupPolyline || ''),
       String(ride?.extRoutePolyline || ''),
     ].join('|');
@@ -1791,6 +1821,10 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     selectedDriver?.activeRide?.status,
     selectedDriver?.activeRide?.from?.query,
     selectedDriver?.activeRide?.to?.query,
+    selectedDriver?.activeRide?.from?.lat,
+    selectedDriver?.activeRide?.from?.lng,
+    selectedDriver?.activeRide?.to?.lat,
+    selectedDriver?.activeRide?.to?.lng,
     selectedDriver?.activeRide?.extDriverToPickupPolyline,
     selectedDriver?.activeRide?.extRoutePolyline,
     routenStandort?.lat,
@@ -2455,19 +2489,32 @@ export default function KartenView({ setView, filters = {} }) {
           return { data: merged, error: null };
         };
 
-        // Eigene Orte der Fahrten (Icon in der Fahrtinfo). Eigene Abfrage, damit die
-        // Spaltenauswahl oben nicht zurueckfaellt, solange die Migration fehlt.
-        const ortZuordnungResult = await runInBatches({
+        // Eigene Orte der Fahrten (Icon in der Fahrtinfo, Pin fuer die Route) und die
+        // Koordinaten aus den TomTom-Payloads. Eigene Abfrage, damit die Spaltenauswahl
+        // oben nicht zurueckfaellt, solange die Migration fehlt. Fehlen die Payloads,
+        // nur die Orte.
+        const ortSpalten = 'id, pickup_ort_id, dropoff_ort_id';
+        const punktSpalten = `${ortSpalten}, ${JOBS_SELECT_PUNKTE}`;
+        let ortZuordnungResult = await runInBatches({
           ids: jobIds,
-          queryChunk: (batch) => supabase.from('jobs').select('id, pickup_ort_id, dropoff_ort_id').in('id', batch),
-          tolerateError: () => true,
+          queryChunk: (batch) => supabase.from('jobs').select(punktSpalten).in('id', batch),
         });
+        if (ortZuordnungResult.error) {
+          ortZuordnungResult = await runInBatches({
+            ids: jobIds,
+            queryChunk: (batch) => supabase.from('jobs').select(ortSpalten).in('id', batch),
+            tolerateError: () => true,
+          });
+        }
         const ortZuordnung = new Map((ortZuordnungResult.data || []).map((row) => [String(row?.id || ''), row]));
         jobRows.forEach((row) => {
           const zuordnung = ortZuordnung.get(String(row?.id || ''));
           if (!zuordnung) return;
           row.pickup_ort_id = zuordnung.pickup_ort_id || null;
           row.dropoff_ort_id = zuordnung.dropoff_ort_id || null;
+          ['route_von', 'route_nach', 'anfahrt_nach', 'zielfahrt_nach'].forEach((feld) => {
+            if (zuordnung[feld]) row[feld] = zuordnung[feld];
+          });
         });
 
         const convoyAssignmentsResult = await runInBatches({

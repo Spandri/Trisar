@@ -97,7 +97,7 @@ internal data class KartenFahrt(
     val vonSuche: String,
     val nachSuche: String,
     val kolonnenFahrerIDs: List<String> = emptyList(),
-    /** Pin des eigenen Orts (pickup_ort_id / dropoff_ort_id), sonst wird die Adresse gesucht. */
+    /** Pin des eigenen Orts (pickup_ort_id / dropoff_ort_id), sonst TomTom-Payload. Nur ohne beide wird die Adresse gesucht. */
     val vonPunkt: KartenPunkt? = null,
     val nachPunkt: KartenPunkt? = null,
 )
@@ -279,7 +279,9 @@ internal class KartenDaten {
             var jobs: List<JsonObject> = emptyList()
             // Mit Ort-Zuordnung (Migration orte_radien), ohne sie, falls die Spalten noch fehlen.
             val jobsMitOrt = "$jobsMitZeit, pickup_ort_id, dropoff_ort_id"
-            for (spalten in listOf(jobsMitOrt, jobsMitZeit, jobsBasis)) {
+            // Dazu die Punkte aus den TomTom-Payloads, damit die Route nicht an der Adresssuche haengt.
+            val jobsMitPunkten = "$jobsMitOrt, ${de.trisar.kern.Routen.PAYLOAD_SPALTEN}"
+            for (spalten in listOf(jobsMitPunkten, jobsMitOrt, jobsMitZeit, jobsBasis)) {
                 try {
                     jobs = Backend.client.from("jobs").select(Columns.raw(spalten)) {
                         order("ride_date", Order.ASCENDING)
@@ -610,9 +612,12 @@ internal object KartenRegeln {
         if (von.isEmpty() || nach.isEmpty()) return null
         val vo = EigeneOrte.zuID(jText(job["pickup_ort_id"]))
         val no = EigeneOrte.zuID(jText(job["dropoff_ort_id"]))
+        // Wie trisar_evaluate_job_status: Pin des eigenen Orts, dann TomTom-Payloads.
+        val (pv, pn) = de.trisar.kern.Routen.payloadPunkte(job)
         return KartenFahrt(
             jText(job["id"]), status(job["status"]), von, nach,
-            vonPunkt = vo?.let { KartenPunkt(it.lat, it.lng) }, nachPunkt = no?.let { KartenPunkt(it.lat, it.lng) },
+            vonPunkt = vo?.let { KartenPunkt(it.lat, it.lng) } ?: pv?.let { KartenPunkt(it.lat, it.lng) },
+            nachPunkt = no?.let { KartenPunkt(it.lat, it.lng) } ?: pn?.let { KartenPunkt(it.lat, it.lng) },
         )
     }
 

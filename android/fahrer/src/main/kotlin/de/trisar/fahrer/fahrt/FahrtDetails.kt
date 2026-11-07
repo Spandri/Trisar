@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import de.trisar.kern.Backend
 import de.trisar.kern.EigeneOrte
 import de.trisar.kern.GeoPunkt
+import de.trisar.kern.Routen
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
@@ -191,6 +192,12 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
     /** Gespeicherte TomTom-Linien (Rueckfall, wenn die Live-Route von OSRM ausfaellt). */
     var tomtomFahrt by mutableStateOf<List<de.trisar.kern.GeoPunkt>>(emptyList()); private set
     var tomtomAnfahrt by mutableStateOf<List<de.trisar.kern.GeoPunkt>>(emptyList()); private set
+    /**
+     * Abholort und Ziel aus den TomTom-Payloads (wie trisar_evaluate_job_status). Die Karte
+     * nimmt sie vor der Adresssuche, der Pin eines eigenen Orts geht noch vor.
+     */
+    var payloadAbhol by mutableStateOf<GeoPunkt?>(null); private set
+    var payloadZiel by mutableStateOf<GeoPunkt?>(null); private set
     var fahrerNummer by mutableStateOf(""); private set
     var fahrerName by mutableStateOf(""); private set
     var standortDB by mutableStateOf<GeoPunkt?>(null); private set
@@ -224,6 +231,10 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
         val ext_driver_to_pickup_polyline: String? = null,
         val flight_origin: String? = null,
         val flug_text: String? = null,
+        val route_von: kotlinx.serialization.json.JsonElement? = null,
+        val route_nach: kotlinx.serialization.json.JsonElement? = null,
+        val anfahrt_nach: kotlinx.serialization.json.JsonElement? = null,
+        val zielfahrt_nach: kotlinx.serialization.json.JsonElement? = null,
     )
     @Serializable private data class NotizZeile(val note_text: String? = null, val created_at: String? = null, val author_name: String? = null)
     @Serializable private data class GastLink(val guest_id: String? = null)
@@ -317,7 +328,8 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
             coroutineScope {
                 val zeileA = async {
                     Backend.client.from("jobs").select(Columns.raw(
-                        "passengers,anonymous_guests,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,ext_route_polyline,ext_driver_to_pickup_polyline,flight_origin,flug_text:ext_flight_payload::text"
+                        "passengers,anonymous_guests,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,ext_route_polyline,ext_driver_to_pickup_polyline,flight_origin,flug_text:ext_flight_payload::text," +
+                        "route_von:ext_route_payload->von,route_nach:ext_route_payload->nach,anfahrt_nach:ext_driver_to_pickup_payload->nach,zielfahrt_nach:ext_driver_to_dropoff_payload->nach"
                     )) { filter { eq("id", fahrtID) }; limit(1) }.decodeList<DetailZeile>().firstOrNull()
                 }
                 val notizA = async {
@@ -381,6 +393,8 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
                 fahrzeitMin = zeile?.ext_route_duration_in_traffic_mins ?: zeile?.ext_route_duration_mins ?: 0
                 tomtomFahrt = polylineLesen(zeile?.ext_route_polyline)
                 tomtomAnfahrt = polylineLesen(zeile?.ext_driver_to_pickup_polyline)
+                payloadAbhol = Routen.koordinate(zeile?.route_von) ?: Routen.koordinate(zeile?.anfahrt_nach)
+                payloadZiel = Routen.koordinate(zeile?.route_nach) ?: Routen.koordinate(zeile?.zielfahrt_nach)
                 val rest = zeile?.ext_driver_to_dropoff_duration_in_traffic_mins ?: zeile?.ext_driver_to_dropoff_duration_mins
                 val sync = FahrtZeit.ausISO(zeile?.ext_driver_to_dropoff_last_sync_at)
                 val frisch = rest != null && sync != null && Instant.now().epochSecond - sync.epochSecond < 600

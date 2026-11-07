@@ -24,6 +24,51 @@ enum Routen {
     private static let streckenSchluessel = "trisar-routen-v1"
     private static var orteImSpeicher: [String: [Double]] = UserDefaults.standard.dictionary(forKey: ortSchluessel) as? [String: [Double]] ?? [:]
     private static var laufend: [String: Task<CLLocationCoordinate2D?, Never>] = [:]
+    /// Erfolglose Suchen nur kurz und nur im Speicher merken, damit nicht jede Ansicht
+    /// Nominatim erneut fragt, ein spaeterer Versuch aber wieder durchgeht.
+    private static var fehltreffer: [String: Date] = [:]
+    private static let fehltrefferDauer: TimeInterval = 10 * 60
+
+    // MARK: Koordinate aus den Daten der Fahrt
+
+    /// Punkt aus einem TomTom-Payload ({"lat": .., "lon": ..}, auch "lng") oder einem eigenen Ort.
+    /// Zahlen duerfen als Zahl oder Text kommen. 0/0 gilt als leer.
+    static func koordinate(_ wert: Any?) -> CLLocationCoordinate2D? {
+        guard let d = wert as? [String: Any] else { return nil }
+        func zahl(_ v: Any?) -> Double? {
+            if let n = v as? NSNumber { return n.doubleValue }
+            if let t = v as? String { return Double(t.trimmingCharacters(in: .whitespaces)) }
+            return nil
+        }
+        guard let lat = zahl(d["lat"]), let lng = zahl(d["lng"]) ?? zahl(d["lon"]),
+              lat.isFinite, lng.isFinite, !(lat == 0 && lng == 0),
+              abs(lat) <= 90, abs(lng) <= 180 else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+
+    /// Spaltenauswahl fuer die Punkte aus den TomTom-Payloads (wie JOBS_SELECT_PUNKTE im Web).
+    static let payloadSpalten = "route_von:ext_route_payload->von, route_nach:ext_route_payload->nach, "
+        + "anfahrt_nach:ext_driver_to_pickup_payload->nach, zielfahrt_nach:ext_driver_to_dropoff_payload->nach"
+
+    /// Abholort und Ziel aus einer Fahrtzeile in der Reihenfolge von trisar_evaluate_job_status:
+    /// TomTom-Payload der Fahrt (von/nach), dann die Anfahrts-Payloads. Der Pin des eigenen
+    /// Orts kommt beim Aufrufer davor.
+    static func payloadPunkte(_ zeile: [String: Any]) -> (von: CLLocationCoordinate2D?, nach: CLLocationCoordinate2D?) {
+        (koordinate(zeile["route_von"]) ?? koordinate(zeile["anfahrt_nach"]),
+         koordinate(zeile["route_nach"]) ?? koordinate(zeile["zielfahrt_nach"]))
+    }
+
+    /// Ein Payload-Punkt als Decodable fuer typisierte Zeilen.
+    struct PayloadPunkt: Decodable, Equatable {
+        let lat: Double?
+        let lon: Double?
+        let lng: Double?
+
+        var punkt: CLLocationCoordinate2D? {
+            guard let lat, let lng = lng ?? lon else { return nil }
+            return Routen.koordinate(["lat": lat, "lng": lng])
+        }
+    }
 
     // MARK: Adresse -> Punkt
 
@@ -35,28 +80,41 @@ enum Routen {
         if let gemerkt = orteImSpeicher[schluessel], gemerkt.count == 2 {
             return CLLocationCoordinate2D(latitude: gemerkt[0], longitude: gemerkt[1])
         }
+        if let seit = fehltreffer[schluessel], Date().timeIntervalSince(seit) < fehltrefferDauer { return nil }
         if let lauf = laufend[schluessel] { return await lauf.value }
         let lauf = Task<CLLocationCoordinate2D?, Never> {
-            var teile = URLComponents(string: "https://nominatim.openstreetmap.org/search")!
-            teile.queryItems = [.init(name: "format", value: "json"), .init(name: "limit", value: "1"), .init(name: "q", value: text)]
-            var anfrage = URLRequest(url: teile.url!)
-            anfrage.setValue("application/json", forHTTPHeaderField: "Accept")
-            // Nominatim verlangt eine Kennung der App.
-            anfrage.setValue("TRISAR-Fahrer-iOS/0.1", forHTTPHeaderField: "User-Agent")
-            struct Treffer: Decodable { let lat: String; let lon: String }
-            guard let (daten, _) = try? await URLSession.shared.data(for: anfrage),
-                  let erster = (try? JSONDecoder().decode([Treffer].self, from: daten))?.first,
-                  let lat = Double(erster.lat), let lng = Double(erster.lon) else { return nil }
-            return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+            if let p = await nominatim(text) { return p }
+            // Steht ein Ortsname vorne ("Kongress am Park, Goegginger Str. 10, 86159 Augsburg"),
+            // findet die Freitextsuche oft nichts. Dann ohne das erste Stueck.
+            let stuecke = text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            guard stuecke.count >= 2 else { return nil }
+            return await nominatim(stuecke.dropFirst().joined(separator: ", "))
         }
         laufend[schluessel] = lauf
         let ergebnis = await lauf.value
         laufend[schluessel] = nil
         if let ergebnis {
+            fehltreffer[schluessel] = nil
             orteImSpeicher[schluessel] = [ergebnis.latitude, ergebnis.longitude]
             UserDefaults.standard.set(orteImSpeicher, forKey: ortSchluessel)
+        } else {
+            fehltreffer[schluessel] = Date()
         }
         return ergebnis
+    }
+
+    private static func nominatim(_ text: String) async -> CLLocationCoordinate2D? {
+        var teile = URLComponents(string: "https://nominatim.openstreetmap.org/search")!
+        teile.queryItems = [.init(name: "format", value: "json"), .init(name: "limit", value: "1"), .init(name: "q", value: text)]
+        var anfrage = URLRequest(url: teile.url!)
+        anfrage.setValue("application/json", forHTTPHeaderField: "Accept")
+        // Nominatim verlangt eine Kennung der App.
+        anfrage.setValue("TRISAR-Fahrer-iOS/0.1", forHTTPHeaderField: "User-Agent")
+        struct Treffer: Decodable { let lat: String; let lon: String }
+        guard let (daten, _) = try? await URLSession.shared.data(for: anfrage),
+              let erster = (try? JSONDecoder().decode([Treffer].self, from: daten))?.first,
+              let lat = Double(erster.lat), let lng = Double(erster.lon) else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lng)
     }
 
     // MARK: Strecke
