@@ -259,8 +259,8 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
     val fahrzeitMin = fahrtMinutenLive?.takeIf { it > 0 } ?: details.fahrzeitMin
 
     fun eta(f: FahrtKopf): String {
-        val rest = details.restZielMin
-        if (LAEUFT.contains(f.status.lowercase()) && rest != null) return FahrtZeit.uhrzeit(jetzt.plusSeconds(rest * 60L))
+        val ankunft = details.liveAnkunft(jetzt)
+        if (LAEUFT.contains(f.status.lowercase()) && ankunft != null) return FahrtZeit.uhrzeit(ankunft)
         val geplant = fahrtBeginn(f) ?: return "--:--"
         val heute = jetzt.atZone(ZoneId.systemDefault()).toLocalDate()
         val start = if (geplant.isBefore(jetzt) && geplant.atZone(ZoneId.systemDefault()).toLocalDate() == heute) jetzt else geplant

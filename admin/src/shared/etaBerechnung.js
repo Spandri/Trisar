@@ -20,18 +20,23 @@ const zeitAmTag = (hhmm, rideDate, jetzt) => {
   return new Date(y, mo - 1, d, Number(m[1]), Number(m[2]), 0, 0);
 };
 
+// Live-Ankunft: Die Restfahrzeit gilt ab dem Zeitpunkt der Messung (Sync), nicht ab jetzt.
+// Sonst wandert die ETA bei einem 8 Minuten alten Wert um 8 Minuten nach hinten.
+const liveAnkunftMs = (job, jetzt) => {
+  const status = String(job?.status || '').trim().toLowerCase();
+  if (!UNTERWEGS.has(status)) return null;
+  const rest = Number(job?.extDriverToDropoffDurationInTrafficMins || job?.extDriverToDropoffDurationMins);
+  const sync = Date.parse(job?.extDriverToDropoffLastSyncAt || '');
+  if (!Number.isFinite(rest) || rest < 0 || !Number.isFinite(sync) || jetzt.getTime() - sync >= LIVE_MAX_ALTER_MS) return null;
+  return Math.max(sync + rest * 60_000, jetzt.getTime());
+};
+
 export const berechneEta = (job, routeDurationMins, jetzt = new Date()) => {
   const dauer = Number(routeDurationMins) > 0 ? Number(routeDurationMins) : 0;
-  const status = String(job?.status || '').trim().toLowerCase();
   const abfahrtGeplant = zeitAmTag(job?.etd, job?.rideDate, jetzt);
 
-  if (UNTERWEGS.has(status)) {
-    const rest = Number(job?.extDriverToDropoffDurationInTrafficMins || job?.extDriverToDropoffDurationMins);
-    const sync = Date.parse(job?.extDriverToDropoffLastSyncAt || '');
-    if (Number.isFinite(rest) && rest >= 0 && Number.isFinite(sync) && jetzt.getTime() - sync < LIVE_MAX_ALTER_MS) {
-      return uhrzeit(new Date(jetzt.getTime() + rest * 60_000));
-    }
-  }
+  const live = liveAnkunftMs(job, jetzt);
+  if (live != null) return uhrzeit(new Date(live));
   if (!abfahrtGeplant) return null;
   const start = abfahrtGeplant.getTime() < jetzt.getTime() && abfahrtGeplant.toDateString() === jetzt.toDateString()
     ? jetzt
@@ -52,12 +57,8 @@ export const berechneAbfahrt = (job, jetzt = new Date()) => {
 
 // Restfahrzeit in Minuten fuer die Anzeige "-X min Fahrt".
 export const restFahrzeit = (job, routeDurationMins, jetzt = new Date()) => {
-  const status = String(job?.status || '').trim().toLowerCase();
-  if (UNTERWEGS.has(status)) {
-    const rest = Number(job?.extDriverToDropoffDurationInTrafficMins || job?.extDriverToDropoffDurationMins);
-    const sync = Date.parse(job?.extDriverToDropoffLastSyncAt || '');
-    if (Number.isFinite(rest) && rest >= 0 && Number.isFinite(sync) && jetzt.getTime() - sync < LIVE_MAX_ALTER_MS) return rest;
-  }
+  const live = liveAnkunftMs(job, jetzt);
+  if (live != null) return Math.max(0, Math.round((live - jetzt.getTime()) / 60_000));
   return Number(routeDurationMins) > 0 ? Number(routeDurationMins) : 0;
 };
 

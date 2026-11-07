@@ -487,8 +487,10 @@ internal object KartenRegeln {
         if (rest < 0) return null
         val sync = isoDatum(jText(job["ext_driver_to_dropoff_last_sync_at"])) ?: return null
         val jetztInstant = jetzt.atZone(ZoneId.systemDefault()).toInstant()
-        if (ChronoUnit.SECONDS.between(sync, jetztInstant) >= 10 * 60) return null
-        return rest.toInt()
+        val vergangen = ChronoUnit.SECONDS.between(sync, jetztInstant)
+        if (vergangen >= 10 * 60) return null
+        // Restzeit gilt ab der Messung. Abziehen, was seitdem vergangen ist, sonst wandert die ETA nach hinten.
+        return maxOf(0, Math.round((rest * 60 - vergangen) / 60.0).toInt())
     }
 
     fun isoDatum(s: String): Instant? {

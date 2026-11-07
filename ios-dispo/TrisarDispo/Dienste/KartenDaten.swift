@@ -467,7 +467,8 @@ enum KartenRegeln {
         let rest = verkehr != 0 ? verkehr : (KartenDaten.zahl(job["ext_driver_to_dropoff_duration_mins"]) ?? -1)
         guard rest >= 0, let sync = isoDatum(KartenDaten.text(job["ext_driver_to_dropoff_last_sync_at"])),
               jetzt.timeIntervalSince(sync) < 10 * 60 else { return nil }
-        return Int(rest)
+        // Restzeit gilt ab der Messung. Abziehen, was seitdem vergangen ist, sonst wandert die ETA nach hinten.
+        return max(0, Int((rest * 60 - jetzt.timeIntervalSince(sync)) / 60 + 0.5))
     }
 
     private static func isoDatum(_ s: String) -> Date? {

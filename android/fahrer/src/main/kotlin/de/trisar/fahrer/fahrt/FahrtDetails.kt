@@ -176,6 +176,16 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
     var merkmale by mutableStateOf<List<String>>(emptyList()); private set
     var fahrzeitMin by mutableStateOf(0); private set
     var restZielMin by mutableStateOf<Int?>(null); private set
+    /** Zeitpunkt der Messung von restZielMin. Die Restzeit gilt ab hier, nicht ab jetzt. */
+    var restZielSync by mutableStateOf<Instant?>(null); private set
+
+    /** Ankunft aus der Live-Restzeit: Messzeitpunkt + Restzeit, nie vor jetzt. */
+    fun liveAnkunft(jetzt: Instant): Instant? {
+        val rest = restZielMin ?: return null
+        val sync = restZielSync ?: return null
+        val ankunft = sync.plusSeconds(rest * 60L)
+        return if (ankunft.isBefore(jetzt)) jetzt else ankunft
+    }
     /** Gespeicherte TomTom-Linien (Rueckfall, wenn die Live-Route von OSRM ausfaellt). */
     var tomtomFahrt by mutableStateOf<List<de.trisar.kern.GeoPunkt>>(emptyList()); private set
     var tomtomAnfahrt by mutableStateOf<List<de.trisar.kern.GeoPunkt>>(emptyList()); private set
@@ -368,7 +378,9 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
                 tomtomAnfahrt = polylineLesen(zeile?.ext_driver_to_pickup_polyline)
                 val rest = zeile?.ext_driver_to_dropoff_duration_in_traffic_mins ?: zeile?.ext_driver_to_dropoff_duration_mins
                 val sync = FahrtZeit.ausISO(zeile?.ext_driver_to_dropoff_last_sync_at)
-                restZielMin = if (rest != null && sync != null && Instant.now().epochSecond - sync.epochSecond < 600) rest else null
+                val frisch = rest != null && sync != null && Instant.now().epochSecond - sync.epochSecond < 600
+                restZielMin = if (frisch) rest else null
+                restZielSync = if (frisch) sync else null
 
                 notizen = notizZeilen.mapNotNull { n ->
                     val text = (n.note_text ?: "").trim()

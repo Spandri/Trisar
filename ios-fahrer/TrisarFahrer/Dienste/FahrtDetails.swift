@@ -19,6 +19,14 @@ final class FahrtDetails: ObservableObject {
     @Published private(set) var merkmale: [String] = []   // accessibility, vip, child, luggage
     @Published private(set) var fahrzeitMin: Int = 0      // ext_route_duration(_in_traffic)
     @Published private(set) var restZielMin: Int?         // ext_driver_to_dropoff_* (frisch)
+    /// Zeitpunkt der Messung von restZielMin. Die Restzeit gilt ab hier, nicht ab jetzt.
+    @Published private(set) var restZielSync: Date?
+
+    /// Ankunft aus der Live-Restzeit: Messzeitpunkt + Restzeit, nie vor jetzt.
+    func liveAnkunft(_ jetzt: Date) -> Date? {
+        guard let rest = restZielMin, let sync = restZielSync else { return nil }
+        return max(sync.addingTimeInterval(Double(rest) * 60), jetzt)
+    }
     /// Gespeicherte TomTom-Linien der Fahrt (Rueckfall, wenn die Live-Route von OSRM ausfaellt).
     @Published private(set) var tomtomFahrt: [CLLocationCoordinate2D] = []    // ext_route_polyline
     @Published private(set) var tomtomAnfahrt: [CLLocationCoordinate2D] = []  // ext_driver_to_pickup_polyline
@@ -145,8 +153,10 @@ final class FahrtDetails: ObservableObject {
             if let rest, let sync = zeile?.ext_driver_to_dropoff_last_sync_at.flatMap(Datum.ausISO),
                Date().timeIntervalSince(sync) < 600 {
                 restZielMin = rest
+                restZielSync = sync
             } else {
                 restZielMin = nil
+                restZielSync = nil
             }
 
             notizen = notizZeilen.compactMap { n in

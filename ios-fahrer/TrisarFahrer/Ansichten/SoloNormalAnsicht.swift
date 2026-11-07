@@ -510,8 +510,8 @@ struct SoloNormalAnsicht: View {
 
     private func eta(_ fahrt: Fahrt) -> String {
         if ["in_progress", "unterwegs", "started", "on_trip", "ongoing", "active"].contains(fahrt.status.lowercased()),
-           let rest = details.restZielMin {
-            return Datum.uhrzeit(jetzt.addingTimeInterval(Double(rest) * 60))
+           let ankunft = details.liveAnkunft(jetzt) {
+            return Datum.uhrzeit(ankunft)
         }
         let teile = fahrt.etd.split(separator: ":").compactMap { Int($0) }
         guard teile.count == 2 else { return "--:--" }
