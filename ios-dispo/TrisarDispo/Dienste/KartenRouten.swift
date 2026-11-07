@@ -57,12 +57,15 @@ enum KartenRouten {
                 bild.abholort = s.punkte.last
             }
         }
-        if let von = abholort, let bis = ziel {
+        // Gast an Bord: blaue Linie ab dem Fahrer, nicht ab dem Abholort. Weicht er mehr als 200 m ab,
+        // meldet die Karte das (abseits) und die Route wird ab seiner neuen Position neu gerechnet.
+        let abFahrer = KartenRegeln.istUnterwegs(ride.status) && ursprung != nil
+        if let von = abFahrer ? ursprung : abholort, let bis = ziel {
             let s = await Routen.strecke(von: von, bis: bis)
             if s.punkte.count >= 2 {
                 bild.fahrt = s.punkte
                 bild.fahrtMinuten = Int((Double(s.sekunden) / 60).rounded(.up))
-                if !anfahrtGeplant { bild.abholort = s.punkte.first }
+                if !anfahrtGeplant && !abFahrer { bild.abholort = s.punkte.first }
                 bild.ziel = s.punkte.last
             }
         }

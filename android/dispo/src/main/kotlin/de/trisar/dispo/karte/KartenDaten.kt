@@ -427,6 +427,7 @@ internal object KartenRegeln {
     fun status(w: String) = w.trim().lowercase()
     fun istOffen(s: String) = status(s) in offen
     fun istAktiv(w: JsonElement?) = status(w) in aktiv
+    fun istUnterwegs(s: String) = status(s) in unterwegsStatus
     fun istErledigt(w: JsonElement?) = status(w) in erledigt
 
     /** toIsoDate: yyyy-MM-dd, ISO mit T oder dd.MM.yyyy. */

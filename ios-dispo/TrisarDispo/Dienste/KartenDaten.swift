@@ -413,6 +413,7 @@ enum KartenRegeln {
     static func status(_ w: Any?) -> String { KartenDaten.text(w).lowercased() }
     static func istOffen(_ w: Any?) -> Bool { offen.contains(status(w)) }
     static func istAktiv(_ w: Any?) -> Bool { aktiv.contains(status(w)) }
+    static func istUnterwegs(_ w: Any?) -> Bool { unterwegsStatus.contains(status(w)) }
     static func istErledigt(_ w: Any?) -> Bool { erledigt.contains(status(w)) }
 
     /// toIsoDate: yyyy-MM-dd, ISO mit T oder dd.MM.yyyy.

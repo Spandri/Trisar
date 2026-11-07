@@ -231,6 +231,7 @@ const OPEN_JOB_STATUSES = ['pending', 'assigned', 'offen', 'new', 'requested', '
 const ACTIVE_JOB_STATUSES = ['at_pickup', 'pickup', 'beim_pickup', 'beim pickup', 'in_progress', 'started', 'unterwegs', 'active', 'ongoing', 'on_trip'];
 const isOpenJobStatus = (value) => OPEN_JOB_STATUSES.includes(normalizeJobStatus(value));
 const isActiveJobStatus = (value) => ACTIVE_JOB_STATUSES.includes(normalizeJobStatus(value));
+const isTripInProgressStatus = (value) => ['in_progress', 'started', 'unterwegs', 'active', 'ongoing', 'on_trip'].includes(normalizeJobStatus(value));
 const isDoneOrCancelledStatus = (value) => ['done', 'completed', 'arrived', 'cancelled', 'canceled', 'refused', 'stoniert'].includes(normalizeJobStatus(value));
 const normalizeDriverActivityState = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -1733,17 +1734,26 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
         }
       }
 
-      if (!tripRendered && extTripPath.length >= 2) {
+      // Gast an Bord: blaue Linie ab dem Fahrer zum Ziel, nicht die gespeicherte Strecke ab Abholort.
+      // Weicht er mehr als 200 m ab (abseits), kommt ein neuer routenStandort und es wird neu gerechnet.
+      const unterwegsAbFahrer = isTripInProgressStatus(rideStatus) && Boolean(driverLiveOrigin) && Boolean(dropoffLocation);
+      const tripOrigin = unterwegsAbFahrer
+        ? (Number.isFinite(Number(routenStandort?.lat)) && Number.isFinite(Number(routenStandort?.lng))
+          ? { lat: Number(routenStandort.lat), lng: Number(routenStandort.lng) }
+          : driverLiveOrigin)
+        : pickupLocation;
+
+      if (!tripRendered && !unterwegsAbFahrer && extTripPath.length >= 2) {
         tripMinutes = extTripMinutes > 0 ? extTripMinutes : tripMinutes;
         drawTripRouteFallback(extTripPath, Number.isFinite(tripMinutes) ? tripMinutes : 0);
         tripRendered = true;
       }
-      if (!tripRendered && pickupLocation && dropoffLocation) {
+      if (!tripRendered && tripOrigin && dropoffLocation) {
         const tripWaypoints = (ride?.via || [])
           .map((point) => toDirectionsLocation(point))
           .filter(Boolean)
           .map((location) => ({ location, stopover: false }));
-        const tripResult = await requestRoute(pickupLocation, dropoffLocation, tripWaypoints);
+        const tripResult = await requestRoute(tripOrigin, dropoffLocation, unterwegsAbFahrer ? [] : tripWaypoints);
         if (cancelled) return;
         if (tripResult.status === 'OK' && tripResult.path?.length >= 2) {
           const path = tripResult.path;
@@ -1765,7 +1775,7 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
             schildAnLetztenTeil(openDurationLabel(path[Math.floor(path.length / 2)] || path[0], formatDuration(tripMinutes, t), '#0059FF'));
           }
 
-          if (!routeIncludesDriverToPickup && tripResult.startLocation) {
+          if (!routeIncludesDriverToPickup && !unterwegsAbFahrer && tripResult.startLocation) {
             drawPickupMarker(tripResult.startLocation);
           }
 

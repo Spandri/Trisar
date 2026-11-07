@@ -190,12 +190,16 @@ internal object KartenRouten {
                 bild = bild.copy(anfahrt = s.punkte, anfahrtMinuten = KartenRegeln.minutenAufrunden(s.sekunden), abholort = s.punkte.last())
             }
         }
-        if (abholort != null && ziel != null) {
-            val s = DispoRouten.strecke(abholort, ziel)
+        // Gast an Bord: blaue Linie ab dem Fahrer, nicht ab dem Abholort. Weicht er mehr als 200 m ab,
+        // meldet die Karte das (abseits) und die Route wird ab seiner neuen Position neu gerechnet.
+        val abFahrer = KartenRegeln.istUnterwegs(ride.status) && ursprung != null
+        val fahrtStart = if (abFahrer) ursprung else abholort
+        if (fahrtStart != null && ziel != null) {
+            val s = DispoRouten.strecke(fahrtStart, ziel)
             if (s.punkte.size >= 2) {
                 bild = bild.copy(
                     fahrt = s.punkte, fahrtMinuten = KartenRegeln.minutenAufrunden(s.sekunden),
-                    abholort = if (!anfahrtGeplant) s.punkte.first() else bild.abholort, ziel = s.punkte.last(),
+                    abholort = if (!anfahrtGeplant && !abFahrer) s.punkte.first() else bild.abholort, ziel = s.punkte.last(),
                 )
             }
         }
