@@ -2,7 +2,7 @@
 # Adresssuche der Routenberechnung: eigene Orte und Flughaefen fest (MacBook 2018).
 #   bash werkzeuge/geocode-ausrollen.sh
 # Kopiert _shared/tomtom-routing.ts, startet die Edge Functions neu, loescht falsch gemerkte
-# Flughafen-Treffer aus dem Cache und rechnet offene Fahrten mit Flughafen oder eigenem Ort neu.
+# Flughafen-Treffer aus dem Cache (Adresssuche UND ganze Routen, die cachen die Adressen mit) und rechnet offene Fahrten mit Flughafen oder eigenem Ort neu.
 set -euo pipefail
 SERVER=100.94.169.59
 DOCKER=/usr/local/bin/docker
@@ -17,7 +17,7 @@ scp -q "$HIER/fahrer/$D" "$SERVER:$R/trisar/fahrer/$D"
 ssh "$SERVER" "$DOCKER restart supabase_edge_runtime_fahrer-app-lokal >/dev/null && sleep 8"
 
 echo "2/3 Cache bereinigen"
-ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"delete from public.api_route_cache where provider = 'tomtom_geocode' and (origin_address ~* '(flughafen|airport|terminal|\\mMUC\\M|\\mFRA\\M|\\mNUE\\M|\\mBER\\M|\\mFMM\\M)' or origin_address ilike '%kongress%') returning origin_address\"" | sed 's/^/   weg: /'
+ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"delete from public.api_route_cache where origin_address ~* '(flughafen|airport|terminal|\\mMUC\\M|\\mFRA\\M|\\mNUE\\M|\\mBER\\M|\\mFMM\\M|kongress)' or destination_address ~* '(flughafen|airport|terminal|\\mMUC\\M|\\mFRA\\M|\\mNUE\\M|\\mBER\\M|\\mFMM\\M|kongress)' returning provider\"" | sort | uniq -c | sed 's/^/   weg: /'
 
 echo "3/3 Offene Fahrten neu rechnen"
 ssh "$SERVER" 'K=$('"$DOCKER"' exec supabase_edge_runtime_fahrer-app-lokal printenv SUPABASE_SERVICE_ROLE_KEY)
