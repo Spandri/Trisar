@@ -14,11 +14,12 @@ SMS über das 1NCE-Portal greifen nicht, solange SMS-Login/-Passwort oder autori
 
     setparam 138:1;50000:2;101:4;105:11000;1000:300
     setparam 10000:0;10005:0;10100:0;10105:0;10200:0;10205:0
-    setparam 10050:60;10055:120;10052:30;10150:60;10155:120;10152:30;10250:60;10255:120;10252:30
+    setparam 10055:120;10155:120;10255:120
+    bash werkzeuge/tracker-befehl.sh <Nr> mittel   (Punkte bei Fahrt 30 s / 15 Grad / 200 m, umstellbar sparsam|mittel|fein)
     setparam 901:24          (Uhr per NTP stellen, sonst ohne GPS ewig 2004 und keine Datensaetze)
 
 Senden: POST http://127.0.0.1:8788/command {"imei","command"} auf dem MacBook 2018.
-Ergebnis: Strom weg = ein Datensatz, Verbindung nach 5 min zu, dann Ruhe. Strom da = sofort Datensatz, dann alle 60 s.
+Ergebnis: Strom weg = ein Datensatz, Verbindung nach 5 min zu, dann Ruhe. Strom da = sofort Datensatz, dann je nach Stufe (mittel: alle 30 s, bei 15 Grad oder 200 m).
 
 ## Notfall-Steuerung per SMS (1NCE-Portal → SIM → SMS senden, Absender leer)
 
