@@ -95,6 +95,19 @@ final class FahrzeugBildSpeicher: ObservableObject {
 struct FahrzeugBild: View {
     let url: URL
     var body: some View {
+        if url.scheme == "data" {
+            // AsyncImage laedt keine data-URLs zuverlaessig, deshalb direkt dekodieren.
+            if let daten = try? Data(contentsOf: url), let bild = UIImage(data: daten) {
+                Image(uiImage: bild).resizable().scaledToFit()
+            } else {
+                Color.clear
+            }
+        } else {
+            netzBild
+        }
+    }
+
+    private var netzBild: some View {
         AsyncImage(url: url) { phase in
             switch phase {
             case let .success(bild): bild.resizable().scaledToFit()
@@ -156,7 +169,8 @@ struct FahrzeugKarte: View {
     /// Bilder liegen teils als Pfad der Web-App vor (/fahrzeuge/...).
     static func bildURL(_ wert: String?) -> URL? {
         guard let roh = wert?.trimmingCharacters(in: .whitespaces), !roh.isEmpty else { return nil }
-        if roh.hasPrefix("http") { return URL(string: roh) }
+        // Hochgeladene Fahrzeugbilder liegen als data-URL in vehicles.image_url (wie im Web).
+        if roh.hasPrefix("http") || roh.hasPrefix("data:") { return URL(string: roh) }
         return URL(string: "https://fahrer.trisar.de" + (roh.hasPrefix("/") ? roh : "/" + roh))
     }
 }
