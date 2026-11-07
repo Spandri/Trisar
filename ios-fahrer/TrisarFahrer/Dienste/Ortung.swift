@@ -23,6 +23,7 @@ final class Ortung: NSObject, ObservableObject {
     /// Erst nach dem Profil wissen wir, ob das Handy orten soll (sonst OBD).
     private var profilGeladen = false
     @Published private(set) var laeuft = false
+    private var hintergrundAktiv = false
 
     /// Fahrer kann die Ortung pausieren (z.B. Feierabend). Bleibt ueber App-Neustarts erhalten.
     @Published var eingeschaltet: Bool {
@@ -60,6 +61,8 @@ final class Ortung: NSObject, ObservableObject {
         guard id != fahrerID else { return }
         fahrerID = id
         aktiveFahrtID = nil
+        profilGeladen = false
+        nutztOBD = false
         verlaufPuffer.removeAll()
         wartend = 0
         aktualisieren()
@@ -96,20 +99,28 @@ final class Ortung: NSObject, ObservableObject {
         let soll = eingeschaltet && fahrerID != nil
             && (berechtigung == .immer || berechtigung == .nurBeimVerwenden)
         if soll && !laeuft {
-            manager.allowsBackgroundLocationUpdates = true
-            manager.showsBackgroundLocationIndicator = true
             manager.startUpdatingLocation()
-            // Weckt die App nach Wegwischen oder Neustart bei groesserer Bewegung wieder auf (nur mit „Immer“).
-            manager.startMonitoringSignificantLocationChanges()
             laeuft = true
             starteProfilTimer()
         } else if !soll && laeuft {
             manager.stopUpdatingLocation()
-            manager.stopMonitoringSignificantLocationChanges()
-            manager.allowsBackgroundLocationUpdates = false
             laeuft = false
             profilTimer?.invalidate()
             profilTimer = nil
+        }
+        // Hintergrund nur, wenn das Handy wirklich ortet. Bei OBD (oder solange das Profil noch
+        // nicht da ist) nur im Vordergrund fuer die eigene Karte, sonst laeuft GPS staendig mit.
+        let hintergrund = soll && profilGeladen && !nutztOBD
+        if hintergrund != hintergrundAktiv {
+            manager.allowsBackgroundLocationUpdates = hintergrund
+            manager.showsBackgroundLocationIndicator = hintergrund
+            if hintergrund {
+                // Weckt die App nach Wegwischen oder Neustart bei groesserer Bewegung wieder auf (nur mit „Immer“).
+                manager.startMonitoringSignificantLocationChanges()
+            } else {
+                manager.stopMonitoringSignificantLocationChanges()
+            }
+            hintergrundAktiv = hintergrund
         }
     }
 
@@ -155,6 +166,7 @@ final class Ortung: NSObject, ObservableObject {
             .value {
             nutztOBD = profile.first?.nutztOBD ?? false
             profilGeladen = true
+            aktualisieren()
             immerAnfragenFallsNoetig()
         }
         aktiveFahrtID = await Self.aktiveFahrt(fahrer: id)
@@ -195,7 +207,8 @@ final class Ortung: NSObject, ObservableObject {
 
     private func neuePosition(_ ort: CLLocation) {
         letztePosition = ort
-        guard fahrerID != nil, !nutztOBD else { return }
+        // Erst senden, wenn das Profil sagt, dass das Handy ortet (nicht OBD).
+        guard fahrerID != nil, profilGeladen, !nutztOBD else { return }
         // Grobe oder veraltete Punkte nicht senden (z.B. erster Punkt aus dem Funkzellen-Cache).
         guard ort.horizontalAccuracy >= 0, ort.horizontalAccuracy <= 100,
               abs(ort.timestamp.timeIntervalSinceNow) < 60 else { return }
@@ -213,7 +226,7 @@ final class Ortung: NSObject, ObservableObject {
     }
 
     private func nachschicken() {
-        guard !sendetGerade, let fahrer = fahrerID, !nutztOBD else { return }
+        guard !sendetGerade, let fahrer = fahrerID, profilGeladen, !nutztOBD else { return }
         let live = naechsteLivePosition
         let verlauf = Array(verlaufPuffer.prefix(200))
         guard live != nil || !verlauf.isEmpty else { return }

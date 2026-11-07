@@ -20,7 +20,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.1"
-    CURRENT_PROJECT_VERSION: "12"
+    CURRENT_PROJECT_VERSION: "13"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     # Team-ID der TRISAR-Apple-ID. Leer lassen = in Xcode unter Signing waehlen.

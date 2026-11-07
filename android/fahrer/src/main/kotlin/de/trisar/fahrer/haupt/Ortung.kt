@@ -245,7 +245,8 @@ object FahrerOrtung {
     // Senden
 
     internal fun neuePosition(ort: Location) {
-        if (fahrerID == null || nutztOBD.value) return
+        // Erst senden, wenn das Profil sagt, dass das Handy ortet (nicht OBD).
+        if (fahrerID == null || !profilGeladen.value || nutztOBD.value) return
         // Grobe oder veraltete Punkte nicht senden (z.B. erster Punkt aus dem Funkzellen-Cache).
         if (!ort.hasAccuracy() || ort.accuracy > 100) return
         if (kotlin.math.abs(System.currentTimeMillis() - ort.time) > 60_000) return
@@ -264,7 +265,7 @@ object FahrerOrtung {
 
     private fun nachschicken() {
         val fahrer = fahrerID ?: return
-        if (sendetGerade || nutztOBD.value) return
+        if (sendetGerade || !profilGeladen.value || nutztOBD.value) return
         val live = naechsteLivePosition
         val verlauf = verlaufPuffer.take(200)
         if (live == null && verlauf.isEmpty()) return
