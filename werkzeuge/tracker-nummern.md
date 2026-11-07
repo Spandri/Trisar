@@ -5,6 +5,9 @@
 | 1 | FMB010 (2G) | 357544371355146 | …825295 |
 | 2 | FMC003 | 860848088205357 | …825298 (MSISDN 882285106290470) |
 | 3 | FMC003 | 860848088432159 | …825299 (MSISDN 882285106290471) |
+| 4 | FMC003 | 860848088205365 | ? |
+| 5 | FMC003 | 860848087764214 | ? |
+| 6 | FMC003 | 860848087756004 | ? |
 
 Einrichtung FMC003 im Configurator: GPRS (APN iot.1nce.net, obd.trisar.de:5027 TCP),
 Codec 8 Extended, System → Records ohne GPS-Fix auf "Always" (sonst sendet er drinnen nie).
@@ -28,3 +31,12 @@ Ergebnis: Strom weg = ein Datensatz, Verbindung nach 5 min zu, dann Ruhe. Strom 
 SMS-Format: `admin <SMS-Passwort> <befehl>`, z. B. `getver`, `cpureset`, `setparam …`.
 Login/Passwort im Configurator unter SMS \ Call Settings (Passwort nicht hier ablegen).
 Antwort kommt als MO-Zeile im Portal. An Nr. 2 getestet am 06.11.
+
+## Punkte bei Fahrt (sparsam / mittel / fein), seit 07.11.
+
+Dispo: Karten Filter → "Punkte bei Fahrt" setzt die Stufe fuer alle Tracker (Web, iOS, Android).
+Darunter je Tracker die Quittung: wartet auf Tracker / gesendet / uebernommen HH:MM / Fehler.
+DB: `obd_tracker.stufe` + `stufe_status`, Warteschlange `obd_tracker_befehl` (Migration 20261107060000).
+Das Gateway holt offene Befehle beim Verbinden und alle 20 s, quittiert mit der Antwort ("New value ..."),
+nach 3 Sendungen ohne Antwort "fehler". Die Warteschlange ueberlebt Neustarts des Gateways.
+Ausrollen: `bash werkzeuge/stufe-ausrollen.sh`. Von Hand: `bash werkzeuge/tracker-befehl.sh <Nr> mittel`.
