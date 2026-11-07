@@ -26,6 +26,7 @@ import { gleicherOrt } from '../../../shared/utils/vorherigeFahrt';
 import { useDemoAnflug } from '../../../demo/flugAnflug';
 import { DEMO_MODE } from '../../../datenquelle';
 import { getRouteNavigationUrl } from '../../../shared/utils/navigation';
+import { ortIconFuer } from '../../../shared/orte';
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
   if (typeof value === 'string' && value.trim().toLowerCase().startsWith('your_')) return fallback;
@@ -1506,7 +1507,7 @@ export default function SoloFlughafen({ job, setView, onCancelRide, onEndRide, o
             <div className="absolute left-[20px] top-[424px] text-[#f4f5f4] text-[16px] leading-[16px] font-bold tracking-[-0.5px] opacity-50" data-tutorial="flugort">{flightOrigin ? t('soloF.fromOrigin', { origin: flightOrigin }) : ''}</div>
 
             <div className="absolute left-[20px] top-[211px] w-[64px] h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
-              <img src={pickRideIcon(`${job?.from?.name || ''} ${job?.from?.address || ''} ${getDisplayLocationName(job?.from, "")}`, true)} alt="" className="w-[30px] h-[30px] object-contain" />
+              <img src={ortIconFuer(job?.from) || pickRideIcon(`${job?.from?.name || ''} ${job?.from?.address || ''} ${getDisplayLocationName(job?.from, "")}`, true)} alt="" className="w-[30px] h-[30px] object-contain" />
             </div>
 
             <div className="absolute left-1/2 -translate-x-1/2 top-[231px] w-[59px] h-[38px] flex items-center justify-center">
@@ -1514,7 +1515,7 @@ export default function SoloFlughafen({ job, setView, onCancelRide, onEndRide, o
             </div>
 
             <div className="absolute right-[20px] top-[211px] w-[64px] h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
-              <img src={pickRideIcon(`${job?.to?.name || ''} ${job?.to?.address || ''} ${getDisplayLocationName(job?.to, "")}`)} alt="" className="w-[30px] h-[30px] object-contain" />
+              <img src={ortIconFuer(job?.to) || pickRideIcon(`${job?.to?.name || ''} ${job?.to?.address || ''} ${getDisplayLocationName(job?.to, "")}`)} alt="" className="w-[30px] h-[30px] object-contain" />
             </div>
 
             <div className="absolute left-[20px] right-[20px] top-[289px] grid grid-cols-[minmax(0,1fr)_18px_minmax(0,1fr)] items-start">

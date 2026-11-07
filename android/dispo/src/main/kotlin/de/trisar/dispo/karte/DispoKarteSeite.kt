@@ -66,6 +66,7 @@ import de.trisar.dispo.DispoZiel
 import de.trisar.dispo.Navileiste
 import de.trisar.dispo.stamm.TextZeile
 import de.trisar.dispo.stamm.anrufen
+import de.trisar.kern.EigeneOrte
 import de.trisar.kern.Icon
 import de.trisar.kern.grotesk
 import de.trisar.kern.hex
@@ -130,6 +131,11 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
     var filterOffen by remember { mutableStateOf(false) }
     var profilOffen by remember { mutableStateOf(false) }
     var abseitsZaehler by remember { mutableIntStateOf(0) }
+    var ortGewaehlt by remember { mutableStateOf<String?>(null) }
+    DisposableEffect(Unit) {
+        EigeneOrte.beobachten()
+        onDispose { EigeneOrte.nichtMehrBeobachten() }
+    }
     var letzteNeuberechnung by remember { mutableLongStateOf(0L) }
 
     // Filterkette wie im Web.
@@ -195,6 +201,7 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                 fahrer = gefiltert, gewaehlt = gewaehlt, route = route,
                 blattHoehe = if (gewaehlt == null) 0f else blattHoehe,
                 rasterHoehe = rasterHoehe, einpassenSignal = einpassen,
+                orte = EigeneOrte.liste, ortGewaehlt = ortGewaehlt,
             ),
             waehlen = { id ->
                 // Zweiter Tipp auf denselben Fahrer hebt den Fokus wieder auf.
@@ -202,7 +209,7 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                 fahrtMinuten = null
                 blatt = BLATT_MIN
             },
-            leerTippen = { auswahlAufheben() },
+            leerTippen = { auswahlAufheben(); ortGewaehlt = null },
             abseits = {
                 // Mehr als 200 m neben der Route: neu rechnen, hoechstens alle 15 s.
                 val jetzt = System.currentTimeMillis()
@@ -211,6 +218,8 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                     abseitsZaehler++
                 }
             },
+            // Erneuter Tipp auf denselben Ort blendet die Kreise wieder aus.
+            ortTippen = { id -> ortGewaehlt = if (ortGewaehlt == id) null else id },
         )
 
         // Oberflaeche ueber der Karte (Raster 402 breit).

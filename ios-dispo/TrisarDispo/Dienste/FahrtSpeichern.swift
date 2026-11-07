@@ -14,6 +14,11 @@ struct FahrtFormularWerte: Equatable {
     var anonymeGaeste = ""
     var aktuellerStatus = ""
     var anzahlFahrzeuge = ""
+    /// Gewaehlter eigener Ort: start/ziel zeigen dann den Ortsnamen, gespeichert wird die Ortsadresse.
+    var startOrtID: UUID?
+    var startOrtAdresse = ""
+    var zielOrtID: UUID?
+    var zielOrtAdresse = ""
 }
 
 /// Stand einer Fahrt beim Oeffnen des Editors (rideEditorData aus openRideEditorById).
@@ -25,6 +30,8 @@ struct GeladeneFahrt: Equatable {
     var fahrgaeste: String
     var notiz: String
     var aiBooked: Bool
+    /// jobs.pickup_ort_id / dropoff_ort_id gibt es in der Datenbank (Migration da).
+    var mitOrtSpalten = false
 }
 
 /// payload an onCreateRide / onSave.
@@ -155,6 +162,8 @@ enum FahrtSpeichern {
         let train_predicted_time: String?
         let ext_flight_payload: AnyJSON?
         let ai_booked: Bool?
+        let pickup_ort_id: UUID?
+        let dropoff_ort_id: UUID?
     }
     private struct Zuordnung: Decodable { let driver_id: UUID?; let response_status: String? }
     private struct Profil: Decodable { let id: UUID; let first_name: String?; let last_name: String?; let driver_number: AnyJSON? }
@@ -183,9 +192,17 @@ enum FahrtSpeichern {
 
     static func laden(_ id: UUID) async throws -> GeladeneFahrt {
         let c = Backend.client
-        let job: JobZeile = try await c.from("jobs")
-            .select("id, driver_id, convoy_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, passengers, anonymous_guests, flight_number, train_number, train_planned_time, train_predicted_time, ext_flight_payload, ai_booked")
-            .eq("id", value: id).single().execute().value
+        let spalten = "id, driver_id, convoy_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, passengers, anonymous_guests, flight_number, train_number, train_planned_time, train_predicted_time, ext_flight_payload, ai_booked"
+        // Erst mit den Spalten der eigenen Orte, fehlen sie (Migration noch nicht da), ohne.
+        let job: JobZeile
+        var mitOrtSpalten = true
+        do {
+            job = try await c.from("jobs").select(spalten + ", pickup_ort_id, dropoff_ort_id")
+                .eq("id", value: id).single().execute().value
+        } catch {
+            mitOrtSpalten = false
+            job = try await c.from("jobs").select(spalten).eq("id", value: id).single().execute().value
+        }
 
         let archiv: [ArchivZeile] = (try? await c.from("jobs_archive").select("job_id").eq("job_id", value: id).execute().value) ?? []
         let zuordnungen: [Zuordnung] = (try? await c.from("convoy_assignments").select("driver_id, response_status")
@@ -270,9 +287,12 @@ enum FahrtSpeichern {
         let dispoText = FahrtText.getrimmt((dispo?.note_text ?? "").replacingOccurrences(of: aiTag, with: ""))
         let aiBooked = job.ai_booked == true || (neueste?.note_text ?? "").contains(aiTag) || (dispo?.note_text ?? "").contains(aiTag)
 
-        let start = ortFuerEditor(name: job.pickup_name, adresse: job.pickup_address)
-        let ziel = ortFuerEditor(name: job.dropoff_name, adresse: job.dropoff_address)
-        let werte = FahrtFormularWerte(
+        // Mit eigenem Ort steht im Feld der Ortsname, die Adresse wird mitgefuehrt.
+        let start = job.pickup_ort_id != nil && !FahrtText.getrimmt(job.pickup_name ?? "").isEmpty
+            ? FahrtText.getrimmt(job.pickup_name ?? "") : ortFuerEditor(name: job.pickup_name, adresse: job.pickup_address)
+        let ziel = job.dropoff_ort_id != nil && !FahrtText.getrimmt(job.dropoff_name ?? "").isEmpty
+            ? FahrtText.getrimmt(job.dropoff_name ?? "") : ortFuerEditor(name: job.dropoff_name, adresse: job.dropoff_address)
+        var werte = FahrtFormularWerte(
             datum: tag,
             startZeit: startZeit,
             start: start,
@@ -286,8 +306,17 @@ enum FahrtSpeichern {
             aktuellerStatus: FahrtText.editorStatus(jobStatus),
             anzahlFahrzeuge: fahrzeuge
         )
+        if let o = job.pickup_ort_id {
+            werte.startOrtID = o
+            werte.startOrtAdresse = FahrtText.getrimmt(job.pickup_address ?? "")
+        }
+        if let o = job.dropoff_ort_id {
+            werte.zielOrtID = o
+            werte.zielOrtAdresse = FahrtText.getrimmt(job.dropoff_address ?? "")
+        }
         return GeladeneFahrt(id: job.id, werte: werte, fahrerNamen: namen.isEmpty ? [""] : namen,
-                             fahrgaeste: wirksam.joined(separator: ", "), notiz: dispoText, aiBooked: aiBooked)
+                             fahrgaeste: wirksam.joined(separator: ", "), notiz: dispoText, aiBooked: aiBooked,
+                             mitOrtSpalten: mitOrtSpalten)
     }
 
     // MARK: Gemeinsame Vorbereitung (Pruefungen vor dem Schreiben)
@@ -295,6 +324,11 @@ enum FahrtSpeichern {
     private struct Vorbereitet {
         var start: String
         var ziel: String
+        /// Adresse fuer pickup_address / dropoff_address (bei eigenem Ort die Ortsadresse).
+        var startAdresse: String
+        var zielAdresse: String
+        var startOrtID: UUID?
+        var zielOrtID: UUID?
         var tag: String
         var startZeit: String
         var kolonne: String
@@ -327,8 +361,15 @@ enum FahrtSpeichern {
             : FahrtPruefung.ZugZeiten(etd: startZeit, etdOriginal: startZeit)
         if !zeiten.etd.isEmpty { startZeit = zeiten.etd }
         let live = zug.gueltig ? FahrtPruefung.zugLiveDaten(zug.daten, abgerufen: Datum.iso(Date())) : .null
+        let startOrt = e.werte.startOrtID != nil && !FahrtText.getrimmt(e.werte.startOrtAdresse).isEmpty
+        let zielOrt = e.werte.zielOrtID != nil && !FahrtText.getrimmt(e.werte.zielOrtAdresse).isEmpty
         return .success(Vorbereitet(
-            start: start, ziel: ziel, tag: tag, startZeit: startZeit,
+            start: start, ziel: ziel,
+            startAdresse: startOrt ? FahrtText.getrimmt(e.werte.startOrtAdresse) : start,
+            zielAdresse: zielOrt ? FahrtText.getrimmt(e.werte.zielOrtAdresse) : ziel,
+            startOrtID: startOrt ? e.werte.startOrtID : nil,
+            zielOrtID: zielOrt ? e.werte.zielOrtID : nil,
+            tag: tag, startZeit: startZeit,
             kolonne: FahrtText.getrimmt(e.werte.konvoi),
             fahrerNamen: FahrtText.fahrerNamenListe(e.fahrerNamen),
             gaeste: FahrtText.gaesteTeilen(e.fahrgaeste),
@@ -348,13 +389,14 @@ enum FahrtSpeichern {
     private static func id(_ u: UUID?) -> AnyJSON { u.map { .string($0.uuidString.lowercased()) } ?? .null }
 
     /// Gemeinsame Spalten von insertPayload / updatePayload.
-    private static func jobSpalten(_ v: Vorbereitet, status: String, kolonne: UUID?, fahrer: UUID?, aiBooked: Bool) -> [String: AnyJSON] {
+    private static func jobSpalten(_ v: Vorbereitet, status: String, kolonne: UUID?, fahrer: UUID?, aiBooked: Bool,
+                                   mitOrtSpalten: Bool = false) -> [String: AnyJSON] {
         let jetzt = Datum.iso(Date())
-        return [
+        var zeile: [String: AnyJSON] = [
             "pickup_name": .string(v.start),
-            "pickup_address": .string(v.start),
+            "pickup_address": .string(v.startAdresse),
             "dropoff_name": .string(v.ziel),
-            "dropoff_address": .string(v.ziel),
+            "dropoff_address": .string(v.zielAdresse),
             "ride_date": .string(v.tag),
             "etd": text(v.zug.gueltig ? v.zugZeiten.etd : v.startZeit),
             "original_etd": text(v.zug.gueltig ? v.zugZeiten.etdOriginal : v.startZeit),
@@ -372,6 +414,12 @@ enum FahrtSpeichern {
             "anonymous_guests": .integer(v.anonym),
             "ai_booked": .bool(aiBooked),
         ]
+        // Ort-Spalten nur schreiben, wenn es sie sicher gibt (geladen) oder ein Ort gewaehlt ist.
+        if mitOrtSpalten || v.startOrtID != nil || v.zielOrtID != nil {
+            zeile["pickup_ort_id"] = id(v.startOrtID)
+            zeile["dropoff_ort_id"] = id(v.zielOrtID)
+        }
+        return zeile
     }
 
     /// Gaeste mit Eintrag in guests als job_guests verknuepfen (erster = Hauptkontakt).
@@ -465,8 +513,8 @@ enum FahrtSpeichern {
                 || fahrerNeu != bisher?.driver_id
                 || (bisher?.ride_date ?? "") != v.tag
                 || !gleicheUhr(bisher?.etd, v.startZeit)
-                || FahrtText.getrimmt(bisher?.pickup_address ?? "") != v.start
-                || FahrtText.getrimmt(bisher?.dropoff_address ?? "") != v.ziel
+                || FahrtText.getrimmt(bisher?.pickup_address ?? "") != v.startAdresse
+                || FahrtText.getrimmt(bisher?.dropoff_address ?? "") != v.zielAdresse
             let neuAnfragen = fahrerNeu != nil && !endStatus && fahrtGeaendert
             // Status nur schreiben, wenn die Dispo ihn im Editor geaendert hat. Sonst bleibt der
             // DB-Status (der Fahrer kann die Fahrt inzwischen beendet haben).
@@ -478,7 +526,8 @@ enum FahrtSpeichern {
             let kolonnenSync = kolonne != nil || v.fahrerNamen.count > 1 || fahrerIDs.count > 1
             let zuordnung = kolonnenSync ? fahrerIDs : (fahrerNeu.map { [$0] } ?? [])
 
-            var zeile = jobSpalten(v, status: naechster, kolonne: kolonne, fahrer: fahrerNeu, aiBooked: geladen.aiBooked)
+            var zeile = jobSpalten(v, status: naechster, kolonne: kolonne, fahrer: fahrerNeu, aiBooked: geladen.aiBooked,
+                                   mitOrtSpalten: geladen.mitOrtSpalten)
             if neuAnfragen {
                 zeile["driver_response_status"] = "pending"
                 zeile["driver_responded_at"] = .null

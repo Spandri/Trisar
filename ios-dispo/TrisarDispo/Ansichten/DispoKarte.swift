@@ -21,6 +21,10 @@ struct DispoKarte: UIViewRepresentable {
     var leerTippen: () -> Void
     /// Fahrer mehr als 200 m neben seiner Route: neu rechnen lassen.
     var abseits: (CLLocationCoordinate2D) -> Void
+    /// Eigene Orte als Icon-Marker. Der gewaehlte zeigt Schild und beide Radien.
+    var orte: [EigenerOrt] = []
+    var gewaehlterOrt: UUID?
+    var ortWaehlen: (UUID?) -> Void = { _ in }
 
     static let stil = URL(string: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json")!
     private static let kameraSchluessel = "admin_karten_camera_v1"
@@ -83,6 +87,13 @@ struct DispoKarte: UIViewRepresentable {
         private var eingepasstFuer = ""
         private var letzteBlattHoehe: CGFloat = -1
 
+        // Eigene Orte
+        private var ortPunkte: [UUID: OrtKartenPunkt] = [:]
+        private var ortAnsichten: [UUID: OrtMarkerAnsicht] = [:]
+        private var ortSchild: OrtSchildPunkt?
+        private var letzteOrte: [EigenerOrt] = []
+        private var letzterOrt: UUID?
+
         func setzen(_ neu: DispoKarte) {
             stand = neu
             if neu.einpassenSignal != einpassenSignal {
@@ -95,6 +106,11 @@ struct DispoKarte: UIViewRepresentable {
                 letzteListe = neu.fahrer
                 letzteAuswahl = auswahl
                 fahrerAbgleichen()
+            }
+            if neu.orte != letzteOrte || neu.gewaehlterOrt != letzterOrt {
+                letzteOrte = neu.orte
+                letzterOrt = neu.gewaehlterOrt
+                orteAbgleichen()
             }
             routeAbgleichen()
             fortschrittAktualisieren()
@@ -109,6 +125,47 @@ struct DispoKarte: UIViewRepresentable {
             routenSchluessel = ""
             routeAbgleichen()
             fortschrittAktualisieren()
+            kreiseZeichnen()
+        }
+
+        // MARK: Eigene Orte
+
+        private func orteAbgleichen() {
+            guard let karte else { return }
+            let ids = Set(letzteOrte.map(\.id))
+            let weg = ortPunkte.filter { !ids.contains($0.key) }
+            if !weg.isEmpty { karte.removeAnnotations(Array(weg.values)) }
+            for id in weg.keys { ortPunkte[id] = nil; ortAnsichten[id] = nil }
+            var dazu: [OrtKartenPunkt] = []
+            for o in letzteOrte {
+                if let p = ortPunkte[o.id] {
+                    p.ort = o
+                    if p.coordinate.latitude != o.lat || p.coordinate.longitude != o.lng { p.coordinate = o.punkt }
+                } else {
+                    let p = OrtKartenPunkt(ort: o)
+                    ortPunkte[o.id] = p
+                    dazu.append(p)
+                }
+                ortAnsichten[o.id]?.anwenden(o.symbol, aktiv: o.id == letzterOrt)
+            }
+            if !dazu.isEmpty { karte.addAnnotations(dazu) }
+
+            if let s = ortSchild { karte.removeAnnotation(s) }
+            ortSchild = nil
+            if let id = letzterOrt, let o = letzteOrte.first(where: { $0.id == id }) {
+                let s = OrtSchildPunkt(text: o.name, unter: o.radienText)
+                s.coordinate = o.punkt
+                ortSchild = s
+                karte.addAnnotation(s)
+            }
+            kreiseZeichnen()
+        }
+
+        /// Innen Reinfahr-Radius (gefuellt), aussen Rausfahr-Radius (gestrichelt), nur fuer den gewaehlten Ort.
+        private func kreiseZeichnen() {
+            guard stilGeladen, let stil = karte?.style else { return }
+            let o = letzteOrte.first { $0.id == letzterOrt }
+            OrtKreise.setzen(stil, kennung: "dk-ort", mitte: o?.punkt, rein: o?.radius_rein_m ?? 0, raus: o?.radius_raus_m ?? 0)
         }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
@@ -216,8 +273,19 @@ struct DispoKarte: UIViewRepresentable {
             let treffer = imBild.compactMap { id in fahrerAnsichten[id].map { (id, $0) } }
                 .sorted { $0.1.layer.zPosition > $1.1.layer.zPosition }
                 .first { trifft($0.1) }
-            if let (id, _) = treffer { stand.waehlen(id); return }
+            if let (id, _) = treffer {
+                if stand.gewaehlterOrt != nil { stand.ortWaehlen(nil) }
+                stand.waehlen(id)
+                return
+            }
             if let g = gruppen.first(where: { trifft(karte.view(for: $0)) }) { gruppeOeffnen(g); return }
+            // Eigener Ort: Tipp zeigt die Kreise, erneuter Tipp blendet sie aus.
+            if let (id, _) = ortAnsichten.sorted(by: { $0.value.layer.zPosition > $1.value.layer.zPosition })
+                .first(where: { trifft($0.value) }) {
+                stand.ortWaehlen(stand.gewaehlterOrt == id ? nil : id)
+                return
+            }
+            if stand.gewaehlterOrt != nil { stand.ortWaehlen(nil) }
             stand.leerTippen()
         }
 
@@ -436,6 +504,15 @@ struct DispoKarte: UIViewRepresentable {
                 v.anwenden(f, abgeblendet: d.abgeblendet, hoehe: d.hoehe)
                 fahrerAnsichten[p.id] = v
                 return v
+            }
+            if let o = annotation as? OrtKartenPunkt {
+                let v = OrtMarkerAnsicht()
+                v.anwenden(o.ort.symbol, aktiv: o.ort.id == letzterOrt)
+                ortAnsichten[o.ort.id] = v
+                return v
+            }
+            if let s = annotation as? OrtSchildPunkt {
+                return OrtSchildAnsicht(text: s.text, unter: s.unter)
             }
             if let g = annotation as? KartenGruppenPunkt {
                 return GruppenAnsicht(anzahl: g.anzahl, abgeblendet: g.abgeblendet)

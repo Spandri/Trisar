@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import de.trisar.kern.Backend
+import de.trisar.kern.EigeneOrte
 import de.trisar.kern.GeoPunkt
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
@@ -75,6 +76,8 @@ private data class FahrtZeileB(
     val original_etd: String? = null,
     val convoy_id: String? = null,
     val driver_id: String? = null,
+    val pickup_ort_id: String? = null,
+    val dropoff_ort_id: String? = null,
 )
 
 internal data class FahrtKopf(
@@ -92,6 +95,9 @@ internal data class FahrtKopf(
     val kolonnenID: String?,
     val istKolonne: Boolean,
     val meineAntwort: String,
+    /** Eigener Ort der Dispo (orte.id) fuer Start/Ziel. */
+    val abholOrtID: String? = null,
+    val zielOrtID: String? = null,
 ) {
     val abholKurz get() = FahrtAdresse.kurz(abholName, abholAdresse)
     val zielKurz get() = FahrtAdresse.kurz(zielName, zielAdresse)
@@ -127,7 +133,9 @@ internal object FahrtAdresse {
     }
 
     /** adresseFuerNavigation der Web-App. */
-    fun fuerNavigation(name: String, adresse: String): String {
+    fun fuerNavigation(name: String, adresse: String, eigenerOrt: Boolean = false): String {
+        // Eigener Ort: nur die Adresse, den Namen ("Mercedes Event Location") findet Maps nicht.
+        if (eigenerOrt) return normal(adresse).ifEmpty { normal(name) }
         val n = name.trim()
         val a = normal(adresse)
         if (n.isEmpty()) return a
@@ -267,8 +275,11 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
                     kolonnenID = z.convoy_id,
                     istKolonne = istKolonne,
                     meineAntwort = eigene?.response_status ?: "pending",
+                    abholOrtID = z.pickup_ort_id,
+                    zielOrtID = z.dropoff_ort_id,
                 )
             }
+            if (zeile?.pickup_ort_id != null || zeile?.dropoff_ort_id != null) EigeneOrte.einmalLaden()
             fahrtGeladen = true
             ungelesenAktualisieren()
         } catch (e: Exception) {

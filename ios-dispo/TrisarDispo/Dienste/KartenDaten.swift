@@ -232,8 +232,10 @@ final class KartenDaten: ObservableObject {
             let jobsBasis = "id, driver_id, ride_date, etd, status, pickup_name, pickup_address, dropoff_name, dropoff_address"
             let jobsMitZeit = jobsBasis + ", ext_route_duration_mins, ext_route_duration_in_traffic_mins, "
                 + "ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at"
+            // Eigene Orte (pickup_ort_id / dropoff_ort_id) zuerst, ohne die Spalten wie bisher.
+            let jobsMitOrt = jobsMitZeit + ", pickup_ort_id, dropoff_ort_id"
             var jobs: [Zeile] = []
-            for spalten in [jobsMitZeit, jobsBasis] {
+            for spalten in [jobsMitOrt, jobsMitZeit, jobsBasis] {
                 do {
                     let d = try await Backend.client.from("jobs").select(spalten)
                         .order("ride_date", ascending: true).order("etd", ascending: true).execute().data
@@ -315,6 +317,9 @@ final class KartenDaten: ObservableObject {
 
         let jetzt = Date()
         let fenster = max(0, vorschauStunden) * 3600
+        // Graues Icon je eigenem Ort (id klein geschrieben wie in den Zeilen der Datenbank).
+        var ortIcons: [String: String] = [:]
+        for o in OrteSpeicher.geteilt.orte { ortIcons[o.id.uuidString.lowercased()] = o.symbol.grau }
 
         let liste: [KartenFahrer] = live.compactMap { zeile in
             let id = Self.text(zeile["driver_id"])
@@ -341,7 +346,8 @@ final class KartenDaten: ObservableObject {
 
             let info = KartenRegeln.fahrtInfo(aktiv: aktiverJob, naechster: naechster?.0, alle: seineJobs,
                                               dienstStart: Self.text(p?["service_start_time"]),
-                                              dienstEnde: Self.text(p?["service_end_time"]), jetzt: jetzt)
+                                              dienstEnde: Self.text(p?["service_end_time"]), jetzt: jetzt,
+                                              ortIcons: ortIcons)
             let routenJob = aktiverJob ?? naechster?.0
             var fahrt = routenJob.flatMap(KartenRegeln.fahrt)
             if let f = fahrt, let kolonne = kolonneJeFahrt[f.id], kolonne.count > 1 {
@@ -540,7 +546,8 @@ enum KartenRegeln {
 
     /// buildDriverRideInfo
     static func fahrtInfo(aktiv: [String: Any]?, naechster: [String: Any]?, alle: [[String: Any]],
-                          dienstStart: String, dienstEnde: String, jetzt: Date) -> KartenFahrtInfo {
+                          dienstStart: String, dienstEnde: String, jetzt: Date,
+                          ortIcons: [String: String] = [:]) -> KartenFahrtInfo {
         var info = KartenFahrtInfo()
         let sortiert = alle.compactMap { j in zeitpunkt(j).map { (j, $0) } }.sorted { $0.1 < $1.1 }
         let erster = sortiert.first?.0, letzter = sortiert.last?.0
@@ -557,8 +564,11 @@ enum KartenRegeln {
         info.unterwegs = unterwegsStatus.contains(status(job["status"]))
         let (vn, va) = abholung(job), (zn, za) = ziel(job)
         let s = ortsArt(vn, va, start: true), z = ortsArt(zn, za, start: false)
-        info.von = KartenOrt(typ: s.typ, icon: s.icon, name: ortName(vn, va))
-        info.nach = KartenOrt(typ: z.typ, icon: z.icon, name: ortName(zn, za))
+        // Hat die Fahrt einen eigenen Ort, gewinnt dessen Icon, sonst das Textmuster.
+        let sIcon = ortIcons[KartenDaten.text(job["pickup_ort_id"]).lowercased()] ?? s.icon
+        let zIcon = ortIcons[KartenDaten.text(job["dropoff_ort_id"]).lowercased()] ?? z.icon
+        info.von = KartenOrt(typ: s.typ, icon: sIcon, name: ortName(vn, va))
+        info.nach = KartenOrt(typ: z.typ, icon: zIcon, name: ortName(zn, za))
         return info
     }
 

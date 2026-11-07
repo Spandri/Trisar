@@ -39,6 +39,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import de.trisar.kern.Icon
 import de.trisar.kern.Konfig
+import de.trisar.kern.Ort
 import de.trisar.kern.grotesk
 import de.trisar.kern.hex
 import de.trisar.kern.tippen
@@ -71,6 +72,9 @@ internal data class KartenStand(
     val rasterHoehe: Float = 874f,
     /** Erhoeht sich beim Tipp auf "Karte" in der Leiste: alle Fahrer einpassen. */
     val einpassenSignal: Int = 0,
+    /** Eigene Orte als Icon-Marker, der gewaehlte zeigt seine beiden Kreise. */
+    val orte: List<Ort> = emptyList(),
+    val ortGewaehlt: String? = null,
 )
 
 /**
@@ -87,6 +91,8 @@ internal fun DispoKarte(
     leerTippen: () -> Unit,
     /** Fahrer mehr als 200 m neben seiner Route: neu rechnen lassen. */
     abseits: (KartenPunkt) -> Unit,
+    /** Tipp auf einen eigenen Ort: Kreise ein- oder ausblenden. */
+    ortTippen: (String) -> Unit = {},
 ) {
     val dichte = LocalDensity.current.density
     val s = remember { KartenSteuerung() }
@@ -122,7 +128,7 @@ internal fun DispoKarte(
 
     Box(Modifier.fillMaxSize().background(hex(0x0E0E0E))) {
         AndroidView(factory = { ctx -> s.erzeugen(ctx) { leer() } }, modifier = Modifier.fillMaxSize())
-        KartenEbene(s, stand, waehlen)
+        KartenEbene(s, stand, waehlen, ortTippen)
     }
 
     SideEffect { s.setzen(stand) }
@@ -130,7 +136,7 @@ internal fun DispoKarte(
 
 /** Pins, Gruppen, Abholort, Ziel und Dauer-Schilder ueber der Karte. */
 @Composable
-private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String) -> Unit) {
+private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String) -> Unit, ortTippen: (String) -> Unit) {
     @Suppress("UNUSED_VARIABLE") val takt = s.takt.intValue
     val karte = s.karte ?: return
     val dichte = s.dichte
@@ -138,6 +144,14 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
     fun bild(p: KartenPunkt): Pair<Float, Float> {
         val pt = proj.toScreenLocation(LatLng(p.lat, p.lng))
         return pt.x / dichte to pt.y / dichte
+    }
+
+    // Eigene Orte unter den Fahrern: Icon im Kreis, gewaehlt in Lime mit Name und Radien darueber.
+    for (o in stand.orte) {
+        val (x, y) = bild(KartenPunkt(o.lat, o.lng))
+        val an = o.id == stand.ortGewaehlt
+        OrtMarke(o.icon, an, Modifier.ankern(x, y, 0.5f, 0.5f).zIndex(if (an) 190f else 100f).tippen { ortTippen(o.id) })
+        if (an) OrtSchild(o, Modifier.ankern(x, y - 22f, 0.5f, 1f).zIndex(195f))
     }
 
     val gewaehltID = stand.gewaehlt?.id
@@ -268,6 +282,7 @@ internal class KartenSteuerung {
     private var eingepasstFuer = ""
     private var letzteBlattHoehe = -1f
     private var letzterFortschritt = ""
+    private var ortKreisSchluessel = ""
 
     companion object {
         private const val KAMERA = "admin_karten_camera_v1"
@@ -303,6 +318,7 @@ internal class KartenSteuerung {
             karte = m
             m.setStyle(Style.Builder().fromUri(Konfig.KARTEN_STIL)) {
                 stilGeladen = true
+                ortKreisSchluessel = ""
                 routenSchluessel = ""
                 letzterFortschritt = ""
                 setzen(stand)
@@ -320,6 +336,7 @@ internal class KartenSteuerung {
             alleEinpassen()
         }
         routeAbgleichen()
+        ortKreiseAbgleichen()
         val g = neu.gewaehlt
         val fk = "${g?.id}|${g?.lat}|${g?.lng}|$routenSchluessel"
         if (fk != letzterFortschritt) {
@@ -330,6 +347,17 @@ internal class KartenSteuerung {
             letzteBlattHoehe = neu.blattHoehe
             if (routenSchluessel.isNotEmpty()) routeEinpassen()
         }
+    }
+
+    /** Kreise des gewaehlten Orts (innen rein, aussen raus), ohne Wahl leer. */
+    private fun ortKreiseAbgleichen() {
+        if (!stilGeladen) return
+        val stil = karte?.style ?: return
+        val o = stand.orte.firstOrNull { it.id == stand.ortGewaehlt }
+        val k = o?.let { "${it.id}|${it.lat}|${it.lng}|${it.radius_rein_m}|${it.radius_raus_m}" } ?: ""
+        if (k == ortKreisSchluessel) return
+        ortKreisSchluessel = k
+        OrtKreise.setzen(stil, "dk-ort", o?.lat, o?.lng, o?.radius_rein_m ?: 0, o?.radius_raus_m ?: 0)
     }
 
     // MARK: Einpassen (fitBounds, Polsterung im Raster)

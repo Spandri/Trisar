@@ -53,6 +53,8 @@ import de.trisar.dispo.Navileiste
 import de.trisar.dispo.einlesen.ImportModus
 import de.trisar.dispo.einlesen.ImportSeite
 import de.trisar.kern.DispoHintergrund
+import de.trisar.kern.EigeneOrte
+import de.trisar.kern.Ort
 import de.trisar.kern.FussleisteUnten
 import de.trisar.kern.Icon
 import de.trisar.kern.ZurueckKnopf
@@ -195,7 +197,8 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
     }
 
     fun adressEingabe(text: String, feld: String) {
-        werte = if (feld == "start") werte.copy(start = text) else werte.copy(ziel = text)
+        // Frei weitergetippt: die Zuordnung zum eigenen Ort faellt weg.
+        werte = if (feld == "start") werte.copy(start = text, startOrtID = "") else werte.copy(ziel = text, zielOrtID = "")
         vorschlagLauf?.cancel()
         val suche = FahrtText.getrimmt(text)
         if (suche.isEmpty()) {
@@ -215,7 +218,15 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
     }
 
     fun adresseWaehlen(wert: String, feld: String) {
-        werte = if (feld == "start") werte.copy(start = wert) else werte.copy(ziel = wert)
+        werte = if (feld == "start") werte.copy(start = wert, startOrtID = "") else werte.copy(ziel = wert, zielOrtID = "")
+        vorschlaege = vorschlaege + (feld to emptyList())
+        aktivesAdressFeld = null
+    }
+
+    /** Eigener Ort gewaehlt: im Feld steht sein Name, beim Speichern kommen Name, Adresse und id in die Fahrt. */
+    fun ortWaehlen(ort: Ort, feld: String) {
+        vorschlagLauf?.cancel()
+        werte = if (feld == "start") werte.copy(start = ort.name, startOrtID = ort.id) else werte.copy(ziel = ort.name, zielOrtID = ort.id)
         vorschlaege = vorschlaege + (feld to emptyList())
         aktivesAdressFeld = null
     }
@@ -272,7 +283,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
             ZeilenArt.FAHRER -> if (z.index < fahrerNamen.size) fahrerNamen = fahrerNamen.toMutableList().also { it[z.index] = "" }
             ZeilenArt.GAST -> if (z.index < gaesteNamen.size) gaesteSetzen(gaesteNamen.toMutableList().also { it[z.index] = "" })
             else -> when (z.id) {
-                "ziel" -> { werte = werte.copy(ziel = ""); vorschlaege = vorschlaege + ("ziel" to emptyList()) }
+                "ziel" -> { werte = werte.copy(ziel = "", zielOrtID = ""); vorschlaege = vorschlaege + ("ziel" to emptyList()) }
                 "konvoi" -> werte = werte.copy(konvoi = "", anzahlFahrzeuge = "")
                 else -> {
                     if (z.id == "flugnummer") flugUebernommen = ""
@@ -292,7 +303,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
         val zeit = if (eta.isNotEmpty() && eta != "NaN") eta else ""
         if (zeit.isEmpty() && ort.isEmpty()) { meldung = t("fahrt.flightMissingEta"); return }
         if (zeit.isNotEmpty()) werte = werte.copy(startZeit = zeit)
-        if (ort.isNotEmpty()) werte = werte.copy(start = ort)
+        if (ort.isNotEmpty()) werte = werte.copy(start = ort, startOrtID = "")
         flugUebernommen = flugNr
     }
 
@@ -304,7 +315,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
         val zeit = if (eta.isNotEmpty() && eta != "NaN") eta else ""
         if (zeit.isEmpty() && ort.isEmpty()) { meldung = t("fahrt.trainMissingEta"); return }
         if (zeit.isNotEmpty()) werte = werte.copy(startZeit = zeit)
-        if (ort.isNotEmpty()) werte = werte.copy(start = ort)
+        if (ort.isNotEmpty()) werte = werte.copy(start = ort, startOrtID = "")
         zugUebernommen = zugNr
     }
 
@@ -382,6 +393,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
         }
         if (zugUebernommen.isNotEmpty() && FahrtText.nummer(wert) != zugUebernommen) zugUebernommen = ""
     }
+    LaunchedEffect(Unit) { EigeneOrte.laden() }
     LaunchedEffect(Unit) {
         val fahrer = async { FahrtSpeichern.fahrerLaden() }
         val gaeste = async { FahrtSpeichern.gaesteLaden() }
@@ -495,7 +507,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
                 }
                 // Start
                 FormularZeile(t("fahrt.start"), werte.start, Modifier.platz(20f, 342f, 362f, 56f), zuruecksetzen = {
-                    werte = werte.copy(start = "")
+                    werte = werte.copy(start = "", startOrtID = "")
                     vorschlaege = vorschlaege + ("start" to emptyList())
                 }) {
                     ZeilenEingabe(werte.start, { adressEingabe(it, "start") }, fokusModifier("start"))
@@ -581,9 +593,12 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
                 }
 
                 // Listen (Adressen, Fluege, Fahrer, Gaeste) ueber den Reihen.
+                // Eigene Orte ganz oben (ab einem Buchstaben), darunter die Adressen.
                 val startListe = vorschlaege["start"].orEmpty()
-                if (aktivesAdressFeld == "start" && startListe.isNotEmpty()) {
-                    VorschlagListe(startListe, Modifier.platz(20f, 342f + zeilenHoehe + 4)) { adresseWaehlen(startListe[it], "start") }
+                val startOrte = if (werte.startOrtID.isEmpty()) EigeneOrte.vorschlaege(werte.start) else emptyList()
+                if (aktivesAdressFeld == "start" && (startListe.isNotEmpty() || startOrte.isNotEmpty())) {
+                    OrtVorschlagListe(startOrte, startListe, Modifier.platz(20f, 342f + zeilenHoehe + 4),
+                        { ortWaehlen(it, "start") }) { adresseWaehlen(startListe[it], "start") }
                 }
                 val flugIndex = reihen.indexOfFirst { it.id == "flugnummer" }
                 if (kandidatenOffen && flugKandidaten.isNotEmpty() && flugIndex >= 0) {
@@ -602,8 +617,10 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
                     }
                 }
                 val zielListe = vorschlaege["ziel"].orEmpty()
-                if (aktivesAdressFeld == "ziel" && zielListe.isNotEmpty()) {
-                    VorschlagListe(zielListe, Modifier.platz(20f, reihenStart + zeilenHoehe + 4)) { adresseWaehlen(zielListe[it], "ziel") }
+                val zielOrte = if (werte.zielOrtID.isEmpty()) EigeneOrte.vorschlaege(werte.ziel) else emptyList()
+                if (aktivesAdressFeld == "ziel" && (zielListe.isNotEmpty() || zielOrte.isNotEmpty())) {
+                    OrtVorschlagListe(zielOrte, zielListe, Modifier.platz(20f, reihenStart + zeilenHoehe + 4),
+                        { ortWaehlen(it, "ziel") }) { adresseWaehlen(zielListe[it], "ziel") }
                 }
                 val f = fokus
                 val fi = reihen.indexOfFirst { it.id == f }

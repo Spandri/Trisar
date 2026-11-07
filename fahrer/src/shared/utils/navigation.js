@@ -10,6 +10,8 @@ const toDestination = (location) => {
   const lat = Number(location.lat ?? location.latitude);
   const lng = Number(location.lng ?? location.longitude);
   if (Number.isFinite(lat) && Number.isFinite(lng)) return `${lat},${lng}`;
+  // Eigener Ort der Dispo: nur die Adresse. Den Ortsnamen ("Mercedes Event Location") kennt Maps nicht.
+  if (location.ortId && String(location.address || '').trim()) return adresseFuerNavigation('', location.address);
   return adresseFuerNavigation(location.name, location.address);
 };
 

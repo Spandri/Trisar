@@ -1,21 +1,26 @@
 import SwiftUI
 
-/// KartenFilterView.jsx: Fahrersuche, Karosserie, Feierabend, speichern und loeschen.
+/// KartenFilterView.jsx: Fahrersuche, Karosserie, Feierabend, Punkte bei Fahrt, eigene Orte,
+/// speichern und loeschen.
 /// Wie im Web wirkt auf der Karte nur die Fahrersuche (mehrere Begriffe mit ';').
 struct KartenFilterAnsicht: View {
     @ObservedObject var filter: KartenFilter
     let zurueck: () -> Void
     @StateObject private var stufen = TrackerStufenModell()
+    @ObservedObject private var orte = OrteSpeicher.geteilt
+    @State private var ortEditor: OrtEditorZiel?
     private static let lime = Color(hex: 0xE3F654)
 
     // Wie im Web: Abschnitt "Punkte bei Fahrt" unter Feierabend (Web top 462, hier +20),
     // die Knoepfe darunter rutschen mit.
     private var stufeTop: CGFloat { 482 }
     private var stufeZeilenTop: CGFloat { stufeTop + 32 + 40 + 12 }
-    private var speichernTop: CGFloat {
+    /// Bereich "Orte" unter "Punkte bei Fahrt" (ohne Tracker gleich unter Feierabend).
+    private var orteTop: CGFloat {
         guard !stufen.tracker.isEmpty else { return 482 }
         return stufeZeilenTop + CGFloat(stufen.tracker.count + (stufen.fehler == nil ? 0 : 1)) * 24 + 20
     }
+    private var speichernTop: CGFloat { orteTop + OrteAbschnitt.hoehe(anzahl: orte.orte.count) + 32 }
     private var inhaltHoehe: CGFloat { max(834, speichernTop - 20 + 68 + 56 + 120) + 70 }
 
     var body: some View {
@@ -56,6 +61,9 @@ struct KartenFilterAnsicht: View {
                         }
                     }
 
+                    OrteAbschnitt(orte: orte) { ortEditor = OrtEditorZiel(ort: $0) }
+                        .platz(20, orteTop, 362, OrteAbschnitt.hoehe(anzahl: orte.orte.count))
+
                     Button(action: zurueck) {
                         HStack {
                             Text("Filter speichern").grotesk(16, .medium, abstand: 0.4).foregroundStyle(Color(hex: 0x1D1C1D))
@@ -83,9 +91,16 @@ struct KartenFilterAnsicht: View {
                     .platz(20, speichernTop + 68, 362, 56)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             FussleisteUnten()
+
+            if let ziel = ortEditor {
+                OrtBearbeitenAnsicht(ort: ziel.ort) { ortEditor = nil }
+                    .id(ziel.id)
+            }
         }
         .task { await stufen.laufen() }
+        .task { await orte.laden() }
     }
 }
 

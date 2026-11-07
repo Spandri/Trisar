@@ -22,6 +22,9 @@ struct FahrtZeile: Decodable {
     let original_etd: String?
     let convoy_id: UUID?
     let driver_id: UUID?
+    /// Eigene Orte der Dispo (fehlen die Spalten noch, bleiben sie leer).
+    let pickup_ort_id: UUID?
+    let dropoff_ort_id: UUID?
 }
 
 struct FahrzeugZeile: Decodable, Equatable {
@@ -66,6 +69,9 @@ struct Fahrt: Identifiable, Equatable {
     let kolonnenID: UUID?
     let istKolonne: Bool
     var meineAntwort: String    // convoy_assignments.response_status
+    /// Gewaehlter eigener Ort (jobs.pickup_ort_id / dropoff_ort_id): dessen Icon statt Textmuster.
+    var abholOrtID: UUID? = nil
+    var zielOrtID: UUID? = nil
 
     /// Kurzname fuer die Karte (wie toShortFormattedAddress + kurzAdresse).
     var abholKurz: String { Adresse.kurz(name: abholName, adresse: abholAdresse) }
@@ -221,8 +227,16 @@ final class FahrtenSpeicher: ObservableObject {
                     planEtd: zeile.original_etd.map { String($0.prefix(5)) },
                     kolonnenID: zeile.convoy_id,
                     istKolonne: istKolonne,
-                    meineAntwort: eigene?.response_status ?? "pending"
+                    meineAntwort: eigene?.response_status ?? "pending",
+                    abholOrtID: zeile.pickup_ort_id,
+                    zielOrtID: zeile.dropoff_ort_id
                 )
+            }
+            // Orte einmal laden, neu nur wenn eine Fahrt einen unbekannten Ort nennt.
+            let orte = OrteSpeicher.geteilt
+            await orte.ladenFallsNoetig()
+            if fahrten.contains(where: { f in [f.abholOrtID, f.zielOrtID].contains { $0 != nil && orte.ort($0) == nil } }) {
+                await orte.laden()
             }
             dienstAnfragen = dienste
 

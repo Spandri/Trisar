@@ -1,6 +1,7 @@
 package de.trisar.dispo.fahrten
 
 import de.trisar.kern.Backend
+import de.trisar.kern.EigeneOrte
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
@@ -26,6 +27,9 @@ data class FahrtFormularWerte(
     val anonymeGaeste: String = "",
     val aktuellerStatus: String = "",
     val anzahlFahrzeuge: String = "",
+    /** Gewaehlter eigener Ort (orte.id) fuer Start/Ziel, leer bei frei getippter Adresse. */
+    val startOrtID: String = "",
+    val zielOrtID: String = "",
 )
 
 /** Stand einer Fahrt beim Oeffnen des Editors (rideEditorData aus openRideEditorById). */
@@ -142,10 +146,14 @@ object FahrtSpeichern {
 
     suspend fun laden(id: String): GeladeneFahrt {
         val c = Backend.client
-        val job = c.from("jobs").select(Columns.raw("id, driver_id, convoy_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, passengers, anonymous_guests, flight_number, train_number, train_planned_time, train_predicted_time, ext_flight_payload, ai_booked")) {
+        val spalten = "id, driver_id, convoy_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, passengers, anonymous_guests, flight_number, train_number, train_planned_time, train_predicted_time, ext_flight_payload, ai_booked"
+        // Mit Ort-Zuordnung, ohne sie, falls die Spalten (Migration orte_radien) noch fehlen.
+        suspend fun mit(s: String) = c.from("jobs").select(Columns.raw(s)) {
             filter { eq("id", id) }
             limit(1)
-        }.decodeList<JsonObject>().firstOrNull() ?: error("Fahrt nicht gefunden.")
+        }.decodeList<JsonObject>().firstOrNull()
+        val job = (try { mit("$spalten, pickup_ort_id, dropoff_ort_id") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { mit(spalten) })
+            ?: error("Fahrt nicht gefunden.")
 
         val archiv = still(emptyList()) { c.from("jobs_archive").select(Columns.raw("job_id")) { filter { eq("job_id", id) } }.decodeList<JsonObject>() }
         val zuordnungen = still(emptyList()) { c.from("convoy_assignments").select(Columns.raw("driver_id, response_status")) { filter { eq("job_id", id) } }.decodeList<JsonObject>() }
@@ -237,11 +245,18 @@ object FahrtSpeichern {
         val dispoText = FahrtText.getrimmt((stringWert(dispo?.get("note_text")) ?: "").replace(AI_TAG, ""))
         val aiBooked = W.bool(job["ai_booked"]) || (stringWert(neueste?.get("note_text")) ?: "").contains(AI_TAG) || (stringWert(dispo?.get("note_text")) ?: "").contains(AI_TAG)
 
+        // Mit eigenem Ort steht im Feld der Ortsname (pickup_name), sonst die Adresse.
+        val startOrt = FahrtText.getrimmt(stringWert(job["pickup_ort_id"]))
+        val zielOrt = FahrtText.getrimmt(stringWert(job["dropoff_ort_id"]))
         val werte = FahrtFormularWerte(
             datum = tag,
             startZeit = startZeit,
-            start = ortFuerEditor(stringWert(job["pickup_name"]), stringWert(job["pickup_address"])),
-            ziel = ortFuerEditor(stringWert(job["dropoff_name"]), stringWert(job["dropoff_address"])),
+            start = if (startOrt.isNotEmpty()) FahrtText.getrimmt(stringWert(job["pickup_name"])).ifEmpty { ortFuerEditor(null, stringWert(job["pickup_address"])) }
+                else ortFuerEditor(stringWert(job["pickup_name"]), stringWert(job["pickup_address"])),
+            ziel = if (zielOrt.isNotEmpty()) FahrtText.getrimmt(stringWert(job["dropoff_name"])).ifEmpty { ortFuerEditor(null, stringWert(job["dropoff_address"])) }
+                else ortFuerEditor(stringWert(job["dropoff_name"]), stringWert(job["dropoff_address"])),
+            startOrtID = startOrt,
+            zielOrtID = zielOrt,
             flugnummer = FahrtText.getrimmt(stringWert(job["flight_number"])),
             zugnummer = zug,
             konvoi = kolonnenName.ifEmpty { if (hatKolonne) "Kolonne" else "" },
@@ -259,6 +274,13 @@ object FahrtSpeichern {
     private data class Vorbereitet(
         val start: String,
         val ziel: String,
+        /** pickup_/dropoff_-Werte: mit eigenem Ort Name und Adresse des Orts, sonst beides der getippte Text. */
+        val startName: String,
+        val startAdresse: String,
+        val startOrt: String?,
+        val zielName: String,
+        val zielAdresse: String,
+        val zielOrt: String?,
         val tag: String,
         val startZeit: String,
         val kolonne: String,
@@ -293,8 +315,13 @@ object FahrtSpeichern {
         val zeiten = if (zug.gueltig) FahrtPruefung.zugZeiten(zug.daten, startZeit) else FahrtPruefung.ZugZeiten(etd = startZeit, etdOriginal = startZeit)
         if (zeiten.etd.isNotEmpty()) startZeit = zeiten.etd
         val live = if (zug.gueltig) FahrtPruefung.zugLiveDaten(zug.daten, DispoDatum.iso()) else JsonNull
+        val so = EigeneOrte.zuID(e.werte.startOrtID)
+        val zo = EigeneOrte.zuID(e.werte.zielOrtID)
         return Vorbereitet(
-            start, ziel, tag, startZeit,
+            start, ziel,
+            startName = so?.name ?: start, startAdresse = so?.adresse ?: start, startOrt = so?.id,
+            zielName = zo?.name ?: ziel, zielAdresse = zo?.adresse ?: ziel, zielOrt = zo?.id,
+            tag = tag, startZeit = startZeit,
             kolonne = FahrtText.getrimmt(e.werte.konvoi),
             fahrerNamen = FahrtText.fahrerNamenListe(e.fahrerNamen),
             gaeste = FahrtText.gaesteTeilen(e.fahrgaeste),
@@ -319,10 +346,10 @@ object FahrtSpeichern {
     private fun jobSpalten(v: Vorbereitet, status: String, kolonne: String?, fahrer: String?, aiBooked: Boolean): MutableMap<String, JsonElement> {
         val jetzt = DispoDatum.iso()
         return linkedMapOf(
-            "pickup_name" to JsonPrimitive(v.start),
-            "pickup_address" to JsonPrimitive(v.start),
-            "dropoff_name" to JsonPrimitive(v.ziel),
-            "dropoff_address" to JsonPrimitive(v.ziel),
+            "pickup_name" to JsonPrimitive(v.startName),
+            "pickup_address" to JsonPrimitive(v.startAdresse),
+            "dropoff_name" to JsonPrimitive(v.zielName),
+            "dropoff_address" to JsonPrimitive(v.zielAdresse),
             "ride_date" to JsonPrimitive(v.tag),
             "etd" to text(if (v.zug.gueltig) v.zugZeiten.etd else v.startZeit),
             "original_etd" to text(if (v.zug.gueltig) v.zugZeiten.etdOriginal else v.startZeit),
@@ -339,7 +366,13 @@ object FahrtSpeichern {
             "ext_flight_last_sync_at" to (if (v.zug.gueltig) JsonPrimitive(jetzt) else JsonNull),
             "anonymous_guests" to JsonPrimitive(v.anonym),
             "ai_booked" to JsonPrimitive(aiBooked),
-        )
+        ).also {
+            // Ort-Zuordnung nur schreiben, wenn es die Tabelle orte (und damit die Spalten) gibt.
+            if (EigeneOrte.verfuegbar) {
+                it["pickup_ort_id"] = id(v.startOrt)
+                it["dropoff_ort_id"] = id(v.zielOrt)
+            }
+        }
     }
 
     /** Gaeste mit Eintrag in guests als job_guests verknuepfen (erster = Hauptkontakt). */
@@ -424,8 +457,8 @@ object FahrtSpeichern {
                 || fahrerNeu?.lowercase() != bisherFahrer?.lowercase()
                 || (stringWert(bisher["ride_date"]) ?: "") != v.tag
                 || !gleicheUhr(stringWert(bisher["etd"]), v.startZeit)
-                || FahrtText.getrimmt(stringWert(bisher["pickup_address"])) != v.start
-                || FahrtText.getrimmt(stringWert(bisher["dropoff_address"])) != v.ziel
+                || FahrtText.getrimmt(stringWert(bisher["pickup_address"])) != v.startAdresse
+                || FahrtText.getrimmt(stringWert(bisher["dropoff_address"])) != v.zielAdresse
             val neuAnfragen = fahrerNeu != null && !endStatus && fahrtGeaendert
             // Status nur schreiben, wenn die Dispo ihn im Editor geaendert hat. Sonst bleibt der
             // DB-Status (der Fahrer kann die Fahrt inzwischen beendet haben).

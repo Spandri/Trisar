@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.trisar.kern.Backend
+import de.trisar.kern.EigeneOrte
 import de.trisar.kern.FahrzeugZeile
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
@@ -66,6 +67,8 @@ internal data class FahrtZeile(
     val original_etd: String? = null,
     val convoy_id: String? = null,
     val driver_id: String? = null,
+    val pickup_ort_id: String? = null,
+    val dropoff_ort_id: String? = null,
 ) {
     companion object {
         // Alle Spalten wie iOS (select()). Eine feste Liste bricht das ganze Laden ab, sobald eine
@@ -108,6 +111,9 @@ data class Fahrt(
     val kolonnenID: String?,
     val istKolonne: Boolean,
     val meineAntwort: String, // convoy_assignments.response_status
+    /** Eigener Ort der Dispo (orte.id) fuer Start/Ziel, dann gilt sein Icon. */
+    val abholOrtID: String? = null,
+    val zielOrtID: String? = null,
 ) {
     val abholKurz get() = Adresse.kurz(abholName, abholAdresse)
     val zielKurz get() = Adresse.kurz(zielName, zielAdresse)
@@ -326,9 +332,13 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
                         kolonnenID = z.convoy_id,
                         istKolonne = istKolonne,
                         meineAntwort = eigene?.response_status ?: "pending",
+                        abholOrtID = z.pickup_ort_id,
+                        zielOrtID = z.dropoff_ort_id,
                     )
                 }
                 dienstAnfragen.value = dienste
+                // Eigene Orte einmal laden (Icon je Ort), nur lesen.
+                if (sichtbar.any { it.pickup_ort_id != null || it.dropoff_ort_id != null }) EigeneOrte.einmalLaden()
 
                 val fahrzeugID = profil.firstOrNull()?.vehicle_id
                 fahrzeug.value = if (fahrzeugID != null) {

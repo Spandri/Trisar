@@ -22,6 +22,8 @@ struct DispoKarteAnsicht: View {
     @State private var profilOffen = false
     @State private var abseitsZaehler = 0
     @State private var letzteNeuberechnung = Date.distantPast
+    @ObservedObject private var orte = OrteSpeicher.geteilt
+    @State private var gewaehlterOrt: UUID?
 
     // Masse im Web-Raster (NAV_BLOCK_OFFSET_PX, SHEET_MAX_TOP_GAP_PX, SHEET_PEEK_PX).
     static let blattUnten: CGFloat = 120
@@ -82,7 +84,8 @@ struct DispoKarteAnsicht: View {
                     fahrer: gefiltert, gewaehlt: gewaehlt, route: route,
                     blattHoehe: gewaehlt == nil ? 0 : min(max(blatt, Self.blattMin), blattMax),
                     rasterHoehe: rasterHoehe, massstab: s, einpassenSignal: einpassen,
-                    waehlen: fahrerTippen, leerTippen: auswahlAufheben, abseits: abseitsGemeldet
+                    waehlen: fahrerTippen, leerTippen: auswahlAufheben, abseits: abseitsGemeldet,
+                    orte: orte.orte, gewaehlterOrt: gewaehlterOrt, ortWaehlen: { gewaehlterOrt = $0 }
                 )
                 .frame(width: geo.size.width, height: geo.size.height)
 
@@ -114,7 +117,11 @@ struct DispoKarteAnsicht: View {
         .ignoresSafeArea()
         .background(Color(hex: 0x0E0E0E).ignoresSafeArea())
         .task { await daten.starten() }
-        .onDisappear { Task { await daten.beenden() } }
+        .task { await orte.beobachten() }
+        .onDisappear {
+            Task { await daten.beenden() }
+            Task { await orte.beenden() }
+        }
         .task(id: routenAufgabe) { await routeBerechnen() }
         .onChange(of: gefiltert.map(\.id)) { _, ids in
             if let id = gewaehltID, !ids.contains(id) { gewaehltID = nil }

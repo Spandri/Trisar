@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { kurzAdresse } from '../../shared/adresseKurz';
+import { orteLaden, ortNachId } from '../../shared/orte';
 import { SUPABASE_FUNCTIONS } from '../../shared/supabase/functions';
 import { supabase } from '../../shared/supabase/client';
 import { DEMO_MODE } from '../../datenquelle';
@@ -2408,6 +2409,9 @@ const FahrerApp = () => {
           setVehicleDamages([]);
         }
 
+        // Eigene Orte der Dispo: Icon bei Start/Ziel, Pin fuer die Navigation.
+        await orteLaden((allVisibleJobs || []).flatMap((job) => [job?.pickup_ort_id, job?.dropoff_ort_id]));
+
         const formattedJobs = await Promise.all((allVisibleJobs || []).map(async (dbJob) => {
           const [{ data: notes }, { data: links }, { data: convoy }] = await Promise.all([
             supabase.from('job_notes').select('note_text,created_at,author_name').eq('job_id', dbJob.id).order('created_at', { ascending: false }),
@@ -2485,6 +2489,22 @@ const FahrerApp = () => {
           }
           const flightLive = extractFlightLiveTracking(dbJob.ext_flight_payload);
           const flightSummary = extractFlightSummary(dbJob.ext_flight_payload);
+          const pickupOrt = ortNachId(dbJob.pickup_ort_id);
+          const dropoffOrt = ortNachId(dbJob.dropoff_ort_id);
+          // Mit eigenem Ort: Icon des Orts und sein Pin (lat/lng) fuer Google Maps.
+          const ortFelder = (ort, ortId, name) => {
+            if (!ortId) return {};
+            const nameText = String(name || '').trim();
+            const lat = Number(ort?.lat);
+            const lng = Number(ort?.lng);
+            return {
+              ortId: String(ortId),
+              ortIcon: ort?.icon || 'pin',
+              // Name des Orts ungekuerzt anzeigen (nicht nur bis zum ersten Komma).
+              ...(nameText ? { shortFormattedAddress: nameText } : {}),
+              ...(ort && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : {}),
+            };
+          };
 
           return {
             id: dbJob.id,
@@ -2494,12 +2514,14 @@ const FahrerApp = () => {
               iconType: dbJob.trip_type === 'airport' ? 'plane' : 'building',
               address: dbJob.pickup_address,
               shortFormattedAddress: toShortFormattedAddress(dbJob.pickup_name, dbJob.pickup_address),
+              ...ortFelder(pickupOrt, dbJob.pickup_ort_id, dbJob.pickup_name),
             },
             to: {
               name: dbJob.dropoff_name,
               iconType: 'building',
               address: dbJob.dropoff_address,
               shortFormattedAddress: toShortFormattedAddress(dbJob.dropoff_name, dbJob.dropoff_address),
+              ...ortFelder(dropoffOrt, dbJob.dropoff_ort_id, dbJob.dropoff_name),
             },
             trainNumber: dbJob.train_number || null,
             rideDate: getRideDateFromJob(dbJob),

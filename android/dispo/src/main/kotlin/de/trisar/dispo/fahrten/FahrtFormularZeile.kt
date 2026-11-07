@@ -122,6 +122,42 @@ internal fun VorschlagListe(eintraege: List<String>, modifier: Modifier, kopf: S
     }
 }
 
+/**
+ * Vorschlaege fuer Start/Ziel: eigene Orte mit ihrem Icon ganz oben, darunter die Adressen.
+ * Gleicher Look wie VorschlagListe.
+ */
+@Composable
+internal fun OrtVorschlagListe(
+    orte: List<de.trisar.kern.Ort>,
+    adressen: List<String>,
+    modifier: Modifier,
+    ortWaehlen: (de.trisar.kern.Ort) -> Unit,
+    adresseWaehlen: (Int) -> Unit,
+) {
+    val form = RoundedCornerShape(16.dp)
+    val anzahl = orte.size + adressen.size
+    Column(
+        modifier.width(362.dp).heightIn(max = 180.dp).clip(form).background(hex(0x151607)).border(1.dp, hex(0x4A4F22), form)
+            .verticalScroll(rememberScrollState())
+    ) {
+        orte.forEachIndexed { i, o ->
+            Row(
+                Modifier.fillMaxWidth().tippen { ortWaehlen(o) }.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(de.trisar.kern.OrtIcons.lime(o.icon), Modifier.size(18.dp))
+                Text(o.name, style = grotesk(13f, 700, farbe = LIME), maxLines = 1)
+            }
+            if (i < anzahl - 1) Box(Modifier.fillMaxWidth().height(1.dp).background(hex(0x2A2D15)))
+        }
+        adressen.forEachIndexed { i, eintrag ->
+            Text(eintrag, style = grotesk(13f, 500, farbe = LIME), modifier = Modifier.fillMaxWidth().tippen { adresseWaehlen(i) }.padding(12.dp))
+            if (orte.size + i < anzahl - 1) Box(Modifier.fillMaxWidth().height(1.dp).background(hex(0x2A2D15)))
+        }
+    }
+}
+
 /** Lime-Knopf „Fahrt speichern“: Text links (p-1 + px-3), schwarzer Pfeil rechts (mr-4). */
 @Composable
 internal fun FormularSpeichernKnopf(text: String, gesperrt: Boolean, modifier: Modifier, aktion: () -> Unit) {

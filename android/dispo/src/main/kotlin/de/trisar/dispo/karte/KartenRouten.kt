@@ -163,7 +163,7 @@ internal object KartenRouten {
     /** routeFitKey: neu rechnen, wenn sich Fahrer, Fahrt, Status oder Orte aendern. */
     fun schluessel(f: KartenFahrer?): String {
         val r = f?.fahrt ?: return ""
-        return listOf(f.id, r.id, r.status, r.vonSuche, r.nachSuche).joinToString("|")
+        return listOf(f.id, r.id, r.status, r.vonSuche, r.nachSuche, r.vonPunkt, r.nachPunkt).joinToString("|")
     }
 
     suspend fun berechnen(fahrer: KartenFahrer, ursprung: KartenPunkt?, alle: List<KartenFahrer>): KartenRoutenBild? {
@@ -171,8 +171,9 @@ internal object KartenRouten {
         var bild = KartenRoutenBild(schluessel = schluessel(fahrer))
         // Aktive Fahrer haben den Gast schon an Bord: fuer sie gibt es keine Anfahrt.
         val mitAnfahrt = KartenRegeln.istOffen(ride.status) && fahrer.zustand != FahrerZustand.AKTIV
-        val abholort = DispoRouten.punkt(ride.vonSuche)
-        val ziel = DispoRouten.punkt(ride.nachSuche)
+        // Eigener Ort: sein Pin (Einfahrt) statt der gesuchten Adresse.
+        val abholort = ride.vonPunkt ?: DispoRouten.punkt(ride.vonSuche)
+        val ziel = ride.nachPunkt ?: DispoRouten.punkt(ride.nachSuche)
         val anfahrtGeplant = mitAnfahrt && ursprung != null && abholort != null
 
         if (mitAnfahrt && ursprung != null && abholort != null) {

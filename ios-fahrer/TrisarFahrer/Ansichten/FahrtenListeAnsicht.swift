@@ -259,6 +259,8 @@ struct AuftragsKarte: View {
     let oeffnen: () -> Void
     let annehmen: () -> Void
     let ablehnen: () -> Void
+    /// Eigene Orte der Dispo: hat die Fahrt einen Ort, gilt dessen Icon.
+    @ObservedObject private var orte = OrteSpeicher.geteilt
 
     /// Kartenhoehe: 187 reicht fuer zwei Zeilen Ortsname. Laengere Namen machen die Karte hoeher
     /// (Text beginnt bei 127, 20 je Zeile, 20 Rand unten), damit nichts ueber den Rand laeuft.
@@ -322,9 +324,11 @@ struct AuftragsKarte: View {
                     .offset(y: -12)
             }
 
-            OrtIcon(name: Self.icon(fahrt.abholName + " " + fahrt.abholAdresse + " " + fahrt.abholKurz, start: true))
+            OrtIcon(name: orte.iconGrau(fahrt.abholOrtID)
+                ?? Self.icon(fahrt.abholName + " " + fahrt.abholAdresse + " " + fahrt.abholKurz, start: true))
                 .platz(53, 42, 70, 70)
-            OrtIcon(name: Self.icon(fahrt.zielName + " " + fahrt.zielAdresse + " " + fahrt.zielKurz, start: false))
+            OrtIcon(name: orte.iconGrau(fahrt.zielOrtID)
+                ?? Self.icon(fahrt.zielName + " " + fahrt.zielAdresse + " " + fahrt.zielKurz, start: false))
                 .platz(276, 42, 70, 70)
 
             if zeigeEtd {

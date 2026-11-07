@@ -4,6 +4,8 @@ import TrisarFooter from '../ui/TrisarFooter';
 import FahrerAutocomplete from '../ui/FahrerAutocomplete';
 import FahrgastAutocomplete from '../ui/FahrgastAutocomplete';
 import { useI18n } from '../../i18n';
+import OrtVorschlag from '../ui/OrtVorschlag';
+import { orteZurEingabe, useOrte } from '../../shared/orte';
 import { demoAlert, demoConfirm, tutorialLaeuft } from '../ui/demoDialoge';
 import RisikoAbschnitt from './RisikoAbschnitt';
 import { fahrerPasst, risikoFahrt, risikoTag, useRisikoDaten } from '../../demo/risikoErgebnisse';
@@ -48,6 +50,10 @@ const EMPTY_FORM_VALUES = {
   startZeit: '',
   start: '',
   ziel: '',
+  startOrtId: '',
+  startAdresse: '',
+  zielOrtId: '',
+  zielAdresse: '',
   flugnummer: '',
   zugnummer: '',
   konvoi: '',
@@ -65,8 +71,13 @@ function buildInitialFormValues(initialData = {}) {
     ...EMPTY_FORM_VALUES,
     datum: normalizeFieldValue(initialData.datum || initialData.date || initialData.rideDate),
     startZeit: normalizeFieldValue(initialData.startZeit),
-    start: normalizeFieldValue(initialData.start),
-    ziel: normalizeFieldValue(initialData.ziel),
+    // Fahrt mit eigenem Ort: im Feld steht der Ortsname, die gespeicherte Adresse bleibt dahinter.
+    start: normalizeFieldValue(initialData.startOrtId ? (initialData.startOrtName || initialData.start) : initialData.start),
+    ziel: normalizeFieldValue(initialData.zielOrtId ? (initialData.zielOrtName || initialData.ziel) : initialData.ziel),
+    startOrtId: normalizeFieldValue(initialData.startOrtId),
+    startAdresse: initialData.startOrtId ? normalizeFieldValue(initialData.start) : '',
+    zielOrtId: normalizeFieldValue(initialData.zielOrtId),
+    zielAdresse: initialData.zielOrtId ? normalizeFieldValue(initialData.ziel) : '',
     flugnummer: normalizeFieldValue(initialData.flugnummer || initialData.flightNumber),
     zugnummer: normalizeFieldValue(initialData.zugnummer || initialData.trainNumber),
     konvoi: normalizeFieldValue(initialData.konvoi),
@@ -302,6 +313,7 @@ export default function FahrtBearbeitenView({
   onValidateTrain = async () => ({ status: 'empty', etaLabel: '', valid: false, startLocation: '' }),
 }) {
   const { t } = useI18n();
+  const { orte } = useOrte();
   const resolvedTitle = title ?? t('fahrt.editTitle');
   const resolvedSubmitLabel = submitLabel ?? t('fahrt.submitEdit');
   const [notes, setNotes] = useState(() => normalizeFieldValue(initialData?.notes));
@@ -369,6 +381,8 @@ export default function FahrtBearbeitenView({
   const updateField = (key, value) => {
     setFormValues((prev) => ({ ...prev, [key]: value }));
   };
+  // Flug-/Zugpruefung mit der Adresse, bei eigenem Ort nicht mit seinem Namen.
+  const pruefStart = formValues.startAdresse || formValues.start;
   const showVehicleCount = String(formValues.konvoi || '').trim().length > 0;
   const parsedVehicleCount = Number.parseInt(formValues.anzahlFahrzeuge, 10);
   const fahrerCount = showVehicleCount ? Math.max(1, Number.isNaN(parsedVehicleCount) ? 1 : parsedVehicleCount) : 1;
@@ -427,7 +441,7 @@ export default function FahrtBearbeitenView({
     flightValidationSeqRef.current = requestId;
 
     const timer = setTimeout(async () => {
-      const result = await onValidateFlight(flightValue, formValues.datum, flightAirportOverride || formValues.start, flightScheduledOverride);
+      const result = await onValidateFlight(flightValue, formValues.datum, flightAirportOverride || pruefStart, flightScheduledOverride);
       if (isCancelled || requestId !== flightValidationSeqRef.current) return;
       const status = String(result?.status || 'invalid');
       const etaLabel = String(result?.etaLabel || '').trim();
@@ -463,7 +477,7 @@ export default function FahrtBearbeitenView({
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [formValues.flugnummer, formValues.datum, formValues.start, flightAirportOverride, flightScheduledOverride, onValidateFlight, appliedFlightNumber, gespeicherteFlugnummer, gespeicherteStartZeit]);
+  }, [formValues.flugnummer, formValues.datum, pruefStart, flightAirportOverride, flightScheduledOverride, onValidateFlight, appliedFlightNumber, gespeicherteFlugnummer, gespeicherteStartZeit]);
 
   useEffect(() => {
     const trainValue = String(formValues.zugnummer || '').trim();
@@ -480,7 +494,7 @@ export default function FahrtBearbeitenView({
     trainValidationSeqRef.current = requestId;
 
     const timer = setTimeout(async () => {
-      const result = await onValidateTrain(trainValue, formValues.datum, formValues.start);
+      const result = await onValidateTrain(trainValue, formValues.datum, pruefStart);
       if (isCancelled || requestId !== trainValidationSeqRef.current) return;
       const status = String(result?.status || 'invalid');
       const etaLabel = String(result?.etaLabel || '').trim();
@@ -509,10 +523,11 @@ export default function FahrtBearbeitenView({
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [formValues.zugnummer, formValues.datum, formValues.start, onValidateTrain, appliedTrainNumber, gespeicherteZugnummer, gespeicherteStartZeit]);
+  }, [formValues.zugnummer, formValues.datum, pruefStart, onValidateTrain, appliedTrainNumber, gespeicherteZugnummer, gespeicherteStartZeit]);
 
+  // Frei getippt: der gewaehlte eigene Ort gilt nicht mehr.
   const fetchAddressPredictions = (input, field) => {
-    updateField(field, input);
+    setFormValues((prev) => ({ ...prev, [field]: input, [`${field}OrtId`]: '', [`${field}Adresse`]: '' }));
     const trimmedInput = String(input || '').trim();
     if (predictionRequestRef.current) {
       clearTimeout(predictionRequestRef.current);
@@ -530,6 +545,21 @@ export default function FahrtBearbeitenView({
       if (predictionSeqRef.current !== requestSeq) return;
       setPlacePredictions((prev) => ({ ...prev, [field]: options }));
     }, 250);
+  };
+
+  // Eigener Ort gewaehlt: Name ins Feld, Adresse und Ort-ID gehen mit zum Speichern.
+  const ortWaehlen = (field, ort) => {
+    setFormValues((prev) => ({ ...prev, [field]: ort.name, [`${field}OrtId`]: ort.id, [`${field}Adresse`]: ort.adresse }));
+    setPlacePredictions((prev) => ({ ...prev, [field]: [] }));
+    setActiveAddressField(null);
+  };
+  const adresseLeeren = (field) => {
+    setFormValues((prev) => ({ ...prev, [field]: '', [`${field}OrtId`]: '', [`${field}Adresse`]: '' }));
+    setPlacePredictions((prev) => ({ ...prev, [field]: [] }));
+  };
+  const ortTreffer = {
+    start: formValues.startOrtId ? [] : orteZurEingabe(orte, formValues.start),
+    ziel: formValues.zielOrtId ? [] : orteZurEingabe(orte, formValues.ziel),
   };
 
   const normalizedFlightNumber = String(formValues.flugnummer || '').replace(/\s+/g, '').toUpperCase().trim();
@@ -559,6 +589,7 @@ export default function FahrtBearbeitenView({
       ...prev,
       startZeit: resolvedStartZeit || prev.startZeit,
       start: startLocation || prev.start,
+      ...(startLocation ? { startOrtId: '', startAdresse: '' } : {}),
     }));
     setAppliedFlightNumber(normalizedFlightNumber);
   };
@@ -596,6 +627,7 @@ export default function FahrtBearbeitenView({
       ...prev,
       startZeit: resolvedStartZeit || prev.startZeit,
       start: startLocation || prev.start,
+      ...(startLocation ? { startOrtId: '', startAdresse: '' } : {}),
     }));
     setAppliedTrainNumber(normalizedTrainNumber);
   };
@@ -816,20 +848,20 @@ export default function FahrtBearbeitenView({
               if (tutorialLaeuft()) return;
               setActiveAddressField((prev) => (prev === 'start' ? null : prev));
             }, 120)}
-            onReset={() => {
-              updateField('start', '');
-              setPlacePredictions((prev) => ({ ...prev, start: [] }));
-            }}
+            onReset={() => adresseLeeren('start')}
             mode="select"
             options={placePredictions.start}
             marker="feld-start"
           />
 
-          {activeAddressField === 'start' && placePredictions.start.length > 0 && (
+          {activeAddressField === 'start' && (placePredictions.start.length > 0 || ortTreffer.start.length > 0) && (
             <div
               className="absolute left-[20px] w-[362px] max-h-[180px] overflow-y-auto rounded-2xl border border-[#4a4f22] bg-[#151607] z-[120]"
               style={{ top: `${startRowTop + ROW_HEIGHT + 4}px` }}
             >
+              {ortTreffer.start.map((ort, index) => (
+                <OrtVorschlag key={`start-ort-${ort.id}`} ort={ort} marker={`vorschlag-eigener-ort-${index}`} onWaehlen={(gewaehlt) => ortWaehlen('start', gewaehlt)} />
+              ))}
               {placePredictions.start.map((option, index) => (
                 <button
                   key={`start-option-${index}-${option}`}
@@ -837,12 +869,12 @@ export default function FahrtBearbeitenView({
                   data-tutorial={`vorschlag-ort-${index}`}
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    updateField('start', option);
+                    setFormValues((prev) => ({ ...prev, start: option, startOrtId: '', startAdresse: '' }));
                     setPlacePredictions((prev) => ({ ...prev, start: [] }));
                     setActiveAddressField(null);
                   }}
                   onClick={() => {
-                    updateField('start', option);
+                    setFormValues((prev) => ({ ...prev, start: option, startOrtId: '', startAdresse: '' }));
                     setPlacePredictions((prev) => ({ ...prev, start: [] }));
                     setActiveAddressField(null);
                   }}
@@ -905,8 +937,7 @@ export default function FahrtBearbeitenView({
                     return;
                   }
                   if (row.key === 'ziel') {
-                    updateField('ziel', '');
-                    setPlacePredictions((prev) => ({ ...prev, ziel: [] }));
+                    adresseLeeren('ziel');
                     return;
                   }
                   if (row.key === 'konvoi') {
@@ -977,11 +1008,14 @@ export default function FahrtBearbeitenView({
             </div>
           )}
 
-          {activeAddressField === 'ziel' && placePredictions.ziel.length > 0 && (
+          {activeAddressField === 'ziel' && (placePredictions.ziel.length > 0 || ortTreffer.ziel.length > 0) && (
             <div
               className="absolute left-[20px] w-[362px] max-h-[180px] overflow-y-auto rounded-2xl border border-[#4a4f22] bg-[#151607] z-[120]"
               style={{ top: `${zielRowTop + ROW_HEIGHT + 4}px` }}
             >
+              {ortTreffer.ziel.map((ort, index) => (
+                <OrtVorschlag key={`ziel-ort-${ort.id}`} ort={ort} marker={`vorschlag-eigener-ort-${index}`} onWaehlen={(gewaehlt) => ortWaehlen('ziel', gewaehlt)} />
+              ))}
               {placePredictions.ziel.map((option, index) => (
                 <button
                   key={`ziel-option-${index}-${option}`}
@@ -989,12 +1023,12 @@ export default function FahrtBearbeitenView({
                   data-tutorial={`vorschlag-ort-${index}`}
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    updateField('ziel', option);
+                    setFormValues((prev) => ({ ...prev, ziel: option, zielOrtId: '', zielAdresse: '' }));
                     setPlacePredictions((prev) => ({ ...prev, ziel: [] }));
                     setActiveAddressField(null);
                   }}
                   onClick={() => {
-                    updateField('ziel', option);
+                    setFormValues((prev) => ({ ...prev, ziel: option, zielOrtId: '', zielAdresse: '' }));
                     setPlacePredictions((prev) => ({ ...prev, ziel: [] }));
                     setActiveAddressField(null);
                   }}

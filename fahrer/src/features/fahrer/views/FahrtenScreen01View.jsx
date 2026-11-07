@@ -15,6 +15,7 @@ import {
   TRISAR_LOGO_URL,
 } from '../../../shared/ui/icons';
 import { FahrzeugKarte } from '../../../shared/FahrzeugKarte';
+import { ortIconFuer } from '../../../shared/orte';
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
@@ -364,7 +365,7 @@ const RideCard = ({ job, layout, topOffset = 0, onOpen, onAction, onSheetOpen, a
         className="absolute w-[70px] h-[70px] bg-[#242525] rounded-[12px] flex items-center justify-center pointer-events-none"
         style={{ left: '53px', top: iconLeftTop }}
       >
-        <img src={pickRideIcon(fromIconLabel, true)} alt="" className="w-[30px] h-[30px] object-contain" />
+        <img src={ortIconFuer(job?.from) || pickRideIcon(fromIconLabel, true)} alt="" className="w-[30px] h-[30px] object-contain" />
       </div>
 
       {/* Right Icon Container */}
@@ -372,7 +373,7 @@ const RideCard = ({ job, layout, topOffset = 0, onOpen, onAction, onSheetOpen, a
         className="absolute w-[70px] h-[70px] bg-[#242525] rounded-[12px] flex items-center justify-center pointer-events-none"
         style={{ left: '276px', top: iconRightTop }}
       >
-        <img src={pickRideIcon(toIconLabel)} alt="" className="w-[30px] h-[30px] object-contain" />
+        <img src={ortIconFuer(job?.to) || pickRideIcon(toIconLabel)} alt="" className="w-[30px] h-[30px] object-contain" />
       </div>
 
       {/* ETD/Time Display */}

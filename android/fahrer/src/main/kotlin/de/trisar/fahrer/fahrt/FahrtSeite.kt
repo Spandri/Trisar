@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import de.trisar.kern.Backend
+import de.trisar.kern.EigeneOrte
 import de.trisar.kern.Farbe
 import de.trisar.kern.FussleisteUnten
 import de.trisar.kern.GeoPunkt
@@ -194,13 +195,16 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
     /** Neu rechnen, wenn sich Fahrt, Status oder (grob) der Standort aendert. */
     val routenSchluessel = "${fahrt?.abholAdresse}|${fahrt?.zielAdresse}|$unterwegs|${details.fahrerNummer}|" +
         (fahrerOrt?.let { "${(it.lat * 200).toInt()},${(it.lng * 200).toInt()}" } ?: "-") + "|$neuRechnen" +
-        "|${details.tomtomFahrt.size}|${details.tomtomAnfahrt.size}"
+        "|${details.tomtomFahrt.size}|${details.tomtomAnfahrt.size}|${EigeneOrte.liste.size}"
     LaunchedEffect(routenSchluessel) {
         val f = fahrt ?: return@LaunchedEffect
         val abholText = f.abholAdresse.ifEmpty { f.abholName }
         val zielText = f.zielAdresse.ifEmpty { f.zielName }
-        val abholA = async { Routen.punkt(ctx, abholText) }
-        val zielA = async { Routen.punkt(ctx, zielText) }
+        // Eigener Ort: sein Pin (Einfahrt), sonst die Adresse suchen.
+        val abholOrt = EigeneOrte.zuID(f.abholOrtID)?.punkt
+        val zielOrt = EigeneOrte.zuID(f.zielOrtID)?.punkt
+        val abholA = async { abholOrt ?: Routen.punkt(ctx, abholText) }
+        val zielA = async { zielOrt ?: Routen.punkt(ctx, zielText) }
         val abhol = abholA.await()
         val ziel = zielA.await()
         val fahrer = fahrerOrt
@@ -445,8 +449,8 @@ private fun merkmalIcon(m: String) = when (m) {
 
 /** getRouteNavigationUrl: Abholort als Zwischenziel, Ziel als Endpunkt. */
 private fun navigationsURL(f: FahrtKopf): String? {
-    val abhol = FahrtAdresse.fuerNavigation(f.abholName, f.abholAdresse)
-    val ziel = FahrtAdresse.fuerNavigation(f.zielName, f.zielAdresse)
+    val abhol = FahrtAdresse.fuerNavigation(f.abholName, f.abholAdresse, f.abholOrtID != null)
+    val ziel = FahrtAdresse.fuerNavigation(f.zielName, f.zielAdresse, f.zielOrtID != null)
     if (abhol.isEmpty() && ziel.isEmpty()) return null
     fun k(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
     val basis = "https://www.google.com/maps/dir/?api=1&travelmode=driving"
@@ -500,9 +504,9 @@ private fun BlattInhalt(
         }
 
         // Orte: Icons, Pfeil, Bezeichnung und Name (Name fuehrt zu Google Maps).
-        OrtKachel(ortIcon("${fahrt.abholName} ${fahrt.abholAdresse} ${fahrt.abholKurz}", true), Modifier.bei(20f, y(211f)))
+        OrtKachel(EigeneOrte.iconGrau(fahrt.abholOrtID) ?: ortIcon("${fahrt.abholName} ${fahrt.abholAdresse} ${fahrt.abholKurz}", true), Modifier.bei(20f, y(211f)))
         Icon("Arrow_Trisar_Icons_01_Lime", Modifier.bei((breite - 59f) / 2f, y(231f)).size(59.dp, 38.dp))
-        OrtKachel(ortIcon("${fahrt.zielName} ${fahrt.zielAdresse} ${fahrt.zielKurz}", false), Modifier.bei(breite - 20f - 64f, y(211f)))
+        OrtKachel(EigeneOrte.iconGrau(fahrt.zielOrtID) ?: ortIcon("${fahrt.zielName} ${fahrt.zielAdresse} ${fahrt.zielKurz}", false), Modifier.bei(breite - 20f - 64f, y(211f)))
 
         Row(Modifier.bei(20f, y(289f)).width(innen.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             OrtText(ortArt(fahrt.abholName, fahrt.abholAdresse), fahrt.abholKurz, nav, false, Modifier.weight(1f))

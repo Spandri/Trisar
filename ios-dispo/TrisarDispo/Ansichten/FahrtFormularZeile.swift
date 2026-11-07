@@ -118,6 +118,8 @@ struct VorschlagListe: View {
     let eintraege: [String]
     var kopf: String?
     var maxHoehe: CGFloat = 180
+    /// Icon je Eintrag (eigene Orte stehen mit ihrem Icon oben), nil = ohne Icon.
+    var icons: [String?] = []
     let waehlen: (Int) -> Void
     /// Gemessene Hoehe des Inhalts: Liste so hoch wie der Inhalt, hoechstens maxHoehe (max-h + overflow-y-auto).
     @State private var hoehe: CGFloat = 0
@@ -148,13 +150,18 @@ struct VorschlagListe: View {
             }
             ForEach(Array(eintraege.enumerated()), id: \.offset) { i, eintrag in
                 Button { waehlen(i) } label: {
-                    Text(eintrag)
-                        .font(.grotesk(13, .medium))
-                        .foregroundStyle(formularLime)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .contentShape(Rectangle())
+                    HStack(spacing: 10) {
+                        if i < icons.count, let icon = icons[i] {
+                            Image(icon).resizable().scaledToFit().frame(width: 20, height: 20)
+                        }
+                        Text(eintrag)
+                            .font(.grotesk(13, .medium))
+                            .foregroundStyle(formularLime)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(12)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.web)
                 if i < eintraege.count - 1 {

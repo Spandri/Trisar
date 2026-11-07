@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import de.trisar.kern.EigeneOrte
 import de.trisar.kern.Farbe
 import de.trisar.kern.FahrzeugKarte
 import de.trisar.kern.FussleisteUnten
@@ -304,8 +305,9 @@ private fun AuftragsKarte(
             }
         }
 
-        OrtIcon(ortIcon(fahrt.abholName + " " + fahrt.abholAdresse + " " + fahrt.abholKurz, true), Modifier.platz(53f, 42f, 70f, 70f))
-        OrtIcon(ortIcon(fahrt.zielName + " " + fahrt.zielAdresse + " " + fahrt.zielKurz, false), Modifier.platz(276f, 42f, 70f, 70f))
+        // Eigener Ort der Dispo: sein Icon, sonst Textmuster wie im Web.
+        OrtIcon(EigeneOrte.iconGrau(fahrt.abholOrtID) ?: ortIcon(fahrt.abholName + " " + fahrt.abholAdresse + " " + fahrt.abholKurz, true), Modifier.platz(53f, 42f, 70f, 70f))
+        OrtIcon(EigeneOrte.iconGrau(fahrt.zielOrtID) ?: ortIcon(fahrt.zielName + " " + fahrt.zielAdresse + " " + fahrt.zielKurz, false), Modifier.platz(276f, 42f, 70f, 70f))
 
         if (zeigeEtd) {
             Text("ETD", style = grotesk(10f, 700, abstand = -0.5f, farbe = Farbe.grauText), textAlign = TextAlign.Center,

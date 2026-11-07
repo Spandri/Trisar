@@ -79,6 +79,9 @@ private struct FahrtFormularInhalt: View {
     @State private var aktivesAdressFeld: String?
     @State private var vorschlagLauf: Task<Void, Never>?
     @State private var vorschlagNr = 0
+    /// Eigene Orte der Dispo, die zum Getippten passen (stehen ganz oben in den Vorschlaegen).
+    @ObservedObject private var orte = OrteSpeicher.geteilt
+    @State private var ortTreffer: [String: [EigenerOrt]] = ["start": [], "ziel": []]
 
     @State private var flugEta = EtaMarke()
     @State private var flugPruefung = FahrtPruefung.Anzeige.leer
@@ -259,6 +262,7 @@ private struct FahrtFormularInhalt: View {
         .task(id: ZugAnfrage(nummer: werte.zugnummer, datum: werte.datum, start: werte.start, uebernommen: zugUebernommen)) {
             await zugPruefen()
         }
+        .task { await orte.laden() }
         .task {
             async let fahrer = FahrtSpeichern.fahrerLaden()
             async let gaeste = FahrtSpeichern.gaesteLaden()
@@ -371,7 +375,10 @@ private struct FahrtFormularInhalt: View {
     private var startZeile: some View {
         FormularZeile(beschriftung: t("fahrt.start"), wert: werte.start, zuruecksetzen: {
             werte.start = ""
+            werte.startOrtID = nil
+            werte.startOrtAdresse = ""
             vorschlaege["start"] = []
+            ortTreffer["start"] = []
         }) {
             ZeilenEingabe(text: Binding(get: { werte.start }, set: { adressEingabe($0, "start") }))
                 .focused($fokus, equals: "start")
@@ -475,7 +482,10 @@ private struct FahrtFormularInhalt: View {
             switch z.id {
             case "ziel":
                 werte.ziel = ""
+                werte.zielOrtID = nil
+                werte.zielOrtAdresse = ""
                 vorschlaege["ziel"] = []
+                ortTreffer["ziel"] = []
             case "konvoi":
                 werte.konvoi = ""
                 werte.anzahlFahrzeuge = ""
@@ -526,18 +536,16 @@ private struct FahrtFormularInhalt: View {
     // MARK: Listen (Adressen, Fluege, Fahrer, Gaeste)
 
     @ViewBuilder private func listen(_ reihen: [ZeilenDaten]) -> some View {
-        if aktivesAdressFeld == "start", let liste = vorschlaege["start"], !liste.isEmpty {
-            VorschlagListe(eintraege: liste) { i in adresseWaehlen(liste[i], "start") }
-                .platz(20, 342 + zeilenHoehe + 4, 362, nil)
+        if aktivesAdressFeld == "start" {
+            adressListe("start").platz(20, 342 + zeilenHoehe + 4, 362, nil)
         }
         if kandidatenOffen, !flugKandidaten.isEmpty, let i = reihen.firstIndex(where: { $0.id == "flugnummer" }) {
             VorschlagListe(eintraege: flugKandidaten.enumerated().map { n, k in kandidatText(k, n) }, kopf: kandidatenKopf,
                            maxHoehe: 220) { n in kandidatWaehlen(flugKandidaten[n]) }
                 .platz(20, reihenStart + CGFloat(i) * schritt + zeilenHoehe + 4, 362, nil)
         }
-        if aktivesAdressFeld == "ziel", let liste = vorschlaege["ziel"], !liste.isEmpty {
-            VorschlagListe(eintraege: liste) { i in adresseWaehlen(liste[i], "ziel") }
-                .platz(20, reihenStart + zeilenHoehe + 4, 362, nil)
+        if aktivesAdressFeld == "ziel" {
+            adressListe("ziel").platz(20, reihenStart + zeilenHoehe + 4, 362, nil)
         }
         if let fokus, !autoListeZu, let i = reihen.firstIndex(where: { $0.id == fokus }),
            reihen[i].art == .fahrer || reihen[i].art == .gast {
@@ -550,6 +558,22 @@ private struct FahrtFormularInhalt: View {
                     if z.art == .gast, z.index < gaesteNamen.count { gaesteNamen[z.index] = treffer[n] }
                 }
                 .platz(20, reihenStart + CGFloat(i) * schritt + zeilenHoehe + 4, 362, nil)
+            }
+        }
+    }
+
+    /// Eigene Orte (mit Icon) ganz oben, darunter die Adressvorschlaege.
+    @ViewBuilder private func adressListe(_ feld: String) -> some View {
+        let treffer = ortTreffer[feld] ?? []
+        let adressen = vorschlaege[feld] ?? []
+        if !treffer.isEmpty || !adressen.isEmpty {
+            VorschlagListe(eintraege: treffer.map(\.name) + adressen,
+                           icons: treffer.map { Optional($0.symbol.grau) }) { i in
+                if i < treffer.count {
+                    ortWaehlen(treffer[i], feld)
+                } else {
+                    adresseWaehlen(adressen[i - treffer.count], feld)
+                }
             }
         }
     }
@@ -576,9 +600,17 @@ private struct FahrtFormularInhalt: View {
 
     /// fetchAddressPredictions: 250 ms warten, nur das juengste Ergebnis zaehlt.
     private func adressEingabe(_ text: String, _ feld: String) {
-        if feld == "start" { werte.start = text } else { werte.ziel = text }
+        // Frei weitergetippt: der gewaehlte Ort gilt nicht mehr.
+        if feld == "start" {
+            if text != werte.start { werte.startOrtID = nil; werte.startOrtAdresse = "" }
+            werte.start = text
+        } else {
+            if text != werte.ziel { werte.zielOrtID = nil; werte.zielOrtAdresse = "" }
+            werte.ziel = text
+        }
         vorschlagLauf?.cancel()
         let suche = FahrtText.getrimmt(text)
+        ortTreffer[feld] = orte.treffer(suche)
         if suche.isEmpty {
             vorschlaege[feld] = []
             if aktivesAdressFeld == feld { aktivesAdressFeld = nil }
@@ -597,8 +629,34 @@ private struct FahrtFormularInhalt: View {
     }
 
     private func adresseWaehlen(_ wert: String, _ feld: String) {
-        if feld == "start" { werte.start = wert } else { werte.ziel = wert }
+        if feld == "start" {
+            werte.start = wert
+            werte.startOrtID = nil
+            werte.startOrtAdresse = ""
+        } else {
+            werte.ziel = wert
+            werte.zielOrtID = nil
+            werte.zielOrtAdresse = ""
+        }
         vorschlaege[feld] = []
+        ortTreffer[feld] = []
+        aktivesAdressFeld = nil
+    }
+
+    /// Eigener Ort: im Feld der Name, gespeichert werden Ortsadresse und *_ort_id.
+    private func ortWaehlen(_ ort: EigenerOrt, _ feld: String) {
+        vorschlagLauf?.cancel()
+        if feld == "start" {
+            werte.start = ort.name
+            werte.startOrtID = ort.id
+            werte.startOrtAdresse = ort.adresse
+        } else {
+            werte.ziel = ort.name
+            werte.zielOrtID = ort.id
+            werte.zielOrtAdresse = ort.adresse
+        }
+        vorschlaege[feld] = []
+        ortTreffer[feld] = []
         aktivesAdressFeld = nil
     }
 
@@ -721,7 +779,7 @@ private struct FahrtFormularInhalt: View {
             return
         }
         if !zeit.isEmpty { werte.startZeit = zeit }
-        if !ort.isEmpty { werte.start = ort }
+        if !ort.isEmpty { werte.start = ort; werte.startOrtID = nil; werte.startOrtAdresse = "" }
         flugUebernommen = flugNr
     }
 
@@ -740,7 +798,7 @@ private struct FahrtFormularInhalt: View {
             return
         }
         if !zeit.isEmpty { werte.startZeit = zeit }
-        if !ort.isEmpty { werte.start = ort }
+        if !ort.isEmpty { werte.start = ort; werte.startOrtID = nil; werte.startOrtAdresse = "" }
         zugUebernommen = zugNr
     }
 

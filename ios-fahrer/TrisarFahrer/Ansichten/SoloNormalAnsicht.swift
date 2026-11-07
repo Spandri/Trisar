@@ -12,6 +12,8 @@ struct SoloNormalAnsicht: View {
     @EnvironmentObject private var anmeldung: Anmeldung
     @EnvironmentObject private var ortung: Ortung
     @StateObject private var details: FahrtDetails
+    /// Eigene Orte der Dispo: Icon und Pin des Orts, wenn die Fahrt einen hat.
+    @ObservedObject private var orte = OrteSpeicher.geteilt
 
     @State private var blattProzent: CGFloat = 50
     @State private var ziehBeginn: CGFloat?
@@ -210,12 +212,14 @@ struct SoloNormalAnsicht: View {
             }
 
             // Orte: Icons, Pfeil, Bezeichnung und Name (Name fuehrt zu Google Maps).
-            OrtKachel(name: Self.icon(fahrt.abholName + " " + fahrt.abholAdresse + " " + fahrt.abholKurz, start: true))
+            OrtKachel(name: orte.iconGrau(fahrt.abholOrtID)
+                ?? Self.icon(fahrt.abholName + " " + fahrt.abholAdresse + " " + fahrt.abholKurz, start: true))
                 .platz(20, y(211), 64, 64)
             Image("Arrow_Trisar_Icons_01_Lime").resizable().scaledToFit()
                 .frame(width: 59, height: 38)
                 .platz((breite - 59) / 2, y(231), 59, 38)
-            OrtKachel(name: Self.icon(fahrt.zielName + " " + fahrt.zielAdresse + " " + fahrt.zielKurz, start: false))
+            OrtKachel(name: orte.iconGrau(fahrt.zielOrtID)
+                ?? Self.icon(fahrt.zielName + " " + fahrt.zielAdresse + " " + fahrt.zielKurz, start: false))
                 .platz(breite - 20 - 64, y(211), 64, 64)
 
             HStack(alignment: .top, spacing: 18) {
@@ -422,7 +426,10 @@ struct SoloNormalAnsicht: View {
         let zielText = fahrt.zielAdresse.isEmpty ? fahrt.zielName : fahrt.zielAdresse
         async let abholAbfrage = Routen.punkt(fuer: abholText)
         async let zielAbfrage = Routen.punkt(fuer: zielText)
-        let abhol = await abholAbfrage, ziel = await zielAbfrage
+        // Eigener Ort: sein Pin (auf die Einfahrt gesetzt) statt der gesuchten Adresse.
+        let abholGesucht = await abholAbfrage, zielGesucht = await zielAbfrage
+        let abhol = orte.ort(fahrt.abholOrtID)?.punkt ?? abholGesucht
+        let ziel = orte.ort(fahrt.zielOrtID)?.punkt ?? zielGesucht
         let fahrer = fahrerOrt
         var neu = KarteAnsicht.Inhalt()
         neu.ziel = ziel
@@ -565,8 +572,11 @@ struct SoloNormalAnsicht: View {
 
     /// getRouteNavigationUrl: Abholort als Zwischenziel, Ziel als Endpunkt.
     static func navigationsURL(_ fahrt: Fahrt) -> URL? {
-        let abhol = Adresse.fuerNavigation(name: fahrt.abholName, adresse: fahrt.abholAdresse)
-        let ziel = Adresse.fuerNavigation(name: fahrt.zielName, adresse: fahrt.zielAdresse)
+        // Bei eigenen Orten nur die Adresse: Maps kennt Namen wie "Mercedes Event Location" nicht.
+        let abhol = Adresse.fuerNavigation(name: fahrt.abholOrtID != nil && !fahrt.abholAdresse.isEmpty ? "" : fahrt.abholName,
+                                           adresse: fahrt.abholAdresse)
+        let ziel = Adresse.fuerNavigation(name: fahrt.zielOrtID != nil && !fahrt.zielAdresse.isEmpty ? "" : fahrt.zielName,
+                                          adresse: fahrt.zielAdresse)
         guard !abhol.isEmpty || !ziel.isEmpty else { return nil }
         var teile = URLComponents(string: "https://www.google.com/maps/dir/")!
         var q: [URLQueryItem] = [.init(name: "api", value: "1"), .init(name: "travelmode", value: "driving")]

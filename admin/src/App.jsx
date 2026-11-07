@@ -60,6 +60,20 @@ const MISSING_TRAIN_NUMBER_COLUMN_RE = /column .*train_number|could not find the
 const MISSING_TRAIN_TIMES_COLUMNS_RE = /column .*train_planned_time|column .*train_predicted_time|could not find the ['"]?train_planned_time['"]? column|could not find the ['"]?train_predicted_time['"]? column/i;
 const MISSING_JOBS_EXT_COLUMN_RE = /column .*ext_flight_payload|column .*ext_flight_last_sync_at|could not find the ['"]?ext_flight_payload['"]? column|could not find the ['"]?ext_flight_last_sync_at['"]? column/i;
 const MISSING_AI_BOOKED_COLUMN_RE = /column .*ai_booked|could not find the ['"]?ai_booked['"]? column/i;
+// Eigene Orte (Migration 20261107090000_orte_radien): fehlt die Spalte noch, ohne sie weiter.
+const MISSING_ORT_COLUMN_RE = /column .*(pickup|dropoff)_ort_id|could not find the ['"]?(pickup|dropoff)_ort_id['"]? column/i;
+// Start/Ziel aus dem Formular: mit eigenem Ort ist start/ziel der Ortsname, die Adresse
+// kommt getrennt mit (startAdresse/zielAdresse). Sonst ist der Text Name und Adresse zugleich.
+const ortFelderAusPayload = (payload, start, ziel) => {
+  const startOrtId = String(payload?.startOrtId || '').trim();
+  const zielOrtId = String(payload?.zielOrtId || '').trim();
+  return {
+    startOrtId,
+    zielOrtId,
+    startAdresse: (startOrtId && String(payload?.startAdresse || '').trim()) || start,
+    zielAdresse: (zielOrtId && String(payload?.zielAdresse || '').trim()) || ziel,
+  };
+};
 const MISSING_JOB_NOTES_TABLE_RE = /relation .*job_notes|table .*job_notes|does not exist/i;
 const MISSING_CONVOY_ASSIGNMENTS_TABLE_RE = /relation .*convoy_assignments|table .*convoy_assignments|does not exist/i;
 const MISSING_JOBS_ARCHIVE_TABLE_RE = /relation .*jobs_archive|table .*jobs_archive|does not exist/i;
@@ -1275,6 +1289,7 @@ export default function App() {
         const fallbackReadClient = hasSupabaseAdminConfig ? supabase : supabaseAdmin;
         const jobSelectBase = 'id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins';
         const jobSelectCandidates = [
+          `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id`,
           `${jobSelectBase}, ai_booked, flight_number, train_number`,
           `${jobSelectBase}, flight_number, train_number`,
           `${jobSelectBase}, ai_booked, train_number`,
@@ -1304,7 +1319,8 @@ export default function App() {
             MISSING_FLIGHT_NUMBER_COLUMN_RE.test(jobsResult.error.message || '')
             || MISSING_AI_BOOKED_COLUMN_RE.test(jobsResult.error.message || '')
             || MISSING_TRAIN_TIMES_COLUMNS_RE.test(jobsResult.error.message || '')
-            || MISSING_JOBS_EXT_COLUMN_RE.test(jobsResult.error.message || '');
+            || MISSING_JOBS_EXT_COLUMN_RE.test(jobsResult.error.message || '')
+            || MISSING_ORT_COLUMN_RE.test(jobsResult.error.message || '');
           if (!isMissingKnownColumn) break;
         }
         console.log('✅ Jobs-Ergebnis:', jobsResult);
@@ -1540,6 +1556,9 @@ export default function App() {
           const zielLabel = extractLocationLabel(dropoffName, dropoffAddress);
           const startEditorValue = pickupAddress || pickupName || startLabel;
           const zielEditorValue = dropoffAddress || dropoffName || zielLabel;
+          // Eigener Ort: im Editor steht sein Name, gespeichert wird weiter seine Adresse.
+          const startOrtId = String(job.pickup_ort_id || '').trim();
+          const zielOrtId = String(job.dropoff_ort_id || '').trim();
           const route = `${startLabel} - ${zielLabel}`;
           const profile = driverId ? profileById.get(driverId) : null;
           const profileToDriverEntry = (row, fallbackId = '', responseStatus = 'pending') => {
@@ -1719,6 +1738,10 @@ export default function App() {
             zielLocation: zielEditorValue,
             start: startEditorValue,
             ziel: zielEditorValue,
+            startOrtId,
+            startOrtName: startOrtId ? pickupName : '',
+            zielOrtId,
+            zielOrtName: zielOrtId ? dropoffName : '',
             startZeit: effectiveEtd || originalEtd || '--:--',
             fahrerNamen,
             fahrerAntworten: hasDrivers ? mergedDriverResponses : [],
@@ -2263,6 +2286,10 @@ export default function App() {
         startZeit: String(ride.startZeit || ride.time?.new || ride.time?.time || ride.time?.original || ''),
         start: String(ride.start || routeParts[0] || '').trim(),
         ziel: String(ride.ziel || routeParts.slice(1).join(' - ') || '').trim(),
+        startOrtId: ride.startOrtId || '',
+        startOrtName: ride.startOrtName || '',
+        zielOrtId: ride.zielOrtId || '',
+        zielOrtName: ride.zielOrtName || '',
         konvoi: ride.konvoi || '',
         anzahlFahrzeuge: String(ride.anzahlFahrzeuge || ''),
         fahrerNamen: Array.isArray(ride.fahrerNamen) && ride.fahrerNamen.length > 0 ? ride.fahrerNamen : [''],
@@ -2479,6 +2506,7 @@ export default function App() {
     if (!start || !ziel) {
       return { ok: false, error: t('app.startZielFehlt') };
     }
+    const { startOrtId, zielOrtId, startAdresse, zielAdresse } = ortFelderAusPayload(payload, start, ziel);
 
     const rideDate = normalizeRideDateValue(payload?.datum, '');
     if (!rideDate) {
@@ -2505,13 +2533,13 @@ export default function App() {
     const flightValidation = await validateFlightForSave(
       normalizedFlightNumber,
       rideDate,
-      String(payload?.flugZielFlughafen || '').trim() || start,
+      String(payload?.flugZielFlughafen || '').trim() || startAdresse,
       String(payload?.flugAnkunftGeplant || '').trim(),
     );
     if (!flightValidation.ok) {
       return { ok: false, error: flightValidation.error || t('app.flugValidierungFehler') };
     }
-    const trainValidation = await validateTrainForSave(normalizedTrainNumber, rideDate, start);
+    const trainValidation = await validateTrainForSave(normalizedTrainNumber, rideDate, startAdresse);
     if (!trainValidation.ok) {
       return { ok: false, error: trainValidation.error || t('app.zugValidierungFehler') };
     }
@@ -2615,8 +2643,8 @@ export default function App() {
         || String(resolvedDriverId || '') !== existingJobDriverId
         || String(existingJob.ride_date || '') !== rideDate
         || !sameClock(existingJob.etd, startZeit)
-        || String(existingJob.pickup_address || '').trim() !== start
-        || String(existingJob.dropoff_address || '').trim() !== ziel;
+        || String(existingJob.pickup_address || '').trim() !== startAdresse
+        || String(existingJob.dropoff_address || '').trim() !== zielAdresse;
       const shouldReRequestDriverResponse = Boolean(resolvedDriverId) && !isFinalRequestedStatus && driverOrTripChanged;
       // Status nur schreiben, wenn die Dispo ihn im Editor selbst geaendert hat (Vergleich mit dem Stand
       // beim Oeffnen). Sonst bleibt der aktuelle DB-Status: der Fahrer kann die Fahrt inzwischen beendet
@@ -2635,9 +2663,12 @@ export default function App() {
 
       const updatePayload = {
         pickup_name: start,
-        pickup_address: start,
+        pickup_address: startAdresse,
         dropoff_name: ziel,
-        dropoff_address: ziel,
+        dropoff_address: zielAdresse,
+        // Immer mitschicken: frei getippt heisst kein Ort mehr.
+        pickup_ort_id: startOrtId || null,
+        dropoff_ort_id: zielOrtId || null,
         ride_date: rideDate,
         etd: (hasValidatedTrain ? trainEtdValues.etd : startZeit) || null,
         original_etd: (hasValidatedTrain ? trainEtdValues.originalEtd : startZeit) || null,
@@ -2684,6 +2715,17 @@ export default function App() {
         || (!updateResult.error && !hasUpdatedRows(updateResult) && hasSupabaseAdminConfig)
       ) {
         updateResult = await runJobUpdate(supabaseAdmin, updatePayload);
+      }
+      if (updateResult.error && MISSING_ORT_COLUMN_RE.test(updateResult.error.message || '')) {
+        delete updatePayload.pickup_ort_id;
+        delete updatePayload.dropoff_ort_id;
+        updateResult = await runJobUpdate(supabase, updatePayload);
+        if (
+          (updateResult.error && ADMIN_FALLBACK_ERROR_RE.test(updateResult.error.message || ''))
+          || (!updateResult.error && !hasUpdatedRows(updateResult) && hasSupabaseAdminConfig)
+        ) {
+          updateResult = await runJobUpdate(supabaseAdmin, updatePayload);
+        }
       }
       if (updateResult.error && (MISSING_FLIGHT_NUMBER_COLUMN_RE.test(updateResult.error.message || '') || MISSING_TRAIN_NUMBER_COLUMN_RE.test(updateResult.error.message || '') || MISSING_TRAIN_TIMES_COLUMNS_RE.test(updateResult.error.message || '') || MISSING_AI_BOOKED_COLUMN_RE.test(updateResult.error.message || '') || MISSING_JOBS_EXT_COLUMN_RE.test(updateResult.error.message || ''))) {
         const fallbackPayload = { ...updatePayload };
@@ -2895,6 +2937,7 @@ export default function App() {
     if (!start || !ziel) {
       return { ok: false, error: t('app.startZielFehlt') };
     }
+    const { startOrtId, zielOrtId, startAdresse, zielAdresse } = ortFelderAusPayload(payload, start, ziel);
 
     const rideDate = normalizeRideDateValue(payload?.datum, '');
     if (!rideDate) {
@@ -2915,13 +2958,13 @@ export default function App() {
     const flightValidation = await validateFlightForSave(
       normalizedFlightNumber,
       rideDate,
-      String(payload?.flugZielFlughafen || '').trim() || start,
+      String(payload?.flugZielFlughafen || '').trim() || startAdresse,
       String(payload?.flugAnkunftGeplant || '').trim(),
     );
     if (!flightValidation.ok) {
       return { ok: false, error: flightValidation.error || t('app.flugValidierungFehler') };
     }
-    const trainValidation = await validateTrainForSave(normalizedTrainNumber, rideDate, start);
+    const trainValidation = await validateTrainForSave(normalizedTrainNumber, rideDate, startAdresse);
     if (!trainValidation.ok) {
       return { ok: false, error: trainValidation.error || t('app.zugValidierungFehler') };
     }
@@ -2986,9 +3029,11 @@ export default function App() {
 
       const insertPayload = {
         pickup_name: start,
-        pickup_address: start,
+        pickup_address: startAdresse,
         dropoff_name: ziel,
-        dropoff_address: ziel,
+        dropoff_address: zielAdresse,
+        ...(startOrtId ? { pickup_ort_id: startOrtId } : {}),
+        ...(zielOrtId ? { dropoff_ort_id: zielOrtId } : {}),
         ride_date: rideDate,
         etd: (hasValidatedTrain ? trainEtdValues.etd : startZeit) || null,
         original_etd: (hasValidatedTrain ? trainEtdValues.originalEtd : startZeit) || null,
@@ -3010,6 +3055,14 @@ export default function App() {
       let createResult = await supabase.from('jobs').insert(insertPayload).select('id').single();
       if (createResult.error && ADMIN_FALLBACK_ERROR_RE.test(createResult.error.message || '')) {
         createResult = await supabaseAdmin.from('jobs').insert(insertPayload).select('id').single();
+      }
+      if (createResult.error && MISSING_ORT_COLUMN_RE.test(createResult.error.message || '')) {
+        delete insertPayload.pickup_ort_id;
+        delete insertPayload.dropoff_ort_id;
+        createResult = await supabase.from('jobs').insert(insertPayload).select('id').single();
+        if (createResult.error && ADMIN_FALLBACK_ERROR_RE.test(createResult.error.message || '')) {
+          createResult = await supabaseAdmin.from('jobs').insert(insertPayload).select('id').single();
+        }
       }
       if (createResult.error && (MISSING_FLIGHT_NUMBER_COLUMN_RE.test(createResult.error.message || '') || MISSING_TRAIN_NUMBER_COLUMN_RE.test(createResult.error.message || '') || MISSING_TRAIN_TIMES_COLUMNS_RE.test(createResult.error.message || '') || MISSING_AI_BOOKED_COLUMN_RE.test(createResult.error.message || '') || MISSING_JOBS_EXT_COLUMN_RE.test(createResult.error.message || ''))) {
         const fallbackPayload = { ...insertPayload };
@@ -3717,7 +3770,7 @@ export default function App() {
       return <KartenView setView={navigateTo} filters={kartenFilter} />;
     }
     if (view === 'kartenFilter') {
-      return <KartenFilterView setView={navigateTo} filters={kartenFilter} onChangeFilters={setKartenFilter} />;
+      return <KartenFilterView setView={navigateTo} filters={kartenFilter} onChangeFilters={setKartenFilter} onFetchPlaceSuggestions={handleFetchPlaceSuggestions} />;
     }
     if (view === 'fahrtenFilter') {
       return <FahrtenFilter setView={navigateTo} filters={fahrtenFilter} onChangeFilters={setFahrtenFilter} />;

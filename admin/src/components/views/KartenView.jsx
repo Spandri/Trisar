@@ -8,6 +8,8 @@ import { adresseAufloesen, karteBereitstellen } from '../../shared/karte/maplibr
 import { FahrSimulation } from '../../demo/fahrSimulation';
 import { DEMO_MODE } from '../../datenquelle';
 import { useRoutenStandort } from '../../shared/routenStandort';
+import { ortIconUrl, ortNachId, useOrte } from '../../shared/orte';
+import { ortKreiseAusblenden, ortKreiseZeigen, ortSchildBauen } from '../../shared/karte/ortKreise';
 
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
@@ -486,6 +488,9 @@ const buildDriverRideInfo = ({
   const dropoffValues = getDropoffValuesFromJob(rideJob);
   const startArt = ortsArt(pickupValues.name, pickupValues.address);
   const zielArt = ortsArt(dropoffValues.name, dropoffValues.address);
+  // Eigener Ort der Fahrt: sein Icon gewinnt vor dem Textmuster.
+  const startOrt = ortNachId(rideJob?.pickup_ort_id);
+  const zielOrt = ortNachId(rideJob?.dropoff_ort_id);
   const sortedDriverJobs = (Array.isArray(allJobs) ? allJobs : [])
     .map((job) => ({ job, dateTime: toDateTimeFromRide(job?.ride_date, job?.etd) }))
     .filter((entry) => Boolean(entry?.dateTime))
@@ -508,15 +513,15 @@ const buildDriverRideInfo = ({
     unterwegs: Boolean(rideJob) && ['in_progress', 'unterwegs', 'started', 'on_trip', 'ongoing', 'active'].includes(String(rideJob?.status || '').trim().toLowerCase()),
     from: rideJob
       ? {
-          type: t(ORTS_LABEL_KEY[startArt]),
-          icon: ortsIcon(startArt, true),
+          type: startOrt ? t('orte.eigenerOrt') : t(ORTS_LABEL_KEY[startArt]),
+          icon: startOrt ? ortIconUrl(startOrt.icon) : ortsIcon(startArt, true),
           label: extractLocationLabel(pickupValues.name, pickupValues.address),
         }
       : { type: '-', label: t('karten.noActiveRide') },
     to: rideJob
       ? {
-          type: t(ORTS_LABEL_KEY[zielArt]),
-          icon: ortsIcon(zielArt, false),
+          type: zielOrt ? t('orte.eigenerOrt') : t(ORTS_LABEL_KEY[zielArt]),
+          icon: zielOrt ? ortIconUrl(zielOrt.icon) : ortsIcon(zielArt, false),
           label: extractLocationLabel(dropoffValues.name, dropoffValues.address),
         }
       : { type: '-', label: '-' },
@@ -733,7 +738,7 @@ const ensureCoordinatorReadSession = async () => {
   }
 };
 
-function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyClick, sheetPercent, onRouteMetricsChange = () => {}, resetCameraSignal = 0 }) {
+function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyClick, sheetPercent, onRouteMetricsChange = () => {}, resetCameraSignal = 0, orte = [], gewaehlterOrtId = null, onOrtToggle = () => {} }) {
   const { t } = useI18n();
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -869,6 +874,15 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
   useEffect(() => {
     onMapEmptyClickRef.current = onMapEmptyClick;
   }, [onMapEmptyClick]);
+
+  // Eigene Orte der Dispo als Icon-Marker. Klick zeigt die Radien als Kreise
+  // samt Schild (Name, Radien), erneuter Klick oder Klick auf die Karte blendet aus.
+  const ortMarkerRef = useRef(new Map());
+  const ortSchildRef = useRef(null);
+  const onOrtToggleRef = useRef(onOrtToggle);
+  useEffect(() => {
+    onOrtToggleRef.current = onOrtToggle;
+  }, [onOrtToggle]);
 
   const hasActiveRide = Boolean(selectedDriver?.activeRide);
 
@@ -1138,6 +1152,65 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
       setMapReady(false);
     };
   }, [clearClusterMarkers, clearRouteOverlays]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!mapReady || !map || !window.trisarKarte) return;
+    const vorhanden = ortMarkerRef.current;
+    const ids = new Set();
+    (Array.isArray(orte) ? orte : []).forEach((ort) => {
+      if (!Number.isFinite(Number(ort?.lat)) || !Number.isFinite(Number(ort?.lng))) return;
+      ids.add(ort.id);
+      const icon = {
+        url: ortIconUrl(ort.icon, ort.id === gewaehlterOrtId),
+        scaledSize: new window.trisarKarte.Size(28, 28),
+        anchor: new window.trisarKarte.Point(14, 14),
+      };
+      const position = { lat: Number(ort.lat), lng: Number(ort.lng) };
+      let eintrag = vorhanden.get(ort.id);
+      if (!eintrag) {
+        const marker = new window.trisarKarte.Marker({ position, map, icon, title: ort.name, zIndex: 40 });
+        marker.addListener('click', (event) => {
+          event?.stopPropagation?.();
+          onOrtToggleRef.current?.(ort.id);
+        });
+        eintrag = { marker, url: icon.url };
+        vorhanden.set(ort.id, eintrag);
+      } else {
+        eintrag.marker.setPosition(position);
+        eintrag.marker.setTitle(ort.name);
+        if (eintrag.url !== icon.url) {
+          eintrag.marker.setIcon(icon);
+          eintrag.url = icon.url;
+        }
+      }
+    });
+    vorhanden.forEach((eintrag, id) => {
+      if (ids.has(id)) return;
+      eintrag.marker.setMap(null);
+      vorhanden.delete(id);
+    });
+  }, [mapReady, orte, gewaehlterOrtId]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!mapReady || !map) return;
+    const ort = (Array.isArray(orte) ? orte : []).find((eintrag) => eintrag.id === gewaehlterOrtId) || null;
+    if (!ortSchildRef.current) ortSchildRef.current = ortSchildBauen();
+    if (!ort) {
+      ortKreiseAusblenden(map);
+      ortSchildRef.current.ausblenden();
+      return;
+    }
+    ortKreiseZeigen(map, ort);
+    ortSchildRef.current.zeigen(map, ort, t('orte.radienKurz', { rein: ort.radius_rein_m, raus: ort.radius_raus_m }));
+  }, [mapReady, orte, gewaehlterOrtId, t]);
+
+  useEffect(() => () => {
+    ortMarkerRef.current.forEach((eintrag) => eintrag.marker.setMap(null));
+    ortMarkerRef.current.clear();
+    ortSchildRef.current?.ausblenden();
+  }, []);
 
   useEffect(() => {
     if (!mapReady || !window.trisarKarte) return;
@@ -2382,6 +2455,21 @@ export default function KartenView({ setView, filters = {} }) {
           return { data: merged, error: null };
         };
 
+        // Eigene Orte der Fahrten (Icon in der Fahrtinfo). Eigene Abfrage, damit die
+        // Spaltenauswahl oben nicht zurueckfaellt, solange die Migration fehlt.
+        const ortZuordnungResult = await runInBatches({
+          ids: jobIds,
+          queryChunk: (batch) => supabase.from('jobs').select('id, pickup_ort_id, dropoff_ort_id').in('id', batch),
+          tolerateError: () => true,
+        });
+        const ortZuordnung = new Map((ortZuordnungResult.data || []).map((row) => [String(row?.id || ''), row]));
+        jobRows.forEach((row) => {
+          const zuordnung = ortZuordnung.get(String(row?.id || ''));
+          if (!zuordnung) return;
+          row.pickup_ort_id = zuordnung.pickup_ort_id || null;
+          row.dropoff_ort_id = zuordnung.dropoff_ort_id || null;
+        });
+
         const convoyAssignmentsResult = await runInBatches({
           ids: jobIds,
           queryChunk: async (batch) => {
@@ -2762,6 +2850,12 @@ export default function KartenView({ setView, filters = {} }) {
     setView('list');
   };
 
+  const { orte } = useOrte();
+  const [gewaehlterOrtId, setGewaehlterOrtId] = useState(null);
+  const handleOrtToggle = useCallback((ortId) => {
+    setGewaehlterOrtId((prev) => (prev === ortId ? null : ortId));
+  }, []);
+
   const handleSelectDriver = useCallback((driverId) => {
     // Zweiter Klick auf denselben Fahrer hebt den Fokus wieder auf.
     setSelectedDriverId((prev) => (prev === driverId ? null : driverId));
@@ -2771,6 +2865,7 @@ export default function KartenView({ setView, filters = {} }) {
 
   // Tipp auf die leere Karte: Auswahl aufheben und Blatt schliessen.
   const handleMapEmptyClick = useCallback(() => {
+    setGewaehlterOrtId(null);
     setSelectedDriverId(null);
     setRouteMetrics(null);
     setSheetPercent(getMinSheetPercent());
@@ -2849,6 +2944,9 @@ export default function KartenView({ setView, filters = {} }) {
         sheetPercent={selectedDriver ? sheetPercent : 0}
         onRouteMetricsChange={setRouteMetrics}
         resetCameraSignal={resetCameraSignal}
+        orte={orte}
+        gewaehlterOrtId={gewaehlterOrtId}
+        onOrtToggle={handleOrtToggle}
       />
 
       {driversError ? (

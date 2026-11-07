@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import de.trisar.kern.Backend
+import de.trisar.kern.EigeneOrte
 import de.trisar.kern.hex
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
@@ -96,6 +97,9 @@ internal data class KartenFahrt(
     val vonSuche: String,
     val nachSuche: String,
     val kolonnenFahrerIDs: List<String> = emptyList(),
+    /** Pin des eigenen Orts (pickup_ort_id / dropoff_ort_id), sonst wird die Adresse gesucht. */
+    val vonPunkt: KartenPunkt? = null,
+    val nachPunkt: KartenPunkt? = null,
 )
 
 internal data class KartenFahrer(
@@ -273,7 +277,9 @@ internal class KartenDaten {
             val jobsMitZeit = jobsBasis + ", ext_route_duration_mins, ext_route_duration_in_traffic_mins, " +
                 "ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at"
             var jobs: List<JsonObject> = emptyList()
-            for (spalten in listOf(jobsMitZeit, jobsBasis)) {
+            // Mit Ort-Zuordnung (Migration orte_radien), ohne sie, falls die Spalten noch fehlen.
+            val jobsMitOrt = "$jobsMitZeit, pickup_ort_id, dropoff_ort_id"
+            for (spalten in listOf(jobsMitOrt, jobsMitZeit, jobsBasis)) {
                 try {
                     jobs = Backend.client.from("jobs").select(Columns.raw(spalten)) {
                         order("ride_date", Order.ASCENDING)
@@ -543,8 +549,14 @@ internal object KartenRegeln {
         return name.ifEmpty { adresse }
     }
 
-    /** ortsArt + ortsIcon: Flughafen, Hotel oder Adresse (graue Icons). */
-    fun ortsArt(name: String, adresse: String, start: Boolean): Pair<String, String> {
+    /** ortsArt + ortsIcon: Flughafen, Hotel oder Adresse (graue Icons). Mit eigenem Ort gewinnt dessen Icon. */
+    fun ortsArt(name: String, adresse: String, start: Boolean, ortID: String = ""): Pair<String, String> {
+        val art = ortsArtText(name, adresse, start)
+        val eigen = EigeneOrte.iconGrau(ortID) ?: return art
+        return art.first to eigen
+    }
+
+    private fun ortsArtText(name: String, adresse: String, start: Boolean): Pair<String, String> {
         val text = "$name $adresse".lowercase()
         fun passt(muster: String) = Regex("\\b($muster)\\b").containsMatchIn(text)
         if (passt("flughafen|airport|terminal|muc|fra|ber|ham|dus|str|cgn")) {
@@ -574,8 +586,8 @@ internal object KartenRegeln {
         val geplanteAbfahrt = uhrText(jText(job["etd"]))
         val (vn, va) = abholung(job)
         val (zn, za) = ziel(job)
-        val s = ortsArt(vn, va, true)
-        val z = ortsArt(zn, za, false)
+        val s = ortsArt(vn, va, true, jText(job["pickup_ort_id"]))
+        val z = ortsArt(zn, za, false, jText(job["dropoff_ort_id"]))
         info = info.copy(
             abfahrt = abfahrt(job, jetzt) ?: geplanteAbfahrt,
             ankunft = ankunft(job, routenDauer(job), jetzt) ?: "--:--",
@@ -594,7 +606,12 @@ internal object KartenRegeln {
         val von = suche(vn, va)
         val nach = suche(zn, za)
         if (von.isEmpty() || nach.isEmpty()) return null
-        return KartenFahrt(jText(job["id"]), status(job["status"]), von, nach)
+        val vo = EigeneOrte.zuID(jText(job["pickup_ort_id"]))
+        val no = EigeneOrte.zuID(jText(job["dropoff_ort_id"]))
+        return KartenFahrt(
+            jText(job["id"]), status(job["status"]), von, nach,
+            vonPunkt = vo?.let { KartenPunkt(it.lat, it.lng) }, nachPunkt = no?.let { KartenPunkt(it.lat, it.lng) },
+        )
     }
 
     /** formatDuration: "12 min" oder "1:05 h". */

@@ -3,6 +3,8 @@ import BackCircleButton from '../ui/BackCircleButton';
 import TrisarFooter from '../ui/TrisarFooter';
 import { useI18n } from '../../i18n';
 import { supabase } from '../../services/supabase';
+import OrtBearbeitenView, { RadiusFeld } from './OrtBearbeitenView';
+import { ortIconUrl, radienPruefen, standardSpeichern, useOrte } from '../../shared/orte';
 
 const GREEN = '#E3F654';
 const RED = '#ff6b6b';
@@ -242,6 +244,28 @@ function TrackerStufeStatus({ top, row }) {
   );
 }
 
+// Eigener Ort in der Liste: Icon, Name, Radien. Antippen = bearbeiten.
+function OrtZeile({ top, ort, onClick }) {
+  const { t } = useI18n();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-tutorial={`karte-filter-ort-${ort.id}`}
+      className="absolute left-[20px] w-[362px] h-14 border-2 border-[#E3F654] flex items-center gap-3 px-3 text-left"
+      style={{ top: `${top}px` }}
+    >
+      <img src={ortIconUrl(ort.icon)} alt="" className="w-[30px] h-[30px] object-contain shrink-0" />
+      <span className="flex-1 min-w-0 truncate text-base leading-6 tracking-[0.5px] text-[#E3F654] font-medium font-['Space_Grotesk']">{ort.name}</span>
+      <span className="shrink-0 text-sm leading-6 tracking-[0.5px] text-[#E3F654]/60 font-medium font-['Space_Grotesk']">
+        {t('orte.radienKurz', { rein: ort.radius_rein_m, raus: ort.radius_raus_m })}
+      </span>
+    </button>
+  );
+}
+
+const ORT_ZEILE_STEP = 68;
+
 const DEFAULT_KARTEN_FILTERS = {
   driverSearch: '',
   selectedDriverIds: [],
@@ -252,9 +276,19 @@ const DEFAULT_KARTEN_FILTERS = {
   vehicleCoupe: false,
 };
 
-export default function KartenFilterView({ setView, filters = {}, onChangeFilters = () => {} }) {
+export default function KartenFilterView({ setView, filters = {}, onChangeFilters = () => {}, onFetchPlaceSuggestions = async () => [] }) {
   const { t } = useI18n();
   const { tracker, setzen: setzeStufe, fehler: stufeFehler } = useTrackerStufen();
+  const { orte, standard } = useOrte();
+  // Bearbeiteter Ort: null = Filter, {} = neuer Ort, sonst der Ort.
+  const [bearbeiteterOrt, setBearbeiteterOrt] = useState(null);
+  // Eingabe der Standard-Radien. null = noch nichts getippt, dann gilt der Wert aus der DB.
+  const [standardEntwurf, setStandardEntwurf] = useState({ rein: null, raus: null });
+  const standardRein = standardEntwurf.rein ?? String(standard.radius_rein_m);
+  const standardRaus = standardEntwurf.raus ?? String(standard.radius_raus_m);
+  const setStandardRein = (wert) => setStandardEntwurf((prev) => ({ ...prev, rein: wert }));
+  const setStandardRaus = (wert) => setStandardEntwurf((prev) => ({ ...prev, raus: wert }));
+  const [standardHinweis, setStandardHinweis] = useState('');
   const {
     driverSearch = '',
     afterWorkMinutes = '',
@@ -276,9 +310,37 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
   const stufeTop = 462;
   const stufeZeilenTop = stufeTop + 32 + 40 + 12;
   const stufeEnde = stufeZeilenTop + (tracker.length + (stufeFehler ? 1 : 0)) * STUFE_ZEILE_H + 20;
-  const saveTop = tracker.length > 0 ? stufeEnde : 462;
+  // Abschnitt "Orte": Standard-Radien, eigene Orte, Ort hinzufuegen.
+  const orteTop = tracker.length > 0 ? stufeEnde : 462;
+  const standardLabelTop = orteTop + 32;
+  const standardTop = standardLabelTop + 28;
+  const standardHinweisTop = standardTop + 56 + 4;
+  const orteListeTop = standardTop + 56 + (standardHinweis ? 40 : 12);
+  const ortHinzufuegenTop = orteListeTop + orte.length * ORT_ZEILE_STEP;
+  const saveTop = ortHinzufuegenTop + 56 + 20;
   const clearTop = saveTop + 68;
   const seitenHoehe = Math.max(834, clearTop + 56 + 120);
+
+  const standardUebernehmen = async () => {
+    if (String(standardRein) === String(standard.radius_rein_m) && String(standardRaus) === String(standard.radius_raus_m)) {
+      setStandardHinweis('');
+      return;
+    }
+    const pruefung = radienPruefen(standardRein, standardRaus);
+    if (pruefung) {
+      setStandardHinweis(t(pruefung === 'rein' ? 'orte.fehlerRein' : pruefung === 'raus' ? 'orte.fehlerRaus' : 'orte.fehlerRadien'));
+      return;
+    }
+    const ergebnis = await standardSpeichern(Number(standardRein), Number(standardRaus));
+    if (!ergebnis.ok) {
+      setStandardHinweis(ergebnis.art === 'radien'
+        ? t('orte.fehlerRadien')
+        : `${t('filter.levelSaveError')}${ergebnis.meldung ? `: ${ergebnis.meldung}` : ''}`);
+      return;
+    }
+    setStandardHinweis('');
+    setStandardEntwurf({ rein: null, raus: null });
+  };
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -330,6 +392,17 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
       }
     };
   }, []);
+
+  if (bearbeiteterOrt) {
+    return (
+      <OrtBearbeitenView
+        key={bearbeiteterOrt.id || 'neu'}
+        ort={bearbeiteterOrt.id ? bearbeiteterOrt : null}
+        onClose={() => setBearbeiteterOrt(null)}
+        onFetchPlaceSuggestions={onFetchPlaceSuggestions}
+      />
+    );
+  }
 
   return (
     <div className="w-[min(402px,100vw)] h-dvh relative mx-auto overflow-hidden" style={gradientStyle}>
@@ -401,6 +474,59 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
                 ) : null}
               </>
             ) : null}
+
+            <div
+              data-tutorial="karte-filter-orte"
+              className="absolute left-[20px] w-[362px] h-6 text-base leading-6 tracking-[0.5px] text-[#E3F654]/60 font-medium font-['Space_Grotesk']"
+              style={{ top: `${orteTop}px` }}
+            >
+              {t('orte.titel')}
+            </div>
+            <div
+              className="absolute left-[20px] w-[362px] h-6 text-sm leading-6 tracking-[0.5px] text-[#E3F654]/60 font-medium font-['Space_Grotesk'] truncate"
+              style={{ top: `${standardLabelTop}px` }}
+            >
+              {t('orte.standard')}
+            </div>
+            <RadiusFeld
+              left={20}
+              top={standardTop}
+              label={t('orte.rein')}
+              value={standardRein}
+              onChange={setStandardRein}
+              onCommit={standardUebernehmen}
+              marker="karte-filter-standard-rein"
+            />
+            <RadiusFeld
+              left={207}
+              top={standardTop}
+              label={t('orte.raus')}
+              value={standardRaus}
+              onChange={setStandardRaus}
+              onCommit={standardUebernehmen}
+              marker="karte-filter-standard-raus"
+            />
+            {standardHinweis ? (
+              <div
+                className="absolute left-[20px] w-[362px] h-6 text-sm leading-6 text-[#ff6b6b] font-medium font-['Space_Grotesk'] truncate"
+                style={{ top: `${standardHinweisTop}px` }}
+              >
+                {standardHinweis}
+              </div>
+            ) : null}
+            {orte.map((ort, index) => (
+              <OrtZeile key={ort.id} ort={ort} top={orteListeTop + index * ORT_ZEILE_STEP} onClick={() => setBearbeiteterOrt(ort)} />
+            ))}
+            <button
+              type="button"
+              onClick={() => setBearbeiteterOrt({})}
+              data-tutorial="karte-filter-ort-hinzufuegen"
+              className="absolute left-[20px] w-[362px] h-14 border-2 border-[#E3F654] flex items-center px-3"
+              style={{ top: `${ortHinzufuegenTop}px` }}
+            >
+              <span className="flex-1 text-left text-base leading-6 tracking-[0.5px] text-[#E3F654] font-medium font-['Space_Grotesk']">{t('orte.hinzufuegen')}</span>
+              <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="w-[10px] h-[13px]" />
+            </button>
 
             <button
               type="button"

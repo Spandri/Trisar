@@ -36,6 +36,7 @@ targets:
       - ../ios-fahrer/TrisarFahrer/Dienste/Anmeldung.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Push.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Fahrten.swift
+      - ../ios-fahrer/TrisarFahrer/Dienste/Orte.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Chat.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/FahrtDetails.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Routen.swift

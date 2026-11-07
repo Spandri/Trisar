@@ -13,6 +13,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
@@ -36,6 +37,8 @@ import de.trisar.dispo.stamm.Leinwand
 import de.trisar.dispo.stamm.StammZeilenKnopf
 import de.trisar.kern.Backend
 import de.trisar.kern.DispoHintergrund
+import de.trisar.kern.EigeneOrte
+import de.trisar.kern.Ort
 import de.trisar.kern.FussleisteUnten
 import de.trisar.kern.Icon
 import de.trisar.kern.ZurueckKnopf
@@ -78,8 +81,36 @@ internal fun KartenFilterSeite(zurueck: () -> Unit) {
     // die Knoepfe darunter rutschen mit.
     val stufeTop = 482f
     val stufeZeilenTop = stufeTop + 32f + 40f + 12f
-    val speichernTop = if (stufen.tracker.isEmpty()) 482f
+    val orteTop = if (stufen.tracker.isEmpty()) 482f
         else stufeZeilenTop + (stufen.tracker.size + (if (stufen.fehler == null) 0 else 1)) * 24f + 20f
+
+    // Abschnitt Orte: Standard-Radien und eigene Orte (orte, orte_standard).
+    var ortOffen by remember { mutableStateOf(false) }
+    var ortGewaehlt by remember { mutableStateOf<Ort?>(null) }
+    var standardFehler by remember { mutableStateOf<String?>(null) }
+    var standardGeladen by remember { mutableStateOf(false) }
+    val standard = remember {
+        StandardEingabe { rein, raus ->
+            val f = OrteDienst.radienFehler(rein, raus)
+            standardFehler = f
+            if (f == null) scope.launch { standardFehler = OrteDienst.standardSpeichern(rein, raus)?.let { "Speichern fehlgeschlagen: $it" } }
+        }
+    }
+    DisposableEffect(Unit) {
+        EigeneOrte.beobachten()
+        onDispose { EigeneOrte.nichtMehrBeobachten() }
+    }
+    LaunchedEffect(Unit) {
+        OrteDienst.standardLaden()?.let { standard.rein = it.rein.toString(); standard.raus = it.raus.toString() }
+        standardGeladen = true
+    }
+    LaunchedEffect(standard.zaehler) {
+        if (!standardGeladen || standard.zaehler == 0) return@LaunchedEffect
+        delay(800)
+        standard.ausloesen()
+    }
+    val zeigeOrte = EigeneOrte.verfuegbar
+    val speichernTop = if (zeigeOrte) orteTop + orteAbschnittHoehe(EigeneOrte.liste.size, standardFehler != null) else orteTop
     val inhaltHoehe = maxOf(834f, speichernTop - 20f + 68f + 56f + 120f) + 70f
     Box(Modifier.fillMaxSize().background(Color.Black).tippen { }) {
         DispoHintergrund()
@@ -114,12 +145,17 @@ internal fun KartenFilterSeite(zurueck: () -> Unit) {
                 }
             }
 
+            if (zeigeOrte) {
+                OrteAbschnitt(orteTop, standardFehler, standard) { o -> ortGewaehlt = o; ortOffen = true }
+            }
+
             StammZeilenKnopf("Filter speichern", "Arrow_Trisar_Icons_01", Modifier.platz(20f, speichernTop, 362f, 56f),
                 iconBreite = 34f, iconHoehe = 20f, innen = 12f, aktion = zurueck)
             StammZeilenKnopf("Filter Löschen", "Arrow_Nav_Trisar_Icons_01", Modifier.platz(20f, speichernTop + 68f, 362f, 56f),
                 iconBreite = 34f, iconHoehe = 20f, hintergrund = 0xFF6B6B, innen = 12f) { f.zuruecksetzen() }
         }
         FussleisteUnten()
+        if (ortOffen) OrtBearbeitenSeite(ortGewaehlt, zurueck = { ortOffen = false; ortGewaehlt = null })
     }
 }
 
