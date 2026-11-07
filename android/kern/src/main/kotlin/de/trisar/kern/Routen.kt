@@ -127,7 +127,7 @@ object Routen {
         val ergebnis = withContext(Dispatchers.IO) {
             suchTexte(text).firstNotNullOfOrNull { suche ->
                 runCatching {
-                    val url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + URLEncoder.encode(suche, "UTF-8")
+                    val url = "https://nominatim.openstreetmap.org/search?format=json&countrycodes=de,at,ch&limit=1&q=" + URLEncoder.encode(suche, "UTF-8")
                     val antwort = holen(url, mapOf("Accept" to "application/json", "User-Agent" to "TRISAR-Fahrer-Android/0.1")) ?: return@runCatching null
                     val erster = Backend.json.parseToJsonElement(antwort).jsonArray.firstOrNull()?.jsonObject ?: return@runCatching null
                     val lat = erster["lat"]?.jsonPrimitive?.content?.toDoubleOrNull()

@@ -105,7 +105,7 @@ enum Routen {
 
     private static func nominatim(_ text: String) async -> CLLocationCoordinate2D? {
         var teile = URLComponents(string: "https://nominatim.openstreetmap.org/search")!
-        teile.queryItems = [.init(name: "format", value: "json"), .init(name: "limit", value: "1"), .init(name: "q", value: text)]
+        teile.queryItems = [.init(name: "format", value: "json"), .init(name: "limit", value: "1"), .init(name: "countrycodes", value: "de,at,ch"), .init(name: "q", value: text)]
         var anfrage = URLRequest(url: teile.url!)
         anfrage.setValue("application/json", forHTTPHeaderField: "Accept")
         // Nominatim verlangt eine Kennung der App.

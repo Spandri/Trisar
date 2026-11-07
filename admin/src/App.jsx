@@ -683,7 +683,7 @@ const formatOsmEntry = (entry) => {
 const fetchOsmPlaceSuggestions = async (input) => {
   const query = String(input || '').trim();
   if (!query) return [];
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&addressdetails=1&q=${encodeURIComponent(query)}`;
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=de,at,ch&limit=8&addressdetails=1&q=${encodeURIComponent(query)}`;
   try {
     const response = await fetch(url, { headers: { Accept: 'application/json' } });
     if (!response.ok) return [];

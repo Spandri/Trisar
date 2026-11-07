@@ -87,7 +87,7 @@ internal object DispoRouten {
         // Erst der ganze Text, dann ohne das erste Stueck (Ortsname vorne).
         var ergebnis: KartenPunkt? = null
         for (suche in Routen.suchTexte(text)) {
-            val adresse = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + URLEncoder.encode(suche, "UTF-8")
+            val adresse = "https://nominatim.openstreetmap.org/search?format=json&countrycodes=de,at,ch&limit=1&q=" + URLEncoder.encode(suche, "UTF-8")
             ergebnis = holen(adresse)?.let { (code, inhalt) ->
                 if (code != 200) return@let null
                 runCatching {

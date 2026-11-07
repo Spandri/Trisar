@@ -136,7 +136,7 @@ internal object PlanRouten {
             withContext(Dispatchers.IO) {
                 // Erst der ganze Text, dann ohne das erste Stueck (Ortsname vorne).
                 de.trisar.kern.Routen.suchTexte(text).firstNotNullOfOrNull { suche ->
-                    val url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + URLEncoder.encode(suche, "UTF-8")
+                    val url = "https://nominatim.openstreetmap.org/search?format=json&countrycodes=de,at,ch&limit=1&q=" + URLEncoder.encode(suche, "UTF-8")
                     val (status, inhalt) = lesen(url) ?: return@firstNotNullOfOrNull null
                     if (status != 200) return@firstNotNullOfOrNull null
                     val erster = runCatching { (planJson.parseToJsonElement(inhalt) as JsonArray).firstOrNull() as? JsonObject }.getOrNull()

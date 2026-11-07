@@ -872,7 +872,7 @@ export const adresseAufloesen = (text) => {
   if (fehlSeit && Date.now() - fehlSeit < FEHLTREFFER_MS) return Promise.resolve(null);
 
   const nominatim = (suche) => fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(suche)}`,
+    `https://nominatim.openstreetmap.org/search?format=json&countrycodes=de,at,ch&limit=1&q=${encodeURIComponent(suche)}`,
     { headers: { Accept: 'application/json' } },
   )
     .then((antwort) => (antwort.ok ? antwort.json() : []))

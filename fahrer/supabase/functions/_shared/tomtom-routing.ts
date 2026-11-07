@@ -74,7 +74,7 @@ const FLUGHAEFEN: Array<{ kuerzel: string; name: RegExp; lat: number; lon: numbe
 
 const flughafen = (adresse: string) => {
   // Kuerzel klein geschrieben nur zusammen mit Terminal/Flughafen/Airport ("muc terminal 2").
-  const mitHinweis = /terminal|flughafen|airport/i.test(adresse);
+  const mitHinweis = /terminal|flughafen|airport|\bt\s*[12]\b/i.test(adresse);
   const f = FLUGHAEFEN.find((x) => new RegExp(`\\b${x.kuerzel}\\b`, mitHinweis ? 'i' : '').test(adresse) || x.name.test(adresse));
   if (!f) return null;
   if (f.t1 && /\b(terminal|t)\s*1\b/i.test(adresse)) return { ...f.t1 };
