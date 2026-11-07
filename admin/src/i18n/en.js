@@ -856,4 +856,7 @@ export default {
   "orte.fehlerAdresse": "Please search and pick an address.",
   "orte.fehlerPin": "Address not found. Please set the pin on the map.",
   "orte.eigenerOrt": "Own place",
+  "gaeste.anonymEins": "1 anonymous guest",
+  "gaeste.anonymViele": "{n} anonymous guests",
+  "gaeste.keine": "No guests",
 };

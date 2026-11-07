@@ -505,7 +505,11 @@ private struct KiBuchungsKarte: View {
     }
 
     var body: some View {
-        let gast = vorschlag.fahrgaeste.isEmpty ? "Noch keine Gäste angegeben" : vorschlag.fahrgaeste
+        // Gemeinsame Regel: nur anonyme Gaeste als "N Anonyme Gäste", sonst Namen plus "+ N".
+        let gastTeile = GaesteAnzeige.teile(vorschlag.fahrgaeste.components(separatedBy: ","),
+                                            anonym: Int(FahrtText.getrimmt(vorschlag.anonymeGaeste)) ?? 0)
+        let gast = gastTeile.namen.isEmpty && gastTeile.anonym == 0 ? "Noch keine Gäste angegeben"
+            : GaesteAnzeige.text(gastTeile.namen, anonym: gastTeile.anonym)
         let fahrer = vorschlag.fahrerNamen.isEmpty ? "Fahrer fehlt" : vorschlag.fahrerNamen.joined(separator: ", ")
         ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 5) {

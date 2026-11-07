@@ -98,6 +98,9 @@ final class DispoFahrtenSpeicher: ObservableObject {
 
     private init() {}
 
+    /// Die Dispo hat eine archivierte Fahrt im Editor wieder auf offen, unterwegs oder beendet gesetzt.
+    func archivAufheben(_ id: String) { lokalArchiviert.remove(id.lowercased()); lokalArchiviert.remove(id) }
+
     // MARK: Start, Realtime, Abgleich
 
     /// Einmal starten: laden, Realtime auf jobs/convoy_assignments/job_guests/job_notes,
@@ -446,7 +449,8 @@ final class DispoFahrtenSpeicher: ObservableObject {
 
             return DispoFahrt(
                 id: jobID,
-                name: !hauptGast.isEmpty ? hauptGast : startEtikett,
+                // Ohne Gastnamen bleibt der Name leer, die Karte zeigt dann anonyme Gaeste oder "Keine Gäste".
+                name: hauptGast,
                 alleGaeste: wirksameGaeste,
                 route: "\(startEtikett) - \(zielEtikett)",
                 startOrt: startWert,
@@ -688,13 +692,9 @@ enum W {
         return "pending"
     }
 
+    /// Alle Schreibweisen aus jobs_status_check, wie mapJobStatusToEditorStatus im Web.
     static func editorStatus(_ status: String) -> String {
-        switch status {
-        case "in_progress": return "unterwegs"
-        case "done": return "beendet"
-        case "cancelled", "refused", "archived": return "stoniert"
-        default: return "offen"
-        }
+        FahrtText.editorStatus(status)
     }
 
     /// normalizeClockValue(wert, '')

@@ -28,6 +28,7 @@ import { useDemoAnflug } from '../../../demo/flugAnflug';
 import { DEMO_MODE } from '../../../datenquelle';
 import { getRouteNavigationUrl } from '../../../shared/utils/navigation';
 import { ortIconFuer } from '../../../shared/orte';
+import { gaesteTeile, gaesteZeilen } from '../../../shared/gaesteAnzeige';
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
   if (typeof value === 'string' && value.trim().toLowerCase().startsWith('your_')) return fallback;
@@ -1432,10 +1433,12 @@ export default function KoloneFlughafen({ job, setView, onCancelRide, onEndRide,
   );
   const etaTime = addMinutesToTime(etdTime, routeDurationMins) || job?.eta || '--:--';
   const driveLabel = routeDurationMins > 0 ? t('kolonneF.driveDuration', { duration: formatDuration(routeDurationMins, t) }) : t('kolonneF.driveDurationNone');
-  const guestNames = toUniqueNameList([
+  // Gemeinsame Regel: Namen je Zeile, anonyme Gaeste als eigene Zeile, sonst 'Keine Gäste'.
+  const gaesteListe = gaesteTeile(toUniqueNameList([
     ...(Array.isArray(job?.kolonneGuests) ? job.kolonneGuests : []),
     ...(Array.isArray(job?.passengers) ? job.passengers : []),
-  ]);
+  ]), job?.anonymousGuests);
+  const guestNames = gaesteListe.namen;
   const driverNames = toUniqueNameList(
     (Array.isArray(job?.kolonneDrivers) ? job.kolonneDrivers : []).map(
       (driver) => driver?.name || driver?.fullName || driver?.driverName || '',
@@ -1499,7 +1502,7 @@ export default function KoloneFlughafen({ job, setView, onCancelRide, onEndRide,
     }
     return [{ name: t('kolonneF.noDrivers'), phone: '', plate: '', vehicle: '', avatarUrl: '', disabled: true }];
   })();
-  const visibleGuestNames = guestNames.length ? guestNames : [t('kolonneF.noGuests')];
+  const visibleGuestNames = gaesteZeilen(guestNames, gaesteListe.anonym, t, t('kolonneF.noGuests'));
   useEffect(() => {
     setSelectedConvoyDriver(null);
   }, [job?.id]);

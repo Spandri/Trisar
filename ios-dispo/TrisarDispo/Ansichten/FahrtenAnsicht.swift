@@ -550,16 +550,21 @@ struct DispoFahrtKarte: View {
         .onTapGesture {
             if wischen && versatz != 0 { versatz = 0 } else { oeffnen() }
         }
-        .accessibilityLabel("Fahrt \(fahrt.name) öffnen")
+        .accessibilityLabel("Fahrt \(fahrt.name.isEmpty ? GaesteAnzeige.text(fahrt.alleGaeste, anonym: fahrt.anonymeGaeste) : fahrt.name) öffnen")
     }
 
     private var namensZeile: some View {
-        let kurz = fahrt.alleGaeste.isEmpty ? FahrtText.kurzName(fahrt.name)
-            : fahrt.alleGaeste.map(FahrtText.kurzName).joined(separator: ", ")
+        // Gemeinsame Regel: Namen plus "+ N", nur anonyme als "N Anonyme Gäste", nie der Startort.
+        let gaeste = GaesteAnzeige.teile(fahrt.alleGaeste, anonym: fahrt.anonymeGaeste)
+        let einzelName = FahrtText.getrimmt(fahrt.name)
+        let hatNamen = !gaeste.namen.isEmpty || !einzelName.isEmpty
+        let kurz = !gaeste.namen.isEmpty ? gaeste.namen.map(FahrtText.kurzName).joined(separator: ", ")
+            : (!einzelName.isEmpty ? FahrtText.kurzName(einzelName)
+               : (gaeste.anonym > 0 ? GaesteAnzeige.anonymText(gaeste.anonym) : GaesteAnzeige.keine))
         let groesse: CGFloat = kurz.count > 45 ? 18 : (kurz.count > 30 ? 20 : 24)
         var text = Text(kurz)
-        if fahrt.anonymeGaeste > 0 {
-            text = text + Text("  + \(fahrt.anonymeGaeste) ")
+        if hatNamen && gaeste.anonym > 0 {
+            text = text + Text("  + \(gaeste.anonym) ")
                 + Text(Image(uiImage: PersonIcon.bild)).foregroundColor(textFarbe.opacity(0.6)).baselineOffset(-2)
         }
         return text

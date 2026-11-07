@@ -178,7 +178,8 @@ struct SoloNormalAnsicht: View {
     private func blattInhalt(_ fahrt: Fahrt, breite: CGFloat) -> some View {
         let innen = breite - 40
         let merkmale = details.merkmale
-        let gaeste = details.gaeste.isEmpty ? ["Keine Gäste"] : details.gaeste
+        // Gemeinsame Regel: Namen je Zeile, anonyme Gaeste als eigene Zeile, sonst "Keine Gäste".
+        let gaeste = GaesteAnzeige.zeilen(details.gaeste, anonym: details.anonym)
         // Flughafen: Gaeste immer bei 482 (Platz fuer Flugnummer), sonst je nach Merkmalen.
         let gaesteOben: CGFloat = y(istFlug || !merkmale.isEmpty ? 563 - 81 : 289 + 64 + 42)
         let ersteGastZeile = gaesteOben + 50

@@ -6,6 +6,7 @@ import { supabase } from '../../services/supabase';
 import { demoStore } from '../../demo/demoClient';
 import { DEMO_MODE } from '../../datenquelle';
 import { useI18n } from '../../i18n';
+import { gaesteTeile, gaesteText } from '../../shared/gaesteAnzeige';
 import {
   neuplanungStatus, neuplanungZielSetzen, stoerungenNachAnnahme, stoerungText,
 } from '../../demo/stoerungDemo';
@@ -96,7 +97,11 @@ const hasMinimumBookingData = (proposal) => {
 const BookingPreviewCard = ({ proposal }) => {
   const { t } = useI18n();
   const payload = toCreateRidePayload(proposal);
-  const guestLabel = payload.fahrgaeste || t('assist.noGuestsYet');
+  // Gemeinsame Regel: nur anonyme Gaeste als "N Anonyme Gäste", sonst Namen plus "+ N".
+  const gaeste = gaesteTeile(payload.fahrgaeste.split(','), payload.anonymeGaeste);
+  const guestLabel = (gaeste.namen.length || gaeste.anonym)
+    ? gaesteText(gaeste.namen, gaeste.anonym, t)
+    : t('assist.noGuestsYet');
   const driverLabel = payload.fahrerNamen.length > 0 ? payload.fahrerNamen.join(', ') : t('assist.driverMissing');
   const dateLabel = toDisplayDate(payload.datum);
   return (

@@ -26,6 +26,7 @@ import { karteBereitstellen } from '../../../shared/karte/maplibreKarte';
 import { gleicherOrt } from '../../../shared/utils/vorherigeFahrt';
 import { getRouteNavigationUrl } from '../../../shared/utils/navigation';
 import { ortIconFuer } from '../../../shared/orte';
+import { gaesteTeile, gaesteZeilen } from '../../../shared/gaesteAnzeige';
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
   if (typeof value === 'string' && value.trim().toLowerCase().startsWith('your_')) return fallback;
@@ -885,10 +886,12 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
   );
   const etaTime = berechneEta(job, routeDurationMins, jetztFuerEta) || addMinutesToTime(etdTime, routeDurationMins) || job?.eta || '--:--';
   const driveLabel = routeDurationMins > 0 ? t('fahrt.driveDuration', { duration: formatDuration(routeDurationMins) }) : t('fahrt.driveDurationUnknown');
-  const guestNames = toUniqueNameList([
+  // Gemeinsame Regel: Namen je Zeile, anonyme Gaeste als eigene Zeile, sonst 'Keine Gäste'.
+  const gaesteListe = gaesteTeile(toUniqueNameList([
     ...(Array.isArray(job?.kolonneGuests) ? job.kolonneGuests : []),
     ...(Array.isArray(job?.passengers) ? job.passengers : []),
-  ]);
+  ]), job?.anonymousGuests);
+  const guestNames = gaesteListe.namen;
   const driverNames = toUniqueNameList(
     (Array.isArray(job?.kolonneDrivers) ? job.kolonneDrivers : []).map(
       (driver) => driver?.name || driver?.fullName || driver?.driverName || '',
@@ -952,7 +955,7 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
     }
     return [{ name: t('fahrt.noDrivers'), phone: '', plate: '', vehicle: '', avatarUrl: '', disabled: true }];
   })();
-  const visibleGuestNames = guestNames.length ? guestNames : [t('fahrt.noGuests')];
+  const visibleGuestNames = gaesteZeilen(guestNames, gaesteListe.anonym, t, t('fahrt.noGuests'));
   useEffect(() => {
     setSelectedConvoyDriver(null);
   }, [job?.id]);

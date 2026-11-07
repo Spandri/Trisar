@@ -172,6 +172,8 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
     /** Fahrt wurde einmal geladen (danach heisst null: weg, zurueck zur Liste). */
     var fahrtGeladen by mutableStateOf(false); private set
     var gaeste by mutableStateOf<List<String>>(emptyList()); private set
+    /** Gaeste ohne Namen (jobs.anonymous_guests plus alte "Anonymer Fahrgast"-Eintraege). */
+    var anonym by mutableStateOf(0); private set
     var notizen by mutableStateOf<List<Notiz>>(emptyList()); private set
     var merkmale by mutableStateOf<List<String>>(emptyList()); private set
     var fahrzeitMin by mutableStateOf(0); private set
@@ -207,6 +209,7 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
 
     @Serializable private data class DetailZeile(
         val passengers: List<String>? = null,
+        val anonymous_guests: Int? = null,
         val is_vip: Boolean? = null,
         val needs_child_seat: Boolean? = null,
         val needs_second_child_seat: Boolean? = null,
@@ -314,7 +317,7 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
             coroutineScope {
                 val zeileA = async {
                     Backend.client.from("jobs").select(Columns.raw(
-                        "passengers,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,ext_route_polyline,ext_driver_to_pickup_polyline,flight_origin,flug_text:ext_flight_payload::text"
+                        "passengers,anonymous_guests,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,ext_route_polyline,ext_driver_to_pickup_polyline,flight_origin,flug_text:ext_flight_payload::text"
                     )) { filter { eq("id", fahrtID) }; limit(1) }.decodeList<DetailZeile>().firstOrNull()
                 }
                 val notizA = async {
@@ -360,7 +363,9 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
                 // Gaeste: verknuepfte Gaeste, sonst Namen aus passengers.
                 val verknuepft = gastZeilen.map { name(it.first_name, it.last_name) }.filter { it.isNotEmpty() }
                 val namen = verknuepft.ifEmpty { zeile?.passengers ?: emptyList() }
-                gaeste = namen.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+                val geteilt = de.trisar.kern.GaesteAnzeige.teile(namen, zeile?.anonymous_guests ?: 0)
+                gaeste = geteilt.namen
+                anonym = geteilt.anonym
 
                 // Merkmale in der Reihenfolge der Web-App: Rollstuhl, VIP, Kind, Gepaeck.
                 val vip = zeile?.is_vip == true || gastZeilen.any { it.is_vip == true }

@@ -90,12 +90,8 @@ object W {
         return "pending"
     }
 
-    fun editorStatus(status: String): String = when (status) {
-        "in_progress" -> "unterwegs"
-        "done" -> "beendet"
-        "cancelled", "refused", "archived" -> "stoniert"
-        else -> "offen"
-    }
+    /** Alle Schreibweisen aus jobs_status_check, wie mapJobStatusToEditorStatus im Web. */
+    fun editorStatus(status: String): String = FahrtText.editorStatus(status)
 
     /** normalizeClockValue(wert, '') */
     fun uhr(wert: String): String {
@@ -228,10 +224,11 @@ object FahrtText {
     }
 
     /** mapJobStatusToEditorStatus */
+    // Alle Schreibweisen, die jobs.status erlaubt (jobs_status_check), nicht nur die englischen Grundwerte.
     fun editorStatus(jobStatus: String?): String = when (getrimmt(jobStatus).lowercase()) {
-        "in_progress" -> "unterwegs"
-        "done" -> "beendet"
-        "cancelled", "refused", "archived" -> "stoniert"
+        "in_progress", "unterwegs", "started", "on_trip", "ongoing", "active" -> "unterwegs"
+        "done", "completed", "arrived", "beendet" -> "beendet"
+        "cancelled", "canceled", "refused", "storniert", "stoniert", "archived" -> "stoniert"
         else -> "offen"
     }
 

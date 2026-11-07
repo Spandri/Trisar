@@ -15,6 +15,8 @@ final class FahrtDetails: ObservableObject {
     }
 
     @Published private(set) var gaeste: [String] = []
+    /// Gaeste ohne Namen (jobs.anonymous_guests plus alte "Anonymer Fahrgast"-Eintraege).
+    @Published private(set) var anonym: Int = 0
     @Published private(set) var notizen: [Notiz] = []
     @Published private(set) var merkmale: [String] = []   // accessibility, vip, child, luggage
     @Published private(set) var fahrzeitMin: Int = 0      // ext_route_duration(_in_traffic)
@@ -71,6 +73,7 @@ final class FahrtDetails: ObservableObject {
 
     private struct DetailZeile: Decodable {
         let passengers: [String]?
+        let anonymous_guests: Int?
         let is_vip: Bool?
         let needs_child_seat: Bool?
         let needs_second_child_seat: Bool?
@@ -105,7 +108,7 @@ final class FahrtDetails: ObservableObject {
     func laden() async {
         do {
             async let zeileAbfrage: [DetailZeile] = Backend.client.from("jobs")
-                .select("passengers,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,ext_route_polyline,ext_driver_to_pickup_polyline,flight_origin,flug_text:ext_flight_payload::text")
+                .select("passengers,anonymous_guests,is_vip,needs_child_seat,needs_accessibility,needs_luggage,ext_route_duration_mins,ext_route_duration_in_traffic_mins,ext_driver_to_dropoff_duration_mins,ext_driver_to_dropoff_duration_in_traffic_mins,ext_driver_to_dropoff_last_sync_at,ext_route_polyline,ext_driver_to_pickup_polyline,flight_origin,flug_text:ext_flight_payload::text")
                 .eq("id", value: fahrtID).limit(1).execute().value
             async let notizAbfrage: [NotizZeile] = Backend.client.from("job_notes")
                 .select("note_text,created_at,author_name").eq("job_id", value: fahrtID)
@@ -135,8 +138,9 @@ final class FahrtDetails: ObservableObject {
             let verknuepft = gastZeilen.map { [$0.first_name, $0.last_name].compactMap { $0 }.joined(separator: " ").trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
             let namen = verknuepft.isEmpty ? (zeile?.passengers ?? []) : verknuepft
-            var gesehen = Set<String>()
-            gaeste = namen.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty && gesehen.insert($0).inserted }
+            let geteilt = GaesteAnzeige.teile(namen, anonym: zeile?.anonymous_guests ?? 0)
+            gaeste = geteilt.namen
+            anonym = geteilt.anonym
 
             // Merkmale in der Reihenfolge der Web-App: Rollstuhl, VIP, Kind, Gepaeck.
             let vip = (zeile?.is_vip ?? false) || gastZeilen.contains { $0.is_vip == true }

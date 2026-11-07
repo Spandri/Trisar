@@ -1,5 +1,6 @@
 import { hasSupabaseAdminConfig, supabase, supabaseAdmin } from './supabase';
 import { DEMO_MODE } from '../datenquelle';
+import { gaesteTeile } from '../shared/gaesteAnzeige';
 
 const ADMIN_FALLBACK_ERROR_RE = /invalid jwt|signature is invalid|not allowed|unauthorized|permission denied/i;
 const MISSING_COLUMN_RE = /column .* does not exist|could not find the ['"]?.+['"]? column/i;
@@ -834,10 +835,13 @@ const buildDirectIntentAnswer = ({ prompt, snapshot, chatHistory = [] }) => {
       .map((value) => String(value || '').trim())
       .filter(Boolean);
 
-    const names = Array.from(new Set([...linkedNames, ...passengerNames]));
+    const { namen: names, anonym } = gaesteTeile([...linkedNames, ...passengerNames], contextualRide?.anonymous_guests);
+    const anonymText = anonym === 1 ? '1 anonymer Gast' : `${anonym} anonyme Gäste`;
     if (names.length === 0) {
+      if (anonym > 0) return `Für diese Fahrt ist kein Gastname hinterlegt, nur ${anonymText}.`;
       return 'Für diese Fahrt sind keine Gäste hinterlegt.';
     }
+    if (anonym > 0) return `Gäste dieser Fahrt (${names.length} + ${anonym}): ${names.join(', ')} und ${anonymText}.`;
     return `Gäste dieser Fahrt (${names.length}): ${names.join(', ')}.`;
   }
 

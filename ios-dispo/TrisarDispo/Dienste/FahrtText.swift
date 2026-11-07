@@ -62,10 +62,11 @@ enum FahrtText {
 
     /// mapJobStatusToEditorStatus
     static func editorStatus(_ jobStatus: String?) -> String {
+        // Alle Schreibweisen, die jobs.status erlaubt (jobs_status_check), nicht nur die englischen Grundwerte.
         switch getrimmt(jobStatus ?? "").lowercased() {
-        case "in_progress": return "unterwegs"
-        case "done": return "beendet"
-        case "cancelled", "refused", "archived": return "stoniert"
+        case "in_progress", "unterwegs", "started", "on_trip", "ongoing", "active": return "unterwegs"
+        case "done", "completed", "arrived", "beendet": return "beendet"
+        case "cancelled", "canceled", "refused", "storniert", "stoniert", "archived": return "stoniert"
         default: return "offen"
         }
     }

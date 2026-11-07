@@ -512,7 +512,10 @@ private fun Buchung(n: KiNachricht, v: KiBuchungsVorschlag, buchen: () -> Unit, 
 private fun KiBuchungsKarte(v: KiBuchungsVorschlag) {
     val r = v.datum.trim()
     val datum = if (Regex("""^\d{4}-\d{2}-\d{2}$""").matches(r)) "${r.substring(8, 10)}.${r.substring(5, 7)}" else "--.--"
-    val gast = v.fahrgaeste.ifEmpty { "Noch keine Gäste angegeben" }
+    // Gemeinsame Regel: nur anonyme Gaeste als "N Anonyme Gäste", sonst Namen plus "+ N".
+    val gastTeile = de.trisar.kern.GaesteAnzeige.teile(v.fahrgaeste.split(","), v.anonymeGaeste.trim().toIntOrNull() ?: 0)
+    val gast = if (gastTeile.namen.isEmpty() && gastTeile.anonym == 0) "Noch keine Gäste angegeben"
+        else de.trisar.kern.GaesteAnzeige.text(gastTeile.namen, gastTeile.anonym)
     val fahrer = if (v.fahrerNamen.isEmpty()) "Fahrer fehlt" else v.fahrerNamen.joinToString(", ")
     Box(Modifier.fillMaxWidth().heightIn(min = 144.dp).background(Color.White)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {

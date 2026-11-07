@@ -6,6 +6,8 @@ import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -453,10 +455,15 @@ object FahrtSpeichern {
             val gewuenscht = FahrtText.jobStatus(e.werte.aktuellerStatus)
             val endStatus = gewuenscht in setOf("done", "completed", "cancelled", "canceled", "refused", "in_progress")
             val gleicheUhr = { a: String?, b: String -> (a ?: "").take(5) == b.take(5) }
+            // Uhrzeit im Formular nicht angefasst: die gespeicherte ETD bleibt. Bei ueberfaelligen offenen
+            // Fahrten zeigt das Formular "jetzt" statt der Planzeit. Sonst schrieb jede reine Statusaenderung
+            // die aktuelle Uhrzeit als neue ETD und setzte bei "offen" die Annahme des Fahrers zurueck.
+            val zeitUnberuehrt = bisher != null && !v.zug.gueltig
+                && FahrtText.uhrzeit(e.werte.startZeit, "") == FahrtText.uhrzeit(geladen.werte.startZeit, "")
             val fahrtGeaendert = bisher == null
                 || fahrerNeu?.lowercase() != bisherFahrer?.lowercase()
                 || (stringWert(bisher["ride_date"]) ?: "") != v.tag
-                || !gleicheUhr(stringWert(bisher["etd"]), v.startZeit)
+                || (!zeitUnberuehrt && !gleicheUhr(stringWert(bisher["etd"]), v.startZeit))
                 || FahrtText.getrimmt(stringWert(bisher["pickup_address"])) != v.startAdresse
                 || FahrtText.getrimmt(stringWert(bisher["dropoff_address"])) != v.zielAdresse
             val neuAnfragen = fahrerNeu != null && !endStatus && fahrtGeaendert
@@ -475,6 +482,10 @@ object FahrtSpeichern {
                 spalten["driver_response_status"] = JsonPrimitive("pending")
                 spalten["driver_responded_at"] = JsonNull
             }
+            if (zeitUnberuehrt) {
+                spalten.remove("etd")
+                spalten.remove("original_etd")
+            }
             val geaendert = c.from("jobs").update(JsonObject(spalten)) {
                 select(Columns.raw("id, passengers"))
                 filter { eq("id", fahrtID) }
@@ -483,6 +494,13 @@ object FahrtSpeichern {
 
             if (v.flug.gueltig) FahrtPruefung.externerAbgleich(fahrtID, "manual_refresh")
             kolonneAbgleichen(fahrtID, zuordnung, statusZuruecksetzen = neuAnfragen, ersetzen = true)
+
+            // Archivierte Fahrt bewusst auf offen, unterwegs oder beendet gesetzt: Archiv-Eintrag entfernen.
+            // Die Liste zeigt jede Fahrt mit Eintrag in jobs_archive als storniert, egal was in jobs.status steht.
+            if (dispoGeaendert && FahrtText.editorStatus(gewuenscht) != "stoniert") {
+                still(Unit) { c.from("jobs_archive").delete { filter { eq("job_id", fahrtID) } }; Unit }
+                withContext(Dispatchers.Main) { DispoFahrtenSpeicher.archivAufheben(fahrtID) }
+            }
 
             // Nur die Notizen der Disposition ersetzen, Fahrernotizen (mit author_name) bleiben.
             val notiz = listOf(if (geladen.aiBooked) AI_TAG else "", FahrtText.getrimmt(e.notiz)).filter { it.isNotEmpty() }

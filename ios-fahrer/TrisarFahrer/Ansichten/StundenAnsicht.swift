@@ -230,10 +230,44 @@ struct StundenAktionen: ViewModifier {
     }
 }
 
-/// Verlauf (Profil -> Verlauf): jeder vergangene Dienst als Stundenkarte unter seinem Tag.
+/// Weisse Fahrtkarte wie EntryCard im Demo-Verlauf (Verlauf.jsx): Datum und Uhrzeit, darunter die Gaeste.
+struct VerlaufFahrtKarte: View {
+    let fahrt: Verlauf.Fahrt
+    private var namen: [String] { GaesteAnzeige.zeilen(fahrt.gaeste ?? [], anonym: fahrt.anonym ?? 0) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(Verlauf.kartenZeile(fahrt)).grotesk(14, .medium, abstand: 0.35)
+                .foregroundStyle(Color(hex: 0x18181B).opacity(0.8)).lineLimit(1)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(namen.enumerated()), id: \.offset) { _, name in
+                    Text(name).grotesk(24, .bold, abstand: 0.6).foregroundStyle(Color(hex: 0x18181B))
+                        .lineLimit(1).frame(minHeight: namen.count > 1 ? 28 : 24, alignment: .leading)
+                }
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, namen.count > 2 ? 18 : 10)
+        .frame(width: 362, height: namen.count > 2 ? nil : (namen.count > 1 ? 112 : 96), alignment: .leading)
+        .background(Color.white)
+    }
+}
+
+/// Rahmenzeile Dienststart (Lime) bzw. Dienstende (Rot) wie StatusRow im Demo-Verlauf.
+struct VerlaufRahmenZeile: View {
+    let text: String
+    let farbe: Color
+    var body: some View {
+        Text(text).grotesk(24, .bold, abstand: 0.6).foregroundStyle(farbe).lineLimit(1)
+            .padding(.horizontal, 16)
+            .frame(width: 362, height: 48, alignment: .leading)
+            .overlay(Rectangle().strokeBorder(farbe, lineWidth: 1))
+    }
+}
+
+/// Verlauf (Profil -> Verlauf, wie Verlauf.jsx): erledigte Fahrten nach Tagen, neueste zuerst.
+/// Dienste aus der Stundenerfassung stehen als Rahmen (Dienststart, Fahrten, Dienstende) mit Stundenkarte darin.
 struct VerlaufAnsicht: View {
     var zurueck: () -> Void
-    @State private var eintraege: [Stunden.Eintrag]?
+    @State private var tage: [Verlauf.Tag]?
     @State private var bearbeiten: Stunden.Eintrag?
     @State private var ablehnen: Stunden.Eintrag?
     @ObservedObject private var speicher = StundenSpeicher.shared
@@ -245,21 +279,22 @@ struct VerlaufAnsicht: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ZurueckKnopf(aktion: zurueck).frame(width: 50, height: 50)
                     Text("Verlauf").font(.grotesk(42, .bold)).tracking(-0.5).foregroundStyle(lime).padding(.top, 30)
-                    if let eintraege {
-                        if eintraege.isEmpty {
-                            Text("Noch keine abgeschlossenen Dienste.").font(.grotesk(16, .medium))
+                    if let tage {
+                        if tage.isEmpty {
+                            Text("Noch keine erledigten Fahrten.").font(.grotesk(16, .medium))
                                 .foregroundStyle(.white.opacity(0.7)).padding(.top, 24)
                         }
                         VStack(alignment: .leading, spacing: 44) {
-                            ForEach(eintraege) { e in
+                            ForEach(tage) { tag in
                                 VStack(alignment: .leading, spacing: 24) {
-                                    StundenTageszeile(datum: e.dienst.datum)
-                                    if e.vorbei {
-                                        StundenKarte(eintrag: e, beschaeftigt: speicher.arbeitetID == e.id,
-                                                     annehmen: { Task { await speicher.annehmen(e); await neu() } },
-                                                     bearbeiten: { bearbeiten = e }, ablehnen: { ablehnen = e })
-                                    } else {
-                                        Text("Dienst läuft noch").grotesk(16, .medium).foregroundStyle(.white.opacity(0.5))
+                                    StundenTageszeile(datum: tag.datum)
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        ForEach(tag.eintraege) { eintrag in
+                                            switch eintrag {
+                                            case .fahrt(let f): VerlaufFahrtKarte(fahrt: f)
+                                            case .dienst(let e, let fahrten): dienst(e, fahrten)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -280,7 +315,27 @@ struct VerlaufAnsicht: View {
         .modifier(StundenAktionen(bearbeiten: $bearbeiten, ablehnen: $ablehnen) { Task { await neu() } })
     }
 
-    private func neu() async { eintraege = await Stunden.verlauf() }
+    @ViewBuilder private func dienst(_ e: Stunden.Eintrag, _ fahrten: [Verlauf.Fahrt]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            VerlaufRahmenZeile(text: "Dienststart \(e.dienst.beginn ?? "--:--")", farbe: lime).padding(.bottom, 9)
+            ForEach(fahrten) { VerlaufFahrtKarte(fahrt: $0) }
+            if e.vorbei {
+                VerlaufRahmenZeile(text: "Dienstende \(e.dienst.ende ?? "--:--")", farbe: rot).padding(.top, 9)
+                StundenKarte(eintrag: e, beschaeftigt: speicher.arbeitetID == e.id,
+                             annehmen: { Task { await speicher.annehmen(e); await neu() } },
+                             bearbeiten: { bearbeiten = e }, ablehnen: { ablehnen = e })
+                    .padding(.top, 18)
+            } else {
+                Text("Dienst läuft noch").grotesk(16, .medium).foregroundStyle(.white.opacity(0.5)).padding(.top, 9)
+            }
+        }
+    }
+
+    private func neu() async {
+        async let fahrten = Verlauf.fahrten()
+        async let dienste = Stunden.verlauf()
+        tage = Verlauf.tage(await fahrten, await dienste)
+    }
 }
 
 /// Bearbeiten: Beginn, Ende und Pause in halben Stunden, dazu eine Notiz, warum es abweicht.

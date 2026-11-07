@@ -115,6 +115,9 @@ object DispoFahrtenSpeicher {
     /** Lokal archivierte Fahrten, bis jobs_archive sie liefert (locallyArchivedJobIdsRef). */
     private val lokalArchiviert = mutableSetOf<String>()
 
+    /** Die Dispo hat eine archivierte Fahrt im Editor wieder auf offen, unterwegs oder beendet gesetzt. */
+    fun archivAufheben(id: String) { lokalArchiviert.remove(id); lokalArchiviert.remove(id.lowercase()) }
+
     // MARK: Start, Realtime, Abgleich
 
     /** Einmal starten: laden, Realtime auf jobs/convoy_assignments/job_guests/job_notes, alle 60 s abgleichen. */
@@ -441,7 +444,8 @@ object DispoFahrtenSpeicher {
 
             DispoFahrt(
                 id = jobID,
-                name = hauptGast.ifEmpty { startEtikett },
+                // Ohne Gastnamen bleibt der Name leer, die Karte zeigt dann anonyme Gaeste oder "Keine Gäste".
+                name = hauptGast,
                 alleGaeste = wirksameGaeste,
                 route = "$startEtikett - $zielEtikett",
                 startOrt = startWert,

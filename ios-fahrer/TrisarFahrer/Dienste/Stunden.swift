@@ -106,3 +106,100 @@ enum Stunden {
         return d
     }
 }
+
+/// Verlauf (Profil -> Verlauf, wie Verlauf.jsx): erledigte Fahrten der letzten Tage aus verlauf_fahrten(),
+/// Dienste aus stunden_verlauf() als Rahmen darum.
+enum Verlauf {
+    struct Fahrt: Decodable, Identifiable, Hashable {
+        let id: UUID
+        let datum: String
+        let abfahrt: String?
+        let ankunft: String?
+        let gaeste: [String]?
+        let anonym: Int?
+    }
+
+    /// Rueckfall, solange verlauf_fahrten() fehlt: eigene Fahrten ueber die Fahrer-RLS, Ankunft = Abfahrt + Fahrzeit.
+    private struct JobRoh: Decodable {
+        let id: UUID; let ride_date: String?; let etd: String?; let original_etd: String?
+        let ext_route_duration_mins: Int?; let passengers: [String]?; let anonymous_guests: Int?
+    }
+
+    static let erledigt = ["done", "completed", "arrived", "beendet"]
+
+    static func fahrten(tage: Int = 60) async -> [Fahrt] {
+        if let liste: [Fahrt] = try? await Backend.client.rpc("verlauf_fahrten", params: ["p_tage": tage]).execute().value {
+            return liste
+        }
+        guard let uid = try? await Backend.client.auth.session.user.id.uuidString.lowercased() else { return [] }
+        let p = DateFormatter(); p.locale = Locale(identifier: "en_US_POSIX"); p.timeZone = Stunden.berlin; p.dateFormat = "yyyy-MM-dd"
+        let ab = p.string(from: Date().addingTimeInterval(-Double(tage) * 86400))
+        let jobs: [JobRoh] = (try? await Backend.client.from("jobs")
+            .select("id, ride_date, etd, original_etd, ext_route_duration_mins, passengers, anonymous_guests")
+            .eq("driver_id", value: uid).in("status", values: erledigt).gte("ride_date", value: ab)
+            .execute().value) ?? []
+        return jobs.compactMap { j in
+            guard let datum = j.ride_date else { return nil }
+            let etd = String((j.etd ?? j.original_etd ?? "").prefix(5))
+            let start = Stunden.zeitpunkt(datum, etd)
+            let ende = start.flatMap { s in (j.ext_route_duration_mins ?? 0) > 0 ? s.addingTimeInterval(Double(j.ext_route_duration_mins!) * 60) : nil }
+            return Fahrt(id: j.id, datum: datum, abfahrt: start.map { Stunden.iso.string(from: $0) },
+                         ankunft: ende.map { Stunden.iso.string(from: $0) }, gaeste: j.passengers, anonym: j.anonymous_guests)
+        }
+    }
+
+    /// Ein Eintrag im Tag: ein Dienst mit seinen Fahrten oder eine lose Fahrt.
+    enum Eintrag: Identifiable {
+        case dienst(Stunden.Eintrag, [Fahrt])
+        case fahrt(Fahrt)
+        var id: UUID {
+            switch self {
+            case .dienst(let e, _): return e.id
+            case .fahrt(let f): return f.id
+            }
+        }
+    }
+    struct Tag: Identifiable { let datum: String; let eintraege: [Eintrag]; var id: String { datum } }
+
+    /// Tage neueste zuerst. Im Tag chronologisch. Eine Fahrt gehoert zum Dienst, wenn der Stundenvorschlag
+    /// sie nennt oder sie im Dienstfenster startet.
+    static func tage(_ fahrten: [Fahrt], _ dienste: [Stunden.Eintrag]) -> [Tag] {
+        struct Rahmen { let e: Stunden.Eintrag; let start: Date?; let ende: Date?; let ids: Set<UUID>; var fahrten: [Fahrt] = [] }
+        var rahmen = dienste.map { e -> Rahmen in
+            let b = Stunden.zeitpunkt(e.dienst.datum, e.dienst.beginn ?? "")
+            let en = Stunden.zeitpunkt(e.dienst.datum, e.dienst.ende ?? "", nach: b)
+            return Rahmen(e: e, start: b, ende: en, ids: Set((e.vorschlag?.fahrten ?? []).map(\.id)))
+        }
+        var lose: [Fahrt] = []
+        for f in fahrten {
+            let t = Stunden.datum(f.abfahrt)
+            if let i = rahmen.firstIndex(where: { $0.ids.contains(f.id) })
+                ?? rahmen.firstIndex(where: { r in
+                    guard let t, let s = r.start, let en = r.ende else { return false }
+                    return t >= s && t <= en
+                }) {
+                rahmen[i].fahrten.append(f)
+            } else {
+                lose.append(f)
+            }
+        }
+        let zeit: (Date?) -> TimeInterval = { $0?.timeIntervalSince1970 ?? 0 }
+        var nachTag: [String: [(TimeInterval, Eintrag)]] = [:]
+        for r in rahmen {
+            let sortiert = r.fahrten.sorted { zeit(Stunden.datum($0.abfahrt)) < zeit(Stunden.datum($1.abfahrt)) }
+            nachTag[r.e.dienst.datum, default: []].append((zeit(r.start), .dienst(r.e, sortiert)))
+        }
+        for f in lose { nachTag[f.datum, default: []].append((zeit(Stunden.datum(f.abfahrt)), .fahrt(f))) }
+        return nachTag.keys.sorted(by: >).map { d in
+            Tag(datum: d, eintraege: (nachTag[d] ?? []).sorted { $0.0 < $1.0 }.map(\.1))
+        }
+    }
+
+    /// "07.11.2026 20:06 - 20:28" wie die Demo-Karten im Web (dort fallen die Leerzeichen zu einem zusammen).
+    static func kartenZeile(_ f: Fahrt) -> String {
+        let teile = f.datum.split(separator: "-")
+        let datum = teile.count == 3 ? "\(teile[2]).\(teile[1]).\(teile[0])" : f.datum
+        let zeit = Stunden.uhr(f.abfahrt) + (f.ankunft != nil ? " - " + Stunden.uhr(f.ankunft) : "")
+        return "\(datum) \(zeit)"
+    }
+}

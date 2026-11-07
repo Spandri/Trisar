@@ -3,6 +3,7 @@
 // Dienstkarte (dunkle Flaeche, grosse Zeiten), darin die Fahrten des Dienstes. Darunter
 // Ablehnen, Bearbeiten, Annehmen wie bei Diensten und Fahrten. Zeiten in halben Stunden.
 // Daten: Datenbank-Funktion stunden_verlauf() und Tabelle stundenzettel (gleich in iOS und Android).
+// Der Verlauf (Profil -> Verlauf) steht in Verlauf.jsx und nutzt Karte, Hook und Tageszeile von hier.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEMO_MODE } from '../../../datenquelle';
@@ -20,8 +21,6 @@ const schrift = { fontFamily: 'Space Grotesk' };
 
 const TEXTE = {
   verlauf: 'Verlauf',
-  leer: 'Noch keine abgeschlossenen Dienste.',
-  laeuft: 'Dienst läuft noch',
   stunden: 'Stunden {zeit}',
   pause: 'Pause {zeit}',
   eingereicht: 'Eingereicht',
@@ -52,7 +51,7 @@ const TEXTE = {
 };
 const tx = (k, w = {}) => Object.entries(w).reduce((s, [a, b]) => s.replace(`{${a}}`, b), TEXTE[k] || k);
 
-const uhr = (iso) => (iso ? new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' }) : '--:--');
+export const uhr = (iso) => (iso ? new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' }) : '--:--');
 const hmm = (min) => `${Math.floor((min || 0) / 60)}:${String(Math.round((min || 0) % 60)).padStart(2, '0')}`;
 const tagTitel = (iso) => {
   const d = new Date(`${iso}T12:00:00`);
@@ -66,7 +65,7 @@ const PAUSE_MIN = 180;
 const pauseZaehlt = (pause) => (pause >= PAUSE_MIN ? pause : 0);
 
 // Zeit HH:MM am Tag des Dienstes (Europe/Berlin) als ISO. Vor dem Beginn liegende Enden rutschen auf den Folgetag.
-const zuZeitpunkt = (datum, hhmm, nachIso = null) => {
+export const zuZeitpunkt = (datum, hhmm, nachIso = null) => {
   if (!/^\d{1,2}:\d{2}$/.test(hhmm || '')) return null;
   const [h, m] = hhmm.split(':').map(Number);
   const mittag = new Date(`${datum}T12:00:00Z`);
@@ -77,7 +76,7 @@ const zuZeitpunkt = (datum, hhmm, nachIso = null) => {
   return new Date(t).toISOString();
 };
 
-const useStundenVerlauf = (tage = 60) => {
+export const useStundenVerlauf = (tage = 60) => {
   const [eintraege, setEintraege] = useState(null);
   const [stand, setStand] = useState(0);
   useEffect(() => {
@@ -372,41 +371,10 @@ export function StundenBearbeiten({ eintrag, schliessen, fertig }) {
   );
 }
 
-const Tageszeile = ({ datum }) => (
+export const Tageszeile = ({ datum }) => (
   <div className="flex items-center justify-between h-[32px]">
     <span className="w-[44px] h-[2px] shrink-0" style={{ background: LIME }} />
     <span className="text-[26px] font-bold tracking-[-0.5px] whitespace-nowrap" style={{ ...schrift, color: LIME }}>{tagTitel(datum)}</span>
     <span className="w-[44px] h-[2px] shrink-0" style={{ background: LIME }} />
   </div>
 );
-
-// Verlauf (Profil -> Verlauf, live): jeder vergangene Dienst als Stundenkarte unter seinem Tag.
-export function StundenVerlauf() {
-  const { eintraege, laden } = useStundenVerlauf(60);
-  const aktionen = useStundenAktionen(laden);
-  if (eintraege === null) return null;
-  if (!eintraege.length) {
-    return <p className="text-white/70 text-[16px] font-medium leading-6" style={schrift}>{tx('leer')}</p>;
-  }
-  return (
-    <div className="flex flex-col gap-[44px]">
-      {eintraege.map((e) => (
-        <div key={e.dienst.id} className="flex flex-col gap-[24px]">
-          <Tageszeile datum={e.dienst.datum} />
-          {e.vorbei ? (
-            <StundenKarte
-              eintrag={e}
-              busy={aktionen.busyId === e.dienst.id}
-              annehmen={() => aktionen.annehmen(e)}
-              bearbeiten={() => aktionen.bearbeiten(e)}
-              ablehnen={() => aktionen.ablehnen(e)}
-            />
-          ) : (
-            <div className="text-[16px] font-medium text-white/50" style={schrift}>{tx('laeuft')}</div>
-          )}
-        </div>
-      ))}
-      {aktionen.ebene}
-    </div>
-  );
-}

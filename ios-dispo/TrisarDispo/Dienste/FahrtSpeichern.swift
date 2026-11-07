@@ -509,10 +509,15 @@ enum FahrtSpeichern {
             let gewuenscht = FahrtText.jobStatus(e.werte.aktuellerStatus)
             let endStatus = ["done", "completed", "cancelled", "canceled", "refused", "in_progress"].contains(gewuenscht)
             let gleicheUhr: (String?, String) -> Bool = { String(($0 ?? "").prefix(5)) == String($1.prefix(5)) }
+            // Uhrzeit im Formular nicht angefasst: die gespeicherte ETD bleibt. Bei ueberfaelligen offenen
+            // Fahrten zeigt das Formular "jetzt" statt der Planzeit. Sonst schrieb jede reine Statusaenderung
+            // die aktuelle Uhrzeit als neue ETD und setzte bei "offen" die Annahme des Fahrers zurueck.
+            let zeitUnberuehrt = bisher != nil && !v.zug.gueltig
+                && FahrtText.uhrzeit(e.werte.startZeit, "") == FahrtText.uhrzeit(geladen.werte.startZeit, "")
             let fahrtGeaendert = bisher == nil
                 || fahrerNeu != bisher?.driver_id
                 || (bisher?.ride_date ?? "") != v.tag
-                || !gleicheUhr(bisher?.etd, v.startZeit)
+                || (!zeitUnberuehrt && !gleicheUhr(bisher?.etd, v.startZeit))
                 || FahrtText.getrimmt(bisher?.pickup_address ?? "") != v.startAdresse
                 || FahrtText.getrimmt(bisher?.dropoff_address ?? "") != v.zielAdresse
             let neuAnfragen = fahrerNeu != nil && !endStatus && fahrtGeaendert
@@ -532,12 +537,23 @@ enum FahrtSpeichern {
                 zeile["driver_response_status"] = "pending"
                 zeile["driver_responded_at"] = .null
             }
+            if zeitUnberuehrt {
+                zeile.removeValue(forKey: "etd")
+                zeile.removeValue(forKey: "original_etd")
+            }
             let geaendert: [NeueID] = try await c.from("jobs").update(zeile).eq("id", value: fahrtID)
                 .select("id, passengers").execute().value
             if geaendert.isEmpty { throw TrisarFehler.text(FahrtText.tr("app.fahrtUpdateFehler")) }
 
             if v.flug.gueltig { await FahrtPruefung.externerAbgleich(fahrtID, grund: "manual_refresh") }
             await kolonneAbgleichen(fahrtID, zuordnung, statusZuruecksetzen: neuAnfragen, ersetzen: true)
+
+            // Archivierte Fahrt bewusst auf offen, unterwegs oder beendet gesetzt: Archiv-Eintrag entfernen.
+            // Die Liste zeigt jede Fahrt mit Eintrag in jobs_archive als storniert, egal was in jobs.status steht.
+            if dispoGeaendert && FahrtText.editorStatus(gewuenscht) != "stoniert" {
+                _ = try? await c.from("jobs_archive").delete().eq("job_id", value: fahrtID).execute()
+                await MainActor.run { DispoFahrtenSpeicher.gemeinsam.archivAufheben(fahrtID.uuidString) }
+            }
 
             // Nur die Notizen der Disposition ersetzen, Fahrernotizen (mit author_name) bleiben.
             let notiz = [geladen.aiBooked ? aiTag : "", FahrtText.getrimmt(e.notiz)].filter { !$0.isEmpty }

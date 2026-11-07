@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.trisar.kern.FussleisteUnten
+import de.trisar.kern.GaesteAnzeige
 import de.trisar.kern.Icon
 import de.trisar.kern.Stunden
 import de.trisar.kern.ZurueckKnopf
@@ -254,7 +255,38 @@ internal fun StundenAblehnenBlatt(schliessen: () -> Unit, senden: (String) -> Un
 
 // MARK: Verlauf
 
-/** Verlauf (Profil -> Verlauf): jeder vergangene Dienst als Stundenkarte unter seinem Tag. */
+/** Weisse Fahrtkarte wie EntryCard im Demo-Verlauf (Verlauf.jsx): Datum und Uhrzeit, darunter die Gaeste. */
+@Composable
+private fun VerlaufFahrtKarte(f: Verlauf.Fahrt) {
+    val namen = GaesteAnzeige.zeilen(f.gaeste, f.anonym)
+    val dunkel = hex(0x18181B)
+    val hoehe = when { namen.size > 2 -> Modifier; namen.size > 1 -> Modifier.height(112.dp); else -> Modifier.height(96.dp) }
+    Column(
+        Modifier.width(362.dp).then(hoehe).background(Color.White)
+            .padding(horizontal = 16.dp, vertical = if (namen.size > 2) 18.dp else 10.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically),
+    ) {
+        Text(Verlauf.kartenZeile(f), style = grotesk(14f, 500, zeilenHoehe = 16f, abstand = 0.35f, farbe = dunkel.copy(alpha = 0.8f)), maxLines = 1)
+        Column {
+            namen.forEach { name ->
+                Text(name, style = grotesk(24f, 700, zeilenHoehe = if (namen.size > 1) 28f else 24f, abstand = 0.6f, farbe = dunkel), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+/** Rahmenzeile Dienststart (Lime) bzw. Dienstende (Rot) wie StatusRow im Demo-Verlauf. */
+@Composable
+private fun VerlaufRahmenZeile(text: String, farbe: Color, modifier: Modifier = Modifier) {
+    Box(modifier.width(362.dp).height(48.dp).border(1.dp, farbe).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+        Text(text, style = grotesk(24f, 700, zeilenHoehe = 24f, abstand = 0.6f, farbe = farbe), maxLines = 1)
+    }
+}
+
+/**
+ * Verlauf (Profil -> Verlauf, wie Verlauf.jsx): erledigte Fahrten nach Tagen, neueste zuerst. Dienste aus der
+ * Stundenerfassung stehen als Rahmen (Dienststart, Fahrten, Dienstende) mit Stundenkarte darin.
+ */
 @Composable
 internal fun VerlaufSeite(
     fahrerID: String,
@@ -263,12 +295,14 @@ internal fun VerlaufSeite(
     bearbeiten: (Stunden.Eintrag) -> Unit,
     ablehnen: (Stunden.Eintrag) -> Unit,
 ) {
-    var eintraege by remember { mutableStateOf<List<Stunden.Eintrag>?>(null) }
+    var tage by remember { mutableStateOf<List<Verlauf.Tag>?>(null) }
     var neu by remember { mutableIntStateOf(0) }
     val arbeitet by StundenSpeicher.arbeitetID.collectAsState()
     val scope = rememberCoroutineScope()
     LaunchedEffect(stand, neu) {
-        eintraege = try { Stunden.verlauf(null, 60) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
+        val dienste = try { Stunden.verlauf(null, 60) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
+        val fahrten = try { Verlauf.fahrten(fahrerID, 60) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
+        tage = Verlauf.tage(fahrten, dienste)
     }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         ProfilHintergrund()
@@ -276,25 +310,44 @@ internal fun VerlaufSeite(
             Column(Modifier.width(402.dp).padding(start = 20.dp, end = 20.dp, top = 60.dp, bottom = 90.dp)) {
                 ZurueckKnopf(aktion = zurueck)
                 Text("Verlauf", style = grotesk(42f, 700, zeilenHoehe = 42f, abstand = -0.5f, farbe = LIME), modifier = Modifier.padding(top = 30.dp))
-                val liste = eintraege
+                val liste = tage
                 if (liste != null) {
                     if (liste.isEmpty()) {
-                        Text("Noch keine abgeschlossenen Dienste.", style = grotesk(16f, 500, farbe = Color.White.copy(alpha = 0.7f)), modifier = Modifier.padding(top = 24.dp))
+                        Text("Noch keine erledigten Fahrten.", style = grotesk(16f, 500, farbe = Color.White.copy(alpha = 0.7f)), modifier = Modifier.padding(top = 24.dp))
                     }
                     Column(Modifier.padding(top = 32.dp), verticalArrangement = Arrangement.spacedBy(44.dp)) {
-                        liste.forEach { e ->
-                            androidx.compose.runtime.key(e.dienst.id) {
+                        liste.forEach { tag ->
+                            androidx.compose.runtime.key(tag.datum) {
                                 Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                                    StundenTageszeile(e.dienst.datum)
-                                    if (e.vorbei) {
-                                        StundenKarte(
-                                            e, beschaeftigt = arbeitet == e.dienst.id,
-                                            annehmen = { scope.launch { StundenSpeicher.annehmen(fahrerID, e); neu++ } },
-                                            bearbeiten = { bearbeiten(e) },
-                                            ablehnen = { ablehnen(e) },
-                                        )
-                                    } else {
-                                        Text("Dienst läuft noch", style = grotesk(16f, 500, farbe = Color.White.copy(alpha = 0.5f)))
+                                    StundenTageszeile(tag.datum)
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        tag.eintraege.forEach { eintrag ->
+                                            androidx.compose.runtime.key(eintrag.schluessel) {
+                                                when (eintrag) {
+                                                    is Verlauf.Eintrag.Lose -> VerlaufFahrtKarte(eintrag.f)
+                                                    is Verlauf.Eintrag.Dienst -> {
+                                                        val e = eintrag.e
+                                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                            VerlaufRahmenZeile("Dienststart ${e.dienst.beginn.ifEmpty { "--:--" }}", LIME, Modifier.padding(bottom = 9.dp))
+                                                            eintrag.fahrten.forEach { VerlaufFahrtKarte(it) }
+                                                            if (e.vorbei) {
+                                                                VerlaufRahmenZeile("Dienstende ${e.dienst.ende.ifEmpty { "--:--" }}", ROT, Modifier.padding(top = 9.dp))
+                                                                Box(Modifier.padding(top = 18.dp)) {
+                                                                    StundenKarte(
+                                                                        e, beschaeftigt = arbeitet == e.dienst.id,
+                                                                        annehmen = { scope.launch { StundenSpeicher.annehmen(fahrerID, e); neu++ } },
+                                                                        bearbeiten = { bearbeiten(e) },
+                                                                        ablehnen = { ablehnen(e) },
+                                                                    )
+                                                                }
+                                                            } else {
+                                                                Text("Dienst läuft noch", style = grotesk(16f, 500, farbe = Color.White.copy(alpha = 0.5f)), modifier = Modifier.padding(top = 9.dp))
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

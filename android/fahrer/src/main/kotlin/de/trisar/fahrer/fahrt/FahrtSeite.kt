@@ -469,7 +469,8 @@ private fun BlattInhalt(
     val breite = 402f
     val innen = breite - 40f
     val merkmale = details.merkmale
-    val gaeste = details.gaeste.ifEmpty { listOf("Keine Gäste") }
+    // Gemeinsame Regel: Namen je Zeile, anonyme Gaeste als eigene Zeile, sonst "Keine Gäste".
+    val gaeste = de.trisar.kern.GaesteAnzeige.zeilen(details.gaeste, details.anonym)
     // Flughafen: Gaeste immer bei 482 (Platz fuer Flugnummer), sonst je nach Merkmalen.
     val gaesteOben = y(if (istFlug || merkmale.isNotEmpty()) 563f - 81f else 289f + 64f + 42f)
     val ersteGastZeile = gaesteOben + 50f

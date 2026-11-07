@@ -252,11 +252,17 @@ const normalizeRideDateValue = (value, fallback = '') => {
   return fallback;
 };
 
+// Alle Schreibweisen, die jobs.status erlaubt (jobs_status_check), nicht nur die englischen Grundwerte.
+// Sonst zeigte der Editor z. B. bei 'completed' oder 'storniert' "offen", und Speichern ohne
+// Statuswahl hielt das fuer keine Aenderung.
+const EDITOR_UNTERWEGS_STATUS = new Set(['in_progress', 'unterwegs', 'started', 'on_trip', 'ongoing', 'active']);
+const EDITOR_BEENDET_STATUS = new Set(['done', 'completed', 'arrived', 'beendet']);
+const EDITOR_STORNIERT_STATUS = new Set(['cancelled', 'canceled', 'refused', 'storniert', 'stoniert', 'archived']);
 const mapJobStatusToEditorStatus = (status) => {
   const value = String(status || '').trim().toLowerCase();
-  if (value === 'in_progress') return 'unterwegs';
-  if (value === 'done') return 'beendet';
-  if (value === 'cancelled' || value === 'refused' || value === 'archived') return 'stoniert';
+  if (EDITOR_UNTERWEGS_STATUS.has(value)) return 'unterwegs';
+  if (EDITOR_BEENDET_STATUS.has(value)) return 'beendet';
+  if (EDITOR_STORNIERT_STATUS.has(value)) return 'stoniert';
   return 'offen';
 };
 
@@ -1731,7 +1737,8 @@ export default function App() {
           return {
             id: jobId,
             sourceView: 'ankuenfte',
-            name: primaryGuestName || startLabel,
+            // Ohne Gastnamen bleibt der Titel leer, die Karte zeigt dann anonyme Gaeste oder 'Keine Gäste'.
+            name: primaryGuestName,
             allGuestNames: effectiveGuestNames,
             route,
             startLocation: startEditorValue,
@@ -2637,12 +2644,18 @@ export default function App() {
       const normalizedRequestedStatus = String(requestedJobStatus || '').trim().toLowerCase();
       const isFinalRequestedStatus = ['done', 'completed', 'cancelled', 'canceled', 'refused', 'in_progress'].includes(normalizedRequestedStatus);
       const sameClock = (a, b) => String(a || '').slice(0, 5) === String(b || '').slice(0, 5);
+      // Uhrzeit im Editor nicht angefasst: dann bleibt die gespeicherte ETD. Bei ueberfaelligen offenen
+      // Fahrten zeigt der Editor "jetzt" statt der Planzeit. Ohne diese Pruefung schrieb jede reine
+      // Statusaenderung die aktuelle Uhrzeit als neue ETD, meldete dem Fahrer "Fahrt geaendert" und
+      // setzte bei "offen" seine Annahme zurueck.
+      const zeitUnberuehrt = Boolean(existingJob) && !hasValidatedTrain
+        && normalizeClockValue(payload?.startZeit, '') === normalizeClockValue(rideEditorData?.startZeit, '');
       // Nur wenn sich fuer den Fahrer etwas Wesentliches aendert, muss er neu annehmen.
       // Sonst bleibt seine Annahme (assigned) bestehen, z. B. bei neuer Notiz oder Gaesten.
       const driverOrTripChanged = !existingJob
         || String(resolvedDriverId || '') !== existingJobDriverId
         || String(existingJob.ride_date || '') !== rideDate
-        || !sameClock(existingJob.etd, startZeit)
+        || (!zeitUnberuehrt && !sameClock(existingJob.etd, startZeit))
         || String(existingJob.pickup_address || '').trim() !== startAdresse
         || String(existingJob.dropoff_address || '').trim() !== zielAdresse;
       const shouldReRequestDriverResponse = Boolean(resolvedDriverId) && !isFinalRequestedStatus && driverOrTripChanged;
@@ -2687,6 +2700,10 @@ export default function App() {
         anonymous_guests: anonymousCount,
         ai_booked: Boolean(payload?.aiBooked ?? rideEditorData?.aiBooked),
       };
+      if (zeitUnberuehrt) {
+        delete updatePayload.etd;
+        delete updatePayload.original_etd;
+      }
       if (keepUnverifiedFlight || keepUnverifiedTrain) {
         // Vorhandene Live-Daten der Fahrt nicht mit leeren Werten ueberschreiben.
         delete updatePayload.ext_flight_payload;
@@ -2774,6 +2791,19 @@ export default function App() {
         assignmentDriverIds,
         { resetResponseStatus: shouldReRequestDriverResponse, replaceAssignments: true },
       );
+
+      // Archivierte Fahrt bewusst auf offen, unterwegs oder beendet gesetzt: Archiv-Eintrag entfernen.
+      // Die Liste zeigt jede Fahrt mit Eintrag in jobs_archive als storniert, egal was in jobs.status steht.
+      if (dispoChangedStatus && !EDITOR_STORNIERT_STATUS.has(normalizedRequestedStatus)) {
+        locallyArchivedJobIdsRef.current.delete(rideId);
+        let archiveDeleteResult = await supabase.from('jobs_archive').delete().eq('job_id', rideId);
+        if (archiveDeleteResult.error && ADMIN_FALLBACK_ERROR_RE.test(archiveDeleteResult.error.message || '')) {
+          archiveDeleteResult = await supabaseAdmin.from('jobs_archive').delete().eq('job_id', rideId);
+        }
+        if (archiveDeleteResult.error && !MISSING_JOBS_ARCHIVE_TABLE_RE.test(archiveDeleteResult.error.message || '')) {
+          console.warn('jobs_archive Eintrag nicht entfernt:', archiveDeleteResult.error.message || archiveDeleteResult.error);
+        }
+      }
 
       const noteText = String(payload?.notes || payload?.note || '').trim();
       const keepAiBookedTag = Boolean(payload?.aiBooked ?? rideEditorData?.aiBooked);

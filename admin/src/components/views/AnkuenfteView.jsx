@@ -5,6 +5,7 @@ import { KLASSE_TEXT, NAH_STUNDEN, liveLage, naheLage, risikoFahrt, useRisikoDat
 import { KLASSE_FARBE } from './risikoFarben';
 import { DEMO_MODE } from '../../datenquelle';
 import { useI18n } from '../../i18n';
+import { anonymeGaesteText, gaesteTeile } from '../../shared/gaesteAnzeige';
 
 // Fahrten mit hohem Risiko tragen "NEU", bis die Disposition sie einmal geoeffnet hat.
 const GESEHEN_SCHLUESSEL = 'trisar-demo-risiko-gesehen';
@@ -224,11 +225,17 @@ const RideCard = ({
   const fallbackDriverParts = displayDriverParts.length > 0 ? displayDriverParts : [{ text: driverLabel, colorClass: textColor }];
 
   // Alle Gäste verkürzen und mit Komma verbinden
-  const shortGuestNames = (allGuestNames && allGuestNames.length > 0)
-    ? allGuestNames.map(g => shortenName(g)).join(', ')
-    : shortenName(name);
-  const anonCount = Number.parseInt(String(anonymeGaeste || '0'), 10);
-  const hasAnonGuests = Number.isFinite(anonCount) && anonCount > 0;
+  // Gemeinsame Regel: Namen plus "+ N", nur anonyme als "N Anonyme Gäste", nie der Startort.
+  const gaeste = gaesteTeile(allGuestNames, anonymeGaeste);
+  const einzelName = String(name || '').trim();
+  const hatNamen = gaeste.namen.length > 0 || einzelName.length > 0;
+  const shortGuestNames = gaeste.namen.length > 0
+    ? gaeste.namen.map(g => shortenName(g)).join(', ')
+    : (einzelName
+      ? shortenName(einzelName)
+      : (gaeste.anonym > 0 ? anonymeGaesteText(gaeste.anonym, t) : t('gaeste.keine')));
+  const anonCount = gaeste.anonym;
+  const hasAnonGuests = hatNamen && anonCount > 0;
   // Alle Notizen der Fahrt, aelteste zuerst. Ohne Liste faellt es auf die einzelne Notiz zurueck.
   const noteLines = (Array.isArray(notizen) && notizen.length ? notizen : [note])
     .map((eintrag) => String(eintrag || '').trim())

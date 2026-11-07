@@ -60,6 +60,7 @@ import {
 } from 'lucide-react';
 import { MAP_FAHRER_STANDORT_URL, MAP_FLAG_PIN_URL, MAP_PERSON_PIN_URL } from '../../shared/ui/icons';
 import { routeTeilen, istAmEnde } from '../../shared/karte/routenFortschritt';
+import { gaesteText } from '../../shared/gaesteAnzeige';
 
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
@@ -1274,7 +1275,7 @@ const DetailsView = ({ job, setView, setActiveChat, currentDriverId, unreadGroup
           {!job.isKolonne && (
             <div className="mb-10 bg-[#222224] py-4 rounded-2xl">
               <div className="text-center text-sm font-bold text-white">
-                {job.passengers?.join(', ') || t('app.noGuestsListed')}
+                {(job.passengers?.length || job.anonymousGuests) ? gaesteText(job.passengers, job.anonymousGuests, t) : t('app.noGuestsListed')}
               </div>
             </div>
           )}
@@ -2551,6 +2552,8 @@ const FahrerApp = () => {
             extLastError: String(dbJob.ext_last_error || '').trim() || null,
             status: dbJob.status,
             passengers: myAssignment?.assignedGuests?.length ? myAssignment.assignedGuests : (passengers.length ? passengers : (dbJob.passengers || [])),
+            // Anzahl Gaeste ohne Namen, die Ansichten zeigen sie als 'N Anonyme Gäste'.
+            anonymousGuests: Math.max(0, Number.parseInt(String(dbJob.anonymous_guests ?? '0'), 10) || 0),
             waitingTime: dbJob.waiting_time_mins || 0,
             extRouteProvider: dbJob.ext_route_provider || null,
             extRouteDistanceM: dbJob.ext_route_distance_m || null,

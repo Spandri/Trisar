@@ -444,12 +444,21 @@ private fun FahrtKarte(
 
 @Composable
 private fun NamensZeile(fahrt: DispoFahrt, textFarbe: Color) {
-    val kurz = if (fahrt.alleGaeste.isEmpty()) FahrtText.kurzName(fahrt.name) else fahrt.alleGaeste.joinToString(", ") { FahrtText.kurzName(it) }
+    // Gemeinsame Regel: Namen plus "+ N", nur anonyme als "N Anonyme Gäste", nie der Startort.
+    val gaeste = de.trisar.kern.GaesteAnzeige.teile(fahrt.alleGaeste, fahrt.anonymeGaeste)
+    val einzelName = fahrt.name.trim()
+    val hatNamen = gaeste.namen.isNotEmpty() || einzelName.isNotEmpty()
+    val kurz = when {
+        gaeste.namen.isNotEmpty() -> gaeste.namen.joinToString(", ") { FahrtText.kurzName(it) }
+        einzelName.isNotEmpty() -> FahrtText.kurzName(einzelName)
+        gaeste.anonym > 0 -> de.trisar.kern.GaesteAnzeige.anonymText(gaeste.anonym)
+        else -> de.trisar.kern.GaesteAnzeige.KEINE
+    }
     val groesse = if (kurz.length > 45) 18f else if (kurz.length > 30) 20f else 24f
     val text = buildAnnotatedString {
         append(kurz)
-        if (fahrt.anonymeGaeste > 0) {
-            append("  + ${fahrt.anonymeGaeste} ")
+        if (hatNamen && gaeste.anonym > 0) {
+            append("  + ${gaeste.anonym} ")
             appendInlineContent("person", "[p]")
         }
     }
