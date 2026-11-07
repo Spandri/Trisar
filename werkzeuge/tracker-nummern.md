@@ -15,7 +15,7 @@ SMS über das 1NCE-Portal greifen nicht, solange SMS-Login/-Passwort oder autori
 
 ## Standardwerte per Gateway (Zündung = Strom an der USB-C-Platine), getestet an Nr. 2 am 06.11.
 
-    setparam 138:1;50000:2;101:4;105:11000;1000:300
+    setparam 138:1;50000:2;101:4;105:4500;1000:300
     setparam 10000:0;10005:0;10100:0;10105:0;10200:0;10205:0
     setparam 10055:120;10155:120;10255:120
     bash werkzeuge/tracker-befehl.sh <Nr> mittel   (Punkte bei Fahrt 30 s / 15 Grad / 200 m, umstellbar sparsam|mittel|fein)
