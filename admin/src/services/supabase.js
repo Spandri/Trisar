@@ -45,5 +45,7 @@ export const hasSupabaseAdminConfig = DEMO_MODE ? true : live.hasAdminConfig;
 export const supabase = DEMO_MODE ? demoSupabase : live.client;
 export const supabaseAdmin = DEMO_MODE ? demoSupabase : live.admin;
 // Disposition abmelden (Einstellungen). Das AnmeldeTor zeigt danach wieder den Login.
-export const abmelden = () => supabase.auth.signOut();
+// Nur dieses Geraet abmelden. Standard waere 'global' und wuerde auch die Dispo-Sitzung
+// desselben Kontos auf anderen Geraeten killen (gleicher Account fuer Fahrer-App und Dispo).
+export const abmelden = () => supabase.auth.signOut({ scope: 'local' });
 export { DEMO_MODE };

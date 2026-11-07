@@ -40,6 +40,8 @@ ENV:
 - optional `TELTONIKA_TCP_PORT` (default `5027`)
 - optional `TELTONIKA_HEALTH_PORT` (default `8788`)
 - optional `TELTONIKA_SOURCE` (default `teltonika_fmb010`)
+- optional `TELTONIKA_JOB_WINDOW_DAYS` (default `1`; nur Fahrten mit ride_date von gestern bis morgen koennen aktive Fahrt werden)
+- optional `TELTONIKA_MAX_RECORD_AGE_SEC` (default `600`; Records aelter als das werden verworfen, `0` = aus)
 - optional `TELTONIKA_BLOCK_NO_GPS_FIX_FOR_LIVE` (default `false`; `true` blockiert Live-Updates bei `Sat < TELTONIKA_MIN_SATELLITES_FOR_FIX`)
 - optional `TELTONIKA_COMMAND_DEFAULT` (default `getgps`)
 - optional `TELTONIKA_COMMAND_RESPONSE_TIMEOUT_MS` (default `15000`)

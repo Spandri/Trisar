@@ -232,7 +232,7 @@ class Karte {
     else this.wartende.push(aufgabe);
   }
 
-  fitBounds(bounds, rand) {
+  fitBounds(bounds, rand, optionen = {}) {
     const ecken = bounds?.alsEcken?.();
     if (!ecken) return;
     const abstand = typeof rand === 'number'
@@ -245,7 +245,8 @@ class Karte {
     const gleichNachDemLaden = !this.geladen || Date.now() - (this.geladenUm || 0) < 900;
     const dauer = this.ersterAusschnitt === false && !gleichNachDemLaden ? KAMERA_FAHRT_MS : 0;
     this.ersterAusschnitt = false;
-    this.karte.fitBounds(ecken, { padding: abstand, duration: dauer, maxZoom: 15.5, essential: true });
+    const maxZoom = zahl(optionen?.maxZoom) ?? 15.5;
+    this.karte.fitBounds(ecken, { padding: abstand, duration: dauer, maxZoom, essential: true });
   }
 
   // Weich auf eine Zoomstufe fahren.

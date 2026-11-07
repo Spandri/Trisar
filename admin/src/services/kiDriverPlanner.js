@@ -914,6 +914,8 @@ export const planDriverShiftsWithOllama = async ({
     // zur gewünschten Lösungsgüte (Abstand zum Optimum in %), nicht auf Zeit.
     mode: String(settings?.mode || 'balanced'),
     qualityGapPercent: Math.max(0, Number.parseFloat(String(settings?.qualityGapPercent ?? 0)) || 0),
+    // Leerfahrten: 'osrm' (Standard) oder 'osrm_raum' (Faktor je Gegend/Tag/Stunde).
+    travelModel: settings?.travelModel === 'osrm_raum' ? 'osrm_raum' : 'osrm',
   };
   normalizedSettings.minWorkHours = Math.min(normalizedSettings.maxWorkHours, normalizedSettings.minWorkHours);
 

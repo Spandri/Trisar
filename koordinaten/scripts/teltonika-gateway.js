@@ -21,6 +21,7 @@ const state = {
   unknownImeiPackets: 0,
   malformedPackets: 0,
   staleLiveSkipped: 0,
+  oldRecordsDropped: 0,
   invalidLiveSkipped: 0,
   implausibleLiveSkipped: 0,
   mappingCache: new Map(),
@@ -35,7 +36,11 @@ const state = {
   commandTimeouts: 0,
   commandErrors: 0,
   commandHistory: [],
+  commandTableAvailable: true,
   historyTableAvailable: true,
+  telemetryTableAvailable: true,
+  telemetryWrites: 0,
+  telemetryEvents: 0,
 };
 
 const loadEnvFile = (filePath) => {
@@ -69,6 +74,12 @@ const SOURCE = getEnv('TELTONIKA_SOURCE', SOURCE_NAME);
 const ACTIVE_JOB_CACHE_MS = toInt(getEnv('TELTONIKA_ACTIVE_JOB_CACHE_MS', '15000'), 15000);
 const LIVE_VIEW_SYNC_INTERVAL_MS = toInt(getEnv('LIVE_VIEW_SYNC_INTERVAL_MS', '12000'), 12000);
 const LIVE_JUMP_WINDOW_SEC = toInt(getEnv('TELTONIKA_LIVE_JUMP_WINDOW_SEC', '180'), 180);
+// Records aelter als dieses Alter (Sekunden) werden komplett verworfen. 0 = aus.
+// Verhindert, dass ein Tracker nach Verbindungsabbruch stundenalte Positionen nachliefert.
+const MAX_RECORD_AGE_SEC = toInt(getEnv('TELTONIKA_MAX_RECORD_AGE_SEC', '600'), 600);
+// Nur Fahrten mit ride_date in diesem Fenster um heute gelten als Kandidat fuer die aktive Fahrt.
+// Sonst wird eine monatealte, nie abgeschlossene Fahrt zur Live-Fahrt (und loest Routen-/Flug-Syncs aus).
+const JOB_WINDOW_DAYS = toInt(getEnv('TELTONIKA_JOB_WINDOW_DAYS', '1'), 1);
 const LIVE_JUMP_MAX_METERS_AT_STANDSTILL = toInt(getEnv('TELTONIKA_LIVE_JUMP_MAX_METERS', '1500'), 1500);
 const LIVE_JUMP_MIN_SPEED_MPS = Number(getEnv('TELTONIKA_LIVE_JUMP_MIN_SPEED_MPS', '2'));
 const MIN_SATELLITES_FOR_FIX = toInt(getEnv('TELTONIKA_MIN_SATELLITES_FOR_FIX', '1'), 1);
@@ -270,33 +281,123 @@ const cursor = (buffer) => ({
   },
 });
 
-const consumeCodec8Io = (c) => {
-  c.u8(); // event io id
+// Teltonika AVL-IDs (FMB-Serie). Vorzeichenbehaftete Temperaturen sind markiert.
+const IO_SIGNED_IDS = new Set([32, 53, 58]);
+const bytesToNumber = (bytes, signed) => {
+  let value = 0n;
+  for (const b of bytes) value = (value << 8n) | BigInt(b);
+  if (signed) {
+    const bits = BigInt(bytes.length * 8);
+    if (value >= (1n << (bits - 1n))) value -= (1n << bits);
+  }
+  return Number(value);
+};
+
+const parseCodec8Io = (c) => {
+  const eventIoId = c.u8();
   c.u8(); // total io count
+  const io = new Map();
   [1, 2, 4, 8].forEach((size) => {
     const count = c.u8();
     for (let i = 0; i < count; i += 1) {
-      c.u8(); // io id
-      c.bytes(size); // io value
+      const id = c.u8();
+      io.set(id, bytesToNumber(c.bytes(size), IO_SIGNED_IDS.has(id)));
     }
   });
+  return { eventIoId, io, ioText: new Map() };
 };
 
-const consumeCodec8eIo = (c) => {
-  c.u16(); // event io id
+const parseCodec8eIo = (c) => {
+  const eventIoId = c.u16();
   c.u16(); // total io count
+  const io = new Map();
+  const ioText = new Map();
   [1, 2, 4, 8].forEach((size) => {
     const count = c.u16();
     for (let i = 0; i < count; i += 1) {
-      c.u16(); // io id
-      c.bytes(size); // io value
+      const id = c.u16();
+      io.set(id, bytesToNumber(c.bytes(size), IO_SIGNED_IDS.has(id)));
     }
   });
   const nxCount = c.u16();
   for (let i = 0; i < nxCount; i += 1) {
-    c.u16(); // io id
+    const id = c.u16();
     const len = c.u16();
-    c.bytes(len);
+    const raw = c.bytes(len);
+    ioText.set(id, sanitizeTextForDbLogs(raw.toString('ascii')).trim());
+  }
+  return { eventIoId, io, ioText };
+};
+
+// Aus den rohen IO-Werten die Fahrzeugdaten lesen, die wir speichern.
+// Fehlt ein Element im Paket, bleibt das Feld weg (Upsert ueberschreibt dann nicht).
+const IO_FIELDS = [
+  [239, 'ignition', (v) => v === 1],
+  [240, 'movement', (v) => v === 1],
+  [21, 'gsm_signal', (v) => v],
+  [66, 'ext_voltage_v', (v) => v / 1000],
+  [67, 'battery_voltage_v', (v) => v / 1000],
+  [16, 'total_odometer_km', (v) => v / 1000],
+  [199, 'trip_odometer_km', (v) => v / 1000],
+  [30, 'dtc_count', (v) => v],
+  [31, 'engine_load_pct', (v) => v],
+  [32, 'coolant_c', (v) => v],
+  [36, 'rpm', (v) => v],
+  [37, 'obd_speed_kph', (v) => v],
+  [41, 'throttle_pct', (v) => v],
+  [42, 'engine_runtime_s', (v) => v],
+  [43, 'mil_distance_km', (v) => v],
+  [48, 'fuel_level_pct', (v) => v],
+  [51, 'control_module_voltage_v', (v) => v / 1000],
+  [53, 'ambient_c', (v) => v],
+  [58, 'oil_temp_c', (v) => v],
+  [60, 'fuel_rate_lph', (v) => v / 100],
+  [389, 'oem_mileage_km', (v) => v],
+  [390, 'oem_fuel_l', (v) => v / 10],
+  [755, 'oem_remaining_distance_km', (v) => v],
+  [12, 'fuel_used_gps_l', (v) => v / 1000],
+];
+const IO_TEXT_FIELDS = [
+  [256, 'vin'],
+  [281, 'fault_codes'],
+];
+const extractTelemetry = (record) => {
+  const out = {};
+  let any = false;
+  if (record.io) {
+    for (const [id, field, map] of IO_FIELDS) {
+      if (record.io.has(id)) { out[field] = map(record.io.get(id)); any = true; }
+    }
+  }
+  if (record.ioText) {
+    for (const [id, field] of IO_TEXT_FIELDS) {
+      const text = record.ioText.get(id);
+      if (text) { out[field] = text; any = true; }
+    }
+  }
+  return any ? out : null;
+};
+
+// Ereignisse, die das Geraet selbst meldet (Event-IO-ID des Datensatzes).
+const describeEvent = (record) => {
+  const id = record.eventIoId;
+  if (!id || !record.io) return null;
+  const v = record.io.get(id);
+  switch (id) {
+    case 239: return { type: v === 1 ? 'ignition_on' : 'ignition_off', value: v };
+    case 250: return { type: v === 1 ? 'trip_start' : 'trip_end', value: v };
+    case 251: return { type: v === 1 ? 'idling_start' : 'idling_end', value: v };
+    case 252: return { type: v === 1 ? 'unplugged' : 'plugged_in', value: v };
+    case 253: {
+      const art = { 1: 'harsh_acceleration', 2: 'harsh_braking', 3: 'harsh_cornering' }[v] || 'eco_driving';
+      return { type: art, value: record.io.get(254) ?? v };
+    }
+    case 255: return { type: 'overspeeding', value: v };
+    case 247: return { type: 'crash', value: v };
+    case 249: return { type: 'jamming', value: v };
+    case 236: return { type: 'alarm', value: v };
+    case 246: return { type: 'towing', value: v };
+    default: return null;
   }
 };
 
@@ -321,8 +422,7 @@ const parseAvlPayload = (payload) => {
     const angle = c.u16();
     const satellites = c.u8();
     const speedKph = c.u16();
-    if (isCodec8) consumeCodec8Io(c);
-    if (isCodec8e) consumeCodec8eIo(c);
+    const ioData = isCodec8 ? parseCodec8Io(c) : parseCodec8eIo(c);
     records.push({
       capturedAt: asIsoFromMs(tsMs),
       lat: latRaw / 10_000_000,
@@ -331,6 +431,9 @@ const parseAvlPayload = (payload) => {
       headingDeg: angle,
       satellites,
       altitude,
+      eventIoId: ioData.eventIoId,
+      io: ioData.io,
+      ioText: ioData.ioText,
     });
   }
 
@@ -464,14 +567,25 @@ const compareJobs = (left, right) => {
   return toTimestamp(left?.created_at) - toTimestamp(right?.created_at);
 };
 
+const jobDateWindow = () => {
+  const toYmd = (date) => date.toISOString().slice(0, 10);
+  const now = new Date();
+  const from = new Date(now); from.setUTCDate(from.getUTCDate() - JOB_WINDOW_DAYS);
+  const to = new Date(now); to.setUTCDate(to.getUTCDate() + JOB_WINDOW_DAYS);
+  return { from: toYmd(from), to: toYmd(to) };
+};
+
 const fetchDriverCandidateJobs = async (driverId) => {
   const baseSelect = 'id,driver_id,status,ride_date,etd,created_at';
+  const window = jobDateWindow();
   const [directJobsResult, convoyAssignmentsResult] = await Promise.all([
     supabase
       .from('jobs')
       .select(baseSelect)
       .eq('driver_id', driverId)
       .in('status', AUTO_ACTIVE_STATUSES)
+      .gte('ride_date', window.from)
+      .lte('ride_date', window.to)
       .order('ride_date', { ascending: true })
       .order('etd', { ascending: true })
       .order('created_at', { ascending: true })
@@ -503,7 +617,9 @@ const fetchDriverCandidateJobs = async (driverId) => {
       .from('jobs')
       .select(baseSelect)
       .in('id', convoyJobIds)
-      .in('status', AUTO_ACTIVE_STATUSES);
+      .in('status', AUTO_ACTIVE_STATUSES)
+      .gte('ride_date', window.from)
+      .lte('ride_date', window.to);
     if (convoyJobsResult.error) throw convoyJobsResult.error;
     convoyJobs = Array.isArray(convoyJobsResult.data) ? convoyJobsResult.data : [];
   }
@@ -631,7 +747,40 @@ const getCommandQueue = (imei) => {
   return state.pendingCommandsByImei.get(key);
 };
 
-const enqueueCommand = ({ imei, command, requestedBy = 'manual' }) => {
+// Befehls-Warteschlange in der DB (public.obd_tracker_befehl): ueberlebt Neustarts, die Dispo
+// legt dort Stufen-Befehle an (obd_tracker.stufe) und sieht die Quittung. Fehlt die Tabelle
+// (Migration noch nicht eingespielt), bleibt die alte Warteschlange im Speicher in Betrieb.
+const DB_COMMAND_POLL_MS = toInt(getEnv('TELTONIKA_DB_COMMAND_POLL_MS', '20000'), 20000);
+const DB_COMMAND_MAX_TRIES = toInt(getEnv('TELTONIKA_DB_COMMAND_MAX_TRIES', '3'), 3);
+const DB_COMMAND_CHECK_MIN_MS = 10_000;
+
+const markDbCommand = async (dbId, fields, { nurOffen = false } = {}) => {
+  if (!dbId) return;
+  let query = supabase.from('obd_tracker_befehl').update(fields).eq('id', dbId);
+  if (nurOffen) query = query.in('status', ['offen', 'gesendet']);
+  const { error } = await query;
+  if (error) log('warn', 'db_command_update_failed', { dbId, fields, detail: error.message });
+};
+
+const insertDbCommand = async ({ imei, command }) => {
+  if (!state.commandTableAvailable) return null;
+  const { data, error } = await supabase
+    .from('obd_tracker_befehl')
+    .insert({ imei, befehl: command, art: 'manuell' })
+    .select('id')
+    .single();
+  if (error) {
+    if (RELATION_MISSING_RE.test(error.message || '')) {
+      state.commandTableAvailable = false;
+      log('warn', 'command_table_unavailable', { detail: error.message });
+      return null;
+    }
+    throw error;
+  }
+  return data?.id ?? null;
+};
+
+const enqueueCommand = async ({ imei, command, requestedBy = 'manual' }) => {
   const normalizedImei = String(imei || '').trim();
   const normalizedCommand = String(command || COMMAND_DEFAULT).trim();
   if (!/^\d{14,17}$/.test(normalizedImei)) {
@@ -639,6 +788,20 @@ const enqueueCommand = ({ imei, command, requestedBy = 'manual' }) => {
   }
   if (!normalizedCommand) {
     throw new Error('Command is empty');
+  }
+
+  const dbId = await insertDbCommand({ imei: normalizedImei, command: normalizedCommand });
+  if (dbId) {
+    const commandItem = { id: `db_${dbId}`, dbId, imei: normalizedImei, command: normalizedCommand, requestedBy };
+    pushLimited(state.commandHistory, {
+      id: commandItem.id,
+      imei: normalizedImei,
+      command: normalizedCommand,
+      status: 'queued',
+      ts: new Date().toISOString(),
+      requestedBy,
+    });
+    return { commandItem, queueSize: null };
   }
 
   const commandItem = {
@@ -679,16 +842,65 @@ const clearInFlightCommand = (connection, { status, detail = null } = {}) => {
   return current;
 };
 
-const sendNextCommandIfIdle = (connection) => {
+// Naechsten offenen DB-Befehl fuer diese Verbindung holen (hoechstens alle 10 s, ausser force).
+const fetchNextDbCommand = async (connection, force) => {
+  if (!state.commandTableAvailable || connection.dbCommandLoading) return;
+  const now = Date.now();
+  if (!force && now - (connection.dbCommandCheckedAt || 0) < DB_COMMAND_CHECK_MIN_MS) return;
+  connection.dbCommandLoading = true;
+  connection.dbCommandCheckedAt = now;
+  try {
+    const { data, error } = await supabase
+      .from('obd_tracker_befehl')
+      .select('id, befehl, art, stufe, versuche')
+      .eq('imei', connection.imei)
+      .in('status', ['offen', 'gesendet'])
+      .order('id', { ascending: true })
+      .limit(1);
+    if (error) {
+      if (RELATION_MISSING_RE.test(error.message || '')) {
+        state.commandTableAvailable = false;
+        log('warn', 'command_table_unavailable', { detail: error.message });
+        return;
+      }
+      throw error;
+    }
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!row) return;
+    if (connection.commandInFlight || connection.socket.destroyed) return;
+    if (state.activeConnectionsByImei.get(connection.imei) !== connection) return;
+    sendCommand(connection, {
+      id: `db_${row.id}`,
+      dbId: row.id,
+      dbTries: Number(row.versuche) || 0,
+      art: row.art,
+      imei: connection.imei,
+      command: row.befehl,
+      requestedBy: row.art === 'stufe' ? `stufe_${row.stufe}` : 'db',
+    });
+  } catch (error) {
+    log('warn', 'db_command_fetch_failed', { imei: connection.imei, detail: error?.message || String(error) });
+  } finally {
+    connection.dbCommandLoading = false;
+  }
+};
+
+const sendNextCommandIfIdle = (connection, { force = false } = {}) => {
   if (!connection?.imei || !connection?.socket) return;
   if (connection.commandInFlight) return;
   const queue = state.pendingCommandsByImei.get(connection.imei);
-  if (!Array.isArray(queue) || queue.length === 0) return;
+  if (!Array.isArray(queue) || queue.length === 0) {
+    fetchNextDbCommand(connection, force);
+    return;
+  }
 
   const next = queue.shift();
   if (queue.length === 0) state.pendingCommandsByImei.delete(connection.imei);
   if (!next) return;
+  sendCommand(connection, next);
+};
 
+const sendCommand = (connection, next) => {
   let frame;
   try {
     frame = buildCodec12CommandFrame(next.command);
@@ -702,6 +914,7 @@ const sendNextCommandIfIdle = (connection) => {
       ts: new Date().toISOString(),
       detail: error?.message || 'encode_failed',
     });
+    markDbCommand(next.dbId, { status: 'fehler', antwort: error?.message || 'encode_failed', quittiert_am: new Date().toISOString() });
     return;
   }
 
@@ -714,6 +927,15 @@ const sendNextCommandIfIdle = (connection) => {
   inFlight.timer = setTimeout(() => {
     state.commandTimeouts += 1;
     clearInFlightCommand(connection, { status: 'timeout', detail: 'no_codec12_response' });
+    if (inFlight.dbId) {
+      // Nochmal versuchen, nach DB_COMMAND_MAX_TRIES Sendungen ohne Antwort als Fehler quittieren.
+      const aufgeben = inFlight.dbTries + 1 >= DB_COMMAND_MAX_TRIES;
+      Promise.resolve(inFlight.dbSent).then(() => markDbCommand(inFlight.dbId, aufgeben
+        ? { status: 'fehler', antwort: 'keine Antwort vom Tracker', quittiert_am: new Date().toISOString() }
+        : { status: 'offen' }))
+        .finally(() => sendNextCommandIfIdle(connection, { force: true }));
+      return;
+    }
     sendNextCommandIfIdle(connection);
   }, COMMAND_RESPONSE_TIMEOUT_MS);
 
@@ -724,6 +946,12 @@ const sendNextCommandIfIdle = (connection) => {
       return;
     }
     state.sentCommands += 1;
+    // Quittung/Timeout warten auf dieses Update, sonst ueberschreibt 'gesendet' die Quittung.
+    inFlight.dbSent = markDbCommand(inFlight.dbId, {
+      status: 'gesendet',
+      gesendet_am: inFlight.sentAt,
+      versuche: (inFlight.dbTries || 0) + 1,
+    }, { nurOffen: true });
     pushLimited(state.commandHistory, {
       id: inFlight.id,
       imei: inFlight.imei,
@@ -755,17 +983,155 @@ const handleCodec12Message = (connection, message) => {
     type: message?.type ?? null,
     response: responseText || null,
   });
-  sendNextCommandIfIdle(connection);
+  let quittung = null;
+  if (inFlight?.dbId) {
+    // setparam bestaetigt der Tracker mit "New value ...", alles andere gilt als Fehler.
+    const istSetparam = /^setparam\b/i.test(inFlight.command || '');
+    const ok = !istSetparam || /^New value/i.test(responseText);
+    quittung = Promise.resolve(inFlight.dbSent).then(() => markDbCommand(inFlight.dbId, {
+      status: ok ? 'quittiert' : 'fehler',
+      antwort: (responseText || message?.hex || '').slice(0, 500) || null,
+      quittiert_am: new Date().toISOString(),
+    }));
+  }
+  const vinTreffer = /VIN:([A-Za-z0-9]{17})\b/.exec(responseText || '');
+  if (vinTreffer && connection?.imei) {
+    getDriverIdByImei(connection.imei)
+      .then((driverId) => saveVehicleVin(driverId, vinTreffer[1], 'obdinfo'))
+      .catch((err) => log('warn', 'vin_from_command_failed', { detail: err?.message || String(err) }));
+  }
+  // Erst quittieren, dann den naechsten holen, sonst kommt derselbe DB-Befehl nochmal.
+  if (quittung) quittung.finally(() => sendNextCommandIfIdle(connection, { force: true }));
+  else sendNextCommandIfIdle(connection, { force: true });
+};
+
+// Echte Fahrgestellnummer aus dem OBD ins Fahrzeug des Fahrers uebernehmen
+// (vehicles.vin). Nur gueltige 17-stellige VINs, jede nur einmal je Fahrer.
+const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
+const savedVinByDriver = new Map();
+const saveVehicleVin = async (driverId, rawVin, quelle) => {
+  const vin = String(rawVin || '').trim().toUpperCase();
+  if (!driverId || !VIN_RE.test(vin)) return;
+  if (savedVinByDriver.get(driverId) === vin) return;
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles').select('vehicle_id').eq('id', driverId).maybeSingle();
+  if (profileError || !profile?.vehicle_id) {
+    log('warn', 'vin_no_vehicle', { driverId, vin, detail: profileError?.message || null });
+    return;
+  }
+  const { error } = await supabase.from('vehicles').update({ vin }).eq('id', profile.vehicle_id);
+  if (error) {
+    log('warn', 'vin_update_failed', { driverId, vin, detail: error.message });
+    return;
+  }
+  savedVinByDriver.set(driverId, vin);
+  log('info', 'vin_saved', { driverId, vehicleId: profile.vehicle_id, vin, quelle });
+};
+
+// Fahrzeugdaten aus dem OBD: letzter Stand je Fahrer (vehicle_telemetry_live)
+// und gemeldete Ereignisse (vehicle_telemetry_events).
+const writeTelemetry = async (imei, driverId, activeJobId, records, latest) => {
+  const sorted = [...records].sort((a, b) => Date.parse(a.capturedAt || '') - Date.parse(b.capturedAt || ''));
+  // Letzten bekannten Wert je Feld ueber alle Datensaetze des Pakets zusammenfuehren,
+  // damit seltene Elemente (VIN, Fehlercodes) nicht vom juengsten Datensatz verdeckt werden.
+  const merged = {};
+  for (const record of sorted) {
+    const fields = extractTelemetry(record);
+    if (fields) Object.assign(merged, fields);
+  }
+  const rawIo = latest?.io ? Object.fromEntries(Array.from(latest.io.entries()).map(([k, v]) => [String(k), v])) : null;
+
+  const events = [];
+  for (const record of sorted) {
+    const event = describeEvent(record);
+    if (!event) continue;
+    const hatPos = isFiniteCoordinate(record.lat, record.lng) && !isNearZeroCoordinate(record.lat, record.lng);
+    events.push({
+      driver_id: driverId,
+      imei,
+      job_id: activeJobId,
+      event_type: event.type,
+      value: Number.isFinite(event.value) ? event.value : null,
+      lat: hatPos ? record.lat : null,
+      lng: hatPos ? record.lng : null,
+      captured_at: record.capturedAt,
+    });
+  }
+
+  const handleError = (error, where) => {
+    if (RELATION_MISSING_RE.test(error.message || '')) {
+      state.telemetryTableAvailable = false;
+      log('warn', 'telemetry_table_unavailable', { where, detail: error.message });
+      return true;
+    }
+    throw error;
+  };
+
+  if (Object.keys(merged).length > 0 || rawIo) {
+    const liveRow = {
+      driver_id: driverId,
+      imei,
+      captured_at: latest.capturedAt,
+      raw_io: rawIo,
+      ...merged,
+    };
+    const { error } = await supabase
+      .from('vehicle_telemetry_live')
+      .upsert(liveRow, { onConflict: 'driver_id' });
+    if (error && handleError(error, 'live')) return;
+    state.telemetryWrites += 1;
+  }
+  if (merged.vin) await saveVehicleVin(driverId, merged.vin, 'io_256');
+
+  if (events.length > 0) {
+    const { error } = await supabase.from('vehicle_telemetry_events').insert(events);
+    if (error && handleError(error, 'events')) return;
+    state.telemetryEvents += events.length;
+    log('info', 'telemetry_events_written', { imei, driverId, events: events.map((e) => e.event_type) });
+  }
 };
 
 const writeLocations = async (imei, records) => {
   if (!Array.isArray(records) || records.length === 0) return;
+  if (MAX_RECORD_AGE_SEC > 0) {
+    const cutoffMs = Date.now() - MAX_RECORD_AGE_SEC * 1000;
+    const fresh = records.filter((record) => {
+      const ts = Date.parse(record.capturedAt || '');
+      return Number.isFinite(ts) && ts >= cutoffMs;
+    });
+    if (fresh.length !== records.length) {
+      const dropped = records.length - fresh.length;
+      state.oldRecordsDropped += dropped;
+      log('info', 'old_records_dropped', { imei, dropped, kept: fresh.length, maxAgeSec: MAX_RECORD_AGE_SEC });
+    }
+    records = fresh;
+    if (records.length === 0) return;
+  }
   const driverId = await getDriverIdByImei(imei);
   if (!driverId) {
     state.unknownImeiPackets += 1;
     log('warn', 'unknown_imei_mapping', { imei, records: records.length });
     return;
   }
+
+  // Ohne GPS-Fix seit dem Start liefert der Tracker 0/0. Solche Records duerfen weder den
+  // Live-Standort noch den Verlauf ueberschreiben, Zuendung & Co. gehen trotzdem in die Telemetrie.
+  const positionRecords = records.filter((record) =>
+    isFiniteCoordinate(record.lat, record.lng) && !isNearZeroCoordinate(record.lat, record.lng));
+  if (positionRecords.length === 0) {
+    state.invalidLiveSkipped += records.length;
+    log('info', 'records_without_fix', { imei, driverId, records: records.length });
+    if (state.telemetryTableAvailable) {
+      const newest = records[records.length - 1];
+      await writeTelemetry(imei, driverId, null, records, newest);
+    }
+    return;
+  }
+  if (positionRecords.length !== records.length) {
+    log('info', 'records_without_fix', { imei, driverId, records: records.length - positionRecords.length });
+  }
+  const telemetryRecords = records;
+  records = positionRecords;
 
   // Teltonika kann Records je nach Gerät/Config in unterschiedlicher Reihenfolge liefern.
   // Für den Live-Standort immer den Datensatz mit dem neuesten capturedAt verwenden.
@@ -862,6 +1228,10 @@ const writeLocations = async (imei, records) => {
         throw historyError;
       }
     }
+  }
+
+  if (state.telemetryTableAvailable) {
+    await writeTelemetry(imei, driverId, activeJobId, telemetryRecords, latest);
   }
 
   state.writesOk += records.length;
@@ -964,9 +1334,9 @@ const healthServer = http.createServer(async (req, res) => {
       }
       const command = String(body?.command || COMMAND_DEFAULT).trim();
       const requestedBy = String(body?.requestedBy || 'http_api').trim();
-      const { commandItem, queueSize } = enqueueCommand({ imei, command, requestedBy });
+      const { commandItem, queueSize } = await enqueueCommand({ imei, command, requestedBy });
       const connection = state.activeConnectionsByImei.get(imei) || null;
-      if (connection) sendNextCommandIfIdle(connection);
+      if (connection) sendNextCommandIfIdle(connection, { force: true });
       writeJson(res, 202, {
         ok: true,
         commandId: commandItem.id,
@@ -1018,7 +1388,7 @@ const tcpServer = net.createServer((socket) => {
         state.activeConnectionsByImei.set(connection.imei, connection);
         socket.write(Buffer.from([0x01]));
         log('info', 'imei_identified', { remote, imei: connection.imei });
-        sendNextCommandIfIdle(connection);
+        sendNextCommandIfIdle(connection, { force: true });
         continue;
       }
 
@@ -1073,7 +1443,8 @@ const tcpServer = net.createServer((socket) => {
       state.activeConnectionsByImei.delete(connection.imei);
     }
     const inFlight = clearInFlightCommand(connection);
-    if (inFlight?.imei) {
+    // DB-Befehle bleiben 'gesendet' in der Tabelle und gehen beim naechsten Verbinden erneut raus.
+    if (inFlight?.imei && !inFlight.dbId) {
       const queue = getCommandQueue(inFlight.imei);
       queue.unshift({
         id: inFlight.id,
@@ -1101,6 +1472,11 @@ const tcpServer = net.createServer((socket) => {
 tcpServer.on('error', (error) => {
   log('error', 'tcp_server_error', { error: error?.message || 'Unknown error' });
 });
+
+// Neue DB-Befehle (z.B. Stufe aus der Dispo) auch bei laufender Verbindung abholen.
+setInterval(() => {
+  state.activeConnectionsByImei.forEach((connection) => sendNextCommandIfIdle(connection));
+}, DB_COMMAND_POLL_MS).unref();
 
 tcpServer.listen(TCP_PORT, TCP_HOST, () => {
   log('info', 'tcp_server_started', {

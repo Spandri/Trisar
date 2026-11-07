@@ -455,7 +455,7 @@ export default function EinsatzplanungUebersicht({
             className="absolute left-0 top-0 w-[402px] origin-top-left"
             style={{ ...HINTERGRUND, height: `${BASIS_HOEHE}px`, transform: `scale(${scale})` }}
           >
-            <BackCircleButton onClick={onZurueck} className="absolute left-[20px] top-[40px] z-[2]" marker="planer-uebersicht-zurueck" />
+            <BackCircleButton onClick={onZurueck} className="absolute left-[20px] top-[60px] z-[2]" marker="planer-uebersicht-zurueck" />
 
             <button
               type="button"
@@ -463,7 +463,7 @@ export default function EinsatzplanungUebersicht({
               disabled={teilt}
               aria-label={gesamtAktiv ? t('planer.shareTotal') : t('planer.shareDay', { tag: tagesTitel[aktiv] })}
               data-tutorial="planer-uebersicht-teilen"
-              className="absolute left-[324px] top-[40px] w-[50px] h-[50px] z-[2] transition-opacity duration-200"
+              className="absolute left-[324px] top-[60px] w-[50px] h-[50px] z-[2] transition-opacity duration-200"
               style={{ opacity: teilt ? 0.5 : 1 }}
             >
               <img src="/icon/_Icon_Planung/teilen_pfeil.svg" alt="" className="absolute left-[18px] top-[12px] block w-[13px] h-[17px]" />

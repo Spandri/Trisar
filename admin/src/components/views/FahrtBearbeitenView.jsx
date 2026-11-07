@@ -255,7 +255,7 @@ function FormRow({
             <button
               type="button"
               onClick={rightAction.onClick}
-              className="flex items-center justify-center w-5 h-5"
+              className={`flex items-center w-5 h-5 ${rightAction.type === 'check' || rightAction.type === 'x' ? 'justify-center' : 'justify-end'}`}
               aria-label={rightAction.ariaLabel || label}
             >
               {rightAction.type === 'check' ? (

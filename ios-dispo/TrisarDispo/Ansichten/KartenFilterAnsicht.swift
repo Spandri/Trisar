@@ -5,12 +5,23 @@ import SwiftUI
 struct KartenFilterAnsicht: View {
     @ObservedObject var filter: KartenFilter
     let zurueck: () -> Void
+    @StateObject private var stufen = TrackerStufenModell()
     private static let lime = Color(hex: 0xE3F654)
+
+    // Wie im Web: Abschnitt "Punkte bei Fahrt" unter Feierabend (Web top 462, hier +20),
+    // die Knoepfe darunter rutschen mit.
+    private var stufeTop: CGFloat { 482 }
+    private var stufeZeilenTop: CGFloat { stufeTop + 32 + 40 + 12 }
+    private var speichernTop: CGFloat {
+        guard !stufen.tracker.isEmpty else { return 482 }
+        return stufeZeilenTop + CGFloat(stufen.tracker.count + (stufen.fehler == nil ? 0 : 1)) * 24 + 20
+    }
+    private var inhaltHoehe: CGFloat { max(834, speichernTop - 20 + 68 + 56 + 120) + 70 }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             DispoHintergrund().ignoresSafeArea()
-            Leinwand(basisHoehe: 874, inhaltHoehe: 834 + 70, mitHintergrund: false) { _ in
+            Leinwand(basisHoehe: 874, inhaltHoehe: inhaltHoehe, mitHintergrund: false) { _ in
                 ZStack(alignment: .topLeading) {
                     ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
                     Text("Karten Filter").grotesk(42, .bold).foregroundStyle(Self.lime).frame(height: 42)
@@ -25,6 +36,26 @@ struct KartenFilterAnsicht: View {
 
                     FeierabendZeile(wert: $filter.feierabendMinuten).platz(20, 402, 362, 56)
 
+                    if !stufen.tracker.isEmpty {
+                        Text("Punkte bei Fahrt").grotesk(16, .medium, abstand: 0.5)
+                            .foregroundStyle(Self.lime.opacity(0.6))
+                            .platz(20, stufeTop, 362, 24)
+                        ForEach(Array(TrackerStufenModell.stufen.enumerated()), id: \.offset) { i, stufe in
+                            StufenKnopf(text: stufe, an: stufen.gemeinsameStufe == stufe) {
+                                Task { await stufen.setzen(stufe) }
+                            }
+                            .platz(20 + CGFloat(i) * 124, stufeTop + 32, 114, 40)
+                        }
+                        ForEach(Array(stufen.tracker.enumerated()), id: \.element.imei) { i, t in
+                            StufenStatusZeile(tracker: t).platz(20, stufeZeilenTop + CGFloat(i) * 24, 362, 24)
+                        }
+                        if let fehler = stufen.fehler {
+                            Text("Speichern fehlgeschlagen: \(fehler)").grotesk(14, .medium)
+                                .foregroundStyle(Color(hex: 0xFF6B6B)).lineLimit(1)
+                                .platz(20, stufeZeilenTop + CGFloat(stufen.tracker.count) * 24, 362, 24)
+                        }
+                    }
+
                     Button(action: zurueck) {
                         HStack {
                             Text("Filter speichern").grotesk(16, .medium, abstand: 0.4).foregroundStyle(Color(hex: 0x1D1C1D))
@@ -36,7 +67,7 @@ struct KartenFilterAnsicht: View {
                         .background(Self.lime)
                     }
                     .buttonStyle(.web)
-                    .platz(20, 482, 362, 56)
+                    .platz(20, speichernTop, 362, 56)
 
                     Button { filter.zuruecksetzen() } label: {
                         HStack {
@@ -49,11 +80,130 @@ struct KartenFilterAnsicht: View {
                         .background(Color(hex: 0xFF6B6B))
                     }
                     .buttonStyle(.web)
-                    .platz(20, 550, 362, 56)
+                    .platz(20, speichernTop + 68, 362, 56)
                 }
             }
             FussleisteUnten()
         }
+        .task { await stufen.laufen() }
+    }
+}
+
+/// Punkte bei Fahrt fuer alle OBD-Tracker (obd_tracker.stufe), wie useTrackerStufen im Web.
+/// Das Gateway uebernimmt die Stufe beim naechsten Verbinden und quittiert sie (stufe_status).
+@MainActor
+final class TrackerStufenModell: ObservableObject {
+    static let stufen = ["sparsam", "mittel", "fein"]
+
+    struct Tracker: Decodable {
+        let imei: String
+        let nummer: Int
+        var stufe: String
+        var stufe_status: String?
+        let stufe_quittung_am: String?
+        var stufe_antwort: String?
+    }
+
+    @Published var tracker: [Tracker] = []
+    @Published var fehler: String?
+
+    var gemeinsameStufe: String? {
+        guard let erste = tracker.first?.stufe, tracker.allSatisfy({ $0.stufe == erste }) else { return nil }
+        return erste
+    }
+
+    /// Laedt alle 10 s neu, solange der Filter offen ist (Quittung kommt vom Gateway).
+    func laufen() async {
+        while !Task.isCancelled {
+            await laden()
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+        }
+    }
+
+    func laden() async {
+        // Tabelle oder Spalte fehlt (Migration noch nicht da): Abschnitt bleibt weg.
+        guard let zeilen: [Tracker] = try? await Backend.client.from("obd_tracker")
+            .select("imei, nummer, stufe, stufe_status, stufe_quittung_am, stufe_antwort")
+            .order("nummer", ascending: true)
+            .execute().value else { return }
+        tracker = zeilen
+    }
+
+    func setzen(_ stufe: String) async {
+        // Nur Tracker, die die Stufe noch nicht haben oder bei denen sie fehlschlug.
+        let imeis = tracker.filter {
+            $0.stufe != stufe || !["wartet", "gesendet", "uebernommen"].contains($0.stufe_status ?? "")
+        }.map(\.imei)
+        guard !imeis.isEmpty else { return }
+        fehler = nil
+        for i in tracker.indices where imeis.contains(tracker[i].imei) {
+            tracker[i].stufe = stufe
+            tracker[i].stufe_status = "wartet"
+            tracker[i].stufe_antwort = nil
+        }
+        do {
+            try await Backend.client.from("obd_tracker").update(["stufe": stufe]).in("imei", values: imeis).execute()
+        } catch {
+            fehler = error.localizedDescription
+        }
+        await laden()
+    }
+}
+
+/// Dreier-Knopf wie TwoColButton, nur 114 breit.
+private struct StufenKnopf: View {
+    let text: String
+    let an: Bool
+    let aktion: () -> Void
+    private static let lime = Color(hex: 0xE3F654)
+
+    var body: some View {
+        Button(action: aktion) {
+            Text(text).grotesk(16, .medium, abstand: 0.4)
+                .foregroundStyle(an ? Color(hex: 0x1D1C1D) : Self.lime)
+                .frame(width: 114, height: 40)
+                .background(an ? Self.lime : Color.clear)
+                .overlay(Rectangle().strokeBorder(Self.lime, lineWidth: 2))
+        }
+        .buttonStyle(.web)
+    }
+}
+
+/// "Nr. 2 · fein · übernommen 14:02" (TrackerStufeStatus im Web).
+private struct StufenStatusZeile: View {
+    let tracker: TrackerStufenModell.Tracker
+    private static let lime = Color(hex: 0xE3F654)
+
+    private var status: (String, Color) {
+        switch tracker.stufe_status {
+        case "wartet": return ("wartet auf Tracker", Self.lime.opacity(0.6))
+        case "gesendet": return ("gesendet", Self.lime.opacity(0.6))
+        case "uebernommen": return ("übernommen \(Self.uhrzeit(tracker.stufe_quittung_am))".trimmingCharacters(in: .whitespaces), Self.lime)
+        case "fehler": return ("Fehler", Color(hex: 0xFF6B6B))
+        default: return ("Stand unbekannt", Self.lime.opacity(0.6))
+        }
+    }
+
+    var body: some View {
+        let (text, farbe) = status
+        (Text("Nr. \(tracker.nummer)").foregroundStyle(Self.lime).bold()
+            + Text(" · \(tracker.stufe) · ").foregroundStyle(Self.lime.opacity(0.6))
+            + Text(text).foregroundStyle(farbe))
+            .font(.grotesk(14, .medium)).tracking(0.5)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    /// Heute nur Uhrzeit, sonst "07.11. 14:02".
+    static func uhrzeit(_ iso: String?) -> String {
+        guard let iso, !iso.isEmpty else { return "" }
+        let mitBruch = ISO8601DateFormatter()
+        mitBruch.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let d = mitBruch.date(from: iso) ?? ISO8601DateFormatter().date(from: iso) else { return "" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = Calendar.current.isDateInToday(d) ? "HH:mm" : "dd.MM. HH:mm"
+        return f.string(from: d)
     }
 }
 

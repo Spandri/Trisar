@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import SchadenMelden, { WagenAufsicht } from './SchadenMelden';
+import FahrzeugTelemetrie from './FahrzeugTelemetrie';
 import TrisarFooter from '../../../components/ui/TrisarFooter';
 import { USER_LOCATION_DOT_URL } from '../../../shared/ui/icons';
-import { ColorBadge, EnergyBadge, FuelBadge, SeatBadge } from '../../../shared/vehicleBadges';
+import { fahrzeugAngaben, blockRaster } from '../../../shared/fahrzeugAngaben';
+import { FahrzeugKacheln, FahrzeugBild, StandortChip } from '../../../shared/FahrzeugKarte';
 import { useI18n } from '../../../i18n';
 import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
 import { DEMO_MODE } from '../../../datenquelle';
@@ -27,16 +29,19 @@ const PfeilIcon = () => (
   </svg>
 );
 
-const VehicleBlock = ({ vehicle }) => {
-  const plateNumber = vehicle?.license_plate || 'M PM 3214';
-  const vin = vehicle?.vin || '12345678910121314';
-  const image = vehicle?.image_url || '';
-  const model = vehicle?.brand_model || 'BMW M5';
-  const trim = vehicle?.trim || 'Limousine';
-  const fuelType = vehicle?.fuel_type || '';
+// Fahrzeugblock: nur Angaben, die wir haben. Ohne VIN, Bild, Modell oder Kacheln
+// schrumpft der Block, im Extremfall bleibt nur das Kennzeichen.
+const VehicleBlock = ({ vehicle, top, onHoehe }) => {
+  const { t } = useI18n();
+  const a = fahrzeugAngaben(vehicle);
+  const plateNumber = a.kennzeichen || t('app.noVehicle');
+  // Adresse eines Bildes, das nicht geladen werden konnte: dann ohne Bild.
+  const [kaputtesBild, setKaputtesBild] = useState('');
+  const raster = blockRaster(a, { bildDa: Boolean(a.bild) && kaputtesBild !== a.bild });
+  useEffect(() => { onHoehe?.(raster.hoehe); }, [raster.hoehe, onHoehe]);
 
   return (
-    <div className="absolute left-1/2 -translate-x-1/2 top-[440px] w-[353px] h-[332px] bg-white">
+    <div className="absolute left-1/2 -translate-x-1/2 w-[353px] bg-white" style={{ top: `${top}px`, height: `${raster.hoehe}px` }}>
       {/* Kennzeichen */}
       <h2
         className="absolute inset-x-0 h-[36.68px] text-center text-[#1c1c1d] text-[30px] leading-none tracking-[-0.5px] font-bold"
@@ -44,66 +49,73 @@ const VehicleBlock = ({ vehicle }) => {
       >
         {plateNumber}
       </h2>
-      
-      {/* VIN */}
-      <p
-        className="absolute z-10 text-center text-[13px] inset-x-0 whitespace-nowrap"
-        style={{ top: '51.97px', fontFamily: 'Space Grotesk' }}
-      >
-        <span className="text-[rgba(28,28,29,0.15)] font-bold">VIN  </span>
-        <span className="text-[rgba(28,28,29,0.15)] tracking-[2px]">{vin}</span>
-      </p>
 
-      {/* Auto Bild */}
-      <div className="absolute" style={{ left: '51px', top: '75px', width: '250px', height: '122px' }}>
-        {image ? (
-          <img src={image} alt={plateNumber} className="w-full h-full object-contain" />
-        ) : (
-          <div className="w-full h-full bg-[#ececec]" />
-        )}
-      </div>
+      {raster.vin !== undefined ? (
+        <p
+          className="absolute z-10 text-center text-[13px] inset-x-0 whitespace-nowrap"
+          style={{ top: `${raster.vin}px`, fontFamily: 'Space Grotesk' }}
+        >
+          <span className="text-[rgba(28,28,29,0.15)] font-bold">VIN  </span>
+          <span className="text-[rgba(28,28,29,0.15)] tracking-[2px]">{a.vin}</span>
+        </p>
+      ) : null}
 
-      {/* Model name */}
-      <div 
-        className="absolute text-center text-[#1c1c1d] text-[20px] leading-none tracking-[-0.5px] font-bold"
-        style={{ left: '0', top: '210px', width: '353px', fontFamily: 'Space Grotesk' }}
-      >
-        {model}
-      </div>
-
-      {/* Trim */}
-      <div 
-        className="absolute text-center text-[rgba(28,28,29,0.15)] text-[13px]"
-        style={{ left: '0', top: '230px', width: '353px', fontFamily: 'Space Grotesk' }}
-      >
-        {trim}
-      </div>
-
-      {/* 4 Kacheln – identisch zur Admin-Fahrzeugliste (gemeinsames Badge-Modul) */}
-      <div className="absolute flex items-center gap-[16px]" style={{ left: '53px', top: '270px' }}>
-        <FuelBadge fuelType={fuelType} size={52} />
-        <ColorBadge color={vehicle?.color} size={52} />
-        <EnergyBadge
-          fuelType={fuelType}
-          seed={vin}
-          fillPercent={vehicle?.battery_fuel_percent}
-          fullRangeKm={vehicle?.range_km}
-          size={52}
+      {raster.bild !== undefined ? (
+        <FahrzeugBild
+          src={a.bild}
+          alt={plateNumber}
+          style={{ left: '51px', top: `${raster.bild}px`, width: '250px', height: '122px' }}
+          onFehler={() => setKaputtesBild(a.bild)}
         />
-        <SeatBadge seatCount={vehicle?.seat_count} size={52} />
-      </div>
+      ) : null}
+
+      {raster.modell !== undefined ? (
+        <div
+          className="absolute inset-x-0 text-center text-[#1c1c1d] text-[20px] leading-none tracking-[-0.5px] font-bold"
+          style={{ top: `${raster.modell}px`, fontFamily: 'Space Grotesk' }}
+        >
+          {a.modell}
+        </div>
+      ) : null}
+
+      {raster.ausstattung !== undefined ? (
+        <div
+          className="absolute inset-x-0 text-center text-[rgba(28,28,29,0.15)] text-[13px]"
+          style={{ top: `${raster.ausstattung}px`, fontFamily: 'Space Grotesk' }}
+        >
+          {a.ausstattung}
+        </div>
+      ) : null}
+
+      {/* Kacheln wie in der Admin-Fahrzeugliste, nur mit Wert */}
+      {raster.kacheln !== undefined ? (
+        <FahrzeugKacheln vehicle={vehicle} className="absolute inset-x-0" style={{ top: `${raster.kacheln}px` }} />
+      ) : null}
     </div>
   );
 };
 
-const MapComponent = () => {
+// Karte mit dem Standort des Fahrzeugs. Demo: feste Position. Live: letzter OBD-Standort.
+const MapComponent = ({ position, quelle = null, erfasst = null }) => {
   const mapRef = useRef(null);
+  const karteRef = useRef(null);
+  const markerRef = useRef(null);
   const { t } = useI18n();
+  const lat = Number(position?.lat);
+  const lng = Number(position?.lng);
 
   useEffect(() => {
     if (!window.trisarKarte || !mapRef.current) return;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const ziel = { lat, lng };
+    // Karte steht schon: nur Marker und Mitte nachziehen, kein Neuaufbau.
+    if (karteRef.current && markerRef.current) {
+      markerRef.current.setPosition(ziel);
+      karteRef.current.panTo(ziel);
+      return;
+    }
     const map = new window.trisarKarte.Map(mapRef.current, {
-      center: DRIVER_COORDS,
+      center: ziel,
       zoom: 15,
       disableDefaultUI: true,
       gestureHandling: 'none',
@@ -112,8 +124,8 @@ const MapComponent = () => {
       disableDoubleClickZoom: true,
       styles: [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }],
     });
-    new window.trisarKarte.Marker({
-      position: DRIVER_COORDS,
+    const marker = new window.trisarKarte.Marker({
+      position: ziel,
       map,
       icon: {
         url: USER_LOCATION_DOT_URL,
@@ -122,11 +134,15 @@ const MapComponent = () => {
       },
       title: t('misc.currentLocation'),
     });
-  }, [t]);
+    karteRef.current = map;
+    markerRef.current = marker;
+  }, [t, lat, lng]);
 
   return (
     <div className="absolute left-1/2 -translate-x-1/2 top-[99px] w-[353px] h-[324px] pointer-events-none">
       <div ref={mapRef} className="w-full h-full" />
+      {/* Woher der Standort kommt und wie alt er ist */}
+      {quelle ? <StandortChip quelle={quelle} erfasst={erfasst} className="absolute left-[10px] bottom-[10px] z-10" /> : null}
     </div>
   );
 };
@@ -139,7 +155,7 @@ const datumKurz = (wert) => {
   return `${teile[2]}.${teile[1]}.${teile[0].slice(2)}`;
 };
 
-const SchadensBericht = ({ damages = [], onMelden, blockRef }) => {
+const SchadensBericht = ({ damages = [], onMelden, blockRef, oben = 771 }) => {
   const { t } = useI18n();
   const sampleDamages = [
     {
@@ -167,7 +183,7 @@ const SchadensBericht = ({ damages = [], onMelden, blockRef }) => {
   const displayDamages = DEMO_MODE ? [...damages, ...sampleDamages] : damages;
 
   return (
-    <div ref={blockRef} className="absolute left-1/2 -translate-x-1/2 top-[771px] w-[353px] bg-white p-[29px]" data-tutorial="schadensbericht">
+    <div ref={blockRef} className="absolute left-1/2 -translate-x-1/2 w-[353px] bg-white p-[29px]" style={{ top: `${oben}px` }} data-tutorial="schadensbericht">
       <h3 
         className="text-[#dddcdc] text-[15px] font-bold tracking-[-0.5px] mb-[10px]"
         style={{ fontFamily: 'Space Grotesk' }}
@@ -249,13 +265,37 @@ const SchadensBericht = ({ damages = [], onMelden, blockRef }) => {
   );
 };
 
-export default function VehicleView({ setView, vehicle, damages, onAddDamage }) {
+export default function VehicleView({ setView, vehicle, damages, onAddDamage, standort = null, driverId = null }) {
+  // Demo zeigt eine feste Position, live den letzten OBD-Standort. Ohne Standort keine Karte.
+  const kartenPosition = DEMO_MODE
+    ? DRIVER_COORDS
+    : (Number.isFinite(Number(standort?.lat)) && Number.isFinite(Number(standort?.lng))
+      ? { lat: Number(standort.lat), lng: Number(standort.lng) }
+      : null);
   const [scale, setScale] = useState(1);
   const [meldenOffen, setMeldenOffen] = useState(false);
   // Mit jedem gemeldeten Schaden waechst der Bericht. Die Seite misst ihn und
   // wird entsprechend laenger, damit der Meldeknopf nie unter den Rand rutscht.
   const berichtRef = useRef(null);
   const [berichtUnterkante, setBerichtUnterkante] = useState(0);
+  // Fahrzeugdaten aus dem OBD liegen zwischen Fahrzeug und Schadensbericht. Der
+  // Block misst sich selbst, der Bericht rueckt um seine Hoehe nach unten.
+  const telemetrieRef = useRef(null);
+  const [telemetrieHoehe, setTelemetrieHoehe] = useState(0);
+  useEffect(() => {
+    const messen = () => setTelemetrieHoehe(telemetrieRef.current ? telemetrieRef.current.offsetHeight + 10 : 0);
+    messen();
+    if (typeof ResizeObserver === 'undefined' || !telemetrieRef.current) return undefined;
+    const beobachter = new ResizeObserver(messen);
+    beobachter.observe(telemetrieRef.current);
+    return () => beobachter.disconnect();
+  });
+  // Ohne Standort rueckt der Fahrzeugblock an die Stelle der Karte. Was unter dem
+  // Block steht, folgt seiner (je nach vorhandenen Angaben) gemessenen Hoehe.
+  const [blockHoehe, setBlockHoehe] = useState(332);
+  const blockOben = kartenPosition ? 440 : 99;
+  const unterBlock = blockOben + blockHoehe - 1;
+  const berichtOben = unterBlock + telemetrieHoehe;
   useEffect(() => {
     const el = berichtRef.current;
     if (!el) return undefined;
@@ -265,7 +305,7 @@ export default function VehicleView({ setView, vehicle, damages, onAddDamage }) 
     const beobachter = new ResizeObserver(messen);
     beobachter.observe(el);
     return () => beobachter.disconnect();
-  }, [damages]);
+  }, [damages, telemetrieHoehe, berichtOben]);
   const inhaltHoehe = Math.max(BASE_HEIGHT, berichtUnterkante);
   const canvasHeight = inhaltHoehe + PAGE_CONTENT_OFFSET_Y + EXTRA_BOTTOM_SPACE;
 
@@ -298,16 +338,20 @@ export default function VehicleView({ setView, vehicle, damages, onAddDamage }) 
             {/* Back Button */}
             <ZurueckKnopf onClick={() => setView('list')} marker="fahrzeug-zurueck" oben={40} />
 
-            {/* Map Component: feste Demo-Position, live ohne echten Standort ausgeblendet */}
-            {DEMO_MODE && <MapComponent />}
+            {/* Karte: Demo feste Position, live letzter OBD-Standort, ohne Standort ausgeblendet */}
+            {kartenPosition && <MapComponent position={kartenPosition} quelle={DEMO_MODE ? null : standort?.quelle} erfasst={standort?.erfasst} />}
 
             {/* Vehicle Block */}
-            <VehicleBlock vehicle={vehicle} />
+            <VehicleBlock vehicle={vehicle} top={blockOben} onHoehe={setBlockHoehe} />
+
+            {/* Fahrzeugdaten aus dem OBD-Tracker, nur live und nur mit Daten */}
+            {!DEMO_MODE && driverId ? <FahrzeugTelemetrie driverId={driverId} blockRef={telemetrieRef} top={unterBlock} /> : null}
 
             {/* Schadensbericht */}
             <SchadensBericht
               damages={damages}
               blockRef={berichtRef}
+              oben={berichtOben}
               onMelden={() => setMeldenOffen(true)}
             />
           </div>

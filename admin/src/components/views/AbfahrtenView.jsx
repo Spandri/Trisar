@@ -135,7 +135,9 @@ const RideCard = ({
   driverNumber,
   driver,
   note,
+  notizen = [],
   time,
+  startZeit = '',
   status = 'default',
   variant = 'default',
   aiBooked = false,
@@ -169,7 +171,10 @@ const RideCard = ({
     : shortenName(name);
   const anonCount = Number.parseInt(String(anonymeGaeste || '0'), 10);
   const hasAnonGuests = Number.isFinite(anonCount) && anonCount > 0;
-  const noteLabel = String(note || '').trim() ? t('board.notePrefix', { note: String(note).trim() }) : '';
+  // Alle Notizen der Fahrt, aelteste zuerst. Ohne Liste faellt es auf die einzelne Notiz zurueck.
+  const noteLines = (Array.isArray(notizen) && notizen.length ? notizen : [note])
+    .map((eintrag) => String(eintrag || '').trim())
+    .filter(Boolean);
   const clampOffset = (value) => Math.max(-SWIPE_ACTION_WIDTH, Math.min(SWIPE_ACTION_WIDTH, value));
   const displayedOffset = enableSwipe ? offsetX : 0;
 
@@ -375,7 +380,16 @@ const RideCard = ({
                 </span>
               ))}
             </div>
-            <div className={`${noteTextColor} text-xs font-medium font-['Space_Grotesk'] leading-5 tracking-tight truncate`}>{noteLabel}</div>
+            {noteLines.length > 0 && (
+              // Das Wort Notiz nur einmal, die Eintraege darunter mit feinen Trennlinien.
+              <div className={`${noteTextColor} text-xs font-medium font-['Space_Grotesk'] leading-5 tracking-tight`}>
+                {noteLines.map((zeile, zeilenIndex) => (
+                  <div key={`notiz-${zeilenIndex}`} className={`truncate ${zeilenIndex > 0 ? 'border-t border-black/10' : ''}`}>
+                    {zeilenIndex === 0 ? `${t('board.noteLabel')}: ` : ''}{zeile}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="shrink-0 text-right">
@@ -391,6 +405,20 @@ const RideCard = ({
                 <div className={`${statusColor} text-base font-normal font-['Space_Grotesk'] leading-5`}>{time.time}</div>
               </div>
             )}
+            {(() => {
+              // Losfahr- und Ankunftszeit: die grosse Zeit ist je nach Ansicht die eine,
+              // darunter steht klein die andere.
+              const gezeigt = String((status === 'delayed' ? time?.new : time?.time) || '').trim();
+              const ankunft = String(time?.arrivalNew || time?.arrivalTime || '').trim();
+              const abfahrt = String(startZeit || '').trim();
+              const gueltig = (z) => /^\d{1,2}:\d{2}$/.test(z);
+              let zeile = null;
+              if (gueltig(ankunft) && ankunft !== gezeigt) zeile = t('board.arrivalAt', { zeit: ankunft });
+              else if (gueltig(abfahrt) && abfahrt !== gezeigt) zeile = t('board.departureAt', { zeit: abfahrt });
+              return zeile ? (
+                <div className={`${textColor} opacity-60 text-xs font-medium font-['Space_Grotesk'] leading-4 mt-1`} data-tutorial={id ? `fahrt-ankunft-${id}` : undefined}>{zeile}</div>
+              ) : null;
+            })()}
           </div>
         </div>
 

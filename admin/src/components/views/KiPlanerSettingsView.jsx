@@ -29,6 +29,9 @@ export const DEFAULT_PLANNER_SETTINGS = {
   // nicht die Rechenzeit. 0 % = bis beweisbar optimal — das kann bei vollen
   // Tagen sehr lange dauern, deshalb ist 5 % die Voreinstellung.
   qualityGapPercent: 5,
+  // Leerfahrten der Engine: 'osrm' = Strassenzeit x Stundenfaktor (Standard),
+  // 'osrm_raum' = Strassenzeit x Faktor je Gegend, Wochentag und Stunde.
+  travelModel: 'osrm',
 };
 
 // Ein Regler je Planungsregel. `format` erzeugt den Wert im Label.
@@ -232,6 +235,31 @@ export default function KiPlanerSettingsView({
                   </div>
                 );
               })}
+            </div>
+
+            <div className="mt-[42px]">
+              <p className="text-center text-[#E3F654] text-[20px] leading-[26px] font-bold font-['Space_Grotesk'] tracking-[-0.3px]">
+                {t('planer.trafficModel')}
+              </p>
+              <div className="mt-[12px] grid grid-cols-2 gap-[10px]">
+                {[['osrm', 'planer.trafficStandard'], ['osrm_raum', 'planer.trafficArea']].map(([wert, key]) => {
+                  const aktiv = (current.travelModel || 'osrm') === wert;
+                  return (
+                    <button
+                      key={wert}
+                      type="button"
+                      aria-pressed={aktiv}
+                      onClick={() => update('travelModel', wert)}
+                      className={`h-[52px] border-2 border-[#E3F654] font-['Space_Grotesk'] text-[16px] font-medium tracking-wide ${aktiv ? 'bg-[#E3F654] text-[#1d1c1d]' : 'text-[#E3F654]'}`}
+                    >
+                      {t(key)}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-[6px] text-center text-white/45 text-[11px] leading-[15px] font-medium font-['Space_Grotesk']">
+                {t('planer.trafficHint')}
+              </p>
             </div>
 
             <button

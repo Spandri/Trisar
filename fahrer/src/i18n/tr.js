@@ -293,4 +293,5 @@ export default {
   "soloF.typeAddress": "Adres",
   "soloF.typeAirport": "Havalimanı",
   "soloF.typeHotel": "Otel",
+  "abholschild.schliessen": "Karşılama tabelasını kapat",
 };

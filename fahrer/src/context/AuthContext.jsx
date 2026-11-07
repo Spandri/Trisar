@@ -62,7 +62,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    // Nur dieses Geraet abmelden. Standard waere 'global' und wuerde auch die Dispo-Sitzung
+    // desselben Kontos auf anderen Geraeten killen (gleicher Account fuer Fahrer-App und Dispo).
+await supabase.auth.signOut({ scope: 'local' });
     setRole(null);
   };
 

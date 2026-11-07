@@ -293,4 +293,5 @@ export default {
   "soloF.typeAddress": "Indirizzo",
   "soloF.typeAirport": "Aeroporto",
   "soloF.typeHotel": "Hotel",
+  "abholschild.schliessen": "Chiudi cartello di benvenuto",
 };

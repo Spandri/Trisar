@@ -1,9 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { anfahrtAbFahrer } from '../../../shared/anfahrtKuerzen';
+import { useRoutenStandort } from '../../../shared/routenStandort';
+import { kurzAdresse } from '../../../shared/adresseKurz';
+import { berechneEta, useJetzt } from '../../../shared/etaBerechnung';
 import { useI18n } from '../../../i18n';
 import { useKollegenMarker, useKollegenStandorte } from '../kollegenStandorte';
 import { useBlattZiehen } from './blattZiehen';
 import TrisarFooter from '../../../components/ui/TrisarFooter';
 import CancelRideSheet from './CancelRideSheet';
+import Abholschild from './Abholschild';
 import FahrtBeenden from './FahrtBeenden';
 import NotizSend from './NotizSend';
 import {
@@ -19,6 +24,7 @@ import {
 } from '../../../shared/ui/icons';
 import { karteBereitstellen } from '../../../shared/karte/maplibreKarte';
 import { gleicherOrt } from '../../../shared/utils/vorherigeFahrt';
+import { getRouteNavigationUrl } from '../../../shared/utils/navigation';
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
   if (typeof value === 'string' && value.trim().toLowerCase().startsWith('your_')) return fallback;
@@ -77,11 +83,10 @@ const getDisplayLocationName = (location, fallback = 'Unbekannt') => {
   const shortFormatted = getShortFormattedAddress(location);
   if (shortFormatted) return shortFormatted;
 
-  if (typeof location.name === 'string' && location.name.trim()) return location.name.trim();
+  if (typeof location.name === 'string' && location.name.trim()) return kurzAdresse(location.name) || location.name.trim();
 
   if (typeof location.address === 'string' && location.address.trim()) {
-    const firstSegment = location.address.split(',')[0]?.trim();
-    return firstSegment || location.address.trim();
+    return kurzAdresse(location.address) || location.address.trim();
   }
 
   return fallback;
@@ -169,6 +174,14 @@ const fahrerNummerBeschriftung = (nummer) => {
 };
 
 const GoogleMapComponent = ({ origin, destination, driverCoords, fahrerNummer = '', onDurationUpdate, openToken, sheetHeight = 50, showApproachRoute = true, tripFromDriver = false, anfahrtStart = '', standortPunktZeigen = true, kollegen = [] }) => {
+  // Anfahrt folgt dem Auto: Die gelbe Linie wird bei jedem Standort am gefahrenen Teil
+  // abgeschnitten (kostet nichts). Nur wenn der Fahrer mehr als 200 m von der Route
+  // abkommt, wird neu gerechnet, gedrosselt auf hoechstens alle 15 s.
+  const anfahrtLinieRef = useRef(null);
+  // Blaue Linie, wenn sie beim Fahrer beginnt (Gast an Bord): wird genauso gekuerzt.
+  const fahrtLinieRef = useRef(null);
+  const [abseitsPunkt, setAbseitsPunkt] = useState(null);
+  const routenStandort = useRoutenStandort(abseitsPunkt?.lat, abseitsPunkt?.lng);
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const routeBoundsRef = useRef(null);
@@ -193,6 +206,8 @@ const GoogleMapComponent = ({ origin, destination, driverCoords, fahrerNummer = 
     let cancelled = false;
     let initialized = false;
     const cleanupRefs = [];
+    anfahrtLinieRef.current = null;
+    fahrtLinieRef.current = null;
 
     const initMap = () => {
       if (cancelled || initialized) return;
@@ -266,7 +281,7 @@ const GoogleMapComponent = ({ origin, destination, driverCoords, fahrerNummer = 
             labelOrigin: new window.trisarKarte.Point(17.5, 17.5),
           },
           label: fahrerNummerBeschriftung(fahrerNummer),
-          zIndex: 310,
+          zIndex: 1000, // Auto-Standort immer ueber den Minuten-Schildern (deren Ebene liegt bei 400)
         });
         driverMarkerRef.current = driverMarker;
         cleanupRefs.push(driverMarker);
@@ -425,6 +440,7 @@ const GoogleMapComponent = ({ origin, destination, driverCoords, fahrerNummer = 
                     zIndex: 301,
                   });
                   cleanupRefs.push(dashedLine);
+                  anfahrtLinieRef.current = { linie: dashedLine, pfad: path.slice() };
 
                   openDurationLabel(
                     path[Math.floor(path.length / 2)] || from,
@@ -442,6 +458,9 @@ const GoogleMapComponent = ({ origin, destination, driverCoords, fahrerNummer = 
                 });
                 routeRenderer.setDirections(result);
                 cleanupRefs.push(routeRenderer);
+                if (hideStartMarker && routeRenderer.linie) {
+                  fahrtLinieRef.current = { linie: routeRenderer.linie, pfad: (result.routes[0].overview_path || []).slice() };
+                }
 
                 const mins = Math.ceil((route.duration_in_traffic?.value || route.duration?.value || 0) / 60);
                 if (onDurationUpdate) onDurationUpdate(mins);
@@ -513,7 +532,22 @@ const GoogleMapComponent = ({ origin, destination, driverCoords, fahrerNummer = 
         if (typeof ref.close === 'function') ref.close();
       });
     };
-  }, [origin, destination, onDurationUpdate, openToken, showApproachRoute, tripFromDriver, anfahrtStart, standortPunktZeigen]);
+  }, [origin, destination, onDurationUpdate, openToken, showApproachRoute, tripFromDriver, anfahrtStart, standortPunktZeigen, routenStandort?.lat, routenStandort?.lng]);
+
+  useEffect(() => {
+    const lat = Number(driverCoords?.lat);
+    const lng = Number(driverCoords?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    // Gelbe Anfahrt oder blaue Fahrt ab Fahrer: die Linie, die gerade beim Auto beginnt.
+    const eintrag = anfahrtLinieRef.current || fahrtLinieRef.current;
+    if (!eintrag) return;
+    const { abseits, pfad } = anfahrtAbFahrer(eintrag.pfad, { lat, lng });
+    if (abseits) {
+      setAbseitsPunkt({ lat, lng });
+      return;
+    }
+    if (pfad && pfad.length >= 2) eintrag.linie.setPath(pfad);
+  }, [driverCoords?.lat, driverCoords?.lng]);
 
   useEffect(() => {
     const marker = driverMarkerRef.current;
@@ -739,6 +773,8 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
     inhaltBewegung: handleSheetContentTouchMove,
   } = useBlattZiehen(50);
   const [showCancelSheet, setShowCancelSheet] = useState(false);
+  // Abholschild: Gaestenamen gross und gedreht, oeffnet per Tipp auf die Gaeste.
+  const [showAbholschild, setShowAbholschild] = useState(false);
   const [showEndRideSheet, setShowEndRideSheet] = useState(false);
   const [showNoteSendSheet, setShowNoteSendSheet] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
@@ -747,6 +783,7 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
   const [selectedConvoyDriver, setSelectedConvoyDriver] = useState(null);
   const mapOpenToken = job?.__openToken || job?.id || 'default';
   const [liveRouteDurationMins, setLiveRouteDurationMins] = useState(null);
+  const jetztFuerEta = useJetzt();
 
   useEffect(() => {
     setLiveRouteDurationMins(null);
@@ -827,6 +864,10 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
 
   const fromName = getDisplayLocationName(job?.from, 'München MUC');
   const toName = getDisplayLocationName(job?.to, 'Bayrischer Hof');
+  // Beide Adressen oeffnen dieselbe Route: Standort -> Gast -> Endort.
+  const routeNavUrl = getRouteNavigationUrl(job?.from, job?.to);
+  const fromNavUrl = routeNavUrl;
+  const toNavUrl = routeNavUrl;
   const fromTypeLabel = getLocationTypeLabel(job?.from, t);
   const toTypeLabel = getLocationTypeLabel(job?.to, t);
   const rawKolonneName = `${job?.kolonneName || job?.convoyName || ''}`.trim();
@@ -841,7 +882,7 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
       ? liveRouteDurationMins
       : (job?.extRouteDurationInTrafficMins || job?.extRouteDurationMins || 0),
   );
-  const etaTime = addMinutesToTime(etdTime, routeDurationMins) || job?.eta || '--:--';
+  const etaTime = berechneEta(job, routeDurationMins, jetztFuerEta) || addMinutesToTime(etdTime, routeDurationMins) || job?.eta || '--:--';
   const driveLabel = routeDurationMins > 0 ? t('fahrt.driveDuration', { duration: formatDuration(routeDurationMins) }) : t('fahrt.driveDurationUnknown');
   const guestNames = toUniqueNameList([
     ...(Array.isArray(job?.kolonneGuests) ? job.kolonneGuests : []),
@@ -1123,18 +1164,22 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
             <div className="absolute left-[20px] right-[20px] top-[289px] grid grid-cols-[minmax(0,1fr)_18px_minmax(0,1fr)] items-start">
               <div className="min-w-0">
                 <div className="text-[#868786] text-[14px] font-bold tracking-[-0.5px]">{fromTypeLabel}</div>
-                <div className="text-white text-[18px] font-bold tracking-[-0.5px] leading-[1.15] break-words">{fromName}</div>
+                {fromNavUrl
+                  ? <a href={fromNavUrl} target="_blank" rel="noopener noreferrer" className="text-white text-[18px] font-bold tracking-[-0.5px] leading-[1.15] break-words block underline decoration-[#e2f754] decoration-2 underline-offset-4 active:opacity-70">{fromName}</a>
+                  : <div className="text-white text-[18px] font-bold tracking-[-0.5px] leading-[1.15] break-words">{fromName}</div>}
               </div>
               <div aria-hidden="true" />
               <div className="min-w-0 text-right">
                 <div className="text-[#868786] text-[14px] font-bold tracking-[-0.5px]">{toTypeLabel}</div>
-                <div className="text-white text-[18px] font-bold tracking-[-0.5px] leading-[1.15] break-words">{toName}</div>
+                {toNavUrl
+                  ? <a href={toNavUrl} target="_blank" rel="noopener noreferrer" className="text-white text-[18px] font-bold tracking-[-0.5px] leading-[1.15] break-words block underline decoration-[#e2f754] decoration-2 underline-offset-4 active:opacity-70">{toName}</a>
+                  : <div className="text-white text-[18px] font-bold tracking-[-0.5px] leading-[1.15] break-words">{toName}</div>}
               </div>
             </div>
 
             <div className="absolute left-[20px] text-[#e2f754] text-[32px] leading-[32px] font-bold tracking-[-1px]" style={{ top: `${GUESTS_TITLE_TOP}px` }}>{t('fahrt.guests')}</div>
             {visibleGuestNames.map((name, idx) => (
-              <div key={`guest-${idx}-${name}`} className="absolute left-[20px] right-[20px] h-[51px] bg-[#242425] px-[12px] flex items-center" data-tutorial="gast" style={{ top: `${GUEST_ROW_TOP + (idx * LIST_ROW_STEP)}px` }}>
+              <div key={`guest-${idx}-${name}`} className="absolute left-[20px] right-[20px] h-[51px] bg-[#242425] px-[12px] flex items-center cursor-pointer" data-tutorial="gast" role="button" onClick={() => { if (guestNames.length) setShowAbholschild(true); }} style={{ top: `${GUEST_ROW_TOP + (idx * LIST_ROW_STEP)}px` }}>
                 <span className="text-[#e2f754] text-[18px] font-bold tracking-[-0.5px]">{name}</span>
               </div>
             ))}
@@ -1206,6 +1251,9 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
       {/* Footer */}
       <TrisarFooter className="fixed bottom-0 left-0 right-0 h-10 bg-black z-30" />
 
+      {showAbholschild && (
+        <Abholschild namen={guestNames} onClose={() => setShowAbholschild(false)} />
+      )}
       {showCancelSheet && (
         <CancelRideSheet
           onClose={closeCancelSheet}

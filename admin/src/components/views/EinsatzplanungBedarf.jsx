@@ -115,7 +115,7 @@ export default function EinsatzplanungBedarf({
       >
         <div className="relative shrink-0" style={{ width: `${BASIS_BREITE * scale}px`, height: `${hoehe * scale}px` }}>
           <div className="absolute left-0 top-0 w-[402px] origin-top-left" style={{ height: `${hoehe}px`, transform: `scale(${scale})` }}>
-            <BackCircleButton onClick={onZurueck} className="absolute left-[20px] top-[40px]" marker="planer-bedarf-zurueck" />
+            <BackCircleButton onClick={onZurueck} className="absolute left-[20px] top-[60px]" marker="planer-bedarf-zurueck" />
 
             {bloecke.map((block, position) => (
               <div key={block.iso}>

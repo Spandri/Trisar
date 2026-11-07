@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import BackCircleButton from '../ui/BackCircleButton';
 import TrisarFooter from '../ui/TrisarFooter';
 import { useI18n } from '../../i18n';
+import { supabase } from '../../services/supabase';
 
 const GREEN = '#E3F654';
 const RED = '#ff6b6b';
@@ -162,6 +163,85 @@ function TwoColButton({ left, top, label, active, onClick, marker }) {
   );
 }
 
+// Punkte bei Fahrt fuer alle OBD-Tracker (obd_tracker.stufe). Das Gateway uebernimmt die
+// Stufe beim naechsten Verbinden des Trackers und quittiert sie (stufe_status).
+const TRACKER_STUFEN = [
+  { key: 'sparsam', label: 'filter.levelSparsam', marker: 'karte-filter-stufe-sparsam' },
+  { key: 'mittel', label: 'filter.levelMittel', marker: 'karte-filter-stufe-mittel' },
+  { key: 'fein', label: 'filter.levelFein', marker: 'karte-filter-stufe-fein' },
+];
+const STUFE_ZEILE_H = 24;
+
+const uhrzeit = (iso) => {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  const heute = new Date().toDateString() === d.toDateString();
+  const zeit = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return heute ? zeit : `${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} ${zeit}`;
+};
+
+function useTrackerStufen() {
+  const [tracker, setTracker] = useState([]);
+  const [fehler, setFehler] = useState('');
+  const laden = async () => {
+    const { data, error } = await supabase
+      .from('obd_tracker')
+      .select('imei, nummer, stufe, stufe_status, stufe_quittung_am, stufe_antwort')
+      .order('nummer', { ascending: true });
+    // Fehlt die Tabelle oder Spalte (Demo, Migration noch nicht da), bleibt der Abschnitt weg.
+    if (!error && Array.isArray(data)) setTracker(data.filter((row) => row.stufe));
+  };
+  useEffect(() => {
+    const start = setTimeout(laden, 0);
+    const timer = setInterval(laden, 10_000);
+    return () => {
+      clearTimeout(start);
+      clearInterval(timer);
+    };
+  }, []);
+  const setzen = async (stufe) => {
+    // Nur Tracker, die die Stufe noch nicht bestaetigt haben, sonst kostet es Daten ohne Nutzen.
+    const imeis = tracker
+      .filter((row) => row.stufe !== stufe || !['wartet', 'gesendet', 'uebernommen'].includes(row.stufe_status))
+      .map((row) => row.imei);
+    if (imeis.length === 0) return;
+    setFehler('');
+    setTracker((prev) => prev.map((row) => (imeis.includes(row.imei) ? { ...row, stufe, stufe_status: 'wartet', stufe_antwort: null } : row)));
+    const { error } = await supabase.from('obd_tracker').update({ stufe }).in('imei', imeis);
+    if (error) setFehler(error.message || 'error');
+    laden();
+  };
+  return { tracker, setzen, fehler };
+}
+
+function TrackerStufeStatus({ top, row }) {
+  const { t } = useI18n();
+  const stufe = t(`filter.level${row.stufe.charAt(0).toUpperCase()}${row.stufe.slice(1)}`);
+  let text = t('filter.levelUnknown');
+  let farbe = 'text-[#E3F654]/60';
+  if (row.stufe_status === 'wartet') text = t('filter.levelWaiting');
+  if (row.stufe_status === 'gesendet') text = t('filter.levelSent');
+  if (row.stufe_status === 'uebernommen') {
+    text = t('filter.levelApplied', { time: uhrzeit(row.stufe_quittung_am) }).trim();
+    farbe = 'text-[#E3F654]';
+  }
+  if (row.stufe_status === 'fehler') {
+    text = t('filter.levelError');
+    farbe = 'text-[#ff6b6b]';
+  }
+  return (
+    <div
+      className="absolute left-[20px] w-[362px] h-6 flex items-center text-sm leading-6 tracking-[0.5px] font-medium font-['Space_Grotesk']"
+      style={{ top: `${top}px` }}
+      title={row.stufe_antwort || ''}
+    >
+      <span className="text-[#E3F654] font-bold">Nr. {row.nummer}</span>
+      <span className="text-[#E3F654]/60">&nbsp;· {stufe} ·&nbsp;</span>
+      <span className={`truncate ${farbe}`}>{text}</span>
+    </div>
+  );
+}
+
 const DEFAULT_KARTEN_FILTERS = {
   driverSearch: '',
   selectedDriverIds: [],
@@ -174,6 +254,7 @@ const DEFAULT_KARTEN_FILTERS = {
 
 export default function KartenFilterView({ setView, filters = {}, onChangeFilters = () => {} }) {
   const { t } = useI18n();
+  const { tracker, setzen: setzeStufe, fehler: stufeFehler } = useTrackerStufen();
   const {
     driverSearch = '',
     afterWorkMinutes = '',
@@ -189,6 +270,15 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
     }),
     [],
   );
+
+  // Abschnitt "Punkte bei Fahrt" unter Feierabend, Knoepfe darunter rutschen mit.
+  const gemeinsameStufe = tracker.length > 0 && tracker.every((row) => row.stufe === tracker[0].stufe) ? tracker[0].stufe : null;
+  const stufeTop = 462;
+  const stufeZeilenTop = stufeTop + 32 + 40 + 12;
+  const stufeEnde = stufeZeilenTop + (tracker.length + (stufeFehler ? 1 : 0)) * STUFE_ZEILE_H + 20;
+  const saveTop = tracker.length > 0 ? stufeEnde : 462;
+  const clearTop = saveTop + 68;
+  const seitenHoehe = Math.max(834, clearTop + 56 + 120);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -244,7 +334,7 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
   return (
     <div className="w-[min(402px,100vw)] h-dvh relative mx-auto overflow-hidden" style={gradientStyle}>
       <div className="h-full overflow-y-auto overscroll-none pb-[70px]" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
-        <div className="relative h-[834px]">
+        <div className="relative" style={{ height: `${seitenHoehe}px` }}>
           <div className="absolute inset-x-0 top-[20px]">
             <BackCircleButton onClick={handleBack} marker="karte-filter-zurueck" className="absolute left-[20px] top-[40px]" />
 
@@ -272,10 +362,51 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
               options={['15 min', '30 min', '45 min', '60 min', '90 min', '120 min']}
             />
 
+            {tracker.length > 0 ? (
+              <>
+                <div
+                  data-tutorial="karte-filter-stufe"
+                  className="absolute left-[20px] w-[362px] h-6 text-base leading-6 tracking-[0.5px] text-[#E3F654]/60 font-medium font-['Space_Grotesk']"
+                  style={{ top: `${stufeTop}px` }}
+                >
+                  {t('filter.trackerLevel')}
+                </div>
+                {TRACKER_STUFEN.map((stufe, index) => (
+                  <button
+                    key={stufe.key}
+                    type="button"
+                    data-tutorial={stufe.marker}
+                    onClick={() => setzeStufe(stufe.key)}
+                    className="absolute w-[114px] h-10 border-2 border-[#E3F654] text-base font-medium font-['Space_Grotesk'] tracking-wide transition-colors"
+                    style={{
+                      left: `${20 + index * 124}px`,
+                      top: `${stufeTop + 32}px`,
+                      backgroundColor: gemeinsameStufe === stufe.key ? '#E3F654' : 'transparent',
+                      color: gemeinsameStufe === stufe.key ? '#1d1c1d' : '#E3F654',
+                    }}
+                  >
+                    {t(stufe.label)}
+                  </button>
+                ))}
+                {tracker.map((row, index) => (
+                  <TrackerStufeStatus key={row.imei} row={row} top={stufeZeilenTop + index * STUFE_ZEILE_H} />
+                ))}
+                {stufeFehler ? (
+                  <div
+                    className="absolute left-[20px] w-[362px] h-6 text-sm leading-6 text-[#ff6b6b] font-medium font-['Space_Grotesk'] truncate"
+                    style={{ top: `${stufeZeilenTop + tracker.length * STUFE_ZEILE_H}px` }}
+                  >
+                    {t('filter.levelSaveError')}: {stufeFehler}
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+
             <button
               type="button"
               onClick={() => setView('karten')}
-              className="absolute left-[20px] top-[462px] w-[362px] h-14 bg-[#E3F654] border-2 border-[#E3F654] flex items-center px-3"
+              className="absolute left-[20px] w-[362px] h-14 bg-[#E3F654] border-2 border-[#E3F654] flex items-center px-3"
+              style={{ top: `${saveTop}px` }}
             >
               <span className="flex-1 text-left text-[#1d1c1d] text-base font-medium font-['Space_Grotesk'] tracking-wide">{t('filter.saveFilter')}</span>
               <img src="/icon/_Icon_Schwarz/Arrow_Trisar_Icons_01.svg" alt="" className="w-[34px] h-[20px]" />
@@ -284,7 +415,8 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
             <button
               type="button"
               onClick={() => onChangeFilters({ ...DEFAULT_KARTEN_FILTERS })}
-              className="absolute left-[20px] top-[530px] w-[362px] h-14 bg-[#ff6b6b] border-2 border-[#ff6b6b] flex items-center px-3"
+              className="absolute left-[20px] w-[362px] h-14 bg-[#ff6b6b] border-2 border-[#ff6b6b] flex items-center px-3"
+              style={{ top: `${clearTop}px` }}
             >
               <span className="flex-1 text-left text-[#1d1c1d] text-base font-medium font-['Space_Grotesk'] tracking-wide">{t('filter.clearFilter')}</span>
               <img src="/icon/_Icon_Schwarz/Arrow_Nav_Trisar_Icons_01.svg" alt="" className="w-[34px] h-[20px]" />

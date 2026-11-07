@@ -28,3 +28,7 @@ Wenn diese Logs fehlen, kommen keine Trackerdaten im Gateway an.
 - `Satellites in use > 0`
 
 Ohne Fix keine verlaessliche Live-Position.
+
+## Alte Records
+- Gateway verwirft Records aelter als `TELTONIKA_MAX_RECORD_AGE_SEC` (Standard 600 s). Log-Event `old_records_dropped`.
+- Tracker-Puffer sofort leeren: Command `deleterecords` ueber die Command-API.

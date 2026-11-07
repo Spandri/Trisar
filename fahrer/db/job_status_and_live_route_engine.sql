@@ -88,11 +88,11 @@ create index if not exists idx_job_status_history_job_created
 
 -- 5) Settings ----------------------------------------------------------------
 insert into public.integration_settings(key, value, description) values
-  ('status_pickup_enter_radius_m', '180'::jsonb, 'Open -> Pickup if driver_to_pickup <= radius'),
-  ('status_pickup_exit_radius_m', '300'::jsonb, 'Pickup -> Underway candidate if driver_to_pickup >= radius'),
+  ('status_pickup_enter_radius_m', '50'::jsonb, 'Open -> Pickup if driver_to_pickup <= radius'),
+  ('status_pickup_exit_radius_m', '100'::jsonb, 'Pickup -> Underway candidate if driver_to_pickup >= radius'),
   ('status_pickup_depart_hits', '3'::jsonb, 'Consecutive confirmations before Pickup -> Underway'),
   ('status_progress_delta_m', '25'::jsonb, 'Minimum distance delta interpreted as real movement'),
-  ('status_dropoff_done_radius_m', '140'::jsonb, 'Underway -> Done if driver_to_dropoff <= radius'),
+  ('status_dropoff_done_radius_m', '50'::jsonb, 'Underway -> Done if driver_to_dropoff <= radius'),
   ('status_dropoff_done_hits', '2'::jsonb, 'Consecutive confirmations before Underway -> Done')
 on conflict (key) do update
 set value = excluded.value,
@@ -194,11 +194,11 @@ declare
   v_trip_statuses constant text[] := array['in_progress', 'unterwegs', 'started', 'on_trip', 'ongoing', 'active'];
   v_done_statuses constant text[] := array['done', 'completed', 'arrived', 'beendet'];
   v_terminal_statuses constant text[] := array['cancelled', 'canceled', 'refused', 'storniert', 'stoniert'];
-  v_enter_radius integer := public.trisar_get_setting_int('status_pickup_enter_radius_m', 180);
-  v_exit_radius integer := public.trisar_get_setting_int('status_pickup_exit_radius_m', 300);
+  v_enter_radius integer := public.trisar_get_setting_int('status_pickup_enter_radius_m', 50);
+  v_exit_radius integer := public.trisar_get_setting_int('status_pickup_exit_radius_m', 100);
   v_depart_hits_required integer := public.trisar_get_setting_int('status_pickup_depart_hits', 3);
   v_progress_delta integer := public.trisar_get_setting_int('status_progress_delta_m', 25);
-  v_done_radius integer := public.trisar_get_setting_int('status_dropoff_done_radius_m', 140);
+  v_done_radius integer := public.trisar_get_setting_int('status_dropoff_done_radius_m', 50);
   v_done_hits_required integer := public.trisar_get_setting_int('status_dropoff_done_hits', 2);
   v_pickup_distance integer;
   v_dropoff_distance integer;
@@ -255,7 +255,11 @@ begin
       v_dropoff_near_hits := 0;
     end if;
   elsif v_status = any(v_pickup_statuses) then
-    if v_pickup_distance >= v_exit_radius then
+    if v_job.ext_driver_to_pickup_distance_m is null then
+      -- Ohne Google-Distanz keine Entscheidung. Vorher zaehlte NULL als unendlich weit weg,
+      -- und der Auftrag sprang faelschlich auf unterwegs, bevor der Fahrer losgefahren war.
+      null;
+    elsif v_pickup_distance >= v_exit_radius then
       v_depart_confirmed := (
         v_runtime.last_pickup_distance_m is null
         or v_pickup_distance >= (v_runtime.last_pickup_distance_m + v_progress_delta)

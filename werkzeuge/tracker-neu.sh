@@ -6,6 +6,11 @@
 #   bash werkzeuge/tracker-neu.sh <IMEI> [SIM-Endung, z. B. 825300]
 #
 # Ist der Tracker schon angemeldet, wird nur geprueft und seine Nummer genannt.
+#
+# Punkte bei Fahrt (10050/10150/10250 mit +1/+2) gehoeren zur Stufe (obd_tracker.stufe, Karten
+# Filter der Dispo). Gibt es die Spalte schon (stufe-ausrollen.sh), prueft das Skript diese Werte
+# nicht selbst, sondern legt neue Tracker mit stufe 'mittel' an, das Gateway setzt sie und quittiert.
+# Ohne Spalte prueft es sie wie bisher fest auf mittel (30/15/200).
 
 set -euo pipefail
 
@@ -24,6 +29,12 @@ SOLL="107:1 101:4 105:11000 138:1 50000:2 901:24 1000:300 4000: 2004:obd.trisar.
 10050:30 10052:15 10051:200 10055:120 10150:30 10152:15 10151:200 10155:120 10250:30 10252:15 10251:200 10255:120"
 
 sql() { ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -v ON_ERROR_STOP=1 -c \"$1\""; }
+
+# Stufen-Modell da? Dann die Fahrt-Werte aus der Pruefung nehmen (10055/10155/10255 bleiben).
+STUFE_DB=$(sql "select 1 from information_schema.columns where table_schema='public' and table_name='obd_tracker' and column_name='stufe'")
+if [[ "$STUFE_DB" == 1 ]]; then
+  SOLL=$(printf '%s\n' $SOLL | grep -vE '^(10050|10051|10052|10150|10151|10152|10250|10251|10252):')
+fi
 
 # Befehl schicken und auf die Antwort warten. Gibt die Antwort aus.
 befehl() {
@@ -84,6 +95,22 @@ if [[ -z "$NR" ]]; then
             select '$IMEI', coalesce(max(nummer), 0) + 1, 'FMC003', nullif('$SIM', '')
             from public.obd_tracker returning nummer" | head -1)
   echo "Neu angemeldet."
+  if [[ "$STUFE_DB" == 1 ]]; then
+    # Erneut setzen loest den Trigger aus: setparam mittel in die Warteschlange, Gateway quittiert.
+    sql "update public.obd_tracker set stufe='mittel' where imei='$IMEI'" >/dev/null
+    echo "Punkte bei Fahrt: mittel angefordert ..."
+    STATUS=""
+    for _ in $(seq 1 15); do
+      sleep 3
+      STATUS=$(sql "select stufe_status from public.obd_tracker where imei='$IMEI'")
+      [[ "$STATUS" == uebernommen || "$STATUS" == fehler ]] && break
+    done
+    case "$STATUS" in
+      uebernommen) echo "Punkte bei Fahrt: mittel uebernommen." ;;
+      fehler)      echo "FEHLER: Punkte bei Fahrt nicht uebernommen ($(sql "select stufe_antwort from public.obd_tracker where imei='$IMEI'"))."; exit 1 ;;
+      *)           echo "Punkte bei Fahrt: mittel wartet noch ($STATUS). Der Tracker uebernimmt sie beim naechsten Verbinden, Quittung im Karten Filter." ;;
+    esac
+  fi
 fi
 GPS=$(befehl "getinfo" | grep -oE 'GPS:[0-9]+ SAT:[0-9]+' || true)
 echo

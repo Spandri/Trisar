@@ -34,3 +34,7 @@ demo/deploy/fahrer 2/
 **/db/backups/
 android-apk/
 push-schluessel/
+
+# Doppelte Xcode-Projekte (Kopien von iCloud/Finder)
+*\ [0-9].xcodeproj/
+*\ [0-9][0-9].xcodeproj/

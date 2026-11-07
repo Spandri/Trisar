@@ -644,19 +644,32 @@ const getFallbackPlaceSuggestions = (input) => {
     .slice(0, 8);
 };
 
+// Nominatim-Treffer als "Straße Hausnummer, Ort" bzw. "Name, Straße Hausnummer, Ort".
+// Der rohe display_name beginnt mit der Hausnummer ("153, Thalkirchner Straße, ..."), das
+// liest sich schlecht und die Fahrer-App zeigte davon nur die "153".
+const formatOsmEntry = (entry) => {
+  const adresse = entry?.address || {};
+  const strasse = adresse.road || adresse.pedestrian || adresse.footway || adresse.path || adresse.square || '';
+  const nummer = adresse.house_number || '';
+  const ort = adresse.city || adresse.town || adresse.village || adresse.municipality || adresse.county || '';
+  const strasseTeil = [strasse, nummer].filter(Boolean).join(' ');
+  const name = String(entry?.name || '').trim();
+  const nameIstAdresse = !name || name === strasse || name === strasseTeil || /^\d/.test(name) || name === ort;
+  const teile = nameIstAdresse ? [strasseTeil, ort] : [name, strasseTeil, ort];
+  const label = teile.filter(Boolean).join(', ');
+  return label || String(entry?.display_name || '').trim();
+};
+
 const fetchOsmPlaceSuggestions = async (input) => {
   const query = String(input || '').trim();
   if (!query) return [];
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&q=${encodeURIComponent(query)}`;
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&addressdetails=1&q=${encodeURIComponent(query)}`;
   try {
     const response = await fetch(url, { headers: { Accept: 'application/json' } });
     if (!response.ok) return [];
     const data = await response.json();
     if (!Array.isArray(data)) return [];
-    return data
-      .map((entry) => String(entry?.display_name || '').trim())
-      .filter(Boolean)
-      .slice(0, 8);
+    return Array.from(new Set(data.map(formatOsmEntry).filter(Boolean))).slice(0, 8);
   } catch {
     return [];
   }
@@ -704,7 +717,7 @@ const _buildDriverSuggestionOptions = (profiles = []) => {
 
 const isDriverProfile = (profile) => {
   const role = normalizeLocation(profile?.role || '');
-  if (profile?.is_dispo === true) return false;
+  // Dispo-Recht (is_dispo) macht niemanden zum Nicht-Fahrer. Nur die Rolle entscheidet.
   return role !== 'dispo' && role !== 'dispatcher' && role !== 'admin' && role !== 'koordinator' && role !== 'coordinator';
 };
 
@@ -1479,6 +1492,8 @@ export default function App() {
         // So landen Fahrernotizen beim Speichern nicht als Dispo-Notiz in der DB.
         const noteByJobId = new Map();
         const dispoNoteByJobId = new Map();
+        // Alle Notizen einer Fahrt fuer die Karte, nicht nur die neueste.
+        const notizenByJobId = new Map();
         (jobNotesResult.data || []).forEach((row) => {
           const jobId = String(row?.job_id || '').trim();
           if (!jobId) return;
@@ -1488,6 +1503,10 @@ export default function App() {
             aiBooked: rawText.includes(AI_BOOKING_NOTE_TAG),
           };
           if (!noteByJobId.has(jobId)) noteByJobId.set(jobId, meta);
+          if (meta.noteText) {
+            if (!notizenByJobId.has(jobId)) notizenByJobId.set(jobId, []);
+            notizenByJobId.get(jobId).push(meta.noteText);
+          }
           if (!String(row?.author_name || '').trim() && !dispoNoteByJobId.has(jobId)) dispoNoteByJobId.set(jobId, meta);
         });
 
@@ -1716,6 +1735,8 @@ export default function App() {
             flugnummer,
             zugnummer,
             note: noteMeta.noteText || '',
+            // Geladen neueste zuerst, auf der Karte aelteste zuerst.
+            notizen: (notizenByJobId.get(jobId) || []).slice().reverse(),
             dispoNote: dispoNoteMeta.noteText || '',
             aiBooked: Boolean(aiBookedFromColumn || noteMeta.aiBooked || dispoNoteMeta.aiBooked),
             time: isDelayed
@@ -2597,7 +2618,13 @@ export default function App() {
         || String(existingJob.pickup_address || '').trim() !== start
         || String(existingJob.dropoff_address || '').trim() !== ziel;
       const shouldReRequestDriverResponse = Boolean(resolvedDriverId) && !isFinalRequestedStatus && driverOrTripChanged;
-      const keepExistingStatus = Boolean(existingJob?.status) && !isFinalRequestedStatus && !driverOrTripChanged;
+      // Status nur schreiben, wenn die Dispo ihn im Editor selbst geaendert hat (Vergleich mit dem Stand
+      // beim Oeffnen). Sonst bleibt der aktuelle DB-Status: der Fahrer kann die Fahrt inzwischen beendet
+      // haben, waehrend der Editor offen war. Ein bewusster Wechsel (beendet -> offen) geht weiter durch,
+      // und bei offen -> offen bleibt die Annahme des Fahrers (assigned) stehen.
+      const loadedJobStatus = String(mapEditorStatusToJobStatus(rideEditorData?.aktuellerStatus) || '').trim().toLowerCase();
+      const dispoChangedStatus = normalizedRequestedStatus !== loadedJobStatus;
+      const keepExistingStatus = Boolean(existingJob?.status) && !dispoChangedStatus && !driverOrTripChanged;
       const nextJobStatus = shouldReRequestDriverResponse
         ? 'pending'
         : (keepExistingStatus ? existingJob.status : requestedJobStatus);

@@ -16,8 +16,22 @@ const BOOT_MAX_MS = 6000;
 // Fahrer-App erneut.
 const SPLASH_UNTERDRUECKT = new URLSearchParams(window.location.search).get('nosplash') === '1';
 
+// Im Live-Betrieb laeuft die Logo-Animation nur beim allerersten Start auf
+// dem Geraet. Danach merkt sich der Browser das und die App oeffnet direkt.
+// In der Demo bleibt sie bei jedem Aufruf, dort gehoert sie zum Trailer.
+const SPLASH_MERKEN = import.meta.env.VITE_DATENQUELLE !== 'demo';
+const SPLASH_SCHLUESSEL = 'trisar:splash-gesehen';
+const splashSchonGesehen = () => {
+  if (!SPLASH_MERKEN) return false;
+  try { return window.localStorage.getItem(SPLASH_SCHLUESSEL) === '1'; } catch { return false; }
+};
+const splashGesehenMerken = () => {
+  if (!SPLASH_MERKEN) return;
+  try { window.localStorage.setItem(SPLASH_SCHLUESSEL, '1'); } catch { /* privater Modus */ }
+};
+
 function BootSplashGate() {
-  const [videoDone, setVideoDone] = useState(SPLASH_UNTERDRUECKT);
+  const [videoDone, setVideoDone] = useState(() => SPLASH_UNTERDRUECKT || splashSchonGesehen());
   // Easter Egg: Doppelklick oder Esc beendet Startvideo und Login-Trailer.
   const [uebersprungen, setUebersprungen] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
@@ -47,6 +61,7 @@ function BootSplashGate() {
   // wenn die Startanimation durch ist — sonst laeuft er unsichtbar darunter ab.
   useEffect(() => {
     if (showSplash) return;
+    splashGesehenMerken();
     window.__TRISAR_SPLASH_FERTIG = true;
     window.dispatchEvent(new CustomEvent('trisar:splash-fertig'));
   }, [showSplash]);

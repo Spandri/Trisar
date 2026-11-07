@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { kurzAdresse } from '../../shared/adresseKurz';
 import { SUPABASE_FUNCTIONS } from '../../shared/supabase/functions';
 import { supabase } from '../../shared/supabase/client';
 import { DEMO_MODE } from '../../datenquelle';
@@ -57,6 +58,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import { MAP_FAHRER_STANDORT_URL, MAP_FLAG_PIN_URL, MAP_PERSON_PIN_URL } from '../../shared/ui/icons';
+import { routeTeilen, istAmEnde } from '../../shared/karte/routenFortschritt';
 
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
@@ -171,16 +173,11 @@ const hasSyncableFlightOnJob = (job) => {
 
 const toShortFormattedAddress = (name, address) => {
   const nameText = typeof name === 'string' ? name.trim() : '';
-  if (nameText) {
-    const nameFirstSegment = nameText.split(',')[0]?.trim();
-    if (nameFirstSegment) return nameFirstSegment;
-    return nameText;
-  }
+  if (nameText) return kurzAdresse(nameText) || nameText;
 
   const addressText = typeof address === 'string' ? address.trim() : '';
   if (!addressText) return '';
-  const firstSegment = addressText.split(',')[0]?.trim();
-  return firstSegment || addressText;
+  return kurzAdresse(addressText) || addressText;
 };
 
 const logOpenSkyDebug = (label, payload) => {
@@ -270,9 +267,9 @@ const LIVE_LOCATION_HISTORY_INTERVAL_MS = 15000;
 // Client-seitige Statuswechsel sind aktiv, damit "Beim Pickup" -> "Unterwegs"
 // sofort passiert, sobald die Bewegung vom Pickup Richtung Ziel erkannt wird.
 const CLIENT_AUTO_STATUS_TRANSITIONS_ENABLED = true;
-const AUTO_START_PICKUP_ENTER_RADIUS_M = 220;
-const AUTO_START_PICKUP_EXIT_RADIUS_M = 280;
-const AUTO_DONE_DROPOFF_RADIUS_M = 180;
+const AUTO_START_PICKUP_ENTER_RADIUS_M = 50;
+const AUTO_START_PICKUP_EXIT_RADIUS_M = 100;
+const AUTO_DONE_DROPOFF_RADIUS_M = 50;
 const OBD_SOURCE_RE = /(teltonika|fmb\d*|obd|telematik|telematics|tracker)/i;
 
 const normalizeStatus = (value) => String(value || '').trim().toLowerCase();
@@ -956,6 +953,8 @@ const ChatListView = ({ chats, unreadByChat, chatLastByChat, setView, setActiveC
 const GoogleMapComponent = ({ job }) => {
   const { t } = useI18n();
   const mapRef = useRef(null);
+  // Fortschritt auf Anfahrt und Fahrt, damit die Linie hinter dem Fahrer nur nach vorn wandert.
+  const fortschrittRef = useRef({ schluessel: '', anfahrt: { index: 0, gefunden: false }, fahrt: { index: 0, gefunden: false } });
 
   useEffect(() => {
     const initMap = () => {
@@ -999,7 +998,7 @@ const GoogleMapComponent = ({ job }) => {
           labelOrigin: new window.trisarKarte.Point(17.5, 17.5),
         },
         label: job?.driverNumber != null ? { text: String(job.driverNumber), color: '#FFFFFF', fontSize: '20px', fontWeight: '700' } : undefined,
-        zIndex: 300,
+        zIndex: 1000, // Auto-Standort immer ueber den Minuten-Schildern (deren Ebene liegt bei 400)
       });
       combinedBounds.extend(driverCoords);
 
@@ -1030,44 +1029,70 @@ const GoogleMapComponent = ({ job }) => {
       const routePoints = decodeGooglePolyline(job?.extRoutePolyline || '');
       const approachPoints = decodeGooglePolyline(job?.extDriverToPickupPolyline || '');
 
+      // Schon gefahrenen Teil abtrennen. Keine Neuberechnung, nur die vorhandene Linie
+      // wird am Fahrer geteilt: davor blass, dahinter in voller Farbe.
+      const schluessel = `${job?.id || ''}|${job?.extDriverToPickupPolyline || ''}|${job?.extRoutePolyline || ''}`;
+      if (fortschrittRef.current.schluessel !== schluessel) {
+        fortschrittRef.current = { schluessel, anfahrt: { index: 0, gefunden: false }, fahrt: { index: 0, gefunden: false } };
+      }
+      const fortschritt = fortschrittRef.current;
+      const status = normalizeStatus(job?.status);
+      const gastAnBord = IN_PROGRESS_JOB_STATUSES.has(status);
+      // Anfahrt ist vorbei, sobald der Gast an Bord ist oder der Fahrer am Ende der Anfahrt steht.
+      const anfahrtVorbei = gastAnBord || istAmEnde(approachPoints, fortschritt.anfahrt);
+      const anfahrtTeilung = driverCoords && approachPoints.length >= 2 && !anfahrtVorbei
+        ? routeTeilen(approachPoints, driverCoords, fortschritt.anfahrt)
+        : null;
+      const fahrtTeilung = driverCoords && routePoints.length >= 2 && anfahrtVorbei
+        ? routeTeilen(routePoints, driverCoords, fortschritt.fahrt)
+        : null;
+
+      const linieZeichnen = (pfad, farbe, breite, deckkraft, zIndex) => new window.trisarKarte.Polyline({
+        path: pfad, geodesic: true, strokeColor: farbe, strokeOpacity: deckkraft, strokeWeight: breite, map, zIndex,
+      });
+
       if (approachPoints.length >= 2) {
-        const approachLine = new window.trisarKarte.Polyline({
-          path: approachPoints,
-          geodesic: true,
-          strokeColor: '#E3F654',
-          strokeOpacity: 0.95,
-          strokeWeight: 5,
-          map,
-          zIndex: 301,
-        });
-        approachLine.getPath().forEach((p) => combinedBounds.extend(p));
-        const approachDurationMins = job?.extDriverToPickupDurationInTrafficMins || job?.extDriverToPickupDurationMins || 0;
-        if (approachDurationMins > 0) {
-          new window.trisarKarte.InfoWindow({
-            content: `<div class="custom-map-label" style="background: #E3F654; color: #111111"><span>${formatDuration(approachDurationMins)}</span></div>`,
-            position: approachPoints[Math.floor(approachPoints.length / 2)],
-            disableAutoPan: true,
-          }).open(map);
+        let anfahrtRest = approachPoints;
+        if (anfahrtVorbei && !gastAnBord) {
+          // Fahrer steht am Abholort: ganze Anfahrt blass.
+          linieZeichnen(approachPoints, '#E3F654', 4, 0.3, 300);
+          anfahrtRest = [];
+        } else if (anfahrtTeilung) {
+          linieZeichnen(anfahrtTeilung.gefahren, '#E3F654', 4, 0.3, 300);
+          anfahrtRest = anfahrtTeilung.rest;
+        }
+        if (!gastAnBord && anfahrtRest.length >= 2) {
+          const approachLine = linieZeichnen(anfahrtRest, '#E3F654', 5, 0.95, 301);
+          approachLine.getPath().forEach((p) => combinedBounds.extend(p));
+          const approachDurationMins = job?.extDriverToPickupDurationInTrafficMins || job?.extDriverToPickupDurationMins || 0;
+          if (approachDurationMins > 0) {
+            new window.trisarKarte.InfoWindow({
+              content: `<div class="custom-map-label" style="background: #E3F654; color: #111111"><span>${formatDuration(approachDurationMins)}</span></div>`,
+              position: anfahrtRest[Math.floor(anfahrtRest.length / 2)],
+              disableAutoPan: true,
+            }).open(map);
+          }
+        } else if (!gastAnBord) {
+          approachPoints.forEach((p) => combinedBounds.extend(p));
         }
       }
 
       if (routePoints.length >= 2) {
-        const polyline = new window.trisarKarte.Polyline({
-          path: routePoints,
-          geodesic: true,
-          strokeColor: '#0059FF',
-          strokeOpacity: 0.9,
-          strokeWeight: 6,
-          map,
-        });
+        let fahrtRest = routePoints;
+        if (fahrtTeilung) {
+          linieZeichnen(fahrtTeilung.gefahren, '#0059FF', 4, 0.3, 300);
+          fahrtRest = fahrtTeilung.rest;
+        }
+        const polyline = linieZeichnen(fahrtRest.length >= 2 ? fahrtRest : routePoints, '#0059FF', 6, 0.9, 302);
         polyline.getPath().forEach((p) => combinedBounds.extend(p));
         new window.trisarKarte.Marker({ position: routePoints[0], map, icon: personPinIcon, zIndex: 320 });
         new window.trisarKarte.Marker({ position: routePoints[routePoints.length - 1], map, icon: flagIcon, zIndex: 320 });
         const durationMins = job?.extRouteDurationInTrafficMins || job?.extRouteDurationMins || 0;
         if (durationMins > 0) {
+          const schildPfad = fahrtRest.length >= 2 ? fahrtRest : routePoints;
           new window.trisarKarte.InfoWindow({
             content: `<div class="custom-map-label" style="background: #0059FF"><span>${formatDuration(durationMins)}</span><div class="eco-dot"></div></div>`,
-            position: routePoints[Math.floor(routePoints.length / 2)],
+            position: schildPfad[Math.floor(schildPfad.length / 2)],
             disableAutoPan: true,
           }).open(map);
         }
@@ -1088,6 +1113,8 @@ const GoogleMapComponent = ({ job }) => {
     job?.extDriverToPickupDurationMins,
     job?.driverLiveLat,
     job?.driverLiveLng,
+    job?.status,
+    job?.id,
     job?.flightLiveLat,
     job?.flightLiveLng,
     job?.flightLiveHeadingDeg,
@@ -1674,6 +1701,8 @@ const FahrerApp = () => {
   const selectedJobRef = useRef(null);
   const geoWatchIdRef = useRef(null);
   const lastLiveUpsertAtRef = useRef(0);
+  // 'app' oder 'obd', kommt aus profiles.tracking_mode (eingestellt in der Dispo).
+  const trackingModeRef = useRef('app');
   const lastHistoryInsertAtRef = useRef(0);
   const pickupProgressRef = useRef(new Map());
   const statusTransitionLockRef = useRef(new Set());
@@ -1774,8 +1803,11 @@ const FahrerApp = () => {
     });
   }, []);
 
+  // Letzter OBD-Standort des eigenen Fahrzeugs, fuer die Karte auf der Fahrzeug-Seite.
+  const [fahrzeugStandort, setFahrzeugStandort] = useState(null);
   const syncLocalDriverCoords = useCallback((lat, lng, capturedAt, source = null) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    setFahrzeugStandort({ lat, lng, erfasst: capturedAt || null, quelle: source || null });
     setJobs((prev) =>
       (prev || []).map((job) => ({
         ...job,
@@ -1936,6 +1968,9 @@ const FahrerApp = () => {
     };
 
     syncLocalDriverCoords(lat, lng, capturedAt, source);
+    // Ortung per OBD-Tracker (Dispo-Einstellung am Fahrer): Der Tracker schreibt den Standort,
+    // das Handy nutzt seine Position nur noch lokal (Karte, Auto-Status).
+    if (trackingModeRef.current === 'obd') return locationPayload;
     const now = Date.now();
     const shouldWriteLive = forceWrite || (now - lastLiveUpsertAtRef.current >= LIVE_LOCATION_UPSERT_INTERVAL_MS);
     const shouldWriteHistory = forceWrite || (now - lastHistoryInsertAtRef.current >= LIVE_LOCATION_HISTORY_INTERVAL_MS);
@@ -1974,6 +2009,30 @@ const FahrerApp = () => {
 
     return locationPayload;
   }, [resolveActiveJob, session?.user?.id, syncLocalDriverCoords]);
+
+  // Ortungsart des Fahrers laden. Neu laden beim Zurueckkehren in die App und jede Minute,
+  // damit eine Umstellung in der Dispo ohne Neustart greift.
+  useEffect(() => {
+    const driverId = session?.user?.id;
+    if (!driverId) return undefined;
+    let cancelled = false;
+    const loadTrackingMode = async () => {
+      const { data, error } = await supabase.from('profiles').select('tracking_mode').eq('id', driverId).maybeSingle();
+      if (cancelled || error) return;
+      trackingModeRef.current = data?.tracking_mode === 'obd' ? 'obd' : 'app';
+    };
+    loadTrackingMode();
+    const timer = setInterval(loadTrackingMode, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadTrackingMode();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [session?.user?.id]);
 
   const refreshJobLiveFlightData = useCallback(async (jobId) => {
     const normalizedJobId = String(jobId || '').trim();
@@ -2288,6 +2347,17 @@ const FahrerApp = () => {
             return tsB - tsA;
           });
         const ownLiveLocation = ownLiveLocationRows.find((row) => isObdLocationSource(row?.source)) || null;
+        // Fahrzeug-Seite: OBD-Standort bevorzugt, sonst der Handy-Standort der Fahrer-App
+        // (wie iOS/Android). Die Seite zeigt die Quelle samt Alter an der Karte.
+        const fahrzeugOrt = ownLiveLocation || ownLiveLocationRows[0] || null;
+        if (isFiniteNumber(fahrzeugOrt?.lat) && isFiniteNumber(fahrzeugOrt?.lng)) {
+          setFahrzeugStandort({
+            lat: fahrzeugOrt.lat,
+            lng: fahrzeugOrt.lng,
+            erfasst: fahrzeugOrt?.captured_at || fahrzeugOrt?.updated_at || null,
+            quelle: fahrzeugOrt?.source || null,
+          });
+        }
         const convoyJobIds = Array.from(
           new Set(
             (convoyLinks || [])
@@ -2466,6 +2536,9 @@ const FahrerApp = () => {
             extRouteDurationInTrafficMins: dbJob.ext_route_duration_in_traffic_mins || 0,
             extRoutePolyline: dbJob.ext_route_polyline || '',
             extDriverToPickupDurationMins: dbJob.ext_driver_to_pickup_duration_mins || 0,
+            extDriverToDropoffDurationMins: dbJob.ext_driver_to_dropoff_duration_mins ?? null,
+            extDriverToDropoffDurationInTrafficMins: dbJob.ext_driver_to_dropoff_duration_in_traffic_mins ?? null,
+            extDriverToDropoffLastSyncAt: dbJob.ext_driver_to_dropoff_last_sync_at || null,
             extDriverToPickupDurationInTrafficMins: dbJob.ext_driver_to_pickup_duration_in_traffic_mins || 0,
             extDriverToPickupPolyline: dbJob.ext_driver_to_pickup_polyline || '',
             extLastEnrichedAt: dbJob.ext_last_enriched_at || null,
@@ -2561,7 +2634,15 @@ const FahrerApp = () => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_live_locations', filter: `driver_id=eq.${driverId}` }, (payload) => {
         const source = String(payload?.new?.source || '').trim().toLowerCase();
-        if (!isObdLocationSource(source)) return;
+        if (!isObdLocationSource(source)) {
+          // Handy-Standort: nur fuer die Fahrzeug-Seite (Karte mit Quelle "Fahrer-App").
+          const lat = Number(payload?.new?.lat);
+          const lng = Number(payload?.new?.lng);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            setFahrzeugStandort({ lat, lng, erfasst: payload?.new?.captured_at || payload?.new?.updated_at || null, quelle: payload?.new?.source || null });
+          }
+          return;
+        }
         const nextLat = Number(payload?.new?.lat);
         const nextLng = Number(payload?.new?.lng);
         if (!Number.isFinite(nextLat) || !Number.isFinite(nextLng)) return;
@@ -3260,7 +3341,9 @@ const FahrerApp = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    // Nur dieses Geraet abmelden. Standard waere 'global' und wuerde auch die Dispo-Sitzung
+    // desselben Kontos auf anderen Geraeten killen (gleicher Account fuer Fahrer-App und Dispo).
+await supabase.auth.signOut({ scope: 'local' });
     viewEntryIdRef.current = 1;
     setViewStack([{ id: 0, view: 'list' }]);
     setSelectedJob(null);
@@ -3548,7 +3631,7 @@ const FahrerApp = () => {
           ? noTripsScreen
           : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} />;
       case 'vehicle':
-        return <VehicleView setView={setView} vehicle={currentVehicle} damages={vehicleDamages} onAddDamage={addVehicleDamage} />;
+        return <VehicleView setView={setView} vehicle={currentVehicle} damages={vehicleDamages} onAddDamage={addVehicleDamage} standort={fahrzeugStandort} driverId={session?.user?.id || null} />;
       case 'details':
         return renderDetailsSheet();
       case 'chat':

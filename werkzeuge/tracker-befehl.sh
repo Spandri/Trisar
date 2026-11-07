@@ -11,8 +11,9 @@
 #   fein     10 s / 10 Grad / 100 m   wie das alte Nr. 1, ca. 6 MB/Monat und mehr
 # Gilt fuer Heimnetz, Roaming und unbekanntes Netz (1NCE ist immer Roaming).
 #
-# Ist der Tracker gerade nicht verbunden (Zuendung aus), wartet der Befehl im Gateway,
-# bis er sich meldet. Ein Neustart des Gateways loescht diese Warteschlange.
+# Befehle warten in der DB (public.obd_tracker_befehl), bis der Tracker sich meldet, auch
+# ueber einen Neustart des Gateways hinweg. Stufen gehen ueber obd_tracker.stufe, wie aus
+# dem Karten Filter der Dispo, damit die Dispo Stufe und Quittung sieht.
 
 set -euo pipefail
 
@@ -30,18 +31,23 @@ fi
 IMEI=$(ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"select imei from public.obd_tracker where nummer=$NR\"")
 [[ -n "$IMEI" ]] || { echo "Tracker Nr. $NR gibt es nicht in obd_tracker."; exit 1; }
 
-stufe() { # periode winkel strecke
-  local s=""
-  for basis in 10050 10150 10250; do
-    s+="$basis:$1;$((basis + 2)):$2;$((basis + 1)):$3;"
+# Stufe: Werte stehen in der DB-Funktion obd_stufe_befehl (Migration 20261107060000).
+if [[ "$WAS" =~ ^(sparsam|mittel|fein)$ ]]; then
+  ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"update public.obd_tracker set stufe='$WAS' where nummer=$NR\"" >/dev/null
+  for _ in $(seq 1 10); do
+    zeile=$(ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"select stufe_status || ' ' || coalesce(stufe_antwort, '') from public.obd_tracker where nummer=$NR\"")
+    [[ "$zeile" =~ ^(uebernommen|fehler) ]] && break
+    sleep 3
   done
-  echo "setparam ${s%;}"
-}
+  case "$zeile" in
+    uebernommen*) echo "Nr. $NR: $WAS uebernommen. ${zeile#uebernommen }" ;;
+    fehler*)      echo "Nr. $NR: Fehler. ${zeile#fehler }" ;;
+    *)            echo "Nr. $NR: $WAS wartet ($zeile). Der Tracker uebernimmt sie beim naechsten Verbinden (Zuendung an), die Dispo zeigt die Quittung." ;;
+  esac
+  exit 0
+fi
 
 case "$WAS" in
-  sparsam) BEFEHLE=("$(stufe 60 30 0)") ;;
-  mittel)  BEFEHLE=("$(stufe 30 15 200)") ;;
-  fein)    BEFEHLE=("$(stufe 10 10 100)") ;;
   status)  BEFEHLE=("getparam 10050;10052;10051;10055;1000;901;138;105" "getinfo") ;;
   *)       BEFEHLE=("$WAS") ;;
 esac
@@ -54,7 +60,7 @@ for b in "${BEFEHLE[@]}"; do
 done
 
 if ! $VERBUNDEN; then
-  echo "Nr. $NR ist gerade nicht verbunden. Befehl wartet im Gateway, bis er sich meldet (Zuendung an)."
+  echo "Nr. $NR ist gerade nicht verbunden. Befehl wartet in der DB, bis er sich meldet (Zuendung an)."
   exit 0
 fi
 

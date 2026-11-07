@@ -260,8 +260,8 @@ export default function EinsatzplanungTag({
             className="absolute left-0 top-0 w-[402px] origin-top-left"
             style={{ height: `${hoehe}px`, transform: `scale(${scale})` }}
           >
-            <BackCircleButton onClick={onZurueck} className="absolute left-[20px] top-[40px]" marker="planer-tag-zurueck" />
-            <Punkte anzahl={tage.length} aktiv={index} top={61} />
+            <BackCircleButton onClick={onZurueck} className="absolute left-[20px] top-[60px]" marker="planer-tag-zurueck" />
+            <Punkte anzahl={tage.length} aktiv={index} top={81} />
 
             <div
               className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 text-[24px] font-bold leading-[24px] tracking-[0.5px] whitespace-nowrap"

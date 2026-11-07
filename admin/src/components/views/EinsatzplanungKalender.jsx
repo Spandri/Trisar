@@ -216,12 +216,12 @@ export default function EinsatzplanungKalender({
             className="absolute left-0 top-0 w-[402px] origin-top-left"
             style={{ ...HINTERGRUND, height: `${hoehe}px`, transform: `scale(${scale})` }}
           >
-            <BackCircleButton onClick={onZurueck} className="absolute left-[20px] top-[40px]" marker="planer-kalender-zurueck" />
+            <BackCircleButton onClick={onZurueck} className="absolute left-[20px] top-[60px]" marker="planer-kalender-zurueck" />
             <button
               type="button"
               onClick={onEinstellungen}
               aria-label={t('planer.settingsAria')}
-              className="absolute left-[332px] top-[40px] w-[50px] h-[50px]"
+              className="absolute left-[332px] top-[60px] w-[50px] h-[50px]"
             >
               <img src="/icon/_Icon_Planung/filter.svg" alt="" className="block w-full h-full" />
             </button>
