@@ -3,8 +3,7 @@
 #   bash werkzeuge/sims-fahrer.sh [Anzahl, Standard 6]
 # Baut die App fuer den Simulator, legt fehlende Simulatoren an, macht sie schlank (Push bleibt an),
 # installiert und startet die App. Mehrfach ausfuehren schadet nicht.
-# ACHTUNG: Nur Testkonten anmelden. Steht ein Konto auf Ortung 'app', schreibt der Simulator
-# seinen erfundenen Standort in die Live-Datenbank.
+# Ortung ist in den Simulatoren fuer die App verweigert, sie senden also nie einen Standort.
 set -euo pipefail
 
 N="${1:-6}"
@@ -31,6 +30,10 @@ for i in $(seq 1 "$N"); do
   xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || true
   simslim on "$UDID" --except store | tail -1 || { sleep 10; simslim on "$UDID" --except store | tail -1; }
   xcrun simctl install "$UDID" "$APP"
+  # Simulator darf nie einen Standort liefern: Ortung fuer die App verweigern, simulierten Ort loeschen.
+  # So kommt der Standort eines Fahrers nur von seinem Handy (oder OBD), nie aus dem Simulator.
+  xcrun simctl location "$UDID" clear 2>/dev/null || true
+  xcrun simctl privacy "$UDID" revoke location "$BUNDLE"
   xcrun simctl launch "$UDID" "$BUNDLE" >/dev/null
 done
 echo "Fertig. Speicher: simslim top"
