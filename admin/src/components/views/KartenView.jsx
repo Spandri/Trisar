@@ -227,7 +227,6 @@ const DRIVER_STATE_COLORS = {
 };
 
 const normalizeJobStatus = (value) => String(value || '').trim().toLowerCase();
-const UEBERFAELLIG_MS = 6 * 60 * 60 * 1000;
 const OPEN_JOB_STATUSES = ['pending', 'assigned', 'offen', 'new', 'requested', 'offered', 'zugewiesen'];
 const ACTIVE_JOB_STATUSES = ['at_pickup', 'pickup', 'beim_pickup', 'beim pickup', 'in_progress', 'started', 'unterwegs', 'active', 'ongoing', 'on_trip'];
 const isOpenJobStatus = (value) => OPEN_JOB_STATUSES.includes(normalizeJobStatus(value));
@@ -2625,13 +2624,11 @@ export default function KartenView({ setView, filters = {} }) {
               .map((job) => ({ job, dateTime: toDateTimeFromRide(job?.ride_date, job?.etd) }))
               .filter((entry) => Boolean(entry.dateTime))
               .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
-            // Ueberfaellige, noch offene Fahrt (bis 6 h zurueck) bleibt die naechste, sonst sprang
-            // die Karte auf die spaetere Fahrt, sobald die Abholzeit vorbei war.
-            const ueberfaelligAbMs = nowMs - UEBERFAELLIG_MS;
-            const nextUpcomingEntry = upcomingJobs.find((entry) => entry.dateTime.getTime() >= ueberfaelligAbMs) || upcomingJobs[0] || null;
+            // Die frueheste offene Fahrt ist immer die naechste, auch wenn sie verspaetet ist.
+            const nextUpcomingEntry = upcomingJobs[0] || null;
             const nextUpcomingJob = nextUpcomingEntry?.job || null;
             const nextUpcomingMs = nextUpcomingEntry?.dateTime ? nextUpcomingEntry.dateTime.getTime() : null;
-            const hasJobWithinLookahead = nextUpcomingMs != null && nextUpcomingMs >= ueberfaelligAbMs && nextUpcomingMs <= (nowMs + lookaheadMs);
+            const hasJobWithinLookahead = nextUpcomingMs != null && nextUpcomingMs <= (nowMs + lookaheadMs);
             const computedDriverState = hasActiveRide
               ? DRIVER_STATE_ACTIVE
               : hasJobWithinLookahead
