@@ -2,7 +2,7 @@
 # Tracker-Nummern ausrollen (MacBook 2018). Vom eigenen Mac starten:
 #   bash werkzeuge/tracker-ausrollen.sh
 #
-# 1. Migration 20261106100000_obd_tracker_nummern (Tabelle obd_tracker, Nr. 1 bis 3)
+# 1. Migrationen: obd_tracker (Nr. 1 bis 3), ein aktiver Tracker je Fahrer
 # 2. Web-Dispo: Fahrer bearbeiten zeigt "Nr. X" im IMEI-Feld und in der Tracker-Liste
 # Mehrfach ausfuehren schadet nicht.
 
@@ -15,7 +15,7 @@ R=Documents/Projekte/Trisar/__TRI-26-001_flottenmanagement_webapp_ss/Programm
 HIER="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "1/2 Migration"
-for m in 20261106100000_obd_tracker_nummern; do
+for m in 20261106100000_obd_tracker_nummern 20261107040000_ein_tracker_je_fahrer; do
   v=${m%%_*}; n=${m#*_}
   if ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"select 1 from supabase_migrations.schema_migrations where version='$v'\"" | grep -q 1; then
     echo "   $m schon eingespielt"
