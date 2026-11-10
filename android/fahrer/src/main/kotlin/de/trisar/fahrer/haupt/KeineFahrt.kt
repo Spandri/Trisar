@@ -55,6 +55,10 @@ internal fun KeineFahrtSeite(
     oeffneFahrzeug: () -> Unit,
     abmelden: () -> Unit,
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { de.trisar.kern.NfcTagDienst.activity(ctx)?.let { de.trisar.kern.NfcTagDienst.stoppen(it) } }
+    }
     Box(Modifier.fillMaxSize()) {
         Leinwand(breite = 393f) {
             Icon("trisar_logo", Modifier.platz(20f, 116f, 161.79f, 24f))
@@ -73,6 +77,13 @@ internal fun KeineFahrtSeite(
                     Text("Komm später nochmal", style = grotesk(34f, 500, abstand = -0.5f), maxLines = 1)
                 }
                 Icon("Arrow_Trisar_Icons_01", Modifier.platz(20f, 496f, 362f, 234f))
+                // Ohne Auto kommt der Fahrer nicht zur Fahrzeug-Seite, deshalb direkt hier.
+                Box(
+                    Modifier.platz(20f, 496f, 362f, 56f).background(hex(0xE3F754)).tippen { de.trisar.fahrer.NfcTag.scannen(ctx) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Tracker scannen", style = grotesk(18f, 700, farbe = androidx.compose.ui.graphics.Color.Black))
+                }
             }
 
             Box(

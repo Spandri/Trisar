@@ -95,9 +95,9 @@ function FahrzeugSkizze({ stelle, hoehe = 110 }) {
 
 // Schadensbericht wie in der Fahrer-App (VehicleView), fuer die Dispo nur zum Lesen.
 // Fotos oeffnen sich gross in einem neuen Tab.
-function SchadensBericht({ schaeden, blockRef }) {
+function SchadensBericht({ schaeden, blockRef, top }) {
   return (
-    <div ref={blockRef} className="absolute left-5 w-[362px] bg-white p-[24px]" style={{ top: '882px' }}>
+    <div ref={blockRef} className="absolute left-5 w-[362px] bg-white p-[24px]" style={{ top: `${top}px` }}>
       <h3 className="text-[#1d1c1c] text-[18px] font-bold tracking-[-0.5px] mb-[10px]">
         Schadensbericht{schaeden.length ? ` (${schaeden.length})` : ''}
       </h3>
@@ -158,6 +158,10 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   const [color, setColor] = useState('');
   const [seatCount, setSeatCount] = useState('');
   const [fuelType, setFuelType] = useState('');
+  // Welcher OBD-Tracker in diesem Auto steckt (obd_tracker.vehicle_id). Nur beim Bearbeiten.
+  const [tracker, setTracker] = useState([]);
+  const [trackerWahl, setTrackerWahl] = useState('');
+  const [trackerStart, setTrackerStart] = useState('');
   const [imageUrl, setImageUrl] = useState('');
 
   const brandModelRef = useRef(null);
@@ -170,6 +174,20 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   const imageFileRef = useRef(null);
 
   const isEditMode = Boolean(initialVehicle?.id);
+
+  useEffect(() => {
+    if (!initialVehicle?.id) { setTracker([]); setTrackerWahl(''); setTrackerStart(''); return undefined; }
+    let aktiv = true;
+    supabase.from('obd_tracker').select('imei, nummer, vehicle_id').order('nummer').then(({ data, error }) => {
+      if (!aktiv || error) return;
+      const liste = data || [];
+      const imei = liste.find((zeile) => zeile.vehicle_id === initialVehicle.id)?.imei || '';
+      setTracker(liste);
+      setTrackerWahl(imei);
+      setTrackerStart(imei);
+    });
+    return () => { aktiv = false; };
+  }, [initialVehicle?.id]);
 
   useEffect(() => {
     if (!initialVehicle?.id) { setSchaeden([]); return undefined; }
@@ -199,7 +217,8 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
     return () => beobachter.disconnect();
   }, [isEditMode, schaeden]);
   // Seite waechst mit dem Schadensbericht (beginnt bei 20 + 882, darueber „Fahrzeug löschen“).
-  const seitenHoehe = isEditMode ? Math.max(BASE_HEIGHT, 20 + 882 + schadenHoehe + 70) : BASE_HEIGHT;
+  const trackerVersatz = isEditMode && tracker.length > 0 ? 68 : 0;
+  const seitenHoehe = isEditMode ? Math.max(BASE_HEIGHT, 20 + 882 + trackerVersatz + schadenHoehe + 70) : BASE_HEIGHT;
 
   useEffect(() => {
     const updateScale = () => setScale(Math.min(window.innerWidth / BASE_WIDTH, 1));
@@ -322,6 +341,14 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
       const savedVehicle = Array.isArray(result.data) ? (result.data[0] || null) : (result.data || null);
       if (isEditMode && !savedVehicle) {
         throw new Error(t('erstellen.errorVehicleNotUpdated'));
+      }
+      if (isEditMode && trackerWahl !== trackerStart) {
+        const { error: loesenFehler } = await supabase.from('obd_tracker').update({ vehicle_id: null }).eq('vehicle_id', initialVehicle.id);
+        if (loesenFehler) throw loesenFehler;
+        if (trackerWahl) {
+          const { error: setzenFehler } = await supabase.from('obd_tracker').update({ vehicle_id: initialVehicle.id }).eq('imei', trackerWahl);
+          if (setzenFehler) throw setzenFehler;
+        }
       }
       setFeedback(isEditMode ? t('erstellen.vehicleUpdated') : t('erstellen.vehicleCreated'));
       if (typeof onSaved === 'function') onSaved(savedVehicle);
@@ -499,18 +526,38 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
               />
             </Box>
 
+            {trackerVersatz > 0 && (
+              <Box x={20} y={662} w={362}>
+                <select
+                  value={trackerWahl}
+                  onChange={(event) => setTrackerWahl(event.target.value)}
+                  aria-label={t('erstellen.tracker')}
+                  className={`${inputClass} appearance-none cursor-pointer`}
+                >
+                  <option value="" className="bg-[#101010] text-[#e3f654]">{t('erstellen.trackerKeiner')}</option>
+                  {tracker.map((zeile) => (
+                    <option key={zeile.imei} value={zeile.imei} className="bg-[#101010] text-[#e3f654]">
+                      {t(zeile.vehicle_id && zeile.vehicle_id !== initialVehicle?.id ? 'erstellen.trackerAnderes' : 'erstellen.trackerNummer', { n: zeile.nummer })}
+                    </option>
+                  ))}
+                </select>
+                <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="absolute right-3 top-1/2 -translate-y-1/2 w-[10px] h-[13px] rotate-90 pointer-events-none" />
+              </Box>
+            )}
+
             <button
               type="button"
               disabled={isSubmitting}
               onClick={saveVehicle}
-              className="absolute left-5 top-[674px] w-[362px] h-14 bg-[#dbee4a] disabled:opacity-70"
+              style={{ top: 674 + trackerVersatz }}
+              className="absolute left-5 w-[362px] h-14 bg-[#dbee4a] disabled:opacity-70"
             >
               <span className="text-[#0e1008] text-[16px] leading-6 tracking-[0.5px] font-medium">
                 {isSubmitting ? t('erstellen.saving') : isEditMode ? t('erstellen.vehicleSave') : t('erstellen.vehicleCreateTitle')}
               </span>
             </button>
 
-            <div className="absolute left-5 top-[742px] w-[362px] min-h-[56px] px-3 py-2 border border-[#7f8a2b] text-[#c8d85d] text-[12px] leading-[1.3]">
+            <div style={{ top: 742 + trackerVersatz }} className="absolute left-5 w-[362px] min-h-[56px] px-3 py-2 border border-[#7f8a2b] text-[#c8d85d] text-[12px] leading-[1.3]">
               {feedback || (isEditMode ? t('erstellen.vehicleEditHint') : t('erstellen.vehicleCreateHint'))}
             </div>
 
@@ -519,14 +566,15 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
                 type="button"
                 disabled={isSubmitting}
                 onClick={deleteVehicle}
-                className="absolute left-5 top-[810px] w-[362px] h-12 border-2 border-[#ff3b30] text-[#ff3b30] text-[16px] font-medium disabled:opacity-60"
+                style={{ top: 810 + trackerVersatz }}
+                className="absolute left-5 w-[362px] h-12 border-2 border-[#ff3b30] text-[#ff3b30] text-[16px] font-medium disabled:opacity-60"
               >
                 Fahrzeug löschen
               </button>
             )}
 
             {isEditMode && (
-              <SchadensBericht schaeden={schaeden} blockRef={schadenRef} />
+              <SchadensBericht schaeden={schaeden} blockRef={schadenRef} top={882 + trackerVersatz} />
             )}
 
           </div>

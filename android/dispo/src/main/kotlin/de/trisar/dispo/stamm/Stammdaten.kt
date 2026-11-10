@@ -26,6 +26,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import java.text.Collator
 import java.util.Locale
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.put
 
 // Stammdaten der Dispo (vehicles, guests, eigenes profiles-Profil), Abfragen 1:1 wie in admin/src
 // und Stammdaten.swift. Zeilen kommen als JsonObject, weil das Web mit select('*') liest und Spalten
@@ -146,6 +148,17 @@ internal object FahrzeugFilterAblage {
 }
 
 /** Fahrzeugliste laden und live halten (vehicles, Realtime auf alle Aenderungen). */
+@Serializable
+internal data class TrackerWahl(val imei: String, val nummer: Int, val vehicle_id: String? = null, val nfc_code: String? = null) {
+    /** Link, der auf den NFC-Tag geschrieben wird. */
+    val nfcLink: String? get() = nfc_code?.let { "https://fahrer.trisar.de/nfc/$it" }
+}
+
+@Serializable private data class NfcTracker(val imei: String, val nummer: Int, val vehicle_id: String? = null)
+@Serializable private data class NfcAuto(val brand_model: String? = null, val license_plate: String? = null)
+@Serializable private data class NfcZuordnung(val driver_id: String)
+@Serializable private data class NfcFahrer(val first_name: String? = null, val last_name: String? = null)
+
 internal class FahrzeugeDienst {
     var fahrzeuge by mutableStateOf<List<StammFahrzeug>>(emptyList())
         private set
@@ -187,6 +200,58 @@ internal class FahrzeugeDienst {
                 return zeilen.firstOrNull() ?: throw StammFehler("Kein Fahrzeug aktualisiert (ID nicht gefunden oder keine Schreibrechte).")
             }
             return Backend.client.from("vehicles").insert(inhalt) { select() }.decodeList<JsonObject>().firstOrNull()
+        }
+
+        /** OBD-Tracker fuer die Auswahl am Fahrzeug (obd_tracker.vehicle_id). */
+        suspend fun trackerLaden(): List<TrackerWahl> = runCatching {
+            Backend.client.from("obd_tracker").select(Columns.raw("imei, nummer, vehicle_id, nfc_code")) {
+                order("nummer", Order.ASCENDING)
+            }.decodeList<TrackerWahl>()
+        }.getOrDefault(emptyList())
+
+        /** Was auf einem gelesenen Tag steht, in Worten: Tracker, Auto und aktueller Fahrer. */
+        suspend fun tagBeschreibung(link: String): String {
+            if (!Regex("""^https://fahrer\.trisar\.de/nfc/[a-f0-9]{18}/?$""").matches(link)) {
+                return if (link.isEmpty()) "Auf diesem Tag steht nichts." else "Das ist kein TRISAR-Tag."
+            }
+            val code = link.trimEnd('/').substringAfterLast('/')
+            val t = runCatching {
+                Backend.client.from("obd_tracker").select(Columns.raw("imei, nummer, vehicle_id")) {
+                    filter { eq("nfc_code", code) }
+                }.decodeList<NfcTracker>().firstOrNull()
+            }.getOrNull() ?: return "Diesen Tag kenne ich nicht."
+            val auto = t.vehicle_id?.let { vid ->
+                runCatching {
+                    Backend.client.from("vehicles").select(Columns.raw("brand_model, license_plate")) {
+                        filter { eq("id", vid) }
+                    }.decodeList<NfcAuto>().firstOrNull()
+                }.getOrNull()?.let { listOfNotNull(it.brand_model, it.license_plate).joinToString(" ") }
+            } ?: "keinem Auto zugeordnet"
+            val zuordnung = runCatching {
+                Backend.client.from("imei_driver_map").select(Columns.raw("driver_id")) {
+                    filter { eq("imei", t.imei); eq("is_active", true) }
+                }.decodeList<NfcZuordnung>().firstOrNull()
+            }.getOrNull()
+            val fahrer = zuordnung?.let { z ->
+                runCatching {
+                    Backend.client.from("profiles").select(Columns.raw("first_name, last_name")) {
+                        filter { eq("id", z.driver_id) }
+                    }.decodeList<NfcFahrer>().firstOrNull()
+                }.getOrNull()?.let { "Fahrer: " + listOfNotNull(it.first_name, it.last_name).joinToString(" ") }
+            } ?: "kein Fahrer verbunden"
+            return "Tracker ${t.nummer}, $auto, $fahrer."
+        }
+
+        /** Ein Auto hat einen Tracker: bisherige Zuordnung loesen, dann den gewaehlten setzen. */
+        suspend fun trackerZuordnen(fahrzeug: String, imei: String) {
+            Backend.client.from("obd_tracker").update(buildJsonObject { put("vehicle_id", JsonNull) }) {
+                filter { eq("vehicle_id", fahrzeug) }
+            }
+            if (imei.isNotEmpty()) {
+                Backend.client.from("obd_tracker").update(buildJsonObject { put("vehicle_id", JsonPrimitive(fahrzeug)) }) {
+                    filter { eq("imei", imei) }
+                }
+            }
         }
 
         /** Fahrzeug endgueltig loeschen. Schaeden fallen per CASCADE mit, Fahrer/Fahrten verlieren die Zuordnung. */

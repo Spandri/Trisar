@@ -157,6 +157,16 @@ final class FahrzeugFilterAblage: ObservableObject {
 }
 
 /// Fahrzeugliste laden und live halten (vehicles, Realtime auf alle Aenderungen).
+struct TrackerWahl: Decodable, Identifiable {
+    let imei: String
+    let nummer: Int
+    let vehicle_id: String?
+    let nfc_code: String?
+    var id: String { imei }
+    /// Link, der auf den NFC-Tag geschrieben wird.
+    var nfcLink: URL? { nfc_code.flatMap { URL(string: "https://fahrer.trisar.de/nfc/\($0)") } }
+}
+
 @MainActor
 final class FahrzeugeDienst: ObservableObject {
     @Published private(set) var fahrzeuge: [StammFahrzeug] = []
@@ -211,6 +221,47 @@ final class FahrzeugeDienst: ObservableObject {
         let zeile: DBZeile = try await Backend.client.from("vehicles").insert(inhalt)
             .select("*").single().execute().value
         return zeile
+    }
+
+    /// OBD-Tracker fuer die Auswahl am Fahrzeug (obd_tracker.vehicle_id).
+    static func trackerLaden() async -> [TrackerWahl] {
+        (try? await Backend.client.from("obd_tracker").select("imei, nummer, vehicle_id, nfc_code").order("nummer").execute().value) ?? []
+    }
+
+    /// Was auf einem gelesenen Tag steht, in Worten: Tracker, Auto und aktueller Fahrer.
+    static func tagBeschreibung(_ link: String) async -> String {
+        guard link.range(of: #"^https://fahrer\.trisar\.de/nfc/[a-f0-9]{18}/?$"#, options: .regularExpression) != nil,
+              let code = URL(string: link)?.lastPathComponent else {
+            return link.isEmpty ? "Auf diesem Tag steht nichts." : "Das ist kein TRISAR-Tag."
+        }
+        struct T: Decodable { let imei: String; let nummer: Int; let vehicle_id: String? }
+        struct F: Decodable { let brand_model: String?; let license_plate: String? }
+        struct Z: Decodable { let driver_id: String }
+        struct P: Decodable { let first_name: String?; let last_name: String? }
+        guard let t: T = try? await Backend.client.from("obd_tracker").select("imei, nummer, vehicle_id")
+            .eq("nfc_code", value: code).single().execute().value else {
+            return "Diesen Tag kenne ich nicht."
+        }
+        var auto = "keinem Auto zugeordnet"
+        if let vid = t.vehicle_id,
+           let f: F = try? await Backend.client.from("vehicles").select("brand_model, license_plate").eq("id", value: vid).single().execute().value {
+            auto = [f.brand_model, f.license_plate].compactMap { $0 }.joined(separator: " ")
+        }
+        var fahrer = "kein Fahrer verbunden"
+        if let z: Z = try? await Backend.client.from("imei_driver_map").select("driver_id").eq("imei", value: t.imei)
+            .eq("is_active", value: true).single().execute().value,
+           let p: P = try? await Backend.client.from("profiles").select("first_name, last_name").eq("id", value: z.driver_id).single().execute().value {
+            fahrer = "Fahrer: " + [p.first_name, p.last_name].compactMap { $0 }.joined(separator: " ")
+        }
+        return "Tracker \(t.nummer), \(auto), \(fahrer)."
+    }
+
+    /// Ein Auto hat einen Tracker: bisherige Zuordnung loesen, dann den gewaehlten setzen.
+    static func trackerZuordnen(fahrzeug id: String, imei: String) async throws {
+        try await Backend.client.from("obd_tracker").update(["vehicle_id": AnyJSON.null]).eq("vehicle_id", value: id).execute()
+        if !imei.isEmpty {
+            try await Backend.client.from("obd_tracker").update(["vehicle_id": AnyJSON.string(id)]).eq("imei", value: imei).execute()
+        }
     }
 
     /// Fahrzeug endgueltig loeschen. Schaeden fallen per CASCADE mit, Fahrer/Fahrten verlieren die Zuordnung.

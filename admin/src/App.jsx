@@ -2283,13 +2283,13 @@ export default function App() {
     [navigateTo],
   );
 
-  const openRideEditorById = useCallback((rideId) => {
+  // Daten fuer "Fahrt bearbeiten" aus der geladenen Fahrtenliste.
+  const rideEditorAusListe = useCallback((rideId) => {
     const normalizedRideId = String(rideId || '').trim();
-    if (!normalizedRideId) return;
     const ride = allRides.find((entry) => String(entry?.id || '').trim() === normalizedRideId);
-    if (ride) {
-      const routeParts = String(ride.route || '').split(' - ');
-      setRideEditorData({
+    if (!ride) return null;
+    const routeParts = String(ride.route || '').split(' - ');
+    return {
         rideId: normalizedRideId,
         id: normalizedRideId,
         sourceView: 'ankuenfte',
@@ -2314,7 +2314,15 @@ export default function App() {
         aktuellerStatus: String(ride.aktuellerStatus || 'offen'),
         notes: String(ride.dispoNote ?? ride.note ?? ''),
         aiBooked: Boolean(ride.aiBooked),
-      });
+    };
+  }, [allRides]);
+
+  const openRideEditorById = useCallback((rideId) => {
+    const normalizedRideId = String(rideId || '').trim();
+    if (!normalizedRideId) return;
+    const ausListe = rideEditorAusListe(normalizedRideId);
+    if (ausListe) {
+      setRideEditorData(ausListe);
       navigateTo('fahrtBearbeiten');
       return;
     }
@@ -2340,7 +2348,7 @@ export default function App() {
       aiBooked: true,
     });
     navigateTo('fahrtBearbeiten');
-  }, [allRides, navigateTo]);
+  }, [navigateTo, rideEditorAusListe]);
 
   // Demo-Tutorial (siehe demo/TutorialBridge): der Rahmen stellt beim Betreten
   // eines Schritts den App-Zustand her.
@@ -2503,12 +2511,12 @@ export default function App() {
     [navigateTo],
   );
 
-  const handleSaveRideEdit = useCallback(async (payload) => {
+  const handleSaveRideEdit = useCallback(async (payload, editor = rideEditorData) => {
     const rideId = String(
       payload?.rideId ||
       payload?.id ||
-      rideEditorData?.rideId ||
-      rideEditorData?.id ||
+      editor?.rideId ||
+      editor?.id ||
       '',
     ).trim();
     if (!rideId) return { ok: false, error: t('app.ungueltigeFahrtId') };
@@ -2623,8 +2631,8 @@ export default function App() {
       const fallbackDriverId = String(
         payload?.driverId
         || payload?.driver_id
-        || rideEditorData?.driverId
-        || rideEditorData?.driver_id
+        || editor?.driverId
+        || editor?.driver_id
         || '',
       ).trim();
       // Bisheriger Stand der Fahrt: entscheidet, ob der Fahrer neu bestaetigen muss.
@@ -2654,7 +2662,7 @@ export default function App() {
       // Statusaenderung die aktuelle Uhrzeit als neue ETD, meldete dem Fahrer "Fahrt geaendert" und
       // setzte bei "offen" seine Annahme zurueck.
       const zeitUnberuehrt = Boolean(existingJob) && !hasValidatedTrain
-        && normalizeClockValue(payload?.startZeit, '') === normalizeClockValue(rideEditorData?.startZeit, '');
+        && normalizeClockValue(payload?.startZeit, '') === normalizeClockValue(editor?.startZeit, '');
       // Nur wenn sich fuer den Fahrer etwas Wesentliches aendert, muss er neu annehmen.
       // Sonst bleibt seine Annahme (assigned) bestehen, z. B. bei neuer Notiz oder Gaesten.
       const driverOrTripChanged = !existingJob
@@ -2668,7 +2676,7 @@ export default function App() {
       // beim Oeffnen). Sonst bleibt der aktuelle DB-Status: der Fahrer kann die Fahrt inzwischen beendet
       // haben, waehrend der Editor offen war. Ein bewusster Wechsel (beendet -> offen) geht weiter durch,
       // und bei offen -> offen bleibt die Annahme des Fahrers (assigned) stehen.
-      const loadedJobStatus = String(mapEditorStatusToJobStatus(rideEditorData?.aktuellerStatus) || '').trim().toLowerCase();
+      const loadedJobStatus = String(mapEditorStatusToJobStatus(editor?.aktuellerStatus) || '').trim().toLowerCase();
       const dispoChangedStatus = normalizedRequestedStatus !== loadedJobStatus;
       const keepExistingStatus = Boolean(existingJob?.status) && !dispoChangedStatus && !driverOrTripChanged;
       const nextJobStatus = shouldReRequestDriverResponse
@@ -2704,7 +2712,7 @@ export default function App() {
         ext_flight_payload: hasValidatedTrain ? trainLivePayload : hasValidatedFlight ? null : null,
         ext_flight_last_sync_at: hasValidatedTrain ? new Date().toISOString() : null,
         anonymous_guests: anonymousCount,
-        ai_booked: Boolean(payload?.aiBooked ?? rideEditorData?.aiBooked),
+        ai_booked: Boolean(payload?.aiBooked ?? editor?.aiBooked),
       };
       if (zeitUnberuehrt) {
         delete updatePayload.etd;
@@ -2813,7 +2821,7 @@ export default function App() {
       }
 
       const noteText = String(payload?.notes || payload?.note || '').trim();
-      const keepAiBookedTag = Boolean(payload?.aiBooked ?? rideEditorData?.aiBooked);
+      const keepAiBookedTag = Boolean(payload?.aiBooked ?? editor?.aiBooked);
       const combinedNoteText = [keepAiBookedTag ? AI_BOOKING_NOTE_TAG : '', noteText].filter(Boolean).join('\n').trim();
       // Nur die Notizen der Disposition ersetzen, Fahrernotizen (mit author_name) bleiben.
       let deleteNotesResult = await supabase.from('job_notes').delete().eq('job_id', rideId).is('author_name', null);
@@ -3803,7 +3811,7 @@ export default function App() {
       );
     }
     if (view === 'kiAssistent') {
-      return <KiAssistentView setView={navigateTo} onCreateRide={handleCreateRide} onFetchPlaceSuggestions={handleFetchPlaceSuggestions} onValidateFlight={validateFlightForDisplay} onValidateTrain={validateTrainForDisplay} onOpenRideEditorById={openRideEditorById} />;
+      return <KiAssistentView setView={navigateTo} onCreateRide={handleCreateRide} onFetchPlaceSuggestions={handleFetchPlaceSuggestions} onValidateFlight={validateFlightForDisplay} onValidateTrain={validateTrainForDisplay} onOpenRideEditorById={openRideEditorById} rideEditorAusListe={rideEditorAusListe} onSaveRideEdit={handleSaveRideEdit} onDeleteRide={handleDeleteRide} />;
     }
     if (view === 'karten') {
       return <KartenView setView={navigateTo} filters={kartenFilter} />;

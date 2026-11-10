@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
 import FahrtAdd from './FahrtAdd';
+import FahrtBearbeitenView, { buildInitialFormValues } from './FahrtBearbeitenView';
 import { askDatabaseAssistant, invalidateDatabaseAssistantCache } from '../../services/kiAssistant';
 import { supabase } from '../../services/supabase';
 import { demoStore } from '../../demo/demoClient';
@@ -90,6 +91,18 @@ const toCreateRidePayload = (proposal) => ({
   aktuellerStatus: 'offen',
 });
 
+// Nur die Felder aus dem Aenderungsvorschlag uebernehmen, alles andere bleibt wie an der Fahrt.
+const aenderungAnwenden = (editor, proposal) => {
+  const geaendert = Array.isArray(proposal?.geaendert) ? proposal.geaendert : [];
+  const neu = { ...editor };
+  ['datum', 'startZeit', 'fahrgaeste', 'fahrerNamen'].forEach((feld) => {
+    if (geaendert.includes(feld)) neu[feld] = proposal[feld];
+  });
+  if (geaendert.includes('start')) Object.assign(neu, { start: proposal.start, startOrtId: '', startOrtName: '' });
+  if (geaendert.includes('ziel')) Object.assign(neu, { ziel: proposal.ziel, zielOrtId: '', zielOrtName: '' });
+  return neu;
+};
+
 const hasMinimumBookingData = (proposal) => {
   const payload = toCreateRidePayload(proposal);
   return Boolean(payload.start && payload.ziel && payload.startZeit);
@@ -159,6 +172,7 @@ const IconEdit = ({ className = '' }) => (
 
 export default function KiAssistentView({
   setView, onCreateRide, onOpenRideEditorById, onFetchPlaceSuggestions, onValidateFlight, onValidateTrain,
+  rideEditorAusListe, onSaveRideEdit, onDeleteRide,
 }) {
   // Vorschlag, der gerade im Fahrtformular angepasst wird.
   const [formular, setFormular] = useState(null);
@@ -314,7 +328,11 @@ export default function KiAssistentView({
     // Die Demo antwortet sofort aus festen Texten. Ein echtes Modell braucht
     // einen Moment, also denkt der Assistent mindestens 3 s, bevor er antwortet.
     const nachdenken = new Promise((resolve) => { window.setTimeout(resolve, DENKZEIT_MS); });
-    Promise.allSettled([askDatabaseAssistant({ prompt: text, chatHistory: historyForModel }), nachdenken])
+    const offenerVorschlag = [...sourceMessages].reverse().find((msg) => msg.bookingStatus === 'pending')?.bookingProposal || null;
+    const letzteFahrtId = [...sourceMessages].reverse().find((msg) => msg.bookingRideId)?.bookingRideId || null;
+    Promise.allSettled([askDatabaseAssistant({
+      prompt: text, chatHistory: historyForModel, offenerVorschlag, letzteFahrtId,
+    }), nachdenken])
       .then(([antwort]) => (antwort.status === 'fulfilled' ? antwort.value : Promise.reject(antwort.reason)))
       .then((result) => {
         // Demo-Antworten kommen als i18n-Key, damit sie in der Sprache des
@@ -324,6 +342,11 @@ export default function KiAssistentView({
           : (result?.answerKey ? t(result.answerKey, result.answerVars) : result?.answer);
         const bookingProposal = result?.action?.type === 'booking_proposal' ? result?.action?.proposal : null;
         setMessages((prev) => prev.map((msg) => (
+          // Ein neuer Vorschlag loest den alten ab, damit nur einer bestaetigt werden kann.
+          bookingProposal && msg.id !== pendingAssistantId && msg.bookingStatus === 'pending'
+            ? { ...msg, bookingStatus: 'cancelled' }
+            : msg
+        )).map((msg) => (
           msg.id === pendingAssistantId
             ? {
                 ...msg,
@@ -398,8 +421,16 @@ export default function KiAssistentView({
       if (typeof onCreateRide !== 'function') {
         throw new Error(t('assist.bookingNotConnected'));
       }
-      const payload = toCreateRidePayload(proposal);
-      const result = await onCreateRide(payload, { aiBooked: true });
+      let result;
+      if (proposal?.fahrtId) {
+        const editor = rideEditorAusListe(proposal.fahrtId);
+        if (!editor) throw new Error(t('assist.bookingFailed'));
+        const neu = aenderungAnwenden(editor, proposal);
+        result = await onSaveRideEdit({ ...neu, ...buildInitialFormValues(neu), anonymeGaeste: neu.anonymeGaeste || '0' }, editor);
+        if (result?.ok) result = { ...result, rideId: proposal.fahrtId };
+      } else {
+        result = await onCreateRide(toCreateRidePayload(proposal), { aiBooked: true });
+      }
       if (!result?.ok) {
         throw new Error(result?.error || t('assist.bookingFailed'));
       }
@@ -412,7 +443,7 @@ export default function KiAssistentView({
         {
           id: `msg-ai-booked-${Date.now()}`,
           role: 'assistant',
-          text: t('assist.bookedInfo'),
+          text: proposal?.fahrtId ? t('assist.aenderungGespeichert') : t('assist.bookedInfo'),
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]));
@@ -431,7 +462,7 @@ export default function KiAssistentView({
     }
   };
 
-  const handleFormularGebucht = (messageId, rideId) => {
+  const handleFormularGebucht = (messageId, rideId, text = t('assist.bookedInfo')) => {
     setFormular(null);
     setMessages((prev) => ([
       ...prev.map((msg) => (
@@ -442,7 +473,7 @@ export default function KiAssistentView({
       {
         id: `msg-ai-booked-${Date.now()}`,
         role: 'assistant',
-        text: t('assist.bookedInfo'),
+        text,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]));
@@ -625,6 +656,22 @@ export default function KiAssistentView({
     return () => window.cancelAnimationFrame(rafId);
   }, [messages.length, lastMessageSignature, isInputFocused]);
 
+  if (formular?.editor) {
+    return (
+      <FahrtBearbeitenView
+        setView={setView}
+        initialData={aenderungAnwenden(formular.editor, formular.proposal)}
+        onSave={(payload) => onSaveRideEdit(payload, formular.editor)}
+        onDelete={onDeleteRide}
+        onFetchPlaceSuggestions={onFetchPlaceSuggestions}
+        onValidateFlight={onValidateFlight}
+        onValidateTrain={onValidateTrain}
+        onVorlageZurueck={() => setFormular(null)}
+        onVorlageGespeichert={() => handleFormularGebucht(formular.id, formular.proposal.fahrtId, t('assist.aenderungGespeichert'))}
+      />
+    );
+  }
+
   if (formular) {
     return (
       <FahrtAdd
@@ -769,7 +816,11 @@ export default function KiAssistentView({
                       <BookingPreviewCard
                         proposal={message.bookingProposal}
                         onOeffnen={!DEMO_MODE && message.bookingStatus === 'pending'
-                          ? () => setFormular({ id: message.id, proposal: message.bookingProposal })
+                          ? () => setFormular({
+                            id: message.id,
+                            proposal: message.bookingProposal,
+                            editor: message.bookingProposal.fahrtId ? rideEditorAusListe(message.bookingProposal.fahrtId) : null,
+                          })
                           : undefined}
                       />
                     </div>

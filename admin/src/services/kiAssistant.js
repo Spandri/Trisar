@@ -254,14 +254,21 @@ const DEMO_FRAGEN = [
   { frage: KI_DEMO_FRAGE_AKKU, antwort: antwortAkku },
 ];
 
-export const askDatabaseAssistant = async ({ prompt, chatHistory = [] }) => {
+export const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVorschlag = null, letzteFahrtId = null }) => {
   const trimmedPrompt = String(prompt || '').trim();
   if (!trimmedPrompt) return 'Bitte stelle eine Frage.';
 
   // Im Betrieb antwortet der Server (dispo-admin, Aktion ki_frage), das Modell laeuft im Tailnet.
   if (!DEMO_MODE) {
     const { data, error } = await supabase.functions.invoke('dispo-admin', {
-      body: { aktion: 'ki_frage', frage: trimmedPrompt, verlauf: chatHistory, kontext: gespraechsKontext },
+      body: {
+        aktion: 'ki_frage',
+        frage: trimmedPrompt,
+        verlauf: chatHistory,
+        kontext: gespraechsKontext,
+        offenerVorschlag,
+        letzteFahrtId,
+      },
     });
     if (error) throw error;
     gespraechsKontext = data?.kontext ?? gespraechsKontext;

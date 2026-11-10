@@ -121,6 +121,8 @@ import de.trisar.dispo.fahrten.FahrtFormularWerte
 import de.trisar.dispo.fahrten.FahrtSpeichern
 import de.trisar.dispo.fahrten.FahrtText
 import de.trisar.dispo.fahrten.FahrtVorlage
+import de.trisar.dispo.fahrten.GeladeneFahrt
+import kotlinx.serialization.json.encodeToJsonElement
 
 // KI-Assistent (KiAssistentAnsicht.swift, KiAssistentDienst.swift, KiAssistentView.jsx): Chat mit dem Assistenten,
 // Verlauf unter demselben Schluessel wie localStorage im Web, Kopieren/Bearbeiten an den Nachrichten,
@@ -137,6 +139,21 @@ internal object KiAssistentDienst {
 
     /** onCreateRide(payload, { aiBooked: true }) */
     suspend fun buchen(v: KiBuchungsVorschlag): String? {
+        val fahrtID = v.fahrtId
+        if (fahrtID != null) {
+            val g = FahrtSpeichern.laden(fahrtID)
+            val neu = v.aenderung(g)
+            val w = neu.werte.let { it.copy(anonymeGaeste = it.anonymeGaeste.ifEmpty { "0" }) }
+            val e = FahrtSpeichern.aendern(
+                FahrtEingabe(
+                    w, FahrtText.gaesteTeilen(neu.fahrgaeste).joinToString("; "),
+                    neu.fahrerNamen.map { FahrtText.getrimmt(it) }.filter { it.isNotEmpty() }, "", "", neu.notiz, g.zwischenstopps,
+                ),
+                g,
+            )
+            if (!e.ok) throw IllegalStateException(e.fehler ?: "Unbekannter Fehler")
+            return fahrtID
+        }
         val w = v.vorlage.werte.let { it.copy(anonymeGaeste = it.anonymeGaeste.ifEmpty { "0" }) }
         val e = FahrtSpeichern.anlegen(
             FahrtEingabe(w, FahrtText.gaesteTeilen(v.fahrgaeste).joinToString("; "), v.fahrerNamen, "", "", v.notes, aiBooked = true),
@@ -148,7 +165,10 @@ internal object KiAssistentDienst {
     /** Letzte Fahrer und Fahrten des Gespraechs, fuer Rueckfragen. */
     private var kontext: JsonElement? = null
 
-    suspend fun fragen(prompt: String, verlauf: List<Pair<String, String>>): Antwort {
+    suspend fun fragen(
+        prompt: String, verlauf: List<Pair<String, String>>,
+        offenerVorschlag: KiBuchungsVorschlag? = null, letzteFahrtId: String? = null,
+    ): Antwort {
         val frage = prompt.trim()
         if (frage.isEmpty()) return Antwort("Bitte stelle eine Frage.")
         val koerper = buildJsonObject {
@@ -158,6 +178,8 @@ internal object KiAssistentDienst {
                 verlauf.forEach { (rolle, text) -> addJsonObject { put("role", rolle); put("text", text) } }
             }
             kontext?.let { put("kontext", it) }
+            offenerVorschlag?.let { put("offenerVorschlag", Backend.json.encodeToJsonElement(KiBuchungsVorschlag.serializer(), it)) }
+            letzteFahrtId?.let { put("letzteFahrtId", it) }
         }
         // Eigene Zeitgrenze: das Modell braucht bis zu 52 s, Standard im Client sind 10 s.
         val text = Backend.client.functions.invoke("dispo-admin") {
@@ -181,7 +203,22 @@ internal data class KiBuchungsVorschlag(
     val datum: String = "", val startZeit: String = "", val start: String = "", val ziel: String = "",
     val fahrgaeste: String = "", val anonymeGaeste: String = "0", val fahrerNamen: List<String> = emptyList(),
     val konvoi: String = "", val flugnummer: String = "", val notes: String = "",
+    /** Nur bei Aenderung einer bestehenden Fahrt: welche Fahrt und welche Felder. */
+    val fahrtId: String? = null, val geaendert: List<String> = emptyList(),
 ) {
+    /** Nur die geaenderten Felder uebernehmen, alles andere bleibt wie an der Fahrt. */
+    fun aenderung(g: GeladeneFahrt): FahrtVorlage {
+        var w = g.werte
+        if ("datum" in geaendert) w = w.copy(datum = datum)
+        if ("startZeit" in geaendert) w = w.copy(startZeit = startZeit)
+        if ("start" in geaendert) w = w.copy(start = start, startOrtID = "")
+        if ("ziel" in geaendert) w = w.copy(ziel = ziel, zielOrtID = "")
+        return FahrtVorlage(
+            w, if ("fahrerNamen" in geaendert) fahrerNamen else g.fahrerNamen,
+            if ("fahrgaeste" in geaendert) fahrgaeste else g.fahrgaeste, g.notiz,
+        )
+    }
+
     /** Startwerte fuer das Fahrtformular (toCreateRidePayload). */
     val vorlage: FahrtVorlage get() = FahrtVorlage(
         FahrtFormularWerte(
@@ -328,6 +365,8 @@ internal fun KiAssistentAnsicht(
             quelle = quelle.filter { it.id !in weg }
         }
         val verlauf = quelle.map { it.role to it.text }
+        val offen = quelle.lastOrNull { it.bookingStatus == "pending" }?.bookingProposal
+        val letzteFahrtID = quelle.lastOrNull { it.bookingRideId != null }?.bookingRideId
         val wartendID = "msg-ai-pending-${ms + 1}"
         nachrichten = quelle + listOf(
             KiNachricht("msg-user-$ms", "user", text, jetzt),
@@ -338,11 +377,15 @@ internal fun KiAssistentAnsicht(
         sendet = true
         scope.launch {
             val beginn = System.currentTimeMillis()
-            val ergebnis = runCatching { KiAssistentDienst.fragen(text, verlauf) }
+            val ergebnis = runCatching { KiAssistentDienst.fragen(text, verlauf, offen, letzteFahrtID) }
             // DENKZEIT_MS: so lange denkt der Assistent mindestens nach.
             val rest = 3000 - (System.currentTimeMillis() - beginn)
             if (rest > 0) delay(rest)
             if (nachrichten.none { it.id == wartendID }) { sendet = false; return@launch }
+            // Ein neuer Vorschlag loest den alten ab, damit nur einer bestaetigt werden kann.
+            if (ergebnis.getOrNull()?.buchungsVorschlag != null) {
+                nachrichten = nachrichten.map { if (it.id != wartendID && it.bookingStatus == "pending") it.copy(bookingStatus = "cancelled") else it }
+            }
             aendern(wartendID) { n ->
                 ergebnis.fold(
                     onSuccess = { a ->
@@ -366,10 +409,10 @@ internal fun KiAssistentAnsicht(
         scope.launch { delay(1200); if (kopierteID == n.id) kopierteID = null }
     }
 
-    fun formularGebucht(id: String, fahrtID: String?) {
+    fun formularGebucht(id: String, fahrtID: String?, aenderung: Boolean) {
         formular = null
         aendern(id) { it.copy(bookingStatus = "booked", bookingRideId = fahrtID?.trim()?.ifEmpty { null }) }
-        hinweis("Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
+        hinweis(if (aenderung) "Änderung gespeichert." else "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
     }
 
     fun buchen(id: String, v: KiBuchungsVorschlag) {
@@ -383,7 +426,7 @@ internal fun KiAssistentAnsicht(
                 val buchen = fahrtBuchen ?: throw IllegalStateException("Buchungsfunktion ist nicht verbunden.")
                 val fahrtID = buchen(v)
                 aendern(id) { it.copy(bookingStatus = "booked", bookingRideId = fahrtID?.trim()?.ifEmpty { null }) }
-                hinweis("Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
+                hinweis(if (v.fahrtId != null) "Änderung gespeichert." else "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 aendern(id) { it.copy(bookingStatus = "pending") }
@@ -485,9 +528,10 @@ internal fun KiAssistentAnsicht(
         formular?.let { (nachricht, vorschlag) ->
             BackHandler { formular = null }
             FahrtFormularSeite(
-                fahrtID = null, zurueck = { formular = null }, zeigen = null,
-                vorlage = vorschlag.vorlage,
-                nachAnlegen = { fahrtID -> formularGebucht(nachricht, fahrtID) },
+                fahrtID = vorschlag.fahrtId, zurueck = { formular = null }, zeigen = null,
+                vorlage = if (vorschlag.fahrtId == null) vorschlag.vorlage else null,
+                nachAnlegen = { fahrtID -> formularGebucht(nachricht, fahrtID, vorschlag.fahrtId != null) },
+                anpassen = if (vorschlag.fahrtId == null) null else { g -> vorschlag.aenderung(g) },
             )
         }
     }

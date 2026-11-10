@@ -79,6 +79,8 @@ fun FahrtFormularSeite(
     vorlage: FahrtVorlage? = null,
     /** Statt der Fahrtenliste: zurueck in den Chat, mit der ID der neuen Fahrt. */
     nachAnlegen: ((String?) -> Unit)? = null,
+    /** Aenderungsvorschlag: Startwerte aus der geladenen Fahrt. */
+    anpassen: ((GeladeneFahrt) -> FahrtVorlage)? = null,
 ) {
     if (fahrtID == null) {
         FormularInhalt(null, zurueck, zeigen, vorlage, nachAnlegen)
@@ -91,7 +93,7 @@ fun FahrtFormularSeite(
     }
     val g = geladen
     if (g != null) {
-        FormularInhalt(g, zurueck, zeigen)
+        FormularInhalt(g, zurueck, zeigen, anpassen?.invoke(g), nachAnlegen)
     } else {
         Box(Modifier.fillMaxSize().background(Color.Black).blockieren()) {
             DispoHintergrund()
@@ -130,10 +132,10 @@ private fun FormularInhalt(
     val schritt = 68f
     val zeilenHoehe = 56f
 
-    var werte by remember { mutableStateOf(geladen?.werte ?: vorlage?.werte ?: FahrtFormularWerte()) }
-    var notiz by remember { mutableStateOf(geladen?.notiz ?: vorlage?.notiz ?: "") }
-    var fahrerNamen by remember { mutableStateOf((geladen?.fahrerNamen ?: vorlage?.fahrerNamen ?: emptyList()).ifEmpty { listOf("") }) }
-    var gaesteNamen by remember { mutableStateOf(FahrtText.gaesteTeilen(geladen?.fahrgaeste ?: vorlage?.fahrgaeste) + "") }
+    var werte by remember { mutableStateOf(vorlage?.werte ?: geladen?.werte ?: FahrtFormularWerte()) }
+    var notiz by remember { mutableStateOf(vorlage?.notiz ?: geladen?.notiz ?: "") }
+    var fahrerNamen by remember { mutableStateOf((vorlage?.fahrerNamen ?: geladen?.fahrerNamen ?: emptyList()).ifEmpty { listOf("") }) }
+    var gaesteNamen by remember { mutableStateOf(FahrtText.gaesteTeilen(vorlage?.fahrgaeste ?: geladen?.fahrgaeste) + "") }
     var zwischenstopps by remember { mutableStateOf(stoppZeilen(geladen?.zwischenstopps ?: emptyList())) }
     var adressHinweis by remember { mutableStateOf<String?>(null) }
     var speichert by remember { mutableStateOf(false) }
@@ -482,6 +484,7 @@ private fun FormularInhalt(
                 val e = FahrtSpeichern.aendern(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), namen, flughafenWahl, ankunftWahl, notiz, gefuellteStopps), g)
                 speichert = false
                 if (!e.ok) { meldung = t("fahrt.saveError", mapOf("error" to (e.fehler ?: t("fahrt.unknownError")))); return@launch }
+                if (nachAnlegen != null) { nachAnlegen(g.id); return@launch }
                 zurueck()
             }
         }

@@ -41,6 +41,7 @@ export default {
   "app.noNotes": "No hay notas",
   "app.noPassengersFound": "No se han encontrado pasajeros",
   "app.noVehicle": "Sin vehículo",
+  "app.noVehicleNfc": "¿Sin vehículo? Acerca el móvil a la etiqueta NFC del rastreador.",
   "app.none": "Ninguno",
   "app.notLoggedIn": "Sesión no iniciada. Vuelva a entrar.",
   "app.note": "Nota",

@@ -252,6 +252,10 @@ struct FahrzeugFormularSeite: View {
     @State private var farbe = ""
     @State private var sitze = ""
     @State private var kraftstoff = ""
+    /// Welcher OBD-Tracker in diesem Auto steckt. Nur beim Bearbeiten.
+    @State private var tracker: [TrackerWahl] = []
+    @State private var trackerWahl = ""
+    @State private var trackerStart = ""
     @State private var bildURL = ""
     @State private var speichert = false
     @State private var rueckmeldung = ""
@@ -268,9 +272,10 @@ struct FahrzeugFormularSeite: View {
     private static let kraftstoffe = ["E10", "Super 95", "Super Plus", "Diesel B7", "Diesel B10", "Elektro", "Plug-in-Hybrid"]
 
     private var bearbeiten: Bool { !(fahrzeug?.id ?? "").isEmpty }
+    private var trackerVersatz: CGFloat { bearbeiten && !tracker.isEmpty ? 136 : 0 }
 
     var body: some View {
-        Leinwand(basisHoehe: 874, inhaltHoehe: bearbeiten ? max(913, 898 + schadenHoehe + 70) : 913, mitHintergrund: false) { rahmen in
+        Leinwand(basisHoehe: 874, inhaltHoehe: bearbeiten ? max(913 + trackerVersatz, 898 + trackerVersatz + schadenHoehe + 70) : 913, mitHintergrund: false) { rahmen in
             ZStack(alignment: .topLeading) {
                 DispoHintergrund().frame(width: 402, height: max(rahmen, 913))
                 ZurueckKnopf(aktion: zurListe).platz(20, 60, 50, 50)
@@ -297,6 +302,11 @@ struct FahrzeugFormularSeite: View {
                     }
                 kraftstoffWahl.platz(20, 546, 362, 56)
                 bildFeld.platz(20, 614, 362, 56)
+                if trackerVersatz > 0 {
+                    trackerAuswahl.platz(20, 682, 362, 56)
+                    nfcKnopf("Tag beschreiben", aktion: tagBeschreiben).platz(20, 750, 175, 56)
+                    nfcKnopf("Tag auslesen", aktion: tagAuslesen).platz(207, 750, 175, 56)
+                }
 
                 Button(action: speichern) {
                     Text(speichert ? "Speichern ..." : (bearbeiten ? "Fahrzeug speichern" : "Fahrzeug erstellen"))
@@ -308,7 +318,7 @@ struct FahrzeugFormularSeite: View {
                 }
                 .buttonStyle(.web)
                 .disabled(speichert)
-                .platz(20, 694, 362, 56)
+                .platz(20, 694 + trackerVersatz, 362, 56)
 
                 WebText(text: rueckmeldung.isEmpty
                         ? (bearbeiten ? "Fahrzeugdaten ändern und speichern." : "Fahrzeugdaten eintragen und speichern.")
@@ -318,7 +328,7 @@ struct FahrzeugFormularSeite: View {
                     .frame(width: 362, alignment: .topLeading)
                     .frame(minHeight: 56, alignment: .topLeading)
                     .overlay(Rectangle().strokeBorder(Color(hex: 0x7F8A2B), lineWidth: 1))
-                    .platz(20, 762, 362, nil)
+                    .platz(20, 762 + trackerVersatz, 362, nil)
 
                 if bearbeiten, let id = fahrzeug?.id {
                     Button { loeschFrage = true } label: {
@@ -329,15 +339,21 @@ struct FahrzeugFormularSeite: View {
                     }
                     .buttonStyle(.web)
                     .disabled(speichert)
-                    .platz(20, 830, 362, 48)
+                    .platz(20, 830 + trackerVersatz, 362, 48)
 
                     SchadensBerichtDispo(fahrzeugID: id)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { schadenHoehe = $0 }
-                        .platz(20, 898, 362, nil)
+                        .platz(20, 898 + trackerVersatz, 362, nil)
                 }
             }
         }
         .overlay { FussleisteUnten() }
+        .task(id: fahrzeug?.id) {
+            guard bearbeiten, let id = fahrzeug?.id else { return }
+            tracker = await FahrzeugeDienst.trackerLaden()
+            trackerStart = tracker.first { $0.vehicle_id?.lowercased() == id.lowercased() }?.imei ?? ""
+            trackerWahl = trackerStart
+        }
         .photosPicker(isPresented: $bildWaehlen, selection: $bildAuswahl, matching: .images)
         .onChange(of: bildAuswahl) { _, neu in Task { await bildUebernehmen(neu) } }
         .onAppear(perform: uebernehmen)
@@ -366,6 +382,70 @@ struct FahrzeugFormularSeite: View {
     }
 
     /// Select mit festen Kraftstoffen, ein abweichender gespeicherter Wert bleibt waehlbar.
+    private func nfcKnopf(_ text: String, aktion: @escaping () -> Void) -> some View {
+        Button(action: aktion) {
+            Text(text).font(.grotesk(16, .medium)).tracking(0.5)
+                .foregroundStyle(Color(hex: 0xE3F654))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.web)
+    }
+
+    private func tagBeschreiben() {
+        guard let t = tracker.first(where: { $0.imei == trackerWahl }), let link = t.nfcLink else {
+            rueckmeldung = "Bitte zuerst einen Tracker wählen."
+            return
+        }
+        Task {
+            do {
+                if try await NfcTagDienst.schreiben(link) != nil { rueckmeldung = "Tag für Tracker \(t.nummer) beschrieben." }
+            } catch {
+                rueckmeldung = error.localizedDescription
+            }
+        }
+    }
+
+    private func tagAuslesen() {
+        Task {
+            do {
+                if let link = try await NfcTagDienst.lesen() { rueckmeldung = await FahrzeugeDienst.tagBeschreibung(link) }
+            } catch {
+                rueckmeldung = error.localizedDescription
+            }
+        }
+    }
+
+    private func trackerText(_ imei: String) -> String {
+        guard let t = tracker.first(where: { $0.imei == imei }) else { return "Kein Tracker" }
+        return "Tracker \(t.nummer)"
+    }
+
+    private var trackerAuswahl: some View {
+        Menu {
+            Button("Kein Tracker") { trackerWahl = "" }
+            ForEach(tracker) { t in
+                let woanders = t.vehicle_id != nil && t.vehicle_id?.lowercased() != fahrzeug?.id.lowercased()
+                Button("Tracker \(t.nummer)" + (woanders ? " (in anderem Auto)" : "")) { trackerWahl = t.imei }
+            }
+        } label: {
+            ZStack(alignment: .leading) {
+                Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2)
+                Text(trackerText(trackerWahl))
+                    .font(.grotesk(16, .medium)).tracking(0.5)
+                    .foregroundStyle(Color(hex: 0x8A9728))
+                    .padding(.leading, 16)
+                Image("Arrow-kurz_Trisar_Icons_01_Lime").resizable().frame(width: 10, height: 13)
+                    .rotationEffect(.degrees(90))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 12)
+            }
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("OBD-Tracker")
+    }
+
     private var kraftstoffWahl: some View {
         Menu {
             ForEach(Self.kraftstoffe + (kraftstoff.isEmpty || Self.kraftstoffe.contains(kraftstoff) ? [] : [kraftstoff]), id: \.self) { k in
@@ -487,6 +567,7 @@ struct FahrzeugFormularSeite: View {
         Task {
             do {
                 _ = try await FahrzeugeDienst.speichern(inhalt, id: id)
+                if let id, trackerWahl != trackerStart { try await FahrzeugeDienst.trackerZuordnen(fahrzeug: id, imei: trackerWahl) }
                 rueckmeldung = id != nil ? "Fahrzeug erfolgreich aktualisiert." : "Fahrzeug erfolgreich erstellt."
                 if id != nil {
                     try? await Task.sleep(for: .milliseconds(200))

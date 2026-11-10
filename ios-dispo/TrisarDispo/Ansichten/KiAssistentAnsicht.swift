@@ -57,9 +57,11 @@ struct KiAssistentAnsicht: View {
             }
 
             if let formular {
-                FahrtFormularAnsicht(fahrtID: nil, zurueck: { self.formular = nil },
-                                     vorlage: formular.vorschlag.vorlage,
-                                     nachAnlegen: { fahrtID in formularGebucht(formular.nachricht, fahrtID) })
+                let v = formular.vorschlag
+                FahrtFormularAnsicht(fahrtID: v.fahrtUUID, zurueck: { self.formular = nil },
+                                     vorlage: v.fahrtUUID == nil ? v.vorlage : nil,
+                                     nachAnlegen: { fahrtID in formularGebucht(formular.nachricht, fahrtID, aenderung: v.fahrtUUID != nil) },
+                                     anpassen: v.fahrtUUID == nil ? nil : { v.aenderung(auf: $0) })
                     .zIndex(3)
             }
         }
@@ -332,15 +334,25 @@ struct KiAssistentAnsicht: View {
         eingabe = ""
         sendet = true
 
+        let offen = quelle.last { $0.bookingStatus == "pending" }?.bookingProposal
+        let letzteFahrtID = quelle.last { $0.bookingRideId != nil }?.bookingRideId
         Task {
             let beginn = Date()
             let ergebnis: Result<KiAssistentDienst.Antwort, Error>
-            do { ergebnis = .success(try await KiAssistentDienst.fragen(text, verlauf: verlauf)) } catch { ergebnis = .failure(error) }
+            do {
+                ergebnis = .success(try await KiAssistentDienst.fragen(text, verlauf: verlauf, offenerVorschlag: offen, letzteFahrtId: letzteFahrtID))
+            } catch { ergebnis = .failure(error) }
             let rest = Self.denkzeit - Date().timeIntervalSince(beginn)
             if rest > 0 { try? await Task.sleep(for: .seconds(rest)) }
             guard let i = nachrichten.firstIndex(where: { $0.id == wartendID }) else { sendet = false; return }
             switch ergebnis {
             case .success(let antwort):
+                // Ein neuer Vorschlag loest den alten ab, damit nur einer bestaetigt werden kann.
+                if antwort.buchungsVorschlag != nil {
+                    for j in nachrichten.indices where j != i && nachrichten[j].bookingStatus == "pending" {
+                        nachrichten[j].bookingStatus = "cancelled"
+                    }
+                }
                 nachrichten[i].text = antwort.text.isEmpty ? "Ich konnte dazu keine Antwort erzeugen." : antwort.text
                 nachrichten[i].bookingProposal = antwort.buchungsVorschlag
                 nachrichten[i].bookingStatus = antwort.buchungsVorschlag == nil ? nil : "pending"
@@ -373,13 +385,13 @@ struct KiAssistentAnsicht: View {
                                        role: "assistant", text: text, time: KiNachricht.uhrzeit()))
     }
 
-    private func formularGebucht(_ id: String, _ fahrtID: UUID?) {
+    private func formularGebucht(_ id: String, _ fahrtID: UUID?, aenderung: Bool) {
         formular = nil
         if let i = nachrichten.firstIndex(where: { $0.id == id }) {
             nachrichten[i].bookingStatus = "booked"
             nachrichten[i].bookingRideId = fahrtID?.uuidString
         }
-        hinweis("Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
+        hinweis(aenderung ? "Änderung gespeichert." : "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
     }
 
     private func buchen(_ id: String, _ v: KiBuchungsVorschlag) async {
@@ -396,7 +408,7 @@ struct KiAssistentAnsicht: View {
                 let t = (fahrtID ?? "").trimmingCharacters(in: .whitespaces)
                 nachrichten[i].bookingRideId = t.isEmpty ? nil : t
             }
-            hinweis("Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
+            hinweis(v.fahrtId != nil ? "Änderung gespeichert." : "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
         } catch {
             setzeStatus(id, "pending")
             let meldung = error.localizedDescription.isEmpty ? "Unbekannter Fehler" : error.localizedDescription

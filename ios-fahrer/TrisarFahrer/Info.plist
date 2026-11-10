@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NFCReaderUsageDescription</key>
+	<string>NFC-Tag am Tracker lesen, um dich mit dem Fahrzeug zu verbinden.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>TRISAR braucht die Kamera, damit du Schäden am Fahrzeug fotografieren kannst.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -30,10 +32,29 @@
 	<string>TRISAR nutzt deinen Standort, damit die Disposition sieht, wo du bist, und Fahrten automatisch starten und beenden kann.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>TRISAR braucht Zugriff auf deine Fotos, damit du Bilder eines Schadens anhängen kannst.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>SpaceGrotesk.ttf</string>
 	</array>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>CPTemplateApplicationSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>CarPlay</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).CarPlaySzene</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

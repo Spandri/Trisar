@@ -20,6 +20,8 @@ private struct FahrzeugInhalt: View {
     var zurueck: () -> Void
 
     @EnvironmentObject private var speicher: FahrtenSpeicher
+    @EnvironmentObject private var anmeldung: Anmeldung
+    @EnvironmentObject private var nfc: NfcTag
     @StateObject private var daten: FahrzeugDaten
     @State private var meldenOffen = false
     /// Neu zeichnen, wenn ein Fahrzeugbild nicht laedt (Karte/Block werden kuerzer).
@@ -40,7 +42,9 @@ private struct FahrzeugInhalt: View {
         // Ohne Standort rueckt der Fahrzeugblock an die Stelle der Karte, darunter folgt
         // alles seiner Hoehe (die je nach vorhandenen Angaben schrumpft).
         let blockOben: CGFloat = daten.standort == nil ? 99 : 440
-        let unterBlock = blockOben + raster.hoehe - 1
+        // Ohne Fahrzeug: Knopf zum Scannen des Trackers unter dem Block.
+        let scanHoehe: CGFloat = fahrzeug == nil ? 76 : 0
+        let unterBlock = blockOben + raster.hoehe - 1 + scanHoehe
         // Web: max(1264, Unterkante Bericht) + 40 Seitenversatz + 70 Platz fuer die Fussleiste.
         let inhalt = max(1264, unterBlock + unterHoehe) + 40 + 70
         Leinwand(inhaltHoehe: inhalt, mitHintergrund: false) { rahmen in
@@ -63,6 +67,23 @@ private struct FahrzeugInhalt: View {
 
                 fahrzeugBlock(angaben, raster)
                     .platz(24.5, versatz + blockOben, 353, raster.hoehe)
+
+                if fahrzeug == nil {
+                    Button {
+                        Task {
+                            await nfc.scannen(anmeldung)
+                            await speicher.laden()
+                            await daten.beenden()
+                            await daten.starten(fahrzeugID: speicher.fahrzeug?.id)
+                        }
+                    } label: {
+                        Text("Tracker scannen").grotesk(18, .bold).foregroundStyle(.black)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Farbe.lime)
+                    }
+                    .buttonStyle(.web)
+                    .platz(24.5, versatz + blockOben + raster.hoehe + 9, 353, 56)
+                }
 
                 VStack(spacing: 10) {
                     if !daten.telemetrie.isEmpty && !FahrzeugAngaben.nurKennzeichenTest { telemetrieBlock(daten) }

@@ -1,9 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { readFileSync } from 'node:fs'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), {
+    // Apple verlangt JSON, die Datei hat aber keine Endung.
+    name: 'apple-app-site-association',
+    configureServer(server) {
+      server.middlewares.use('/.well-known/apple-app-site-association', (_req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(readFileSync(new URL('./public/.well-known/apple-app-site-association', import.meta.url)));
+      });
+    },
+  }],
   // MapLibre startet seinen Arbeiter als ES-Modul; sonst fehlt ihm nach dem
   // Buendeln die Datei mit dem gemeinsamen Code und die Karte bleibt schwarz.
   worker: { format: 'es' },

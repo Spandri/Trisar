@@ -67,6 +67,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import de.trisar.kern.NfcTagDienst
 
 /** Fahrzeug, das nach einem Tipp auf eine Mitteilung direkt geoeffnet werden soll. */
 internal object FahrzeugSprung { var id: String? = null }
@@ -374,6 +375,19 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
     var loeschFrage by remember { mutableStateOf(false) }
     var rueckmeldung by remember { mutableStateOf("") }
     var kraftstoffOffen by remember { mutableStateOf(false) }
+    // Welcher OBD-Tracker in diesem Auto steckt. Nur beim Bearbeiten.
+    var tracker by remember { mutableStateOf(emptyList<TrackerWahl>()) }
+    var trackerWahl by remember { mutableStateOf("") }
+    var trackerStart by remember { mutableStateOf("") }
+    var trackerOffen by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(fahrzeug?.id) {
+        val eigeneID = fahrzeug?.id
+        if (!eigeneID.isNullOrEmpty()) {
+            tracker = FahrzeugeDienst.trackerLaden()
+            trackerStart = tracker.firstOrNull { it.vehicle_id == eigeneID }?.imei ?: ""
+            trackerWahl = trackerStart
+        }
+    }
 
     // prepareVehicleImageDataUrl: laengste Seite hoechstens 1000, HEIC und Co. werden PNG.
     val bildWahl = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -413,6 +427,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
         scope.launch {
             try {
                 FahrzeugeDienst.speichern(inhalt, id)
+                if (id != null && trackerWahl != trackerStart) FahrzeugeDienst.trackerZuordnen(id, trackerWahl)
                 rueckmeldung = if (id != null) "Fahrzeug erfolgreich aktualisiert." else "Fahrzeug erfolgreich erstellt."
                 if (id != null) {
                     delay(200)
@@ -431,7 +446,33 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
     }
 
     var schadenHoehe by remember { mutableStateOf(0f) }
-    val inhalt = if (bearbeiten) max(913f, 898f + schadenHoehe + 70f) else 913f
+    val trackerVersatz = if (bearbeiten && tracker.isNotEmpty()) 136f else 0f
+    val aktivitaet = NfcTagDienst.activity(ctx)
+    DisposableEffect(Unit) { onDispose { aktivitaet?.let { NfcTagDienst.stoppen(it) } } }
+
+    fun tagBeschreiben() {
+        val a = aktivitaet ?: return
+        val t = tracker.firstOrNull { it.imei == trackerWahl }
+        val link = t?.nfcLink
+        if (t == null || link == null) { rueckmeldung = "Bitte zuerst einen Tracker wählen."; return }
+        rueckmeldung = NfcTagDienst.starten(a, link) { ergebnis ->
+            rueckmeldung = ergebnis.fold(
+                { "Tag für Tracker ${t.nummer} beschrieben." },
+                { it.message?.takeIf { m -> m.isNotEmpty() && !m.contains("Exception") } ?: "Schreiben fehlgeschlagen. Tag ruhig halten und noch einmal versuchen." },
+            )
+        } ?: "Tag jetzt ans Handy halten zum Beschreiben."
+    }
+
+    fun tagAuslesen() {
+        val a = aktivitaet ?: return
+        rueckmeldung = NfcTagDienst.starten(a, null) { ergebnis ->
+            ergebnis.fold(
+                { link -> scope.launch { rueckmeldung = FahrzeugeDienst.tagBeschreibung(link) } },
+                { rueckmeldung = "Lesen fehlgeschlagen. Tag ruhig halten und noch einmal versuchen." },
+            )
+        } ?: "Tag jetzt ans Handy halten zum Auslesen."
+    }
+    val inhalt = if (bearbeiten) max(913f + trackerVersatz, 898f + trackerVersatz + schadenHoehe + 70f) else 913f
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         Leinwand(874f, inhalt) { rahmen ->
             DispoHintergrund(Modifier.platz(0f, 0f, 402f, max(rahmen, inhalt)))
@@ -474,8 +515,34 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
                 }
             }
 
+            if (trackerVersatz > 0f) {
+                Box(Modifier.platz(20f, 682f, 362f, 56f).border(2.dp, LIME).tippen { trackerOffen = true }, contentAlignment = Alignment.CenterStart) {
+                    val gewaehlt = tracker.firstOrNull { it.imei == trackerWahl }
+                    Text(gewaehlt?.let { "Tracker ${it.nummer}" } ?: "Kein Tracker", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x8A9728)),
+                        modifier = Modifier.padding(start = 16.dp))
+                    DropdownMenu(trackerOffen, { trackerOffen = false }, Modifier.background(hex(0x1E1E1E))) {
+                        DropdownMenuItem(text = { Text("Kein Tracker", style = grotesk(16f, farbe = Color.White)) }, onClick = { trackerWahl = ""; trackerOffen = false })
+                        for (t in tracker) {
+                            val woanders = t.vehicle_id != null && t.vehicle_id != fahrzeug?.id
+                            DropdownMenuItem(
+                                text = { Text("Tracker ${t.nummer}" + if (woanders) " (in anderem Auto)" else "", style = grotesk(16f, farbe = Color.White)) },
+                                onClick = { trackerWahl = t.imei; trackerOffen = false },
+                            )
+                        }
+                    }
+                }
+                for ((text, x, aktion) in listOf(
+                    Triple("Tag beschreiben", 20f, ::tagBeschreiben),
+                    Triple("Tag auslesen", 207f, ::tagAuslesen),
+                )) {
+                    Box(Modifier.platz(x, 750f, 175f, 56f).border(2.dp, LIME).tippen { aktion() }, contentAlignment = Alignment.Center) {
+                        Text(text, style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME))
+                    }
+                }
+            }
+
             Box(
-                Modifier.platz(20f, 694f, 362f, 56f).alpha(if (speichert) 0.7f else 1f).background(hex(0xDBEE4A))
+                Modifier.platz(20f, 694f + trackerVersatz, 362f, 56f).alpha(if (speichert) 0.7f else 1f).background(hex(0xDBEE4A))
                     .tippen { if (!speichert) speichern() },
                 contentAlignment = Alignment.Center,
             ) {
@@ -483,7 +550,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
                     style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x0E1008)))
             }
 
-            Box(Modifier.platz(20f, 762f, 362f).heightIn(min = 56.dp).border(1.dp, hex(0x7F8A2B)).padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Box(Modifier.platz(20f, 762f + trackerVersatz, 362f).heightIn(min = 56.dp).border(1.dp, hex(0x7F8A2B)).padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Text(rueckmeldung.ifEmpty { if (bearbeiten) "Fahrzeugdaten ändern und speichern." else "Fahrzeugdaten eintragen und speichern." },
                     style = grotesk(12f, 400, 12f * 1.3f, farbe = hex(0xC8D85D)))
             }
@@ -491,14 +558,14 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
             val fid = fahrzeug?.id
             if (bearbeiten && fid != null) {
                 Box(
-                    Modifier.platz(20f, 830f, 362f, 48f).border(2.dp, hex(0xFF3B30)).alpha(if (speichert) 0.6f else 1f)
+                    Modifier.platz(20f, 830f + trackerVersatz, 362f, 48f).border(2.dp, hex(0xFF3B30)).alpha(if (speichert) 0.6f else 1f)
                         .tippen { if (!speichert) loeschFrage = true },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("Fahrzeug löschen", style = grotesk(16f, 500, farbe = hex(0xFF3B30)))
                 }
                 val dichte = androidx.compose.ui.platform.LocalDensity.current
-                SchadensBerichtDispo(fid, Modifier.platz(20f, 898f, 362f)
+                SchadensBerichtDispo(fid, Modifier.platz(20f, 898f + trackerVersatz, 362f)
                     .then(Modifier.onSizeChanged { schadenHoehe = with(dichte) { it.height.toDp().value } }))
             }
         }

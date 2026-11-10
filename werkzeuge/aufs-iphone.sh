@@ -14,20 +14,23 @@ REPO=${0:A:h:h}
 WAS=${1:-beide}
 
 # Geraetename hat Leerzeichen, darum die Kennung per Muster holen.
-UDID=${IPHONE_UDID:-$(xcrun devicectl list devices 2>/dev/null | grep -E 'iPhone.*(connected|available)' | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -1)}
+UDID=${IPHONE_UDID:-$(xcrun devicectl list devices 2>/dev/null | grep -E 'iPhone.* (connected|available)' | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -1)}
 [ -n "$UDID" ] || { echo "Kein iPhone verbunden."; exit 1; }
 HW_UDID=$(xcrun devicectl device info details --device "$UDID" 2>/dev/null | grep -o 'udid: [0-9A-Fa-f-]*' | head -1 | cut -d' ' -f2)
 
 baue() {
   local ordner=$1 projekt=$2 schema=$3 bundle=$4 dd=$5
   echo "== $schema -> $bundle"
+  # Fahrer-App hat eine Widget-Erweiterung mit eigener ID (Basis + .widget), nicht global ueberschreiben.
+  local idsetzen="PRODUCT_BUNDLE_IDENTIFIER=$bundle"
+  [[ $schema == TrisarFahrer ]] && idsetzen="TRISAR_BUNDLE=$bundle"
   cd "$REPO/$ordner"
   xattr -cr . ../ios-fahrer/TrisarFahrer 2>/dev/null || true
   xcodegen generate --quiet
   env -i HOME=$HOME USER=$USER PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin \
     xcodebuild -project "$projekt" -scheme "$schema" -configuration Debug \
       -destination "id=$HW_UDID" -derivedDataPath "$HOME/Library/Developer/Xcode/DerivedData/$dd" \
-      -allowProvisioningUpdates DEVELOPMENT_TEAM="$TEAM" PRODUCT_BUNDLE_IDENTIFIER="$bundle" \
+      -allowProvisioningUpdates -allowProvisioningDeviceRegistration DEVELOPMENT_TEAM="$TEAM" "$idsetzen" \
       CODE_SIGN_STYLE=Automatic -quiet build
   local app=$(ls -d "$HOME/Library/Developer/Xcode/DerivedData/$dd/Build/Products/Debug-iphoneos/"*.app | head -1)
   xattr -cr "$app"

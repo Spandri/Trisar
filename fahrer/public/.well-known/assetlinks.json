@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "de.trisar.fahrer",
+      "sha256_cert_fingerprints": [
+        "5B:65:F7:F5:5E:69:D0:4D:72:9E:78:3E:B3:DA:22:C1:7B:58:5E:2D:E2:38:09:A9:FD:F0:94:FD:B4:ED:CC:51"
+      ]
+    }
+  }
+]

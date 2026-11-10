@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "LB3DZM6U3A.de.trisar.fahrer"
+        ],
+        "components": [
+          {
+            "/": "/nfc/*"
+          }
+        ]
+      }
+    ]
+  }
+}

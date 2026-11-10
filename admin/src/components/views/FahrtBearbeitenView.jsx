@@ -68,7 +68,7 @@ const EMPTY_FORM_VALUES = {
 
 const normalizeFieldValue = (value) => (value == null ? '' : String(value));
 
-function buildInitialFormValues(initialData = {}) {
+export function buildInitialFormValues(initialData = {}) {
   return {
     ...EMPTY_FORM_VALUES,
     datum: normalizeFieldValue(initialData.datum || initialData.date || initialData.rideDate),
@@ -313,6 +313,9 @@ export default function FahrtBearbeitenView({
   onFetchPlaceSuggestions = async () => [],
   onValidateFlight = async () => ({ status: 'empty', etaLabel: '', valid: false, startLocation: '' }),
   onValidateTrain = async () => ({ status: 'empty', etaLabel: '', valid: false, startLocation: '' }),
+  // Aenderungsvorschlag des KI-Assistenten: zurueck in den Chat statt in die Liste.
+  onVorlageZurueck = null,
+  onVorlageGespeichert = null,
 }) {
   const { t } = useI18n();
   const { orte } = useOrte();
@@ -731,6 +734,10 @@ export default function FahrtBearbeitenView({
   const contentHeight = footerTop + FOOTER_HEIGHT;
 
   const handleBack = () => {
+    if (onVorlageZurueck) {
+      onVorlageZurueck();
+      return;
+    }
     if (window.history.length > 1) {
       window.history.back();
       return;
@@ -775,6 +782,10 @@ export default function FahrtBearbeitenView({
       }
     } finally {
       setIsSaving(false);
+    }
+    if (onVorlageGespeichert) {
+      onVorlageGespeichert();
+      return;
     }
     if (window.history.length > 1) {
       window.history.back();

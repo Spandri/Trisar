@@ -104,6 +104,9 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
     DisposableEffect(daten) {
         onDispose { CoroutineScope(Dispatchers.Main).launch { daten.beenden() } }
     }
+    DisposableEffect(Unit) {
+        onDispose { de.trisar.kern.NfcTagDienst.activity(ctx)?.let { de.trisar.kern.NfcTagDienst.stoppen(it) } }
+    }
 
     val versatz = 20f
     val angaben = FahrzeugAngaben.aus(fahrzeug, ausstattung)
@@ -111,7 +114,9 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
     // Ohne Standort rueckt der Fahrzeugblock an die Stelle der Karte, darunter folgt alles
     // seiner Hoehe (die je nach vorhandenen Angaben schrumpft).
     val blockOben = if (standort == null) 99f else 440f
-    val unterBlock = blockOben + raster.hoehe - 1f
+    // Ohne Fahrzeug: Knopf zum Scannen des Trackers unter dem Block.
+    val scanHoehe = if (fahrzeug == null) 76f else 0f
+    val unterBlock = blockOben + raster.hoehe - 1f + scanHoehe
     // Web: max(1264, Unterkante Bericht) + 40 Seitenversatz + 70 Platz fuer die Fussleiste.
     val inhalt = max(1264f, unterBlock + unterHoehe) + 40f + 70f
 
@@ -130,6 +135,16 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
             }
 
             FahrzeugBlock(angaben, raster, Modifier.platz(24.5f, versatz + blockOben, 353f, raster.hoehe))
+
+            if (fahrzeug == null) {
+                Box(
+                    Modifier.platz(24.5f, versatz + blockOben + raster.hoehe + 9f, 353f, 56f).background(hex(0xE3F754))
+                        .tippen { de.trisar.fahrer.NfcTag.scannen(ctx) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    androidx.compose.material3.Text("Tracker scannen", style = grotesk(18f, 700, farbe = androidx.compose.ui.graphics.Color.Black))
+                }
+            }
 
             Column(
                 Modifier.platz(24.5f, versatz + unterBlock, 353f).onSizeChanged { unterHoehe = with(dichte) { it.height.toDp().value } },

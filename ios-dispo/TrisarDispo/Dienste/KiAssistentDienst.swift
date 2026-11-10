@@ -26,6 +26,8 @@ enum KiAssistentDienst {
         let frage: String
         let verlauf: [Eintrag]
         let kontext: AnyJSON?
+        let offenerVorschlag: KiBuchungsVorschlag?
+        let letzteFahrtId: String?
     }
     private struct ServerAntwort: Decodable {
         struct Aktion: Decodable { let type: String?; let proposal: KiBuchungsVorschlag? }
@@ -36,6 +38,19 @@ enum KiAssistentDienst {
 
     /// onCreateRide(payload, { aiBooked: true })
     static func buchen(_ v: KiBuchungsVorschlag) async throws -> String? {
+        if let fahrtID = v.fahrtUUID {
+            let g = try await FahrtSpeichern.laden(fahrtID)
+            let neu = v.aenderung(auf: g)
+            var w = neu.werte
+            w.anonymeGaeste = w.anonymeGaeste.isEmpty ? "0" : w.anonymeGaeste
+            let ergebnis = await FahrtSpeichern.aendern(FahrtEingabe(
+                werte: w, fahrgaeste: FahrtText.gaesteTeilen(neu.fahrgaeste).joined(separator: "; "),
+                fahrerNamen: neu.fahrerNamen.map(FahrtText.getrimmt).filter { !$0.isEmpty },
+                zwischenstopps: g.zwischenstopps,
+                flugZielFlughafen: "", flugAnkunftGeplant: "", notiz: neu.notiz), geladen: g)
+            if !ergebnis.ok { throw BuchungFehlgeschlagen(meldung: ergebnis.fehler ?? "Unbekannter Fehler") }
+            return fahrtID.uuidString
+        }
         var w = v.vorlage.werte
         w.anonymeGaeste = w.anonymeGaeste.isEmpty ? "0" : w.anonymeGaeste
         let ergebnis = await FahrtSpeichern.anlegen(FahrtEingabe(
@@ -51,10 +66,12 @@ enum KiAssistentDienst {
     }
 
     /// askDatabaseAssistant({ prompt, chatHistory })
-    @MainActor static func fragen(_ prompt: String, verlauf: [(rolle: String, text: String)]) async throws -> Antwort {
+    @MainActor static func fragen(_ prompt: String, verlauf: [(rolle: String, text: String)],
+                                  offenerVorschlag: KiBuchungsVorschlag? = nil, letzteFahrtId: String? = nil) async throws -> Antwort {
         let frage = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if frage.isEmpty { return Antwort(text: "Bitte stelle eine Frage.") }
-        let anfrage = Anfrage(frage: frage, verlauf: verlauf.map { Eintrag(role: $0.rolle, text: $0.text) }, kontext: kontext)
+        let anfrage = Anfrage(frage: frage, verlauf: verlauf.map { Eintrag(role: $0.rolle, text: $0.text) }, kontext: kontext,
+                              offenerVorschlag: offenerVorschlag, letzteFahrtId: letzteFahrtId)
         let antwort: ServerAntwort = try await Backend.client.functions.invoke("dispo-admin", options: FunctionInvokeOptions(body: anfrage))
         if let neu = antwort.kontext { kontext = neu }
         let vorschlag = antwort.action?.type == "booking_proposal" ? antwort.action?.proposal : nil
@@ -74,6 +91,23 @@ struct KiBuchungsVorschlag: Codable, Equatable {
     var konvoi = ""
     var flugnummer = ""
     var notes = ""
+    /// Nur bei Aenderung einer bestehenden Fahrt: welche Fahrt und welche Felder.
+    var fahrtId: String?
+    var geaendert: [String]?
+
+    var fahrtUUID: UUID? { fahrtId.flatMap(UUID.init(uuidString:)) }
+
+    /// Nur die geaenderten Felder uebernehmen, alles andere bleibt wie an der Fahrt.
+    func aenderung(auf g: GeladeneFahrt) -> FahrtVorlage {
+        let felder = Set(geaendert ?? [])
+        var w = g.werte
+        if felder.contains("datum") { w.datum = datum }
+        if felder.contains("startZeit") { w.startZeit = startZeit }
+        if felder.contains("start") { w.start = start; w.startOrtID = nil; w.startOrtAdresse = "" }
+        if felder.contains("ziel") { w.ziel = ziel; w.zielOrtID = nil; w.zielOrtAdresse = "" }
+        return FahrtVorlage(werte: w, fahrerNamen: felder.contains("fahrerNamen") ? fahrerNamen : g.fahrerNamen,
+                            fahrgaeste: felder.contains("fahrgaeste") ? fahrgaeste : g.fahrgaeste, notiz: g.notiz)
+    }
 
     /// Startwerte fuer das Fahrtformular (toCreateRidePayload).
     var vorlage: FahrtVorlage {

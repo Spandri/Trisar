@@ -41,6 +41,7 @@ export default {
   "app.noNotes": "Not bulunmuyor",
   "app.noPassengersFound": "Yolcu bulunamadı",
   "app.noVehicle": "Araç yok",
+  "app.noVehicleNfc": "Araç yok mu? Telefonunu izleyicideki NFC etiketine yaklaştır.",
   "app.none": "Yok",
   "app.notLoggedIn": "Oturum açılmadı. Lütfen tekrar giriş yapın.",
   "app.note": "Not",

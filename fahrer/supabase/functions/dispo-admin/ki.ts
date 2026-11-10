@@ -29,6 +29,9 @@ const vorschlagVereinheitlichen = (v: any) => ({
   konvoi: String(v?.konvoi || '').trim(),
   flugnummer: String(v?.flugnummer || '').trim(),
   notes: String(v?.notes || '').trim(),
+  // Nur bei Aenderung einer bestehenden Fahrt: welche Fahrt und welche Felder.
+  fahrtId: v?.fahrtId ? String(v.fahrtId) : null,
+  geaendert: Array.isArray(v?.geaendert) ? v.geaendert.map(String) : [],
 });
 
 export const kiFrage = async (admin: any, body: any) => {
@@ -47,7 +50,13 @@ export const kiFrage = async (admin: any, body: any) => {
   const ki = kiErstellen({ admin, ollamaUrl, ollamaModell, kontext: body?.kontext });
 
   try {
-    const ergebnis = await ki.fragen({ prompt: frage, chatHistory: verlauf });
+    const ergebnis = await ki.fragen({
+      prompt: frage,
+      chatHistory: verlauf,
+      offenerVorschlag: body?.offenerVorschlag && typeof body.offenerVorschlag === 'object' ? vorschlagVereinheitlichen(body.offenerVorschlag) : null,
+      // iOS schickt UUIDs in Grossbuchstaben, die Datenbank liefert sie klein.
+      letzteFahrtId: /^[0-9a-f-]{36}$/i.test(String(body?.letzteFahrtId || '')) ? String(body.letzteFahrtId).toLowerCase() : null,
+    });
     const daten = typeof ergebnis === 'string' ? { answer: ergebnis } : ergebnis;
     if (daten?.action?.type === 'booking_proposal') daten.action.proposal = vorschlagVereinheitlichen(daten.action.proposal);
     return { status: 200, daten: { ...daten, kontext: ki.kontext() } };

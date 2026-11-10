@@ -63,6 +63,9 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
     val ctx = LocalContext.current
     val bereich = rememberCoroutineScope()
     val speicher: FahrtenSpeicher = viewModel()
+    // Nach dem Antippen eines Tags: Fahrzeug neu laden.
+    val nfcStand by NfcTag.stand.collectAsState()
+    LaunchedEffect(nfcStand) { if (nfcStand > 0) speicher.laden() }
     val geladen by speicher.geladen.collectAsState()
     val fahrten by speicher.fahrten.collectAsState()
     val fahrzeug by speicher.fahrzeug.collectAsState()

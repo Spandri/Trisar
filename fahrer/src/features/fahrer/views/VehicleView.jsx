@@ -266,6 +266,7 @@ const SchadensBericht = ({ damages = [], onMelden, blockRef, oben = 771 }) => {
 };
 
 export default function VehicleView({ setView, vehicle, damages, onAddDamage, standort = null, driverId = null }) {
+  const { t } = useI18n();
   // Demo zeigt eine feste Position, live den letzten OBD-Standort. Ohne Standort keine Karte.
   const kartenPosition = DEMO_MODE
     ? DRIVER_COORDS
@@ -337,6 +338,12 @@ export default function VehicleView({ setView, vehicle, damages, onAddDamage, st
           <div className="absolute left-0 top-[20px] w-[402px]">
             {/* Back Button */}
             <ZurueckKnopf onClick={() => setView('list')} marker="fahrzeug-zurueck" oben={40} />
+            {/* Ohne Fahrzeug: der NFC-Tag am Tracker verbindet den Fahrer. */}
+            {!vehicle && !DEMO_MODE ? (
+              <p className="absolute left-[84px] right-5 text-[#e3f754] text-[13px] leading-[16px]" style={{ top: '48px', fontFamily: 'Space Grotesk' }}>
+                {t('app.noVehicleNfc')}
+              </p>
+            ) : null}
 
             {/* Karte: Demo feste Position, live letzter OBD-Standort, ohne Standort ausgeblendet */}
             {kartenPosition && <MapComponent position={kartenPosition} quelle={DEMO_MODE ? null : standort?.quelle} erfasst={standort?.erfasst} />}

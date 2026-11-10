@@ -11,6 +11,8 @@ struct FahrtFormularAnsicht: View {
     var vorlage: FahrtVorlage?
     /// Statt der Fahrtenliste: zurueck in den Chat, mit der ID der neuen Fahrt.
     var nachAnlegen: ((UUID?) -> Void)?
+    /// Aenderungsvorschlag: Startwerte aus der geladenen Fahrt.
+    var anpassen: ((GeladeneFahrt) -> FahrtVorlage)?
 
     @State private var geladen: GeladeneFahrt?
     @State private var ladeFehler: String?
@@ -18,7 +20,7 @@ struct FahrtFormularAnsicht: View {
     var body: some View {
         if let fahrtID {
             if let geladen {
-                FahrtFormularInhalt(geladen: geladen, zurueck: zurueck, zeigen: zeigen, vorlage: nil, nachAnlegen: nil)
+                FahrtFormularInhalt(geladen: geladen, zurueck: zurueck, zeigen: zeigen, vorlage: anpassen?(geladen), nachAnlegen: nachAnlegen)
             } else {
                 ZStack(alignment: .topLeading) {
                     Leinwand(basisHoehe: 874, mitHintergrund: false) { rahmen in
@@ -128,12 +130,12 @@ private struct FahrtFormularInhalt: View {
         self.geladen = geladen
         self.zurueck = zurueck
         self.zeigen = zeigen
-        _werte = State(initialValue: geladen?.werte ?? vorlage?.werte ?? FahrtFormularWerte())
-        _notiz = State(initialValue: geladen?.notiz ?? vorlage?.notiz ?? "")
-        let fahrer = geladen?.fahrerNamen ?? vorlage?.fahrerNamen ?? []
+        _werte = State(initialValue: vorlage?.werte ?? geladen?.werte ?? FahrtFormularWerte())
+        _notiz = State(initialValue: vorlage?.notiz ?? geladen?.notiz ?? "")
+        let fahrer = vorlage?.fahrerNamen ?? geladen?.fahrerNamen ?? []
         _fahrerNamen = State(initialValue: fahrer.isEmpty ? [""] : fahrer)
         _zwischenstopps = State(initialValue: Self.stoppZeilen(geladen?.zwischenstopps ?? []))
-        _gaesteNamen = State(initialValue: FahrtText.gaesteTeilen(geladen?.fahrgaeste ?? vorlage?.fahrgaeste) + [""])
+        _gaesteNamen = State(initialValue: FahrtText.gaesteTeilen(vorlage?.fahrgaeste ?? geladen?.fahrgaeste) + [""])
     }
 
     private var bearbeiten: Bool { geladen != nil }
@@ -954,6 +956,7 @@ private struct FahrtFormularInhalt: View {
             meldung = t("fahrt.saveError", ["error": ergebnis.fehler ?? t("fahrt.unknownError")])
             return
         }
+        if let nachAnlegen { nachAnlegen(geladen.id); return }
         zurueck()
     }
 

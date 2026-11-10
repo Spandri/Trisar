@@ -18,7 +18,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "24"
+    CURRENT_PROJECT_VERSION: "27"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
@@ -65,9 +65,12 @@ targets:
       path: TrisarDispo/TrisarDispo.entitlements
       properties:
         aps-environment: development
+        com.apple.developer.nfc.readersession.formats:
+          - TAG
     info:
       path: TrisarDispo/Info.plist
       properties:
+        NFCReaderUsageDescription: NFC-Tags an den OBD-Trackern beschreiben und auslesen.
         CFBundleDisplayName: TRISAR Dispo
         UILaunchScreen: {}
         UIUserInterfaceStyle: Dark

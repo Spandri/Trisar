@@ -63,6 +63,9 @@ import { MAP_FAHRER_STANDORT_URL, MAP_FLAG_PIN_URL, MAP_PERSON_PIN_URL } from '.
 import { routeTeilen, istAmEnde } from '../../shared/karte/routenFortschritt';
 import { gaesteText } from '../../shared/gaesteAnzeige';
 
+// Verhindert doppeltes Einloesen, wenn der Effekt zweimal laeuft.
+let nfcLaeuft = false;
+
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
   if (typeof value === 'string' && value.trim().toLowerCase().startsWith('your_')) return fallback;
@@ -2263,6 +2266,19 @@ const FahrerApp = () => {
     return undefined;
   }, [session?.user?.id]);
 
+  // NFC-Tag am Tracker: /nfc/<code> uebernimmt Tracker und Fahrzeug fuer den angemeldeten Fahrer.
+  useEffect(() => {
+    if (DEMO_MODE || !session?.user?.id || nfcLaeuft) return;
+    const treffer = window.location.pathname.match(/^\/nfc\/([a-f0-9]{18})\/?$/i);
+    if (!treffer) return;
+    nfcLaeuft = true;
+    (async () => {
+      const { data, error } = await supabase.rpc('trisar_nfc_uebernehmen', { p_code: treffer[1].toLowerCase() });
+      window.alert(error ? 'Das Fahrzeug konnte nicht verbunden werden. Bitte noch einmal antippen.' : data?.meldung);
+      window.location.replace('/');
+    })();
+  }, [session?.user?.id]);
+
   useEffect(() => {
     if (!session?.user?.id) {
       setJobs([]);
@@ -3435,7 +3451,7 @@ await supabase.auth.signOut({ scope: 'local' });
   const noTripsVehicleHandler = DEMO_MODE ? undefined : () => setView('vehicle');
   const noTripsScreen = currentVehicle
     ? <KeineFahrtTrisar currentVehicle={currentVehicle} onLogout={handleLogout} onOpenProfile={noTripsProfileHandler} onOpenVehicle={noTripsVehicleHandler} />
-    : <KeinAuto onLogout={handleLogout} onOpenProfile={noTripsProfileHandler} />;
+    : <KeinAuto onLogout={handleLogout} onOpenProfile={noTripsProfileHandler} nfcHinweis={DEMO_MODE ? null : t('app.noVehicleNfc')} />;
 
   const pushLocalJobNote = useCallback((jobId, noteRow) => {
     const normalizedJobId = String(jobId || '').trim();

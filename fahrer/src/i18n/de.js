@@ -41,6 +41,7 @@ export default {
   "app.noNotes": "Keine Notizen vorhanden",
   "app.noPassengersFound": "Keine Fahrgaeste gefunden",
   "app.noVehicle": "Kein Fahrzeug",
+  "app.noVehicleNfc": "Kein Fahrzeug? Halte dein Handy an den NFC-Tag am Tracker.",
   "vehicle.sourceObd": "Standort: OBD-Tracker",
   "vehicle.sourceApp": "Standort: Fahrer-App",
   "vehicle.ageNow": "gerade eben",

@@ -20,9 +20,11 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.1"
-    CURRENT_PROJECT_VERSION: "19"
+    CURRENT_PROJECT_VERSION: "24"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
+    # App-ID, die Widget-Erweiterung haengt .widget an. aufs-iphone.sh setzt sie auf de.trisar.fahrer.dev.
+    TRISAR_BUNDLE: de.trisar.fahrer
     # Team-ID der TRISAR-Apple-ID. Leer lassen = in Xcode unter Signing waehlen.
     DEVELOPMENT_TEAM: ""
 
@@ -32,24 +34,35 @@ targets:
     platform: iOS
     sources:
       - path: TrisarFahrer
+      - path: ../ios-dispo/TrisarDispo/Dienste/NfcTagDienst.swift
     dependencies:
       - package: Supabase
       - package: MapLibre
+      - target: TrisarFahrerWidget
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: de.trisar.fahrer
+        PRODUCT_BUNDLE_IDENTIFIER: $(TRISAR_BUNDLE)
         PRODUCT_NAME: TRISAR
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: TRISAR
         GENERATE_INFOPLIST_FILE: YES
+        # CarPlay braucht die Apple-Freigabe carplay-driving-task. Bis die da ist, nur im Simulator
+        # setzen, sonst passt das Profil auf dem Geraet nicht und der Build bricht ab.
+        # Nach der Freigabe: Zeile unten loeschen und den Schluessel bei entitlements eintragen.
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": TrisarFahrer/TrisarFahrer-Simulator.entitlements
     entitlements:
       path: TrisarFahrer/TrisarFahrer.entitlements
       properties:
         aps-environment: development
+        com.apple.developer.associated-domains:
+          - applinks:fahrer.trisar.de
+        com.apple.developer.nfc.readersession.formats:
+          - TAG
     info:
       path: TrisarFahrer/Info.plist
       properties:
+        NFCReaderUsageDescription: NFC-Tag am Tracker lesen, um dich mit dem Fahrzeug zu verbinden.
         CFBundleDisplayName: TRISAR
         UILaunchScreen: {}
         UIUserInterfaceStyle: Dark
@@ -64,3 +77,39 @@ targets:
         NSPhotoLibraryUsageDescription: "TRISAR braucht Zugriff auf deine Fotos, damit du Bilder eines Schadens anhängen kannst."
         UIAppFonts:
           - SpaceGrotesk.ttf
+        NSSupportsLiveActivities: true
+        # CarPlay-Szene (CarPlay/CarPlaySzene.swift). Das Handy-Fenster kommt weiter aus SwiftUI.
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneConfigurationName: CarPlay
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySzene
+
+  # Live-Aktivitaet "Naechste Fahrt" im TRISAR-Look (Sperrbildschirm, Dynamic Island, CarPlay).
+  TrisarFahrerWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: TrisarFahrerWidget
+      - path: TrisarFahrer/CarPlay/FahrtAktivitaet.swift
+      - path: TrisarFahrer/Schrift
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(TRISAR_BUNDLE).widget
+        PRODUCT_NAME: TrisarFahrerWidget
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+    info:
+      path: TrisarFahrerWidget/Info.plist
+      properties:
+        CFBundleDisplayName: TRISAR
+        # Muss zur App passen, sonst meckert App Store Connect beim Hochladen.
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        UIAppFonts:
+          - SpaceGrotesk.ttf
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension

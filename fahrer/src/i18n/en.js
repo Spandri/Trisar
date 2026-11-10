@@ -41,6 +41,7 @@ export default {
   "app.noNotes": "No notes available",
   "app.noPassengersFound": "No passengers found",
   "app.noVehicle": "No vehicle",
+  "app.noVehicleNfc": "No vehicle? Hold your phone to the NFC tag on the tracker.",
   "vehicle.sourceObd": "Location: OBD tracker",
   "vehicle.sourceApp": "Location: driver app",
   "vehicle.ageNow": "just now",

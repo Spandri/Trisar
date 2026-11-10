@@ -41,6 +41,7 @@ export default {
   "app.noNotes": "Nessuna nota presente",
   "app.noPassengersFound": "Nessun passeggero trovato",
   "app.noVehicle": "Nessun veicolo",
+  "app.noVehicleNfc": "Nessun veicolo? Avvicina il telefono al tag NFC del tracker.",
   "app.none": "Nessuno",
   "app.notLoggedIn": "Non connesso. Eseguire di nuovo l'accesso.",
   "app.note": "Nota",

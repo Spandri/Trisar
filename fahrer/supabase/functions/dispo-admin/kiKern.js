@@ -26,6 +26,10 @@ const jetztBerlin = () => {
 };
 
 export const kiErstellen = ({ admin, ollamaUrl, ollamaModell, kontext, fristMs = 52000 }) => {
+// Normalisierter Text, also ohne Umlaute. "andere" allein waere auch das Wort fuer "weitere".
+const AENDERN_RE = /\bfug(e|en|t)?\b.*\bhinzu\b|\btrag(e)?\b.*\bein\b|\bsetz(e)?\b.*\b(fahrer|als|auf)\b|\b(entferne|losche|storniere|verschiebe|aktualisiere)\b|^(bitte\s+)?andere\b|\b(andern|aktualisieren|verschieben|stornieren|loschen)\b.*(bitte|kannst|\?)|\b(kannst du|bitte)\b.*\b(andern|aktualisieren|verschieben|stornieren|loschen)\b/;
+const ANPASSUNG_RE = /\b(fahrer|ziel|start|abfahrt|gast|auf \d|\d{1,2}(:\d{2})? ?uhr)\b/;
+const STORNIEREN_RE = /\b(storniere|stornieren|losche|loschen)\b/;
 const FRAGE_OHNE_FAHRER_RE = /\b(kein|keine|keinen|ohne)\b.*\bfahrer\b/;
 const supabase = admin;
 const supabaseAdmin = admin;
@@ -61,8 +65,16 @@ let conversationContext = {
   lastRideFrom: '',
   lastRideTo: '',
   updatedAt: 0,
+  // Alle im Gespraech genannten Fahrten (neueste zuerst), die zuletzt gezeigte Liste und eine offene Rueckfrage.
+  fahrten: [],
+  letzteListe: [],
+  fokusMehrdeutig: false,
+  rueckfrage: null,
   ...(kontext && typeof kontext === 'object' ? kontext : {}),
 };
+if (!Array.isArray(conversationContext.fahrten)) conversationContext.fahrten = [];
+if (!Array.isArray(conversationContext.letzteListe)) conversationContext.letzteListe = [];
+
 
 const OLLAMA_URL = ollamaUrl;
 const OLLAMA_MODEL = ollamaModell || DEFAULT_MODEL;
@@ -300,6 +312,7 @@ Jetzt ist ${jetztBerlin().toISOString().slice(0, 16).replace('T', ' ')} Uhr (Deu
 Regeln:
 - Fahrten stehen fertig in fahrten_uebersicht. Die Zahl der passenden Fahrten steht in anzahl, zaehle nicht selbst. Ist anzahl 0, gibt es im genannten Zeitraum keine passende Fahrt.
 - Nenne nie IDs. Nenne Fahrer, Orte und Uhrzeiten.
+- Worueber gerade gesprochen wurde, steht in im_gespraech_genannt, die erste Zeile ist die zuletzt genannte Fahrt. Mit 'die Fahrt', 'dort' oder 'die' ist diese gemeint.
 - Antworte auf Deutsch, klar und knapp.
 - Nutze ausschliesslich die gelieferten Daten als Quelle (DB-SNAPSHOT und SEMANTISCHE TREFFER).
 - Du hast in dieser App explizit Leserechte auf die bereitgestellten DB-Daten (inkl. Kontaktdaten), wenn sie im Snapshot enthalten sind.
@@ -592,6 +605,12 @@ const updateConversationDriverContext = (driver) => {
   };
 };
 
+const GEMERKTE_FAHRTEN = 30;
+const fahrtenMerken = (ids) => {
+  const neu = ids.filter(Boolean).map(String);
+  conversationContext.fahrten = Array.from(new Set([...neu, ...conversationContext.fahrten])).slice(0, GEMERKTE_FAHRTEN);
+};
+
 const updateConversationRideContext = (ride) => {
   if (!ride) return;
   conversationContext = {
@@ -602,7 +621,9 @@ const updateConversationRideContext = (ride) => {
     lastRideFrom: String(ride?.pickup_name || ride?.pickup_address || '').trim(),
     lastRideTo: String(ride?.dropoff_name || ride?.dropoff_address || '').trim(),
     updatedAt: Date.now(),
+    fokusMehrdeutig: false,
   };
+  fahrtenMerken([ride?.id]);
 };
 
 const readConversationDriverContext = (drivers = []) => {
@@ -777,7 +798,7 @@ const genannteFahrer = (snapshot, prompt) => {
   const woerter = normalizeText(prompt).split(/[^a-z0-9]+/);
   return (snapshot?.data?.fahrer_profiles || []).filter((profil) => [profil?.first_name, profil?.last_name].some((name) => {
     const n = normalizeText(name);
-    return n.length >= 3 && (woerter.includes(n) || woerter.includes(`${n}s`));
+    return n.length >= 3 && !['fahrer', 'fahrt'].includes(n) && (woerter.includes(n) || woerter.includes(`${n}s`));
   }));
 };
 
@@ -805,6 +826,7 @@ const buildDirectIntentAnswer = ({ prompt, snapshot, chatHistory = [] }) => {
     && /(fahrt|fahrten)/.test(text)
     && /(gibt es|gibts|haben wir|hast du|wie viele|anzahl|fuer|für|am)/.test(text)
     && genannteFahrer(snapshot, prompt).length === 0
+    && uhrzeitenIn(prompt).length === 0
   ) {
     const dayJobs = jobs.filter((job) => String(job?.ride_date || '').startsWith(dateHint.value));
     const displayDate = `${dateHint.value.slice(8, 10)}.${dateHint.value.slice(5, 7)}.${dateHint.value.slice(0, 4)}`;
@@ -820,7 +842,10 @@ const buildDirectIntentAnswer = ({ prompt, snapshot, chatHistory = [] }) => {
       return `Ja, am ${displayDate} gibt es 1 Fahrt (${etd}) von ${from} nach ${to}.`;
     }
     if (dayJobs.length > 0) {
-      updateConversationRideContext(dayJobs[0]);
+      // Mehrere Fahrten: keine davon ist "die Fahrt".
+      fahrtenMerken(dayJobs.slice(0, 10).map((job) => job.id));
+      conversationContext.letzteListe = dayJobs.slice(0, 10).map((job) => job.id);
+      conversationContext.fokusMehrdeutig = true;
     }
     return `Ja, am ${displayDate} gibt es ${dayJobs.length} Fahrten.`;
   }
@@ -1683,31 +1708,354 @@ const fahrtenFuerModell = (snapshot, prompt) => {
   const passt = (job) => (tag ? job?.ride_date === tag : String(job?.ride_date || '') >= heute)
     && (!nurOhneFahrer || fahrerVon(job).length === 0)
     && (genanntIds.size === 0 || fahrerVon(job).some((id) => genanntIds.has(id)));
-  const sortiert = (daten.jobs || []).filter(passt)
+  const alleTreffer = (daten.jobs || []).filter(passt)
     .sort((a, b) => `${a.ride_date} ${a.etd}`.localeCompare(`${b.ride_date} ${b.etd}`));
+  // Steht eine Uhrzeit in der Frage und passt eine Fahrt dazu, geht es um diese.
+  const uhrzeit = uhrzeitenIn(prompt)[0];
+  const zurUhrzeit = uhrzeit ? alleTreffer.filter((job) => String(job.etd || '').slice(0, 5) === uhrzeit) : [];
+  const sortiert = zurUhrzeit.length ? zurUhrzeit : alleTreffer;
   const gaeste = (job) => {
     const roh = Array.isArray(job?.passengers) ? job.passengers.join(', ') : String(job?.passengers || '');
     return roh.trim() || 'keine Namen';
   };
+  const zeile = (job) => [
+    `${job.ride_date} ${String(job.etd || '').slice(0, 5)}`,
+    `Fahrer: ${fahrerVon(job).map((id) => namen.get(id) || 'unbekannt').join(', ') || 'keiner'}`,
+    `Von: ${job.pickup_name || job.pickup_address || '-'}`,
+    `Nach: ${job.dropoff_name || job.dropoff_address || '-'}`,
+    `Status: ${job.status || '-'}`,
+    `Gaeste: ${gaeste(job)}`,
+  ].join(' | ');
+  const nachId = new Map((daten.jobs || []).map((job) => [job.id, job]));
+  const imGespraech = conversationContext.fahrten.slice(0, 8).map((id) => nachId.get(id)).filter(Boolean);
+  // Eine Fahrt: die ist ab jetzt gemeint. Mehrere: bei "die Fahrt" muss nachgefragt werden.
+  // Rueckfragen wie "dieser Fahrt" suchen nichts Neues und duerfen den Bezug nicht verschieben.
+  const suchtFahrten = Boolean(tag || genannt.length || uhrzeit || /\b(welche|alle|liste)\b.*\bfahrten\b/.test(normalizeText(prompt)));
+  if (!suchtFahrten) {
+    // Bezug bleibt wie er ist.
+  } else if (sortiert.length === 1) {
+    updateConversationRideContext(sortiert[0]);
+  } else if (sortiert.length > 1) {
+    fahrtenMerken(sortiert.slice(0, 10).map((job) => job.id));
+    conversationContext.letzteListe = sortiert.slice(0, 10).map((job) => job.id);
+    conversationContext.fokusMehrdeutig = true;
+  }
+  if (genannt.length === 1) updateConversationDriverContext(genannt[0]);
   return {
     genannt: genannt.length > 0,
+    im_gespraech_genannt: imGespraech.map(zeile),
     zeitraum: tag ? `nur ${tag}` : `ab ${heute}`,
     fahrer_filter: genannt.map(getDriverDisplayName),
     anzahl: sortiert.length,
-    fahrten: sortiert.slice(0, 40).map((job) => [
-      `${job.ride_date} ${String(job.etd || '').slice(0, 5)}`,
-      `Fahrer: ${fahrerVon(job).map((id) => namen.get(id) || 'unbekannt').join(', ') || 'keiner'}`,
-      `Von: ${job.pickup_name || job.pickup_address || '-'}`,
-      `Nach: ${job.dropoff_name || job.dropoff_address || '-'}`,
-      `Status: ${job.status || '-'}`,
-      `Gaeste: ${gaeste(job)}`,
-    ].join(' | ')),
+    fahrten: sortiert.slice(0, 40).map(zeile),
   };
 };
 
-const askDatabaseAssistant = async ({ prompt, chatHistory = [] }) => {
+// Namen der Gaeste einer Fahrt: verknuepfte Gaeste und Freitext aus passengers.
+const gaesteDerFahrt = (job, daten) => {
+  const verzeichnis = new Map((daten?.guests || []).map((gast) => [gast.id, gast]));
+  const verknuepft = (daten?.job_guests || [])
+    .filter((zeile) => zeile.job_id === job.id)
+    .map((zeile) => verzeichnis.get(zeile.guest_id))
+    .filter(Boolean)
+    .map((gast) => [gast.first_name, gast.last_name].filter(Boolean).join(' ').trim());
+  const roh = Array.isArray(job?.passengers) ? job.passengers : Object.values(job?.passengers || {});
+  return gaesteTeile([...verknuepft, ...roh.map((name) => String(name || ''))], job?.anonymous_guests).namen;
+};
+
+const fahrerDerFahrt = (job, daten) => Array.from(new Set([
+  job?.driver_id,
+  ...(daten?.convoy_assignments || []).filter((zeile) => zeile.job_id === job?.id).map((zeile) => zeile.driver_id),
+].filter(Boolean)));
+
+const uhrzeitAus = (stunde, minute) => {
+  const h = Number(stunde);
+  const m = Number(minute || 0);
+  if (!Number.isInteger(h) || !Number.isInteger(m) || h > 23 || m > 59) return '';
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+const uhrzeitenIn = (text) => Array.from(
+  String(text).matchAll(/(?<![\d.:])(\d{1,2})(?:[:.](\d{2}))?\s*uhr\b|(?<![\d.:])(\d{1,2}):(\d{2})\b/gi),
+).map((treffer) => uhrzeitAus(treffer[1] ?? treffer[3], treffer[2] ?? treffer[4])).filter(Boolean);
+
+// Liest aus dem Satz, was sich aendern soll und woran die Fahrt zu erkennen ist. Nur Werte, die wirklich dastehen.
+const aenderungLesen = (prompt, snapshot) => {
+  const roh = String(prompt || '').trim();
+  const text = normalizeText(roh);
+  const fahrerAlle = snapshot?.data?.fahrer_profiles || [];
+  const aenderung = {};
+  const merkmale = {};
+
+  // Datum: "auf morgen" ist neu, jedes andere Datum beschreibt die Fahrt.
+  const aufDatum = roh.match(/\bauf\s+(morgen|heute|\d{1,2}\.\d{1,2}(?:\.\d{2,4})?)/i);
+  if (aufDatum) {
+    const wert = extractDateHint(aufDatum[1]);
+    if (wert?.type === 'date') aenderung.datum = wert.value;
+  }
+  const merkmalDatum = extractDateHint(aufDatum ? roh.replace(aufDatum[0], ' ') : roh);
+  if (merkmalDatum?.type === 'date') merkmale.datum = merkmalDatum.value;
+
+  // Uhrzeit: "auf 11 Uhr" ist neu, "die Fahrt um 14:30" beschreibt die Fahrt.
+  const aufZeit = roh.match(/\bauf\s+(\d{1,2})(?::(\d{2}))?(\s*uhr\b)?(?![\d.])/i);
+  const zeitWort = /(abfahrt|uhrzeit|verschieb|start ?zeit|\bzeit\b)/.test(text);
+  let zeiten = uhrzeitenIn(roh);
+  if (aufZeit && (aufZeit[2] || aufZeit[3] || zeitWort)) {
+    aenderung.startZeit = uhrzeitAus(aufZeit[1], aufZeit[2]);
+    zeiten = uhrzeitenIn(roh.replace(aufZeit[0], ' '));
+    if (zeiten[0]) merkmale.startZeit = zeiten[0];
+  } else if (zeitWort && zeiten.length === 1) {
+    aenderung.startZeit = zeiten[0];
+  } else if (zeiten[0]) {
+    merkmale.startZeit = zeiten[0];
+  }
+
+  // Fahrer: "Fahrt von Tim" beschreibt die Fahrt, die uebrigen genannten aendern sich.
+  const fahrerZuWort = (wort) => wort && fahrerAlle.find((profil) => [profil.first_name, profil.last_name]
+    .some((name) => normalizeText(name) === normalizeText(wort)));
+  const vonFahrer = fahrerZuWort(text.match(/\bfahrt\s+von\s+([a-z0-9-]+)/)?.[1] || '');
+  if (vonFahrer) merkmale.fahrerId = vonFahrer.id;
+  const stattFahrer = fahrerZuWort(text.match(/\bstatt\s+([a-z0-9-]+)/)?.[1] || '');
+  const genannt = genannteFahrer(snapshot, roh).filter((profil) => profil.id !== vonFahrer?.id);
+  const entfernen = /\b(entferne|entfernen|ohne|raus|streiche|nimm)\b/.test(text);
+  const zielFahrer = genannt.filter((profil) => profil.id !== stattFahrer?.id);
+  if (genannt.length && (entfernen || stattFahrer || /(fahrer|hinzu|trag|setz)/.test(text))) {
+    aenderung.fahrer = {
+      entfernen: entfernen ? genannt.map(getDriverDisplayName) : (stattFahrer ? [getDriverDisplayName(stattFahrer)] : []),
+      dazu: entfernen ? [] : zielFahrer.map(getDriverDisplayName),
+      ersetzen: !entfernen && !stattFahrer && /\bsetz/.test(text) && !/\bhinzu\b/.test(text),
+    };
+  }
+
+  // Gast
+  const gast = roh.match(/\b[Gg]ast\s+(?:ist\s+|heisst\s+|heißt\s+)?((?:[A-ZÄÖÜ][\p{L}-]+\s*){1,3})/u)?.[1]?.trim();
+  if (gast) {
+    aenderung.gast = {
+      name: gast,
+      entfernen,
+      ersetzen: !entfernen && !/\bhinzu\b/.test(text),
+    };
+  }
+
+  // Start und Ziel
+  const ortAus = (woerter) => roh.match(new RegExp(
+    `\\b(?:${woerter})\\b\\s*(?:der fahrt\\s*)?(?:ist|auf|zu|soll|:|=)\\s*(?:jetzt\\s+)?(.+?)(?=\\s+und\\s+|[.!?]|\\s+(?:ändern|aendern|setzen|sein)\\s*[.!?]*$|$)`,
+    'i',
+  ))?.[1]?.trim() || '';
+  const start = ortAus('start|abholort|abholung');
+  const ziel = ortAus('ziel|zieladresse');
+  if (start) aenderung.start = start;
+  if (ziel) aenderung.ziel = ziel;
+
+  return { aenderung, merkmale, woerter: text.split(/[^a-z0-9]+/).filter((wort) => wort.length >= 4), gastName: gast || '' };
+};
+
+const fahrtKurz = (job, daten, namen) => {
+  const fahrer = fahrerDerFahrt(job, daten).map((id) => namen.get(id)).filter(Boolean).join(', ') || 'kein Fahrer';
+  return `- ${job.ride_date.slice(8, 10)}.${job.ride_date.slice(5, 7)}. ${String(job.etd || '').slice(0, 5)}, ${job.pickup_name || job.pickup_address || '-'} nach ${job.dropoff_name || job.dropoff_address || '-'}, ${fahrer}`;
+};
+
+const ORDNUNGSZAHLEN = {
+  erste: 0, ersten: 0, zweite: 1, zweiten: 1, dritte: 2, dritten: 2, vierte: 3, vierten: 3, funfte: 4, funften: 4,
+  sechste: 5, sechsten: 5, siebte: 6, siebten: 6, achte: 7, achten: 7, neunte: 8, neunten: 8, zehnte: 9, zehnten: 9,
+};
+
+// "die zweite", "die letzte", "die um 14:30", "die von Tim": genau eine Fahrt aus einer Liste, sonst null.
+const fahrtAuswaehlen = (prompt, jobs, daten) => {
+  const text = normalizeText(prompt);
+  const woerter = text.split(/[^a-z0-9]+/).filter(Boolean);
+  const ordnung = woerter.find((wort) => wort in ORDNUNGSZAHLEN);
+  if (ordnung) return jobs[ORDNUNGSZAHLEN[ordnung]] || null;
+  if (woerter.includes('letzte') || woerter.includes('letzten')) return jobs[jobs.length - 1] || null;
+  const namen = new Map((daten.profiles || []).map((profil) => [profil.id, getDriverDisplayName(profil)]));
+  const zeit = uhrzeitenIn(prompt)[0] || (text.match(/\bum (\d{1,2})\b/) ? uhrzeitAus(text.match(/\bum (\d{1,2})\b/)[1], 0) : '');
+  const inhalt = woerter.filter((wort) => wort.length >= 3 && !['die', 'der', 'das', 'von', 'fahrt', 'mit', 'bitte', 'nach', 'uhr', 'zum', 'zur'].includes(wort));
+  const treffer = jobs.filter((job) => {
+    if (zeit && String(job.etd || '').slice(0, 5) !== zeit) return false;
+    if (inhalt.length === 0 || zeit) return Boolean(zeit);
+    const teile = normalizeText([
+      ...gaesteDerFahrt(job, daten),
+      ...fahrerDerFahrt(job, daten).map((id) => namen.get(id)),
+      job.pickup_name, job.dropoff_name,
+    ].filter(Boolean).join(' ')).split(/[^a-z0-9]+/);
+    return inhalt.some((wort) => teile.includes(wort));
+  });
+  return treffer.length === 1 ? treffer[0] : null;
+};
+
+// Rueckfrage stellen und merken, worum es ging. Die naechste Antwort wird dann darauf bezogen.
+const rueckfrageStellen = (prompt, jobs, answer, meta) => {
+  conversationContext.rueckfrage = { prompt, ids: jobs.slice(0, 40).map((job) => job.id), zeit: Date.now() };
+  return { answer, meta };
+};
+
+const aenderungVorschlagen = ({ prompt, snapshot, offenerVorschlag, letzteFahrtId, fixeFahrtId = null }) => {
+  const daten = snapshot?.data || {};
+  const namen = new Map((daten.profiles || []).map((profil) => [profil.id, getDriverDisplayName(profil)]));
+  const { aenderung, merkmale, woerter, gastName } = aenderungLesen(prompt, snapshot);
+  if (Object.keys(aenderung).length === 0) {
+    return {
+      answer: 'Was genau soll sich ändern? Zum Beispiel: „Setze Tim als Fahrer“, „Verschiebe auf 11 Uhr“ oder „Ziel auf MUC Terminal 2“.',
+      meta: snapshot?.meta,
+    };
+  }
+
+  const heute = jetztBerlin().toISOString().slice(0, 10);
+  const gastWoerter = new Set(normalizeText(gastName).split(' '));
+  const offen = (job) => !['done', 'cancelled'].includes(String(job?.status || '')) && String(job?.ride_date || '') >= heute;
+  const passtGast = (job) => {
+    const teile = gaesteDerFahrt(job, daten).flatMap((name) => normalizeText(name).split(' '));
+    return woerter.some((wort) => !gastWoerter.has(wort) && teile.includes(wort));
+  };
+  const kommend = (daten.jobs || []).filter(offen);
+  const mitGast = kommend.filter(passtGast);
+  const hatMerkmal = Boolean(merkmale.datum || merkmale.startZeit || merkmale.fahrerId || mitGast.length);
+
+  const nachId = new Map((daten.jobs || []).map((zeile) => [zeile.id, zeile]));
+  const zuletztGezeigt = conversationContext.letzteListe.map((id) => nachId.get(id)).filter(Boolean);
+  const verweistAufListe = Object.keys(ORDNUNGSZAHLEN).concat('letzte', 'letzten')
+    .some((wort) => normalizeText(prompt).split(/[^a-z0-9]+/).includes(wort));
+
+  let job = null;
+  if (fixeFahrtId) {
+    job = nachId.get(fixeFahrtId) || null;
+  } else if (verweistAufListe && zuletztGezeigt.length) {
+    job = fahrtAuswaehlen(prompt, zuletztGezeigt, daten);
+    if (!job) return { answer: 'So viele Fahrten waren in der Liste nicht. Nenne Uhrzeit oder Gast.', meta: snapshot?.meta };
+  } else if (hatMerkmal) {
+    const treffer = (mitGast.length ? mitGast : kommend).filter((zeile) => (
+      (!merkmale.datum || zeile.ride_date === merkmale.datum)
+      && (!merkmale.startZeit || String(zeile.etd || '').slice(0, 5) === merkmale.startZeit)
+      && (!merkmale.fahrerId || fahrerDerFahrt(zeile, daten).includes(merkmale.fahrerId))
+    )).sort((a, b) => `${a.ride_date} ${a.etd}`.localeCompare(`${b.ride_date} ${b.etd}`));
+    if (treffer.length === 0) return { answer: 'Ich finde keine anstehende Fahrt, die dazu passt.', meta: snapshot?.meta };
+    // Unter mehreren Treffern gewinnt die, ueber die gerade gesprochen wurde.
+    const besprochen = treffer.filter((zeile) => conversationContext.fahrten.slice(0, 10).includes(zeile.id));
+    if (treffer.length > 1 && besprochen.length !== 1) {
+      conversationContext.letzteListe = treffer.slice(0, 10).map((zeile) => zeile.id);
+      return rueckfrageStellen(
+        prompt,
+        treffer,
+        `Dazu passen ${treffer.length} Fahrten. Welche meinst du?\n${treffer.slice(0, 5).map((zeile) => fahrtKurz(zeile, daten, namen)).join('\n')}`,
+        snapshot?.meta,
+      );
+    }
+    job = treffer.length === 1 ? treffer[0] : besprochen[0];
+  } else if (!offenerVorschlag) {
+    if (conversationContext.fokusMehrdeutig && zuletztGezeigt.length > 1) {
+      return rueckfrageStellen(
+        prompt,
+        zuletztGezeigt,
+        `Welche dieser Fahrten meinst du?\n${zuletztGezeigt.slice(0, 5).map((zeile) => fahrtKurz(zeile, daten, namen)).join('\n')}`,
+        snapshot?.meta,
+      );
+    }
+    const bekannteId = String(conversationContext.lastRideId || letzteFahrtId || conversationContext.fahrten[0] || '').trim();
+    job = nachId.get(bekannteId) || null;
+    if (!job) {
+      return rueckfrageStellen(
+        prompt,
+        kommend.sort((a, b) => `${a.ride_date} ${a.etd}`.localeCompare(`${b.ride_date} ${b.etd}`)),
+        'Welche Fahrt meinst du? Nenne Uhrzeit, Gast oder Fahrer.',
+        snapshot?.meta,
+      );
+    }
+  }
+
+  const basis = job
+    ? {
+      fahrtId: job.id,
+      geaendert: [],
+      datum: job.ride_date,
+      startZeit: String(job.etd || '').slice(0, 5),
+      start: job.pickup_name || job.pickup_address || '',
+      ziel: job.dropoff_name || job.dropoff_address || '',
+      fahrgaeste: gaesteDerFahrt(job, daten).join(', '),
+      anonymeGaeste: String(job.anonymous_guests ?? 0),
+      fahrerNamen: fahrerDerFahrt(job, daten).map((id) => namen.get(id)).filter(Boolean),
+      konvoi: '',
+      flugnummer: '',
+      notes: '',
+    }
+    : { ...offenerVorschlag, geaendert: offenerVorschlag.geaendert || [] };
+
+  const neu = { ...basis, fahrerNamen: [...(basis.fahrerNamen || [])], geaendert: [...basis.geaendert] };
+  const setzen = (feld, wert) => {
+    if (JSON.stringify(neu[feld]) === JSON.stringify(wert)) return;
+    neu[feld] = wert;
+    if (!neu.geaendert.includes(feld)) neu.geaendert.push(feld);
+  };
+  ['datum', 'startZeit', 'start', 'ziel'].forEach((feld) => {
+    if (aenderung[feld]) setzen(feld, aenderung[feld]);
+  });
+  if (aenderung.fahrer) {
+    const weg = new Set(aenderung.fahrer.entfernen);
+    const bleibt = aenderung.fahrer.ersetzen ? [] : neu.fahrerNamen.filter((name) => !weg.has(name));
+    setzen('fahrerNamen', Array.from(new Set([...bleibt, ...aenderung.fahrer.dazu])));
+  }
+  if (aenderung.gast) {
+    const bisher = String(neu.fahrgaeste || '').split(/[,;]/).map((name) => name.trim()).filter(Boolean);
+    const { name, entfernen, ersetzen } = aenderung.gast;
+    let liste = [...bisher, name];
+    if (entfernen) liste = bisher.filter((eintrag) => normalizeText(eintrag) !== normalizeText(name));
+    else if (ersetzen) liste = [name];
+    setzen('fahrgaeste', Array.from(new Set(liste)).join(', '));
+  }
+
+  if (neu.geaendert.length === basis.geaendert.length && JSON.stringify(neu) === JSON.stringify({ ...basis, fahrerNamen: basis.fahrerNamen || [] })) {
+    return { answer: 'Das ist bei dieser Fahrt schon so eingetragen.', meta: snapshot?.meta };
+  }
+  if (job) updateConversationRideContext(job);
+  return {
+    answer: neu.fahrtId
+      ? 'Ich habe die Änderung vorbereitet. Soll ich die Fahrt so speichern?'
+      : 'Ich habe den Vorschlag angepasst. Soll ich die Fahrt so buchen?',
+    action: { type: 'booking_proposal', proposal: neu },
+    meta: snapshot?.meta,
+  };
+};
+
+const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVorschlag = null, letzteFahrtId = null }) => {
   const trimmedPrompt = String(prompt || '').trim();
   if (!trimmedPrompt) return 'Bitte stelle eine Frage.';
+
+  // Seit der letzten Frage neu gebucht: dann ist ab jetzt diese Fahrt gemeint.
+  if (letzteFahrtId && !conversationContext.fahrten.includes(letzteFahrtId)) {
+    fahrtenMerken([letzteFahrtId]);
+    conversationContext.lastRideId = letzteFahrtId;
+    conversationContext.fokusMehrdeutig = false;
+    conversationContext.updatedAt = Date.now();
+  }
+
+  // Aenderungen erkennt die Regel und schlaegt sie als Karte vor. Gespeichert wird erst nach der Bestaetigung.
+  const frageNorm = normalizeText(trimmedPrompt);
+  const istAenderung = !isBookingPrompt(trimmedPrompt) && (
+    AENDERN_RE.test(frageNorm)
+    || (offenerVorschlag && !/\?\s*$/.test(trimmedPrompt) && ANPASSUNG_RE.test(frageNorm))
+  );
+  if (istAenderung) {
+    if (STORNIEREN_RE.test(frageNorm)) {
+      return 'Stornieren oder löschen geht nur direkt an der Fahrt. Tippe im Chat auf „Fahrt bearbeiten“ oder öffne sie unter Alle Fahrten.';
+    }
+    conversationContext.rueckfrage = null;
+    const daten = await loadDatabaseSnapshot({ includeAll: false, forceRefresh: true });
+    return aenderungVorschlagen({ prompt: trimmedPrompt, snapshot: daten, offenerVorschlag, letzteFahrtId });
+  }
+
+  // Antwort auf eine offene Rueckfrage: die urspruengliche Aenderung auf die gewaehlte Fahrt anwenden.
+  const rueckfrage = conversationContext.rueckfrage;
+  if (rueckfrage) {
+    conversationContext.rueckfrage = null;
+    if (Date.now() - Number(rueckfrage.zeit || 0) < 15 * 60 * 1000 && trimmedPrompt.length <= 80) {
+      const daten = await loadDatabaseSnapshot({ includeAll: false, forceRefresh: true });
+      const nachId = new Map((daten.data.jobs || []).map((job) => [job.id, job]));
+      const auswahl = (rueckfrage.ids || []).map((id) => nachId.get(id)).filter(Boolean);
+      const gewaehlt = fahrtAuswaehlen(trimmedPrompt, auswahl, daten.data);
+      if (gewaehlt) {
+        return aenderungVorschlagen({ prompt: rueckfrage.prompt, snapshot: daten, offenerVorschlag: null, letzteFahrtId, fixeFahrtId: gewaehlt.id });
+      }
+    }
+  }
 
   const normalizedPrompt = normalizeText(trimmedPrompt);
   const includeAll = isAllDataPrompt(trimmedPrompt) || isAllDriversPrompt(trimmedPrompt);

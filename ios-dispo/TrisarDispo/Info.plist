@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NFCReaderUsageDescription</key>
+	<string>NFC-Tags an den OBD-Trackern beschreiben und auslesen.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>SpaceGrotesk.ttf</string>

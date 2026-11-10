@@ -32,6 +32,7 @@ class HauptAktivitaet : ComponentActivity() {
         de.trisar.kern.Push.einrichten(applicationContext, "fahrer", BuildConfig.FIREBASE_APP_ID, BuildConfig.FIREBASE_API_KEY,
             BuildConfig.FIREBASE_PROJEKT, BuildConfig.FIREBASE_SENDER)
         de.trisar.kern.Push.ausIntent(intent)
+        NfcTag.ausIntent(intent)
         // Testansicht "nur Kennzeichen + Standort" (nur Debug): adb ... --ez TRISAR_NUR_KENNZEICHEN true
         if (BuildConfig.DEBUG) de.trisar.kern.FahrzeugTest.nurKennzeichen = intent?.getBooleanExtra("TRISAR_NUR_KENNZEICHEN", false) == true
         setContent {
@@ -44,6 +45,7 @@ class HauptAktivitaet : ComponentActivity() {
                         is Zustand.Angemeldet -> {
                             androidx.compose.runtime.LaunchedEffect(z.id) { de.trisar.kern.Push.nachAnmeldung(this@HauptAktivitaet) }
                             FahrerHaupt(anmeldung, z.id)
+                            NfcAbwicklung(anmeldung)
                         }
                     }
                 }
@@ -54,5 +56,6 @@ class HauptAktivitaet : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         de.trisar.kern.Push.ausIntent(intent)
+        NfcTag.ausIntent(intent)
     }
 }

@@ -8,6 +8,9 @@ struct KeineFahrtAnsicht: View {
     var oeffneFahrzeug: () -> Void
     var abmelden: () -> Void
     @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
+    @EnvironmentObject private var anmeldung: Anmeldung
+    @EnvironmentObject private var speicher: FahrtenSpeicher
+    @EnvironmentObject private var nfc: NfcTag
 
     var body: some View {
         Leinwand(breite: 393) { _ in
@@ -42,6 +45,20 @@ struct KeineFahrtAnsicht: View {
 
                     Image("Arrow_Trisar_Icons_01").resizable().scaledToFit()
                         .platz(20, 496, 362, 234)
+
+                    // Ohne Auto kommt der Fahrer nicht zur Fahrzeug-Seite, deshalb direkt hier.
+                    Button {
+                        Task {
+                            await nfc.scannen(anmeldung)
+                            await speicher.laden()
+                        }
+                    } label: {
+                        Text("Tracker scannen").grotesk(18, .bold).foregroundStyle(.black)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Farbe.lime)
+                    }
+                    .buttonStyle(.web)
+                    .platz(20, 496, 362, 56)
                 }
 
                 Button(action: abmelden) {
