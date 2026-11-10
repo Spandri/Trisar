@@ -7,6 +7,10 @@ struct FahrtFormularAnsicht: View {
     let zurueck: () -> Void
     /// Navileiste beim Anlegen und Ziel nach dem Anlegen (setView('ankuenfte') = Fahrten).
     var zeigen: ((DispoZiel) -> Void)?
+    /// Vorschlag des KI-Assistenten: fuellt das Formular, Speichern bucht ihn.
+    var vorlage: FahrtVorlage?
+    /// Statt der Fahrtenliste: zurueck in den Chat, mit der ID der neuen Fahrt.
+    var nachAnlegen: ((UUID?) -> Void)?
 
     @State private var geladen: GeladeneFahrt?
     @State private var ladeFehler: String?
@@ -14,7 +18,7 @@ struct FahrtFormularAnsicht: View {
     var body: some View {
         if let fahrtID {
             if let geladen {
-                FahrtFormularInhalt(geladen: geladen, zurueck: zurueck, zeigen: zeigen)
+                FahrtFormularInhalt(geladen: geladen, zurueck: zurueck, zeigen: zeigen, vorlage: nil, nachAnlegen: nil)
             } else {
                 ZStack(alignment: .topLeading) {
                     Leinwand(basisHoehe: 874, mitHintergrund: false) { rahmen in
@@ -36,12 +40,12 @@ struct FahrtFormularAnsicht: View {
                 }
             }
         } else {
-            FahrtFormularInhalt(geladen: nil, zurueck: zurueck, zeigen: zeigen)
+            FahrtFormularInhalt(geladen: nil, zurueck: zurueck, zeigen: zeigen, vorlage: vorlage, nachAnlegen: nachAnlegen)
         }
     }
 }
 
-private enum ZeilenArt { case adresse, text, zahl, auswahl, fahrer, gast }
+private enum ZeilenArt { case adresse, stopp, text, zahl, auswahl, fahrer, gast }
 
 private struct ZeilenDaten: Identifiable {
     let id: String
@@ -63,6 +67,8 @@ private struct FahrtFormularInhalt: View {
     let geladen: GeladeneFahrt?
     let zurueck: () -> Void
     let zeigen: ((DispoZiel) -> Void)?
+    let vorlage: FahrtVorlage?
+    let nachAnlegen: ((UUID?) -> Void)?
 
     // Raster aus FahrtAdd.jsx: Titel 140, Felder ab 206, Reihen alle 68, Zeilenhoehe 56.
     private let reihenStart: CGFloat = 410
@@ -73,6 +79,8 @@ private struct FahrtFormularInhalt: View {
     @State private var notiz: String
     @State private var fahrerNamen: [String]
     @State private var gaesteNamen: [String]
+    @State private var zwischenstopps: [String]
+    @State private var adressHinweis: String?
     @State private var speichert = false
 
     @State private var vorschlaege: [String: [String]] = ["start": [], "ziel": []]
@@ -113,15 +121,19 @@ private struct FahrtFormularInhalt: View {
     @ObservedObject private var risiko = NebenRisikoSpeicher.geteilt
     @State private var risikoHoehe: CGFloat = 0
 
-    init(geladen: GeladeneFahrt?, zurueck: @escaping () -> Void, zeigen: ((DispoZiel) -> Void)?) {
+    init(geladen: GeladeneFahrt?, zurueck: @escaping () -> Void, zeigen: ((DispoZiel) -> Void)?,
+         vorlage: FahrtVorlage?, nachAnlegen: ((UUID?) -> Void)?) {
+        self.vorlage = vorlage
+        self.nachAnlegen = nachAnlegen
         self.geladen = geladen
         self.zurueck = zurueck
         self.zeigen = zeigen
-        _werte = State(initialValue: geladen?.werte ?? FahrtFormularWerte())
-        _notiz = State(initialValue: geladen?.notiz ?? "")
-        let fahrer = geladen?.fahrerNamen ?? []
+        _werte = State(initialValue: geladen?.werte ?? vorlage?.werte ?? FahrtFormularWerte())
+        _notiz = State(initialValue: geladen?.notiz ?? vorlage?.notiz ?? "")
+        let fahrer = geladen?.fahrerNamen ?? vorlage?.fahrerNamen ?? []
         _fahrerNamen = State(initialValue: fahrer.isEmpty ? [""] : fahrer)
-        _gaesteNamen = State(initialValue: FahrtText.gaesteTeilen(geladen?.fahrgaeste) + [""])
+        _zwischenstopps = State(initialValue: Self.stoppZeilen(geladen?.zwischenstopps ?? []))
+        _gaesteNamen = State(initialValue: FahrtText.gaesteTeilen(geladen?.fahrgaeste ?? vorlage?.fahrgaeste) + [""])
     }
 
     private var bearbeiten: Bool { geladen != nil }
@@ -140,6 +152,14 @@ private struct FahrtFormularInhalt: View {
     // MARK: Abgeleitete Werte
 
     private var mitFahrzeugen: Bool { !FahrtText.getrimmt(werte.konvoi).isEmpty }
+    /// Gefuellte Zeilen plus eine freie, Text bleibt beim Tippen ungetrimmt.
+    private static func stoppZeilen(_ werte: [String]) -> [String] {
+        let gefuellt = Array(werte.filter { !FahrtText.getrimmt($0).isEmpty }.prefix(8))
+        return gefuellt.count < 8 ? gefuellt + [""] : gefuellt
+    }
+    private var gefuellteStopps: [String] { zwischenstopps.map(FahrtText.getrimmt).filter { !$0.isEmpty } }
+    private var stoppsSichtbar: Bool { !FahrtText.getrimmt(werte.start).isEmpty }
+
     private var fahrerAnzahl: Int { mitFahrzeugen ? max(1, Int(werte.anzahlFahrzeuge) ?? 1) : 1 }
     private var gefuellteGaeste: [String] { gaesteNamen.map(FahrtText.getrimmt).filter { !$0.isEmpty } }
     private var flugNr: String { FahrtText.nummer(werte.flugnummer) }
@@ -150,15 +170,19 @@ private struct FahrtFormularInhalt: View {
     private var kannZug: Bool { !zugNr.isEmpty && (zugPruefung.gueltig || ["ok", "unknown_eta"].contains(zugPruefung.status)) }
 
     private var zeilen: [ZeilenDaten] {
-        var z: [ZeilenDaten] = [
+        var z: [ZeilenDaten] = stoppsSichtbar ? zwischenstopps.indices.map { i in
+            .init(id: "stopp-\(i)", beschriftung: i == 0 ? t("fahrt.zwischenstopp") : t("fahrt.zwischenstoppNumbered", ["n": "\(i + 1)"]),
+                  art: .stopp, index: i)
+        } : []
+        z += [
             .init(id: "ziel", beschriftung: t("fahrt.ziel"), art: .adresse),
             .init(id: "flugnummer", beschriftung: t("fahrt.flugnummer"), art: .text),
             .init(id: "zugnummer", beschriftung: t("fahrt.zugnummer"), art: .text),
             .init(id: "konvoi", beschriftung: t("fahrt.konvoi"), art: .text),
         ]
         if mitFahrzeugen { z.append(.init(id: "anzahlFahrzeuge", beschriftung: t("fahrt.anzahlFahrzeuge"), art: .zahl)) }
-        for i in 0..<fahrerAnzahl {
-            z.append(.init(id: "fahrer-\(i)", beschriftung: mitFahrzeugen ? t("fahrt.fahrerNumbered", ["n": "\(i + 1)"]) : t("fahrt.fahrer"),
+        for i in fahrerNamen.indices {
+            z.append(.init(id: "fahrer-\(i)", beschriftung: mitFahrzeugen || fahrerNamen.count > 1 ? t("fahrt.fahrerNumbered", ["n": "\(i + 1)"]) : t("fahrt.fahrer"),
                            art: .fahrer, index: i))
         }
         for (i, name) in gaesteNamen.enumerated() {
@@ -237,7 +261,7 @@ private struct FahrtFormularInhalt: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            if bearbeiten {
+            if bearbeiten || vorlage != nil {
                 FussleisteUnten()
             } else {
                 Navileiste(aktiv: .fahrtNeu) { ziel in zeigen?(ziel) }
@@ -245,6 +269,11 @@ private struct FahrtFormularInhalt: View {
         }
         .onAppear { fahrerZeilenAnpassen() }
         .onChange(of: fahrerAnzahl) { _, _ in fahrerZeilenAnpassen() }
+        .onChange(of: fahrerNamen) { _, _ in fahrerZeilenAnpassen() }
+        .onChange(of: zwischenstopps) { _, neu in
+            let zeilen = Self.stoppZeilen(neu)
+            if zeilen != neu { zwischenstopps = zeilen }
+        }
         .onChange(of: gaesteNamen) { _, neu in
             // normalizeGuestRows: gefuellte Zeilen + eine leere. Der Text bleibt beim Tippen ungetrimmt.
             let gefuellt = neu.filter { !FahrtText.getrimmt($0).isEmpty } + [""]
@@ -277,6 +306,10 @@ private struct FahrtFormularInhalt: View {
         .alert(meldung ?? "", isPresented: Binding(get: { meldung != nil }, set: { if !$0 { meldung = nil } })) {
             Button("OK", role: .cancel) {}
         }
+        .alert(adressHinweis ?? "", isPresented: Binding(get: { adressHinweis != nil }, set: { if !$0 { adressHinweis = nil } })) {
+            Button("Abbrechen", role: .cancel) {}
+            Button(t("fahrt.trotzdemSpeichern")) { Task { await speichern(geprueft: true) } }
+        }
         .alert(t("fahrt.confirmCancelRide"), isPresented: $stornoFrage) {
             Button("Abbrechen", role: .cancel) {}
             Button("OK") { Task { await stornieren() } }
@@ -294,7 +327,7 @@ private struct FahrtFormularInhalt: View {
     private var kopf: some View {
         ZStack(alignment: .topLeading) {
             ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
-            if !bearbeiten {
+            if !bearbeiten && vorlage == nil {
                 // Sammel-Import aus Excel/CSV statt Einzelanlage (setView('importFahrten')).
                 Button { importOffen = true } label: {
                     Image("import-fahrten").resizable().frame(width: 42, height: 40).contentShape(Rectangle())
@@ -443,6 +476,8 @@ private struct FahrtFormularInhalt: View {
                 autoListeZu = false
                 if z.index < fahrerNamen.count { fahrerNamen[z.index] = neu }
             })
+        case .stopp:
+            return Binding(get: { z.index < zwischenstopps.count ? zwischenstopps[z.index] : "" }, set: { adressEingabe($0, z.id) })
         case .gast:
             return Binding(get: { z.index < gaesteNamen.count ? gaesteNamen[z.index] : "" }, set: { neu in
                 autoListeZu = false
@@ -478,6 +513,10 @@ private struct FahrtFormularInhalt: View {
         switch z.art {
         case .fahrer: if z.index < fahrerNamen.count { fahrerNamen[z.index] = "" }
         case .gast: if z.index < gaesteNamen.count { gaesteNamen[z.index] = "" }
+        case .stopp:
+            if z.index < zwischenstopps.count { zwischenstopps[z.index] = "" }
+            vorschlaege[z.id] = []
+            ortTreffer[z.id] = []
         default:
             switch z.id {
             case "ziel":
@@ -524,13 +563,11 @@ private struct FahrtFormularInhalt: View {
         }
     }
 
+    /// Fahrer eingetragen: darunter eine freie Zeile, bei Kolonne mindestens so viele wie Fahrzeuge.
     private func fahrerZeilenAnpassen() {
-        let n = fahrerAnzahl
-        if fahrerNamen.count < n {
-            fahrerNamen += Array(repeating: "", count: n - fahrerNamen.count)
-        } else if fahrerNamen.count > n {
-            fahrerNamen = Array(fahrerNamen.prefix(n))
-        }
+        var neu = fahrerNamen.filter { !FahrtText.getrimmt($0).isEmpty } + [""]
+        while neu.count < fahrerAnzahl { neu.append("") }
+        if neu != fahrerNamen { fahrerNamen = neu }
     }
 
     // MARK: Listen (Adressen, Fluege, Fahrer, Gaeste)
@@ -544,8 +581,9 @@ private struct FahrtFormularInhalt: View {
                            maxHoehe: 220) { n in kandidatWaehlen(flugKandidaten[n]) }
                 .platz(20, reihenStart + CGFloat(i) * schritt + zeilenHoehe + 4, 362, nil)
         }
-        if aktivesAdressFeld == "ziel" {
-            adressListe("ziel").platz(20, reihenStart + zeilenHoehe + 4, 362, nil)
+        if let feld = aktivesAdressFeld, feld == "ziel" || feld.hasPrefix("stopp-"),
+           let i = reihen.firstIndex(where: { $0.id == feld }) {
+            adressListe(feld).platz(20, reihenStart + CGFloat(i) * schritt + zeilenHoehe + 4, 362, nil)
         }
         if let fokus, !autoListeZu, let i = reihen.firstIndex(where: { $0.id == fokus }),
            reihen[i].art == .fahrer || reihen[i].art == .gast {
@@ -587,9 +625,12 @@ private struct FahrtFormularInhalt: View {
         return treffer
     }
 
+    private static func istAdressFeld(_ id: String) -> Bool { id == "start" || id == "ziel" || id.hasPrefix("stopp-") }
+    private static func stoppIndex(_ feld: String) -> Int? { feld.hasPrefix("stopp-") ? Int(feld.dropFirst(6)) : nil }
+
     private func fokusGewechselt(_ alt: String?, _ neu: String?) {
-        if neu == "start" || neu == "ziel" { aktivesAdressFeld = neu }
-        if let alt, alt == "start" || alt == "ziel", neu != alt {
+        if let neu, Self.istAdressFeld(neu) { aktivesAdressFeld = neu }
+        if let alt, Self.istAdressFeld(alt), neu != alt {
             // onBlur mit 120 ms Verzoegerung wie im Web.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                 if aktivesAdressFeld == alt { aktivesAdressFeld = nil }
@@ -601,7 +642,9 @@ private struct FahrtFormularInhalt: View {
     /// fetchAddressPredictions: 250 ms warten, nur das juengste Ergebnis zaehlt.
     private func adressEingabe(_ text: String, _ feld: String) {
         // Frei weitergetippt: der gewaehlte Ort gilt nicht mehr.
-        if feld == "start" {
+        if let i = Self.stoppIndex(feld) {
+            if i < zwischenstopps.count { zwischenstopps[i] = text }
+        } else if feld == "start" {
             if text != werte.start { werte.startOrtID = nil; werte.startOrtAdresse = "" }
             werte.start = text
         } else {
@@ -629,7 +672,9 @@ private struct FahrtFormularInhalt: View {
     }
 
     private func adresseWaehlen(_ wert: String, _ feld: String) {
-        if feld == "start" {
+        if let i = Self.stoppIndex(feld) {
+            if i < zwischenstopps.count { zwischenstopps[i] = wert }
+        } else if feld == "start" {
             werte.start = wert
             werte.startOrtID = nil
             werte.startOrtAdresse = ""
@@ -646,7 +691,9 @@ private struct FahrtFormularInhalt: View {
     /// Eigener Ort: im Feld der Name, gespeichert werden Ortsadresse und *_ort_id.
     private func ortWaehlen(_ ort: EigenerOrt, _ feld: String) {
         vorschlagLauf?.cancel()
-        if feld == "start" {
+        if let i = Self.stoppIndex(feld) {
+            if i < zwischenstopps.count { zwischenstopps[i] = ort.adresse.isEmpty ? ort.name : ort.adresse }
+        } else if feld == "start" {
             werte.start = ort.name
             werte.startOrtID = ort.id
             werte.startOrtAdresse = ort.adresse
@@ -847,8 +894,20 @@ private struct FahrtFormularInhalt: View {
 
     // MARK: Speichern
 
-    private func speichern() async {
+    private func speichern(geprueft: Bool = false) async {
         if speichert { return }
+        // Adressen vor dem Speichern pruefen, faellt die Pruefung aus, wird normal gespeichert.
+        if !geprueft, !FahrtText.getrimmt(werte.start).isEmpty, !FahrtText.getrimmt(werte.ziel).isEmpty {
+            speichert = true
+            let start = werte.startOrtAdresse.isEmpty ? werte.start : werte.startOrtAdresse
+            let ziel = werte.zielOrtAdresse.isEmpty ? werte.ziel : werte.zielOrtAdresse
+            let hinweis = await FahrtPruefung.adressWarnung([start] + gefuellteStopps + [ziel])
+            speichert = false
+            if !hinweis.isEmpty {
+                adressHinweis = hinweis
+                return
+            }
+        }
         if bearbeiten { await aenderungSpeichern() } else { await anlegen() }
     }
 
@@ -863,12 +922,14 @@ private struct FahrtFormularInhalt: View {
         w.anonymeGaeste = w.anonymeGaeste.isEmpty ? "0" : w.anonymeGaeste
         let ergebnis = await FahrtSpeichern.anlegen(FahrtEingabe(
             werte: w, fahrgaeste: gefuellteGaeste.joined(separator: "; "), fahrerNamen: fahrerNamen,
-            flugZielFlughafen: flughafenWahl, flugAnkunftGeplant: ankunftWahl, notiz: notiz))
+            zwischenstopps: gefuellteStopps,
+            flugZielFlughafen: flughafenWahl, flugAnkunftGeplant: ankunftWahl, notiz: notiz, aiBooked: vorlage != nil))
         speichert = false
         if !ergebnis.ok {
             meldung = t("fahrt.saveError", ["error": ergebnis.fehler ?? t("fahrt.unknownError")])
             return
         }
+        if let nachAnlegen { nachAnlegen(ergebnis.id); return }
         if let zeigen { zeigen(.fahrten) } else { zurueck() }
     }
 
@@ -877,7 +938,7 @@ private struct FahrtFormularInhalt: View {
         guard let geladen else { return }
         let mitKolonne = mitFahrzeugen
         let plaetze = mitKolonne ? max(1, Int(FahrtText.getrimmt(werte.anzahlFahrzeuge)) ?? 1) : 1
-        var namen = Array(fahrerNamen.map(FahrtText.getrimmt).prefix(plaetze))
+        var namen = fahrerNamen.map(FahrtText.getrimmt).filter { !$0.isEmpty }
         while namen.count < plaetze { namen.append("") }
         var w = werte
         w.konvoi = mitKolonne ? FahrtText.getrimmt(werte.konvoi) : ""
@@ -886,6 +947,7 @@ private struct FahrtFormularInhalt: View {
         speichert = true
         let ergebnis = await FahrtSpeichern.aendern(FahrtEingabe(
             werte: w, fahrgaeste: gefuellteGaeste.joined(separator: "; "), fahrerNamen: namen,
+            zwischenstopps: gefuellteStopps,
             flugZielFlughafen: flughafenWahl, flugAnkunftGeplant: ankunftWahl, notiz: notiz), geladen: geladen)
         speichert = false
         if !ergebnis.ok {

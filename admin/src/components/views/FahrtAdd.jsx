@@ -5,8 +5,10 @@ import FahrerAutocomplete from '../ui/FahrerAutocomplete';
 import FahrgastAutocomplete from '../ui/FahrgastAutocomplete';
 import { useI18n } from '../../i18n';
 import OrtVorschlag from '../ui/OrtVorschlag';
+import ZwischenstoppVorschlaege from '../ui/ZwischenstoppVorschlaege';
+import { adressWarnung, fahrerFuersSpeichern, gleicheZeilen, useZwischenstopps, zeilenMitFreier } from '../../shared/fahrtZeilen';
 import { orteZurEingabe, useOrte } from '../../shared/orte';
-import { demoAlert, tutorialLaeuft } from '../ui/demoDialoge';
+import { demoAlert, demoConfirm, tutorialLaeuft } from '../ui/demoDialoge';
 
 const GREEN = '#E3F654';
 // Erstes Feld 24 px unter dem Titel (140 + 42 + 24 = 206), Reihen alle 68 px.
@@ -230,12 +232,18 @@ export default function FahrtAdd({
   onFetchPlaceSuggestions = async () => [],
   onValidateFlight = async () => ({ status: 'empty', etaLabel: '', valid: false, startLocation: '' }),
   onValidateTrain = async () => ({ status: 'empty', etaLabel: '', valid: false, startLocation: '' }),
+  // Vorschlag des KI-Assistenten: fuellt das Formular, Speichern bucht ihn und geht zurueck in den Chat.
+  vorlage = null,
+  onVorlageZurueck = null,
+  onVorlageGebucht = null,
 }) {
   const { t } = useI18n();
   const { orte } = useOrte();
-  const [notes, setNotes] = useState('');
-  const [fahrerNamen, setFahrerNamen] = useState(['']);
-  const [fahrgaesteNamen, setFahrgaesteNamen] = useState(['']);
+  const [notes, setNotes] = useState(vorlage?.notes || '');
+  const [fahrerNamen, setFahrerNamen] = useState(vorlage?.fahrerNamen?.length ? vorlage.fahrerNamen : ['']);
+  const [fahrgaesteNamen, setFahrgaesteNamen] = useState(
+    [...String(vorlage?.fahrgaeste || '').split(/[,;\n]/).map((name) => name.trim()).filter(Boolean), ''],
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [placePredictions, setPlacePredictions] = useState({ start: [], ziel: [] });
   const [activeAddressField, setActiveAddressField] = useState(null);
@@ -260,20 +268,20 @@ export default function FahrtAdd({
   });
   const [appliedTrainNumber, setAppliedTrainNumber] = useState('');
   const [formValues, setFormValues] = useState({
-    datum: '',
-    startZeit: '',
-    start: '',
-    ziel: '',
+    datum: vorlage?.datum || '',
+    startZeit: vorlage?.startZeit || '',
+    start: vorlage?.start || '',
+    ziel: vorlage?.ziel || '',
     // Eigener Ort (Karten Filter): ID und Adresse, solange der Name nicht weiter bearbeitet wird.
     startOrtId: '',
     startAdresse: '',
     zielOrtId: '',
     zielAdresse: '',
-    flugnummer: '',
+    flugnummer: vorlage?.flugnummer || '',
     zugnummer: '',
-    konvoi: '',
+    konvoi: vorlage?.konvoi || '',
     anzahlKinder: '',
-    anonymeGaeste: '',
+    anonymeGaeste: vorlage && vorlage.anonymeGaeste !== '0' ? vorlage.anonymeGaeste : '',
     fahrgaeste: '',
     aktuellerStatus: '',
     anzahlFahrzeuge: '',
@@ -282,11 +290,12 @@ export default function FahrtAdd({
   const updateField = (key, value) => {
     setFormValues((prev) => ({ ...prev, [key]: value }));
   };
+  const stopps = useZwischenstopps({ start: formValues.start, onFetchPlaceSuggestions, t });
   // Flug-/Zugpruefung mit der Adresse, bei eigenem Ort nicht mit seinem Namen.
   const pruefStart = formValues.startAdresse || formValues.start;
   const showVehicleCount = String(formValues.konvoi || '').trim().length > 0;
   const parsedVehicleCount = Number.parseInt(formValues.anzahlFahrzeuge, 10);
-  const fahrerCount = showVehicleCount ? Math.max(1, Number.isNaN(parsedVehicleCount) ? 1 : parsedVehicleCount) : 1;
+  const fahrerPlaetze = showVehicleCount ? Math.max(1, Number.isNaN(parsedVehicleCount) ? 1 : parsedVehicleCount) : 1;
   const filledGuestNames = fahrgaesteNamen.map((name) => String(name || '').trim()).filter(Boolean);
   const _filledGuestCount = filledGuestNames.length;
   const predictionRequestRef = useRef(null);
@@ -294,18 +303,13 @@ export default function FahrtAdd({
   const flightValidationSeqRef = useRef(0);
   const trainValidationSeqRef = useRef(0);
 
+  // Fahrer eingetragen: darunter kommt eine freie Zeile fuer den naechsten.
   useEffect(() => {
     setFahrerNamen((prev) => {
-      const next = [...prev];
-      if (next.length < fahrerCount) {
-        return [...next, ...Array.from({ length: fahrerCount - next.length }, () => '')];
-      }
-      if (next.length > fahrerCount) {
-        return next.slice(0, fahrerCount);
-      }
-      return next;
+      const next = zeilenMitFreier(prev, { mindestens: fahrerPlaetze });
+      return gleicheZeilen(next, prev) ? prev : next;
     });
-  }, [fahrerCount]);
+  }, [fahrerNamen, fahrerPlaetze]);
 
   useEffect(() => {
     setFahrgaesteNamen((prev) => {
@@ -536,6 +540,7 @@ export default function FahrtAdd({
   };
 
   const rows = [
+    ...stopps.rows,
     { key: 'ziel', label: t('fahrt.ziel'), mode: 'select', options: placePredictions.ziel, marker: 'anlegen-ziel' },
     {
       key: 'flugnummer',
@@ -562,9 +567,9 @@ export default function FahrtAdd({
     },
     { key: 'konvoi', label: t('fahrt.konvoi'), mode: 'text', marker: 'anlegen-konvoi' },
     ...(showVehicleCount ? [{ key: 'anzahlFahrzeuge', label: t('fahrt.anzahlFahrzeuge'), mode: 'number', options: ['1', '2', '3', '4'], marker: 'anlegen-fahrzeuge' }] : []),
-    ...Array.from({ length: fahrerCount }, (_, index) => ({
+    ...fahrerNamen.map((_, index) => ({
       key: `fahrer-${index}`,
-      label: showVehicleCount ? t('fahrt.fahrerNumbered', { n: index + 1 }) : t('fahrt.fahrer'),
+      label: showVehicleCount || fahrerNamen.length > 1 ? t('fahrt.fahrerNumbered', { n: index + 1 }) : t('fahrt.fahrer'),
       mode: 'fahrer',
       marker: index === 0 ? 'anlegen-fahrer' : `anlegen-fahrer-${index + 1}`,
       value: fahrerNamen[index] || '',
@@ -619,12 +624,16 @@ export default function FahrtAdd({
 
   const lastRowTop = ROW_START_TOP + (rows.length - 1) * ROW_STEP;
   const startRowTop = 342;
-  const zielRowTop = ROW_START_TOP;
+  const zielRowTop = ROW_START_TOP + stopps.rows.length * ROW_STEP;
   const notesTop = lastRowTop + ROW_HEIGHT + NOTES_GAP;
   const ctaTop = notesTop + 224 + CTA_GAP;
   const contentHeight = ctaTop + ROW_HEIGHT + BOTTOM_GAP;
 
   const handleBack = () => {
+    if (onVorlageZurueck) {
+      onVorlageZurueck();
+      return;
+    }
     if (window.history.length > 1) {
       window.history.back();
       return;
@@ -642,19 +651,30 @@ export default function FahrtAdd({
       return;
     }
 
+    const zwischenstopps = stopps.gefuellt;
+    setIsSaving(true);
+    const warnung = await adressWarnung([formValues.startAdresse || start, ...zwischenstopps, formValues.zielAdresse || ziel], t);
+    setIsSaving(false);
+    if (warnung && !demoConfirm(warnung)) return;
+
     setIsSaving(true);
     try {
       const result = await onCreateRide({
         ...formValues,
         fahrgaeste: filledGuestNames.join('; '),
         anonymeGaeste: String(formValues.anonymeGaeste || '0'),
-        fahrerNamen,
+        fahrerNamen: fahrerFuersSpeichern(fahrerNamen, fahrerPlaetze),
+        zwischenstopps,
         flugZielFlughafen: flightAirportOverride,
         flugAnkunftGeplant: flightScheduledOverride,
         notes,
-      });
+      }, vorlage ? { aiBooked: true } : undefined);
       if (!result?.ok) {
         demoAlert(t('fahrt.saveError', { error: result?.error || t('fahrt.unknownError') }));
+        return;
+      }
+      if (onVorlageGebucht) {
+        onVorlageGebucht(result?.rideId);
         return;
       }
       setView('ankuenfte');
@@ -679,6 +699,7 @@ export default function FahrtAdd({
           <BackCircleButton onClick={handleBack} className="absolute left-[20px] top-[60px]" marker="anlegen-zurueck" />
 
           {/* Sammel-Import aus Excel/CSV statt Einzelanlage */}
+          {!vorlage && (
           <button
             type="button"
             onClick={() => setView('importFahrten')}
@@ -690,6 +711,7 @@ export default function FahrtAdd({
           >
             <img src="/icon/_Icon_Lime/import-fahrten.svg" alt="" className="block w-full h-full" />
           </button>
+          )}
 
           <div className="w-80 h-14 left-[20px] top-[140px] absolute">
             <div data-tutorial="fahrt-anlegen" className="left-0 top-0 absolute text-[42px] leading-[42px] font-bold font-['Space_Grotesk']" style={{ color: GREEN }}>
@@ -833,11 +855,11 @@ export default function FahrtAdd({
                   }
                   updateField(row.key, '');
                 }}
-                onFocus={row.key === 'ziel' ? () => setActiveAddressField('ziel') : undefined}
-                onBlur={row.key === 'ziel' ? () => setTimeout(() => {
+                onFocus={row.onFocus || (row.key === 'ziel' ? () => setActiveAddressField('ziel') : undefined)}
+                onBlur={row.onBlur || (row.key === 'ziel' ? () => setTimeout(() => {
                   if (tutorialLaeuft()) return;
                   setActiveAddressField((prev) => (prev === 'ziel' ? null : prev));
-                }, 120) : undefined}
+                }, 120) : undefined)}
                 mode={row.mode}
                 options={row.options}
                 optionLabels={row.optionLabels}
@@ -888,6 +910,8 @@ export default function FahrtAdd({
               ))}
             </div>
           )}
+
+          <ZwischenstoppVorschlaege panel={stopps.panel} top={ROW_START_TOP + (stopps.panel?.index ?? 0) * ROW_STEP + ROW_HEIGHT + 4} />
 
           {activeAddressField === 'ziel' && (placePredictions.ziel.length > 0 || ortTreffer.ziel.length > 0) && (
             <div

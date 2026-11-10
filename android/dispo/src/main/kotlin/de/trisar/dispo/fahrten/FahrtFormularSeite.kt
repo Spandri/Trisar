@@ -73,9 +73,15 @@ import kotlinx.coroutines.launch
  * `zeigen`: Navileiste beim Anlegen und Ziel nach dem Anlegen (setView('ankuenfte') = Fahrten).
  */
 @Composable
-fun FahrtFormularSeite(fahrtID: String?, zurueck: () -> Unit, zeigen: ((DispoZiel) -> Unit)?) {
+fun FahrtFormularSeite(
+    fahrtID: String?, zurueck: () -> Unit, zeigen: ((DispoZiel) -> Unit)?,
+    /** Vorschlag des KI-Assistenten: fuellt das Formular, Speichern bucht ihn. */
+    vorlage: FahrtVorlage? = null,
+    /** Statt der Fahrtenliste: zurueck in den Chat, mit der ID der neuen Fahrt. */
+    nachAnlegen: ((String?) -> Unit)? = null,
+) {
     if (fahrtID == null) {
-        FormularInhalt(null, zurueck, zeigen)
+        FormularInhalt(null, zurueck, zeigen, vorlage, nachAnlegen)
         return
     }
     var geladen by remember(fahrtID) { mutableStateOf<GeladeneFahrt?>(null) }
@@ -98,7 +104,14 @@ fun FahrtFormularSeite(fahrtID: String?, zurueck: () -> Unit, zeigen: ((DispoZie
     }
 }
 
-private enum class ZeilenArt { ADRESSE, TEXT, ZAHL, AUSWAHL, FAHRER, GAST }
+private enum class ZeilenArt { ADRESSE, STOPP, TEXT, ZAHL, AUSWAHL, FAHRER, GAST }
+
+private fun stoppZeilen(werte: List<String>): List<String> {
+    val gefuellt = werte.filter { FahrtText.getrimmt(it).isNotEmpty() }.take(8)
+    return if (gefuellt.size < 8) gefuellt + "" else gefuellt
+}
+private fun istAdressFeld(id: String) = id == "start" || id == "ziel" || id.startsWith("stopp-")
+private fun stoppIndex(feld: String) = if (feld.startsWith("stopp-")) feld.removePrefix("stopp-").toIntOrNull() else null
 
 private data class ZeilenDaten(val id: String, val beschriftung: String, val art: ZeilenArt, val index: Int = 0)
 
@@ -108,16 +121,21 @@ private data class ZugAnfrage(val nummer: String, val datum: String, val start: 
 private val statusWerte = listOf("offen", "beendet", "stoniert", "unterwegs")
 
 @Composable
-private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen: ((DispoZiel) -> Unit)?) {
+private fun FormularInhalt(
+    geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen: ((DispoZiel) -> Unit)?,
+    vorlage: FahrtVorlage? = null, nachAnlegen: ((String?) -> Unit)? = null,
+) {
     // Raster aus FahrtAdd.jsx: Titel 140, Felder ab 206, Reihen alle 68, Zeilenhoehe 56.
     val reihenStart = 410f
     val schritt = 68f
     val zeilenHoehe = 56f
 
-    var werte by remember { mutableStateOf(geladen?.werte ?: FahrtFormularWerte()) }
-    var notiz by remember { mutableStateOf(geladen?.notiz ?: "") }
-    var fahrerNamen by remember { mutableStateOf((geladen?.fahrerNamen ?: emptyList()).ifEmpty { listOf("") }) }
-    var gaesteNamen by remember { mutableStateOf(FahrtText.gaesteTeilen(geladen?.fahrgaeste) + "") }
+    var werte by remember { mutableStateOf(geladen?.werte ?: vorlage?.werte ?: FahrtFormularWerte()) }
+    var notiz by remember { mutableStateOf(geladen?.notiz ?: vorlage?.notiz ?: "") }
+    var fahrerNamen by remember { mutableStateOf((geladen?.fahrerNamen ?: vorlage?.fahrerNamen ?: emptyList()).ifEmpty { listOf("") }) }
+    var gaesteNamen by remember { mutableStateOf(FahrtText.gaesteTeilen(geladen?.fahrgaeste ?: vorlage?.fahrgaeste) + "") }
+    var zwischenstopps by remember { mutableStateOf(stoppZeilen(geladen?.zwischenstopps ?: emptyList())) }
+    var adressHinweis by remember { mutableStateOf<String?>(null) }
     var speichert by remember { mutableStateOf(false) }
 
     var vorschlaege by remember { mutableStateOf<Map<String, List<String>>>(mapOf("start" to emptyList(), "ziel" to emptyList())) }
@@ -170,14 +188,20 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
     val kannFlug = flugNr.isNotEmpty() && (flugPruefung.gueltig || flugPruefung.status in setOf("ok", "unknown_eta"))
     val kannZug = zugNr.isNotEmpty() && (zugPruefung.gueltig || zugPruefung.status in setOf("ok", "unknown_eta"))
 
+    val gefuellteStopps = zwischenstopps.map { FahrtText.getrimmt(it) }.filter { it.isNotEmpty() }
+    val stoppsSichtbar = FahrtText.getrimmt(werte.start).isNotEmpty()
+
     val reihen = buildList {
+        if (stoppsSichtbar) zwischenstopps.indices.forEach { i ->
+            add(ZeilenDaten("stopp-$i", if (i == 0) t("fahrt.zwischenstopp") else t("fahrt.zwischenstoppNumbered", mapOf("n" to "${i + 1}")), ZeilenArt.STOPP, i))
+        }
         add(ZeilenDaten("ziel", t("fahrt.ziel"), ZeilenArt.ADRESSE))
         add(ZeilenDaten("flugnummer", t("fahrt.flugnummer"), ZeilenArt.TEXT))
         add(ZeilenDaten("zugnummer", t("fahrt.zugnummer"), ZeilenArt.TEXT))
         add(ZeilenDaten("konvoi", t("fahrt.konvoi"), ZeilenArt.TEXT))
         if (mitFahrzeugen) add(ZeilenDaten("anzahlFahrzeuge", t("fahrt.anzahlFahrzeuge"), ZeilenArt.ZAHL))
-        for (i in 0 until fahrerAnzahl) {
-            add(ZeilenDaten("fahrer-$i", if (mitFahrzeugen) t("fahrt.fahrerNumbered", mapOf("n" to "${i + 1}")) else t("fahrt.fahrer"), ZeilenArt.FAHRER, i))
+        for (i in fahrerNamen.indices) {
+            add(ZeilenDaten("fahrer-$i", if (mitFahrzeugen || fahrerNamen.size > 1) t("fahrt.fahrerNumbered", mapOf("n" to "${i + 1}")) else t("fahrt.fahrer"), ZeilenArt.FAHRER, i))
         }
         gaesteNamen.forEachIndexed { i, name ->
             val titel = if (i == 0) (if (FahrtText.getrimmt(name).isEmpty()) t("fahrt.fahrgaeste") else t("fahrt.gastNumbered", mapOf("n" to "1")))
@@ -198,7 +222,9 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
 
     fun adressEingabe(text: String, feld: String) {
         // Frei weitergetippt: die Zuordnung zum eigenen Ort faellt weg.
-        werte = if (feld == "start") werte.copy(start = text, startOrtID = "") else werte.copy(ziel = text, zielOrtID = "")
+        val stopp = stoppIndex(feld)
+        if (stopp != null) { if (stopp < zwischenstopps.size) zwischenstopps = stoppZeilen(zwischenstopps.toMutableList().also { it[stopp] = text }) }
+        else werte = if (feld == "start") werte.copy(start = text, startOrtID = "") else werte.copy(ziel = text, zielOrtID = "")
         vorschlagLauf?.cancel()
         val suche = FahrtText.getrimmt(text)
         if (suche.isEmpty()) {
@@ -218,7 +244,9 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
     }
 
     fun adresseWaehlen(wert: String, feld: String) {
-        werte = if (feld == "start") werte.copy(start = wert, startOrtID = "") else werte.copy(ziel = wert, zielOrtID = "")
+        val stopp = stoppIndex(feld)
+        if (stopp != null) { if (stopp < zwischenstopps.size) zwischenstopps = stoppZeilen(zwischenstopps.toMutableList().also { it[stopp] = wert }) }
+        else werte = if (feld == "start") werte.copy(start = wert, startOrtID = "") else werte.copy(ziel = wert, zielOrtID = "")
         vorschlaege = vorschlaege + (feld to emptyList())
         aktivesAdressFeld = null
     }
@@ -226,7 +254,9 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
     /** Eigener Ort gewaehlt: im Feld steht sein Name, beim Speichern kommen Name, Adresse und id in die Fahrt. */
     fun ortWaehlen(ort: Ort, feld: String) {
         vorschlagLauf?.cancel()
-        werte = if (feld == "start") werte.copy(start = ort.name, startOrtID = ort.id) else werte.copy(ziel = ort.name, zielOrtID = ort.id)
+        val stopp = stoppIndex(feld)
+        if (stopp != null) { if (stopp < zwischenstopps.size) zwischenstopps = stoppZeilen(zwischenstopps.toMutableList().also { it[stopp] = ort.adresse.ifEmpty { ort.name } }) }
+        else werte = if (feld == "start") werte.copy(start = ort.name, startOrtID = ort.id) else werte.copy(ziel = ort.name, zielOrtID = ort.id)
         vorschlaege = vorschlaege + (feld to emptyList())
         aktivesAdressFeld = null
     }
@@ -246,6 +276,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
     fun lesen(z: ZeilenDaten): String = when (z.art) {
         ZeilenArt.FAHRER -> fahrerNamen.getOrElse(z.index) { "" }
         ZeilenArt.GAST -> gaesteNamen.getOrElse(z.index) { "" }
+        ZeilenArt.STOPP -> zwischenstopps.getOrElse(z.index) { "" }
         else -> when (z.id) {
             "ziel" -> werte.ziel
             "flugnummer" -> werte.flugnummer
@@ -261,6 +292,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
     /** onChange der Reihen im Web. */
     fun aendern(z: ZeilenDaten, roh: String) {
         when (z.art) {
+            ZeilenArt.STOPP -> adressEingabe(roh, z.id)
             ZeilenArt.FAHRER -> { autoListeZu = false; if (z.index < fahrerNamen.size) fahrerNamen = fahrerNamen.toMutableList().also { it[z.index] = roh } }
             ZeilenArt.GAST -> { autoListeZu = false; if (z.index < gaesteNamen.size) gaesteSetzen(gaesteNamen.toMutableList().also { it[z.index] = roh }) }
             else -> {
@@ -280,6 +312,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
 
     fun zuruecksetzen(z: ZeilenDaten) {
         when (z.art) {
+            ZeilenArt.STOPP -> { adresseWaehlen("", z.id) }
             ZeilenArt.FAHRER -> if (z.index < fahrerNamen.size) fahrerNamen = fahrerNamen.toMutableList().also { it[z.index] = "" }
             ZeilenArt.GAST -> if (z.index < gaesteNamen.size) gaesteSetzen(gaesteNamen.toMutableList().also { it[z.index] = "" })
             else -> when (z.id) {
@@ -320,8 +353,8 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
     }
 
     fun fokusGewechselt(alt: String?, neu: String?) {
-        if (neu == "start" || neu == "ziel") aktivesAdressFeld = neu
-        if (alt != null && (alt == "start" || alt == "ziel") && neu != alt) {
+        if (neu != null && istAdressFeld(neu)) aktivesAdressFeld = neu
+        if (alt != null && istAdressFeld(alt) && neu != alt) {
             // onBlur mit 120 ms Verzoegerung wie im Web.
             scope.launch { delay(120); if (aktivesAdressFeld == alt) aktivesAdressFeld = null }
         }
@@ -335,9 +368,13 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
 
     // MARK: Pruefen und Laden (useEffects im Web)
 
-    LaunchedEffect(fahrerAnzahl) {
-        if (fahrerNamen.size < fahrerAnzahl) fahrerNamen = fahrerNamen + List(fahrerAnzahl - fahrerNamen.size) { "" }
-        else if (fahrerNamen.size > fahrerAnzahl) fahrerNamen = fahrerNamen.take(fahrerAnzahl)
+    // Fahrer eingetragen: darunter eine freie Zeile, bei Kolonne mindestens so viele wie Fahrzeuge.
+    LaunchedEffect(fahrerAnzahl, fahrerNamen) {
+        val neu = fahrerNamen.filter { FahrtText.getrimmt(it).isNotEmpty() }.toMutableList().also { l ->
+            l += ""
+            while (l.size < fahrerAnzahl) l += ""
+        }
+        if (neu != fahrerNamen) fahrerNamen = neu
     }
     var letzteFlugnummer by remember { mutableStateOf(werte.flugnummer) }
     LaunchedEffect(werte.flugnummer) {
@@ -404,24 +441,37 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
 
     // MARK: Speichern
 
-    fun speichern() {
+    fun speichern(geprueft: Boolean = false) {
         if (speichert) return
+        // Adressen vor dem Speichern pruefen, faellt die Pruefung aus, wird normal gespeichert.
+        if (!geprueft && FahrtText.getrimmt(werte.start).isNotEmpty() && FahrtText.getrimmt(werte.ziel).isNotEmpty()) {
+            speichert = true
+            scope.launch {
+                val start = EigeneOrte.zuID(werte.startOrtID)?.adresse ?: werte.start
+                val ziel = EigeneOrte.zuID(werte.zielOrtID)?.adresse ?: werte.ziel
+                val hinweis = FahrtPruefung.adressWarnung(listOf(start) + gefuellteStopps + ziel)
+                speichert = false
+                if (hinweis.isNotEmpty()) adressHinweis = hinweis else speichern(geprueft = true)
+            }
+            return
+        }
         if (!bearbeiten) {
             // handleCreateRide aus FahrtAdd.jsx.
             if (FahrtText.getrimmt(werte.start).isEmpty() || FahrtText.getrimmt(werte.ziel).isEmpty()) { meldung = t("fahrt.fillStartZiel"); return }
             speichert = true
             val w = werte.copy(anonymeGaeste = werte.anonymeGaeste.ifEmpty { "0" })
             scope.launch {
-                val e = FahrtSpeichern.anlegen(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), fahrerNamen, flughafenWahl, ankunftWahl, notiz))
+                val e = FahrtSpeichern.anlegen(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), fahrerNamen, flughafenWahl, ankunftWahl, notiz, gefuellteStopps, aiBooked = vorlage != null))
                 speichert = false
                 if (!e.ok) { meldung = t("fahrt.saveError", mapOf("error" to (e.fehler ?: t("fahrt.unknownError")))); return@launch }
+                if (nachAnlegen != null) { nachAnlegen(e.id); return@launch }
                 if (zeigen != null) zeigen(DispoZiel.FAHRTEN) else zurueck()
             }
         } else {
             // handleSave aus FahrtBearbeitenView.jsx.
             val g = geladen ?: return
             val plaetze = if (mitFahrzeugen) maxOf(1, FahrtText.getrimmt(werte.anzahlFahrzeuge).toIntOrNull() ?: 1) else 1
-            val namen = fahrerNamen.map { FahrtText.getrimmt(it) }.take(plaetze).let { it + List(maxOf(0, plaetze - it.size)) { "" } }
+            val namen = fahrerNamen.map { FahrtText.getrimmt(it) }.filter { it.isNotEmpty() }.let { it + List(maxOf(0, plaetze - it.size)) { "" } }
             val w = werte.copy(
                 konvoi = if (mitFahrzeugen) FahrtText.getrimmt(werte.konvoi) else "",
                 anzahlFahrzeuge = if (mitFahrzeugen) FahrtText.getrimmt(werte.anzahlFahrzeuge) else "",
@@ -429,7 +479,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
             )
             speichert = true
             scope.launch {
-                val e = FahrtSpeichern.aendern(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), namen, flughafenWahl, ankunftWahl, notiz), g)
+                val e = FahrtSpeichern.aendern(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), namen, flughafenWahl, ankunftWahl, notiz, gefuellteStopps), g)
                 speichert = false
                 if (!e.ok) { meldung = t("fahrt.saveError", mapOf("error" to (e.fehler ?: t("fahrt.unknownError")))); return@launch }
                 zurueck()
@@ -480,7 +530,7 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
                 DispoHintergrund(Modifier.fillMaxWidth().height(inhaltHoehe.dp))
                 // Kopf
                 ZurueckKnopf(Modifier.platz(20f, 60f), zurueck)
-                if (!bearbeiten) {
+                if (!bearbeiten && vorlage == null) {
                     // Sammel-Import aus Excel/CSV statt Einzelanlage (setView('importFahrten')).
                     Icon("import-fahrten", Modifier.platz(402f - 20f - 42f, 65f, 42f, 40f).tippen { importOffen = true })
                 }
@@ -618,8 +668,19 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
                 }
                 val zielListe = vorschlaege["ziel"].orEmpty()
                 val zielOrte = if (werte.zielOrtID.isEmpty()) EigeneOrte.vorschlaege(werte.ziel) else emptyList()
+                val aktiverStopp = aktivesAdressFeld?.takeIf { it.startsWith("stopp-") }
+                val stoppReihe = reihen.indexOfFirst { it.id == aktiverStopp }
+                if (aktiverStopp != null && stoppReihe >= 0) {
+                    val stoppListe = vorschlaege[aktiverStopp].orEmpty()
+                    val stoppOrte = EigeneOrte.vorschlaege(zwischenstopps.getOrElse(stoppReihe) { "" })
+                    if (stoppListe.isNotEmpty() || stoppOrte.isNotEmpty()) {
+                        OrtVorschlagListe(stoppOrte, stoppListe, Modifier.platz(20f, reihenStart + stoppReihe * schritt + zeilenHoehe + 4),
+                            { ortWaehlen(it, aktiverStopp) }) { adresseWaehlen(stoppListe[it], aktiverStopp) }
+                    }
+                }
+                val zielReihe = reihen.indexOfFirst { it.id == "ziel" }.coerceAtLeast(0)
                 if (aktivesAdressFeld == "ziel" && (zielListe.isNotEmpty() || zielOrte.isNotEmpty())) {
-                    OrtVorschlagListe(zielOrte, zielListe, Modifier.platz(20f, reihenStart + zeilenHoehe + 4),
+                    OrtVorschlagListe(zielOrte, zielListe, Modifier.platz(20f, reihenStart + zielReihe * schritt + zeilenHoehe + 4),
                         { ortWaehlen(it, "ziel") }) { adresseWaehlen(zielListe[it], "ziel") }
                 }
                 val f = fokus
@@ -637,9 +698,10 @@ private fun FormularInhalt(geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen:
                 }
             }
         }
-        if (bearbeiten) FussleisteUnten() else Navileiste(DispoZiel.FAHRT_NEU) { zeigen?.invoke(it) }
+        if (bearbeiten || vorlage != null) FussleisteUnten() else Navileiste(DispoZiel.FAHRT_NEU) { zeigen?.invoke(it) }
 
         meldung?.let { Hinweis(it, null) { meldung = null } }
+        adressHinweis?.let { h -> Rueckfrage("$h\n\n${t("fahrt.trotzdemSpeichern")}?", { adressHinweis = null; speichern(geprueft = true) }, { adressHinweis = null }) }
         if (stornoFrage) Rueckfrage(t("fahrt.confirmCancelRide"), { stornoFrage = false; stornieren() }, { stornoFrage = false })
         if (importOffen) {
             BackHandler { importOffen = false }

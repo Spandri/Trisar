@@ -79,6 +79,7 @@ private data class FahrtZeileB(
     val driver_id: String? = null,
     val pickup_ort_id: String? = null,
     val dropoff_ort_id: String? = null,
+    val zwischenstopps: List<String>? = null,
 )
 
 internal data class FahrtKopf(
@@ -99,6 +100,7 @@ internal data class FahrtKopf(
     /** Eigener Ort der Dispo (orte.id) fuer Start/Ziel. */
     val abholOrtID: String? = null,
     val zielOrtID: String? = null,
+    val zwischenstopps: List<String> = emptyList(),
 ) {
     val abholKurz get() = FahrtAdresse.kurz(abholName, abholAdresse)
     val zielKurz get() = FahrtAdresse.kurz(zielName, zielAdresse)
@@ -301,6 +303,7 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
                     meineAntwort = eigene?.response_status ?: "pending",
                     abholOrtID = z.pickup_ort_id,
                     zielOrtID = z.dropoff_ort_id,
+                    zwischenstopps = z.zwischenstopps.orEmpty(),
                 )
             }
             if (zeile?.pickup_ort_id != null || zeile?.dropoff_ort_id != null) EigeneOrte.einmalLaden()

@@ -125,7 +125,7 @@ fun PlanungSeite(zeigen: (DispoZiel) -> Unit, @Suppress("UNUSED_PARAMETER") oeff
     }
 }
 
-/** KI-Assistent (KiAssistentAnsicht.swift, view 'kiAssistent'). Live antwortet er nur mit dem Testbetrieb-Hinweis. */
+/** KI-Assistent (KiAssistentAnsicht.swift, view 'kiAssistent').  */
 @Composable
 fun KiAssistentSeite(zeigen: (DispoZiel) -> Unit, oeffneFahrt: (String) -> Unit) {
     PlanungEinrichten()

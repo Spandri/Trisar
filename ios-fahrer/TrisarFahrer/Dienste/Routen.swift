@@ -48,7 +48,8 @@ enum Routen {
 
     /// Spaltenauswahl fuer die Punkte aus den TomTom-Payloads (wie JOBS_SELECT_PUNKTE im Web).
     static let payloadSpalten = "route_von:ext_route_payload->von, route_nach:ext_route_payload->nach, "
-        + "anfahrt_nach:ext_driver_to_pickup_payload->nach, zielfahrt_nach:ext_driver_to_dropoff_payload->nach"
+        + "anfahrt_nach:ext_driver_to_pickup_payload->nach, zielfahrt_nach:ext_driver_to_dropoff_payload->nach, "
+        + "route_stopps:ext_route_payload->stopps"
 
     /// Abholort und Ziel aus einer Fahrtzeile in der Reihenfolge von trisar_evaluate_job_status:
     /// TomTom-Payload der Fahrt (von/nach), dann die Anfahrts-Payloads. Der Pin des eigenen
@@ -56,6 +57,11 @@ enum Routen {
     static func payloadPunkte(_ zeile: [String: Any]) -> (von: CLLocationCoordinate2D?, nach: CLLocationCoordinate2D?) {
         (koordinate(zeile["route_von"]) ?? koordinate(zeile["anfahrt_nach"]),
          koordinate(zeile["route_nach"]) ?? koordinate(zeile["zielfahrt_nach"]))
+    }
+
+    /// Zwischenstopps der Fahrt aus dem TomTom-Payload, in Fahrtreihenfolge.
+    static func stoppPunkte(_ zeile: [String: Any]) -> [CLLocationCoordinate2D] {
+        (zeile["route_stopps"] as? [Any])?.compactMap { koordinate($0) } ?? []
     }
 
     /// Ein Payload-Punkt als Decodable fuer typisierte Zeilen.

@@ -59,14 +59,23 @@ enum KartenRouten {
         }
         // Gast an Bord: blaue Linie ab dem Fahrer, nicht ab dem Abholort. Weicht er mehr als 200 m ab,
         // meldet die Karte das (abseits) und die Route wird ab seiner neuen Position neu gerechnet.
-        let abFahrer = KartenRegeln.istUnterwegs(ride.status) && ursprung != nil
+        // Mit Zwischenstopps bleibt die ganze Strecke, sonst liefe die Linie an den Stopps vorbei.
+        let abFahrer = KartenRegeln.istUnterwegs(ride.status) && ursprung != nil && ride.stoppPunkte.isEmpty
         if let von = abFahrer ? ursprung : abholort, let bis = ziel {
-            let s = await Routen.strecke(von: von, bis: bis)
-            if s.punkte.count >= 2 {
-                bild.fahrt = s.punkte
-                bild.fahrtMinuten = Int((Double(s.sekunden) / 60).rounded(.up))
-                if !anfahrtGeplant && !abFahrer { bild.abholort = s.punkte.first }
-                bild.ziel = s.punkte.last
+            var punkte: [CLLocationCoordinate2D] = []
+            var sekunden = 0
+            var ab = von
+            for naechster in ride.stoppPunkte + [bis] {
+                let s = await Routen.strecke(von: ab, bis: naechster)
+                punkte += s.punkte
+                sekunden += Int(s.sekunden)
+                ab = naechster
+            }
+            if punkte.count >= 2 {
+                bild.fahrt = punkte
+                bild.fahrtMinuten = Int((Double(sekunden) / 60).rounded(.up))
+                if !anfahrtGeplant && !abFahrer { bild.abholort = punkte.first }
+                bild.ziel = punkte.last
             }
         }
         bild.kolonne = ride.kolonnenFahrerIDs.compactMap { id in alle.first { $0.id == id }?.ort }

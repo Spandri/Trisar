@@ -59,6 +59,8 @@ struct KartenFahrt: Equatable {
     /// Nur ohne sie wird die Adresse gesucht.
     var vonPunkt: CLLocationCoordinate2D? = nil
     var nachPunkt: CLLocationCoordinate2D? = nil
+    /// Zwischenstopps in Fahrtreihenfolge (TomTom-Payload).
+    var stoppPunkte: [CLLocationCoordinate2D] = []
     var kolonnenFahrerIDs: [String] = []
 
     static func == (a: KartenFahrt, b: KartenFahrt) -> Bool {
@@ -604,6 +606,7 @@ enum KartenRegeln {
         let vonOrt = ortPunkte[KartenDaten.text(job["pickup_ort_id"]).lowercased()]
         let nachOrt = ortPunkte[KartenDaten.text(job["dropoff_ort_id"]).lowercased()]
         return KartenFahrt(id: id, status: status(job["status"]), vonSuche: von, nachSuche: nach,
-                           vonPunkt: vonOrt ?? payload.von, nachPunkt: nachOrt ?? payload.nach)
+                           vonPunkt: vonOrt ?? payload.von, nachPunkt: nachOrt ?? payload.nach,
+                           stoppPunkte: Routen.stoppPunkte(job))
     }
 }

@@ -96,22 +96,51 @@ const eigenerOrt = async (admin: AdminClient, adresse: string) => {
   return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
 };
 
-// Adresse -> Koordinaten. Reihenfolge: Koordinaten im Text, eigener Ort, bekannter Flughafen,
-// dann TomTom (30 Tage in api_route_cache, damit jede Adresse nur einmal kostet).
-export const geocode = async (
+type Punkt = { lat: number; lon: number };
+
+// Suchradius um die anderen Punkte der Fahrt, wenn eine Adresse keine Stadt nennt.
+const ANKER_RADIUS_M = 60000;
+
+const luftlinieKm = (a: Punkt, b: Punkt) => {
+  const r = Math.PI / 180;
+  const x = (b.lon - a.lon) * r * Math.cos(((a.lat + b.lat) / 2) * r);
+  const y = (b.lat - a.lat) * r;
+  return Math.sqrt(x * x + y * y) * 6371;
+};
+
+// Nennt die Adresse eine Stadt oder Postleitzahl? "Hotel X, Maximilianstr. 40" nicht:
+// das fand die Suche in Muenchen statt in Augsburg (Einsatz 07.11., 57 km daneben).
+export const hatStadt = (adresse: string) => {
+  const text = adresse.trim();
+  if (/\b\d{5}\b/.test(text)) return true;
+  const teile = text.split(',').map((t) => t.trim()).filter(Boolean)
+    .filter((t) => !/^(deutschland|germany|(ö|oe)sterreich|austria|schweiz|switzerland)$/i.test(t));
+  if (teile.length < 2) return false;
+  const letzter = teile[teile.length - 1];
+  return !/\d/.test(letzter) && !/(str\.?|stra(ß|ss)e|weg|platz|allee|gasse|ring|damm|ufer)$/i.test(letzter);
+};
+
+// Sicher bekannte Punkte: Koordinaten im Text, eigener Ort, bekannter Flughafen.
+const festerPunkt = async (admin: AdminClient, adresse: string): Promise<Punkt | null> => {
+  const direkt = koordinatenAusText(adresse);
+  if (direkt) return direkt;
+  if (!adresse.trim()) return null;
+  const ort = await eigenerOrt(admin, adresse).catch(() => null);
+  if (ort) return ort;
+  return flughafen(adresse);
+};
+
+// TomTom-Suche, 30 Tage in api_route_cache. Mit Anker nur im Umkreis des Ankers.
+const tomtomSuche = async (
   admin: AdminClient,
   schluessel: string,
   adresse: string,
-): Promise<{ lat: number; lon: number } | null> => {
-  const direkt = koordinatenAusText(adresse);
-  if (direkt) return direkt;
+  anker: Punkt | null,
+): Promise<Punkt | null> => {
   const norm = adresse.trim().toLowerCase();
   if (!norm) return null;
-  const ort = await eigenerOrt(admin, adresse).catch(() => null);
-  if (ort) return ort;
-  const fest = flughafen(adresse);
-  if (fest) return fest;
-  const key = await sha256(`tomtom-geo|${norm}`);
+  const ankerTeil = anker ? `|${anker.lat.toFixed(1)},${anker.lon.toFixed(1)}` : '';
+  const key = await sha256(`tomtom-geo|${norm}${ankerTeil}`);
   const { data: alt } = await admin
     .from('api_route_cache')
     .select('payload')
@@ -122,9 +151,12 @@ export const geocode = async (
   const lon0 = Number(alt?.payload?.lon);
   if (Number.isFinite(lat0) && Number.isFinite(lon0)) return { lat: lat0, lon: lon0 };
 
+  const umkreis = anker
+    ? `&lat=${anker.lat}&lon=${anker.lon}&radius=${ANKER_RADIUS_M}`
+    : `&lat=${MUC.lat}&lon=${MUC.lon}`;
   for (const art of ['geocode', 'search']) {
     const url = `https://api.tomtom.com/search/2/${art}/${encodeURIComponent(adresse.trim())}.json`
-      + `?key=${schluessel}&limit=1&lat=${MUC.lat}&lon=${MUC.lon}&countrySet=DE&language=de-DE`;
+      + `?key=${schluessel}&limit=1${umkreis}&countrySet=DE&language=de-DE`;
     const res = await fetch(url);
     if (!res.ok) continue;
     const json = await res.json().catch(() => ({}));
@@ -144,6 +176,62 @@ export const geocode = async (
   return null;
 };
 
+// Adresse -> Koordinaten. Reihenfolge: Koordinaten im Text, eigener Ort, bekannter Flughafen,
+// dann TomTom. Mit Anker zuerst im Umkreis der anderen Fahrtpunkte, dann ohne Einschraenkung.
+export const geocode = async (
+  admin: AdminClient,
+  schluessel: string,
+  adresse: string,
+  anker: Punkt | null = null,
+): Promise<Punkt | null> => {
+  const fest = await festerPunkt(admin, adresse);
+  if (fest) return fest;
+  if (anker) {
+    const nah = await tomtomSuche(admin, schluessel, adresse, anker);
+    if (nah) return nah;
+  }
+  return tomtomSuche(admin, schluessel, adresse, null);
+};
+
+// Alle Punkte einer Fahrt. Adressen ohne Stadt werden im Umkreis des ersten sicheren Punkts gesucht.
+const geocodeFahrt = async (admin: AdminClient, schluessel: string, adressen: string[]) => {
+  const feste = await Promise.all(adressen.map((a) => festerPunkt(admin, a)));
+  const sicher = await Promise.all(adressen.map((a, i) => (
+    feste[i] ?? (hatStadt(a) ? tomtomSuche(admin, schluessel, a, null) : Promise.resolve(null))
+  )));
+  const anker = sicher.find(Boolean) ?? null;
+  const punkte = await Promise.all(adressen.map((a, i) => (
+    sicher[i] ?? geocode(admin, schluessel, a, anker)
+  )));
+  return { feste, sicher, anker, punkte };
+};
+
+export type AdressWarnung = { adresse: string; grund: 'nicht_gefunden' | 'ohne_stadt' | 'weit_weg'; km?: number };
+
+// Pruefung vor dem Speichern: findet die Fahrt jeden Punkt, und passt eine Adresse ohne Stadt dazu?
+export const adressenPruefen = async (
+  admin: AdminClient,
+  schluessel: string,
+  eingabe: string[],
+): Promise<AdressWarnung[]> => {
+  const adressen = eingabe.map((a) => a.trim()).filter(Boolean);
+  const { feste, sicher, anker, punkte } = await geocodeFahrt(admin, schluessel, adressen);
+  const warnungen: AdressWarnung[] = [];
+  for (let i = 0; i < adressen.length; i += 1) {
+    const adresse = adressen[i];
+    if (!punkte[i]) {
+      warnungen.push({ adresse, grund: 'nicht_gefunden' });
+    } else if (!feste[i] && !sicher[i]) {
+      if (!anker) warnungen.push({ adresse, grund: 'ohne_stadt' });
+      else {
+        const km = Math.round(luftlinieKm(punkte[i] as Punkt, anker));
+        if (km > ANKER_RADIUS_M / 1000) warnungen.push({ adresse, grund: 'weit_weg', km });
+      }
+    }
+  }
+  return warnungen;
+};
+
 export type TomtomRoute = {
   ok: boolean;
   httpStatus: number;
@@ -156,16 +244,25 @@ export type TomtomRoute = {
 };
 
 // Route mit aktuellem Verkehr. durationMins = ohne Verkehr, durationInTrafficMins = mit.
+// Fahrtroute: mit Zwischenstopps, Adressen ohne Stadt im Umkreis der anderen Punkte.
+// Anfahrt ab Fahrerstandort (ohneAnker): der Fahrer darf nicht zum Suchzentrum werden.
 export const tomtomRoute = async (
   admin: AdminClient,
   schluessel: string,
   von: string,
   nach: string,
+  optionen: { stopps?: string[]; ohneAnker?: boolean } = {},
 ): Promise<TomtomRoute> => {
   const leer = { distanceM: 0, durationMins: 0, durationInTrafficMins: 0, polyline: null, payload: {} };
-  const [a, b] = await Promise.all([geocode(admin, schluessel, von), geocode(admin, schluessel, nach)]);
-  if (!a || !b) return { ok: false, httpStatus: 0, fehler: 'geocode_not_found', ...leer };
-  const url = `https://api.tomtom.com/routing/1/calculateRoute/${a.lat},${a.lon}:${b.lat},${b.lon}/json`
+  const stopps = (optionen.stopps || []).map((t) => t.trim()).filter(Boolean);
+  const wegpunkte = optionen.ohneAnker
+    ? await Promise.all([von, ...stopps, nach].map((t) => geocode(admin, schluessel, t)))
+    : (await geocodeFahrt(admin, schluessel, [von, ...stopps, nach])).punkte;
+  if (wegpunkte.some((p) => !p)) return { ok: false, httpStatus: 0, fehler: 'geocode_not_found', ...leer };
+  const a = wegpunkte[0] as Punkt;
+  const b = wegpunkte[wegpunkte.length - 1] as Punkt;
+  const stoppPunkte = wegpunkte.slice(1, -1) as Punkt[];
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/${(wegpunkte as Punkt[]).map((p) => `${p.lat},${p.lon}`).join(':')}/json`
     + `?key=${schluessel}&traffic=true&travelMode=car&routeRepresentation=polyline&computeTravelTimeFor=all`;
   const res = await fetch(url);
   const json = await res.json().catch(() => ({}));
@@ -186,6 +283,6 @@ export const tomtomRoute = async (
     durationInTrafficMins: Math.ceil(mitVerkehr / 60),
     polyline: punkte.length >= 2 ? kodierePolyline(punkte) : null,
     // Nur die Zusammenfassung speichern, die Punkte stehen schon in der Linie.
-    payload: { provider: TOMTOM_PROVIDER, summary: s, von: a, nach: b },
+    payload: { provider: TOMTOM_PROVIDER, summary: s, von: a, nach: b, ...(stoppPunkte.length ? { stopps: stoppPunkte } : {}) },
   };
 };

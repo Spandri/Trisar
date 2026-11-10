@@ -61,7 +61,9 @@ const MISSING_TRAIN_TIMES_COLUMNS_RE = /column .*train_planned_time|column .*tra
 const MISSING_JOBS_EXT_COLUMN_RE = /column .*ext_flight_payload|column .*ext_flight_last_sync_at|could not find the ['"]?ext_flight_payload['"]? column|could not find the ['"]?ext_flight_last_sync_at['"]? column/i;
 const MISSING_AI_BOOKED_COLUMN_RE = /column .*ai_booked|could not find the ['"]?ai_booked['"]? column/i;
 // Eigene Orte (Migration 20261107090000_orte_radien): fehlt die Spalte noch, ohne sie weiter.
-const MISSING_ORT_COLUMN_RE = /column .*(pickup|dropoff)_ort_id|could not find the ['"]?(pickup|dropoff)_ort_id['"]? column/i;
+const MISSING_ORT_COLUMN_RE = /column .*((pickup|dropoff)_ort_id|zwischenstopps)|could not find the ['"]?((pickup|dropoff)_ort_id|zwischenstopps)['"]? column/i;
+// Zwischenstopps aus dem Formular, ohne leere Zeilen.
+const stoppsAusPayload = (payload) => (Array.isArray(payload?.zwischenstopps) ? payload.zwischenstopps.map((t) => String(t || '').trim()).filter(Boolean) : []);
 // Start/Ziel aus dem Formular: mit eigenem Ort ist start/ziel der Ortsname, die Adresse
 // kommt getrennt mit (startAdresse/zielAdresse). Sonst ist der Text Name und Adresse zugleich.
 const ortFelderAusPayload = (payload, start, ziel) => {
@@ -1295,6 +1297,7 @@ export default function App() {
         const fallbackReadClient = hasSupabaseAdminConfig ? supabase : supabaseAdmin;
         const jobSelectBase = 'id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins';
         const jobSelectCandidates = [
+          `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps`,
           `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id`,
           `${jobSelectBase}, ai_booked, flight_number, train_number`,
           `${jobSelectBase}, flight_number, train_number`,
@@ -1750,6 +1753,7 @@ export default function App() {
             zielOrtId,
             zielOrtName: zielOrtId ? dropoffName : '',
             startZeit: effectiveEtd || originalEtd || '--:--',
+            zwischenstopps: Array.isArray(job.zwischenstopps) ? job.zwischenstopps : [],
             fahrerNamen,
             fahrerAntworten: hasDrivers ? mergedDriverResponses : [],
             fahrerNummern: mergedDriverNumbers,
@@ -2297,6 +2301,7 @@ export default function App() {
         startOrtName: ride.startOrtName || '',
         zielOrtId: ride.zielOrtId || '',
         zielOrtName: ride.zielOrtName || '',
+        zwischenstopps: Array.isArray(ride.zwischenstopps) ? ride.zwischenstopps : [],
         konvoi: ride.konvoi || '',
         anzahlFahrzeuge: String(ride.anzahlFahrzeuge || ''),
         fahrerNamen: Array.isArray(ride.fahrerNamen) && ride.fahrerNamen.length > 0 ? ride.fahrerNamen : [''],
@@ -2682,6 +2687,7 @@ export default function App() {
         // Immer mitschicken: frei getippt heisst kein Ort mehr.
         pickup_ort_id: startOrtId || null,
         dropoff_ort_id: zielOrtId || null,
+        zwischenstopps: stoppsAusPayload(payload),
         ride_date: rideDate,
         etd: (hasValidatedTrain ? trainEtdValues.etd : startZeit) || null,
         original_etd: (hasValidatedTrain ? trainEtdValues.originalEtd : startZeit) || null,
@@ -2736,6 +2742,7 @@ export default function App() {
       if (updateResult.error && MISSING_ORT_COLUMN_RE.test(updateResult.error.message || '')) {
         delete updatePayload.pickup_ort_id;
         delete updatePayload.dropoff_ort_id;
+        delete updatePayload.zwischenstopps;
         updateResult = await runJobUpdate(supabase, updatePayload);
         if (
           (updateResult.error && ADMIN_FALLBACK_ERROR_RE.test(updateResult.error.message || ''))
@@ -3064,6 +3071,7 @@ export default function App() {
         dropoff_address: zielAdresse,
         ...(startOrtId ? { pickup_ort_id: startOrtId } : {}),
         ...(zielOrtId ? { dropoff_ort_id: zielOrtId } : {}),
+        ...(stoppsAusPayload(payload).length ? { zwischenstopps: stoppsAusPayload(payload) } : {}),
         ride_date: rideDate,
         etd: (hasValidatedTrain ? trainEtdValues.etd : startZeit) || null,
         original_etd: (hasValidatedTrain ? trainEtdValues.originalEtd : startZeit) || null,
@@ -3089,6 +3097,7 @@ export default function App() {
       if (createResult.error && MISSING_ORT_COLUMN_RE.test(createResult.error.message || '')) {
         delete insertPayload.pickup_ort_id;
         delete insertPayload.dropoff_ort_id;
+        delete insertPayload.zwischenstopps;
         createResult = await supabase.from('jobs').insert(insertPayload).select('id').single();
         if (createResult.error && ADMIN_FALLBACK_ERROR_RE.test(createResult.error.message || '')) {
           createResult = await supabaseAdmin.from('jobs').insert(insertPayload).select('id').single();
@@ -3794,7 +3803,7 @@ export default function App() {
       );
     }
     if (view === 'kiAssistent') {
-      return <KiAssistentView setView={navigateTo} onCreateRide={handleCreateRide} onOpenRideEditorById={openRideEditorById} />;
+      return <KiAssistentView setView={navigateTo} onCreateRide={handleCreateRide} onFetchPlaceSuggestions={handleFetchPlaceSuggestions} onValidateFlight={validateFlightForDisplay} onValidateTrain={validateTrainForDisplay} onOpenRideEditorById={openRideEditorById} />;
     }
     if (view === 'karten') {
       return <KartenView setView={navigateTo} filters={kartenFilter} />;

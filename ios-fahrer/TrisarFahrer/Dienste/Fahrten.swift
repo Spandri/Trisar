@@ -25,6 +25,7 @@ struct FahrtZeile: Decodable {
     /// Eigene Orte der Dispo (fehlen die Spalten noch, bleiben sie leer).
     let pickup_ort_id: UUID?
     let dropoff_ort_id: UUID?
+    let zwischenstopps: [String]?
 }
 
 struct FahrzeugZeile: Decodable, Equatable {
@@ -72,6 +73,7 @@ struct Fahrt: Identifiable, Equatable {
     /// Gewaehlter eigener Ort (jobs.pickup_ort_id / dropoff_ort_id): dessen Icon statt Textmuster.
     var abholOrtID: UUID? = nil
     var zielOrtID: UUID? = nil
+    var zwischenstopps: [String] = []
 
     /// Kurzname fuer die Karte (wie toShortFormattedAddress + kurzAdresse).
     var abholKurz: String { Adresse.kurz(name: abholName, adresse: abholAdresse) }
@@ -229,7 +231,8 @@ final class FahrtenSpeicher: ObservableObject {
                     istKolonne: istKolonne,
                     meineAntwort: eigene?.response_status ?? "pending",
                     abholOrtID: zeile.pickup_ort_id,
-                    zielOrtID: zeile.dropoff_ort_id
+                    zielOrtID: zeile.dropoff_ort_id,
+                    zwischenstopps: zeile.zwischenstopps ?? []
                 )
             }
             // Orte einmal laden, neu nur wenn eine Fahrt einen unbekannten Ort nennt.

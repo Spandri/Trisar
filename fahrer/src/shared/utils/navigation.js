@@ -17,13 +17,15 @@ const toDestination = (location) => {
 
 // Route: aktueller Standort -> Gast (waypoint) -> Endort (destination).
 // Fehlt der Endort, geht die Route nur bis zum Gast. Ohne brauchbare Orte kein Link.
-export const getRouteNavigationUrl = (pickup, dropoff) => {
+export const getRouteNavigationUrl = (pickup, dropoff, zwischenstopps = []) => {
   const pickupText = toDestination(pickup);
   const dropoffText = toDestination(dropoff);
   if (!pickupText && !dropoffText) return '';
   const params = new URLSearchParams({ api: '1', travelmode: 'driving' });
   if (pickupText && dropoffText) {
-    params.set('waypoints', pickupText);
+    // Google Maps erlaubt 9 Zwischenziele, der Gast zaehlt mit.
+    const stopps = (Array.isArray(zwischenstopps) ? zwischenstopps : []).map((t) => String(t || '').trim()).filter(Boolean).slice(0, 8);
+    params.set('waypoints', [pickupText, ...stopps].join('|'));
     params.set('destination', dropoffText);
   } else {
     params.set('destination', dropoffText || pickupText);

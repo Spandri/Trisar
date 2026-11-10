@@ -192,14 +192,23 @@ internal object KartenRouten {
         }
         // Gast an Bord: blaue Linie ab dem Fahrer, nicht ab dem Abholort. Weicht er mehr als 200 m ab,
         // meldet die Karte das (abseits) und die Route wird ab seiner neuen Position neu gerechnet.
-        val abFahrer = KartenRegeln.istUnterwegs(ride.status) && ursprung != null
+        // Mit Zwischenstopps bleibt die ganze Strecke, sonst liefe die Linie an den Stopps vorbei.
+        val abFahrer = KartenRegeln.istUnterwegs(ride.status) && ursprung != null && ride.stoppPunkte.isEmpty()
         val fahrtStart = if (abFahrer) ursprung else abholort
         if (fahrtStart != null && ziel != null) {
-            val s = DispoRouten.strecke(fahrtStart, ziel)
-            if (s.punkte.size >= 2) {
+            val punkte = mutableListOf<KartenPunkt>()
+            var sekunden = 0
+            var ab: KartenPunkt = fahrtStart
+            for (naechster in ride.stoppPunkte + ziel) {
+                val s = DispoRouten.strecke(ab, naechster)
+                punkte += s.punkte
+                sekunden += s.sekunden
+                ab = naechster
+            }
+            if (punkte.size >= 2) {
                 bild = bild.copy(
-                    fahrt = s.punkte, fahrtMinuten = KartenRegeln.minutenAufrunden(s.sekunden),
-                    abholort = if (!anfahrtGeplant && !abFahrer) s.punkte.first() else bild.abholort, ziel = s.punkte.last(),
+                    fahrt = punkte, fahrtMinuten = KartenRegeln.minutenAufrunden(sekunden),
+                    abholort = if (!anfahrtGeplant && !abFahrer) punkte.first() else bild.abholort, ziel = punkte.last(),
                 )
             }
         }

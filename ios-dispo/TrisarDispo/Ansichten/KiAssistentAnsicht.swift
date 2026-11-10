@@ -11,7 +11,7 @@ struct KiAssistentAnsicht: View {
     /// Link "Neuplanung im Planer ansehen" mit dem Tag (ISO-Datum) der Stoerung.
     var oeffneNeuplanung: (String) -> Void = { _ in }
     /// onCreateRide(payload, { aiBooked: true }): liefert die ID der neuen Fahrt. Nil = nicht verbunden.
-    var fahrtBuchen: ((KiBuchungsVorschlag) async throws -> String?)?
+    var fahrtBuchen: ((KiBuchungsVorschlag) async throws -> String?)? = { try await KiAssistentDienst.buchen($0) }
     /// onOpenRideEditorById
     var oeffneFahrt: (String) -> Void = { _ in }
 
@@ -20,6 +20,8 @@ struct KiAssistentAnsicht: View {
     @State private var bearbeiteteID: String?
     @State private var kopierteID: String?
     @State private var sendet = false
+    /// Vorschlag, der gerade im Fahrtformular angepasst wird.
+    @State private var formular: KiFormular?
     @FocusState private var fokussiert: Bool
     @State private var live = KiAssistentLive()
 
@@ -52,6 +54,13 @@ struct KiAssistentAnsicht: View {
             if !fokussiert {
                 Navileiste(aktiv: .kiAssistent, waehlen: zeigen)
                     .ignoresSafeArea(.keyboard)
+            }
+
+            if let formular {
+                FahrtFormularAnsicht(fahrtID: nil, zurueck: { self.formular = nil },
+                                     vorlage: formular.vorschlag.vorlage,
+                                     nachAnlegen: { fahrtID in formularGebucht(formular.nachricht, fahrtID) })
+                    .zIndex(3)
             }
         }
         .frame(maxWidth: 402)
@@ -213,7 +222,12 @@ struct KiAssistentAnsicht: View {
 
     @ViewBuilder private func buchung(_ n: KiNachricht, _ v: KiBuchungsVorschlag) -> some View {
         VStack(spacing: 0) {
-            KiBuchungsKarte(vorschlag: v)
+            if n.bookingStatus == "pending" {
+                Button { formular = KiFormular(nachricht: n.id, vorschlag: v) } label: { KiBuchungsKarte(vorschlag: v) }
+                    .buttonStyle(.web)
+            } else {
+                KiBuchungsKarte(vorschlag: v)
+            }
             switch n.bookingStatus {
             case "pending":
                 HStack(spacing: 12) {
@@ -359,6 +373,15 @@ struct KiAssistentAnsicht: View {
                                        role: "assistant", text: text, time: KiNachricht.uhrzeit()))
     }
 
+    private func formularGebucht(_ id: String, _ fahrtID: UUID?) {
+        formular = nil
+        if let i = nachrichten.firstIndex(where: { $0.id == id }) {
+            nachrichten[i].bookingStatus = "booked"
+            nachrichten[i].bookingRideId = fahrtID?.uuidString
+        }
+        hinweis("Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
+    }
+
     private func buchen(_ id: String, _ v: KiBuchungsVorschlag) async {
         guard v.hatPflichtfelder else {
             hinweis("Für diese Buchung fehlen noch Pflichtfelder (Start, Ziel oder Zeit).", "msg-ai-booking-error")
@@ -380,6 +403,11 @@ struct KiAssistentAnsicht: View {
             hinweis("Buchung fehlgeschlagen: \(meldung)", "msg-ai-booking-failed")
         }
     }
+}
+
+private struct KiFormular {
+    let nachricht: String
+    let vorschlag: KiBuchungsVorschlag
 }
 
 private struct KiBuchungsFehler: LocalizedError {
@@ -517,6 +545,7 @@ private struct KiBuchungsKarte: View {
                     .padding(.trailing, 86)
                 WebText(text: "\(vorschlag.start) - \(vorschlag.ziel)", groesse: 12, gewicht: .medium, zeilenHoehe: 16,
                         farbe: UIColor.black.withAlphaComponent(0.8))
+                    .padding(.trailing, 86)
                 WebText(text: fahrer, groesse: 16, gewicht: .bold, zeilenHoehe: 24, farbe: .black)
             }
             .padding(18)

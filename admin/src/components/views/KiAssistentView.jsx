@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
+import FahrtAdd from './FahrtAdd';
 import { askDatabaseAssistant, invalidateDatabaseAssistantCache } from '../../services/kiAssistant';
 import { supabase } from '../../services/supabase';
 import { demoStore } from '../../demo/demoClient';
@@ -94,7 +95,7 @@ const hasMinimumBookingData = (proposal) => {
   return Boolean(payload.start && payload.ziel && payload.startZeit);
 };
 
-const BookingPreviewCard = ({ proposal }) => {
+const BookingPreviewCard = ({ proposal, onOeffnen }) => {
   const { t } = useI18n();
   const payload = toCreateRidePayload(proposal);
   // Gemeinsame Regel: nur anonyme Gaeste als "N Anonyme Gäste", sonst Namen plus "+ N".
@@ -104,10 +105,14 @@ const BookingPreviewCard = ({ proposal }) => {
     : t('assist.noGuestsYet');
   const driverLabel = payload.fahrerNamen.length > 0 ? payload.fahrerNamen.join(', ') : t('assist.driverMissing');
   const dateLabel = toDisplayDate(payload.datum);
+  const Huelle = onOeffnen ? 'button' : 'div';
   return (
-    <div className="w-full max-w-[362px] min-h-36 bg-white text-black p-[18px] relative">
+    <Huelle
+      {...(onOeffnen ? { type: 'button', onClick: onOeffnen } : {})}
+      className="block text-left w-full max-w-[362px] min-h-36 bg-white text-black p-[18px] relative"
+    >
       <div className="pr-[86px] text-[24px] leading-[26px] font-bold font-['Space_Grotesk'] break-words">{guestLabel}</div>
-      <div className="mt-[5px] text-xs leading-4 font-medium font-['Space_Grotesk'] opacity-80 break-words">{payload.start} - {payload.ziel}</div>
+      <div className="mt-[5px] pr-[86px] text-xs leading-4 font-medium font-['Space_Grotesk'] opacity-80 break-words">{payload.start} - {payload.ziel}</div>
       <div className="mt-[5px] text-base leading-6 font-bold font-['Space_Grotesk'] break-words">{driverLabel}</div>
       <div className="absolute right-4 top-[18px] text-right">
         <div className="text-base leading-5 font-bold font-['Space_Grotesk']">{dateLabel}</div>
@@ -116,7 +121,7 @@ const BookingPreviewCard = ({ proposal }) => {
       <div className="absolute right-4 bottom-[18px]">
         <img src={sendIconSrc} alt="" className="w-[34px] h-[21px] scale-[1.2]" />
       </div>
-    </div>
+    </Huelle>
   );
 };
 
@@ -152,7 +157,11 @@ const IconEdit = ({ className = '' }) => (
   </svg>
 );
 
-export default function KiAssistentView({ setView, onCreateRide, onOpenRideEditorById }) {
+export default function KiAssistentView({
+  setView, onCreateRide, onOpenRideEditorById, onFetchPlaceSuggestions, onValidateFlight, onValidateTrain,
+}) {
+  // Vorschlag, der gerade im Fahrtformular angepasst wird.
+  const [formular, setFormular] = useState(null);
   const { t } = useI18n();
   const [inputText, setInputText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -422,6 +431,23 @@ export default function KiAssistentView({ setView, onCreateRide, onOpenRideEdito
     }
   };
 
+  const handleFormularGebucht = (messageId, rideId) => {
+    setFormular(null);
+    setMessages((prev) => ([
+      ...prev.map((msg) => (
+        msg.id === messageId
+          ? { ...msg, bookingStatus: 'booked', bookingRideId: String(rideId || '').trim() || null }
+          : msg
+      )),
+      {
+        id: `msg-ai-booked-${Date.now()}`,
+        role: 'assistant',
+        text: t('assist.bookedInfo'),
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]));
+  };
+
   const handleBookingCancel = (messageId) => {
     setMessages((prev) => prev.map((msg) => (
       msg.id === messageId ? { ...msg, bookingStatus: 'cancelled' } : msg
@@ -599,6 +625,21 @@ export default function KiAssistentView({ setView, onCreateRide, onOpenRideEdito
     return () => window.cancelAnimationFrame(rafId);
   }, [messages.length, lastMessageSignature, isInputFocused]);
 
+  if (formular) {
+    return (
+      <FahrtAdd
+        setView={setView}
+        onCreateRide={onCreateRide}
+        onFetchPlaceSuggestions={onFetchPlaceSuggestions}
+        onValidateFlight={onValidateFlight}
+        onValidateTrain={onValidateTrain}
+        vorlage={toCreateRidePayload(formular.proposal)}
+        onVorlageZurueck={() => setFormular(null)}
+        onVorlageGebucht={(rideId) => handleFormularGebucht(formular.id, rideId)}
+      />
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 left-1/2 -translate-x-1/2 w-[min(402px,100vw)] overflow-hidden overscroll-none"
@@ -725,7 +766,12 @@ export default function KiAssistentView({ setView, onCreateRide, onOpenRideEdito
                 {message.bookingProposal ? (
                   <div className="mt-3 flex flex-col items-center">
                     <div data-tutorial={tutorialMarker('ki-vorschlag')} className="w-full max-w-[362px]">
-                      <BookingPreviewCard proposal={message.bookingProposal} />
+                      <BookingPreviewCard
+                        proposal={message.bookingProposal}
+                        onOeffnen={!DEMO_MODE && message.bookingStatus === 'pending'
+                          ? () => setFormular({ id: message.id, proposal: message.bookingProposal })
+                          : undefined}
+                      />
                     </div>
                     {message.bookingStatus === 'pending' ? (
                       <div className="mt-3 flex items-center gap-3 w-full max-w-[362px]">

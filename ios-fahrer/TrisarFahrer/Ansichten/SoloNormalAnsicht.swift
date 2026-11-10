@@ -229,6 +229,14 @@ struct SoloNormalAnsicht: View {
             }
             .platz(20, y(289), innen, nil)
 
+            if !fahrt.zwischenstopps.isEmpty {
+                Text("Über: " + fahrt.zwischenstopps.joined(separator: "  ·  "))
+                    .grotesk(13, .bold, abstand: -0.3)
+                    .foregroundStyle(Color(hex: 0xE2F754))
+                    .lineLimit(2)
+                    .platz(20, y(352), innen, nil)
+            }
+
             if !merkmale.isEmpty {
                 HStack(spacing: 8) {
                     ForEach(merkmale, id: \.self) { m in
@@ -586,7 +594,8 @@ struct SoloNormalAnsicht: View {
         var teile = URLComponents(string: "https://www.google.com/maps/dir/")!
         var q: [URLQueryItem] = [.init(name: "api", value: "1"), .init(name: "travelmode", value: "driving")]
         if !abhol.isEmpty && !ziel.isEmpty {
-            q.append(.init(name: "waypoints", value: abhol))
+            // Google Maps erlaubt 9 Zwischenziele, der Gast zaehlt mit.
+            q.append(.init(name: "waypoints", value: ([abhol] + fahrt.zwischenstopps.prefix(8)).joined(separator: "|")))
             q.append(.init(name: "destination", value: ziel))
         } else {
             q.append(.init(name: "destination", value: ziel.isEmpty ? abhol : ziel))

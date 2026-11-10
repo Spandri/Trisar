@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { providerConfig } from '../_shared/provider-config.ts';
 import { recordUsageWithCost } from '../_shared/usage-tracking.ts';
+import { adressenPruefen, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
 
 const ensureEnv = (name: string) => {
   const value = Deno.env.get(name);
@@ -99,6 +100,14 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     const body = await req.json().catch(() => ({}));
+    // Pruefung vor dem Speichern einer Fahrt: Start, Zwischenstopps, Ziel in Fahrtreihenfolge.
+    if (body?.aktion === 'adressen_pruefen') {
+      const adressen = Array.isArray(body?.adressen) ? body.adressen.map((t: unknown) => String(t ?? '')).slice(0, 12) : [];
+      const schluessel = await tomtomSchluessel(adminClient);
+      if (!schluessel || adressen.length === 0) return jsonResponse(200, { warnungen: [] });
+      return jsonResponse(200, { warnungen: await adressenPruefen(adminClient, schluessel, adressen) });
+    }
+
     const input = typeof body?.input === 'string' ? body.input.trim() : '';
     const country = typeof body?.country === 'string' && body.country.trim() ? body.country.trim().toLowerCase() : 'de';
     const requestedBy = isValidUuid(body?.requested_by) ? body.requested_by : (isValidUuid(userId) ? userId : null);

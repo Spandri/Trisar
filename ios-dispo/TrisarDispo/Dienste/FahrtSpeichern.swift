@@ -26,6 +26,9 @@ struct GeladeneFahrt: Equatable {
     let id: UUID
     var werte: FahrtFormularWerte
     var fahrerNamen: [String]
+    var zwischenstopps: [String] = []
+    /// jobs.zwischenstopps gibt es in der Datenbank.
+    var mitStoppSpalte = false
     /// Gaeste mit ", " verbunden wie ride.fahrgaeste.
     var fahrgaeste: String
     var notiz: String
@@ -40,8 +43,18 @@ struct FahrtEingabe {
     /// Gaeste mit "; " verbunden.
     var fahrgaeste: String
     var fahrerNamen: [String]
+    var zwischenstopps: [String] = []
     var flugZielFlughafen: String
     var flugAnkunftGeplant: String
+    var notiz: String
+    var aiBooked = false
+}
+
+/// Vorschlag des KI-Assistenten als Startwerte fuer „Fahrt erstellen“.
+struct FahrtVorlage: Equatable {
+    var werte: FahrtFormularWerte
+    var fahrerNamen: [String]
+    var fahrgaeste: String
     var notiz: String
 }
 
@@ -164,6 +177,7 @@ enum FahrtSpeichern {
         let ai_booked: Bool?
         let pickup_ort_id: UUID?
         let dropoff_ort_id: UUID?
+        let zwischenstopps: [String]?
     }
     private struct Zuordnung: Decodable { let driver_id: UUID?; let response_status: String? }
     private struct Profil: Decodable { let id: UUID; let first_name: String?; let last_name: String?; let driver_number: AnyJSON? }
@@ -196,12 +210,19 @@ enum FahrtSpeichern {
         // Erst mit den Spalten der eigenen Orte, fehlen sie (Migration noch nicht da), ohne.
         let job: JobZeile
         var mitOrtSpalten = true
+        var mitStoppSpalte = true
         do {
-            job = try await c.from("jobs").select(spalten + ", pickup_ort_id, dropoff_ort_id")
+            job = try await c.from("jobs").select(spalten + ", pickup_ort_id, dropoff_ort_id, zwischenstopps")
                 .eq("id", value: id).single().execute().value
         } catch {
-            mitOrtSpalten = false
-            job = try await c.from("jobs").select(spalten).eq("id", value: id).single().execute().value
+            mitStoppSpalte = false
+            do {
+                job = try await c.from("jobs").select(spalten + ", pickup_ort_id, dropoff_ort_id")
+                    .eq("id", value: id).single().execute().value
+            } catch {
+                mitOrtSpalten = false
+                job = try await c.from("jobs").select(spalten).eq("id", value: id).single().execute().value
+            }
         }
 
         let archiv: [ArchivZeile] = (try? await c.from("jobs_archive").select("job_id").eq("job_id", value: id).execute().value) ?? []
@@ -315,6 +336,7 @@ enum FahrtSpeichern {
             werte.zielOrtAdresse = FahrtText.getrimmt(job.dropoff_address ?? "")
         }
         return GeladeneFahrt(id: job.id, werte: werte, fahrerNamen: namen.isEmpty ? [""] : namen,
+                             zwischenstopps: job.zwischenstopps ?? [], mitStoppSpalte: mitStoppSpalte,
                              fahrgaeste: wirksam.joined(separator: ", "), notiz: dispoText, aiBooked: aiBooked,
                              mitOrtSpalten: mitOrtSpalten)
     }
@@ -329,6 +351,7 @@ enum FahrtSpeichern {
         var zielAdresse: String
         var startOrtID: UUID?
         var zielOrtID: UUID?
+        var zwischenstopps: [String]
         var tag: String
         var startZeit: String
         var kolonne: String
@@ -369,6 +392,7 @@ enum FahrtSpeichern {
             zielAdresse: zielOrt ? FahrtText.getrimmt(e.werte.zielOrtAdresse) : ziel,
             startOrtID: startOrt ? e.werte.startOrtID : nil,
             zielOrtID: zielOrt ? e.werte.zielOrtID : nil,
+            zwischenstopps: e.zwischenstopps.map(FahrtText.getrimmt).filter { !$0.isEmpty },
             tag: tag, startZeit: startZeit,
             kolonne: FahrtText.getrimmt(e.werte.konvoi),
             fahrerNamen: FahrtText.fahrerNamenListe(e.fahrerNamen),
@@ -390,7 +414,7 @@ enum FahrtSpeichern {
 
     /// Gemeinsame Spalten von insertPayload / updatePayload.
     private static func jobSpalten(_ v: Vorbereitet, status: String, kolonne: UUID?, fahrer: UUID?, aiBooked: Bool,
-                                   mitOrtSpalten: Bool = false) -> [String: AnyJSON] {
+                                   mitOrtSpalten: Bool = false, mitStoppSpalte: Bool = false) -> [String: AnyJSON] {
         let jetzt = Datum.iso(Date())
         var zeile: [String: AnyJSON] = [
             "pickup_name": .string(v.start),
@@ -419,6 +443,9 @@ enum FahrtSpeichern {
             zeile["pickup_ort_id"] = id(v.startOrtID)
             zeile["dropoff_ort_id"] = id(v.zielOrtID)
         }
+        if mitStoppSpalte || !v.zwischenstopps.isEmpty {
+            zeile["zwischenstopps"] = .array(v.zwischenstopps.map(AnyJSON.string))
+        }
         return zeile
     }
 
@@ -438,10 +465,10 @@ enum FahrtSpeichern {
 
     // MARK: Anlegen (handleCreateRide)
 
-    static func anlegen(_ e: FahrtEingabe) async -> Ergebnis {
+    static func anlegen(_ e: FahrtEingabe) async -> (ok: Bool, fehler: String?, id: UUID?) {
         let v: Vorbereitet
         switch await vorbereiten(e) {
-        case let .failure(f): return (false, f.errorDescription)
+        case let .failure(f): return (false, f.errorDescription, nil)
         case let .success(w): v = w
         }
         do {
@@ -452,20 +479,20 @@ enum FahrtSpeichern {
             let kolonnenSync = kolonne != nil || v.fahrerNamen.count > 1 || fahrerIDs.count > 1
 
             let zeile = jobSpalten(v, status: FahrtText.jobStatus(e.werte.aktuellerStatus), kolonne: kolonne,
-                                   fahrer: fahrerIDs.first, aiBooked: false)
+                                   fahrer: fahrerIDs.first, aiBooked: e.aiBooked)
             let neu: NeueID = try await Backend.client.from("jobs").insert(zeile).select("id").single().execute().value
 
             await kolonneAbgleichen(neu.id, kolonnenSync ? fahrerIDs : [])
             if v.flug.gueltig { await FahrtPruefung.externerAbgleich(neu.id, grund: "create") }
-            let notiz = FahrtText.getrimmt(e.notiz)
+            let notiz = [e.aiBooked ? aiTag : "", FahrtText.getrimmt(e.notiz)].filter { !$0.isEmpty }.joined(separator: "\n")
             if !notiz.isEmpty {
                 _ = try? await Backend.client.from("job_notes")
                     .insert(["job_id": id(neu.id), "note_text": .string(notiz)] as [String: AnyJSON]).execute()
             }
             if !v.gaeste.isEmpty { await gaesteVerknuepfen(neu.id, v.gaeste) }
-            return (true, nil)
+            return (true, nil, neu.id)
         } catch {
-            return (false, error.localizedDescription)
+            return (false, error.localizedDescription, nil)
         }
     }
 
@@ -532,7 +559,7 @@ enum FahrtSpeichern {
             let zuordnung = kolonnenSync ? fahrerIDs : (fahrerNeu.map { [$0] } ?? [])
 
             var zeile = jobSpalten(v, status: naechster, kolonne: kolonne, fahrer: fahrerNeu, aiBooked: geladen.aiBooked,
-                                   mitOrtSpalten: geladen.mitOrtSpalten)
+                                   mitOrtSpalten: geladen.mitOrtSpalten, mitStoppSpalte: geladen.mitStoppSpalte)
             if neuAnfragen {
                 zeile["driver_response_status"] = "pending"
                 zeile["driver_responded_at"] = .null

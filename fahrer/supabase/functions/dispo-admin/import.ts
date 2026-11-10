@@ -101,7 +101,7 @@ export const dateiLesen = (b64: string, dateiname: string) => {
 // Einstellungen
 // ---------------------------------------------------------------------------
 
-const einstellung = async (admin: Admin, key: string, standard: string) => {
+export const einstellung = async (admin: Admin, key: string, standard: string) => {
   const { data } = await admin.from('integration_settings').select('value').eq('key', key).maybeSingle();
   const wert = data?.value;
   if (typeof wert === 'string' && wert.trim()) return wert.trim();

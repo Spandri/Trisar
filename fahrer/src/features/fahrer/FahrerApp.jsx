@@ -2528,6 +2528,7 @@ const FahrerApp = () => {
               ...ortFelder(dropoffOrt, dbJob.dropoff_ort_id, dbJob.dropoff_name),
               routenPunkt: routenPunkte.nach,
             },
+            zwischenstopps: Array.isArray(dbJob.zwischenstopps) ? dbJob.zwischenstopps : [],
             trainNumber: dbJob.train_number || null,
             rideDate: getRideDateFromJob(dbJob),
             etd: dbJob.etd ? dbJob.etd.substring(0, 5) : '12:00',

@@ -31,8 +31,8 @@ const MISSING_DRIVER_ACTIVITY_STATE_COLUMN_RE = /column .*driver_activity_state|
 const MISSING_DRIVER_SERVICE_COLUMN_RE = /column .*service_start_time|column .*service_end_time|could not find the ['"]?service_start_time['"]? column|could not find the ['"]?service_end_time['"]? column/i;
 const MISSING_JOBS_ROUTE_COLUMN_RE = /column .*route|could not find the ['"]?route['"]? column/i;
 const MISSING_JOBS_EXT_COLUMN_RE = /column .*ext_route_|column .*ext_driver_to_pickup_|could not find the ['"]?ext_route_|could not find the ['"]?ext_driver_to_pickup_/i;
-const JOBS_SELECT_FULL = 'id, driver_id, ride_date, etd, status, route, pickup_name, pickup_address, dropoff_name, dropoff_address, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_polyline, ext_driver_to_pickup_duration_mins, ext_driver_to_pickup_duration_in_traffic_mins, ext_driver_to_pickup_polyline, ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at';
-const JOBS_SELECT_NO_ROUTE = 'id, driver_id, ride_date, etd, status, pickup_name, pickup_address, dropoff_name, dropoff_address, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_polyline, ext_driver_to_pickup_duration_mins, ext_driver_to_pickup_duration_in_traffic_mins, ext_driver_to_pickup_polyline, ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at';
+const JOBS_SELECT_FULL = 'id, driver_id, ride_date, etd, status, route, zwischenstopps, pickup_name, pickup_address, dropoff_name, dropoff_address, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_polyline, ext_driver_to_pickup_duration_mins, ext_driver_to_pickup_duration_in_traffic_mins, ext_driver_to_pickup_polyline, ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at';
+const JOBS_SELECT_NO_ROUTE = 'id, driver_id, ride_date, etd, status, zwischenstopps, pickup_name, pickup_address, dropoff_name, dropoff_address, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_polyline, ext_driver_to_pickup_duration_mins, ext_driver_to_pickup_duration_in_traffic_mins, ext_driver_to_pickup_polyline, ext_driver_to_dropoff_duration_mins, ext_driver_to_dropoff_duration_in_traffic_mins, ext_driver_to_dropoff_last_sync_at';
 const JOBS_SELECT_BASE = 'id, driver_id, ride_date, etd, status, pickup_name, pickup_address, dropoff_name, dropoff_address';
 // Nur die Punkte aus den TomTom-Payloads, nicht die ganzen JSON-Objekte.
 const JOBS_SELECT_PUNKTE = 'route_von:ext_route_payload->von, route_nach:ext_route_payload->nach, anfahrt_nach:ext_driver_to_pickup_payload->nach, zielfahrt_nach:ext_driver_to_dropoff_payload->nach';
@@ -572,6 +572,7 @@ const buildDriverActiveRide = (job, t) => {
   const extDriverToPickupDurationMins = toPositiveMinutes(job?.ext_driver_to_pickup_duration_mins);
   const extDriverToPickupDurationInTrafficMins = toPositiveMinutes(job?.ext_driver_to_pickup_duration_in_traffic_mins);
   return {
+    zwischenstoppAnzahl: Array.isArray(job?.zwischenstopps) ? job.zwischenstopps.length : 0,
     id: String(job?.id || '').trim() || null,
     status: normalizeJobStatus(job?.status),
     from: {
@@ -1736,7 +1737,8 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
 
       // Gast an Bord: blaue Linie ab dem Fahrer zum Ziel, nicht die gespeicherte Strecke ab Abholort.
       // Weicht er mehr als 200 m ab (abseits), kommt ein neuer routenStandort und es wird neu gerechnet.
-      const unterwegsAbFahrer = isTripInProgressStatus(rideStatus) && Boolean(driverLiveOrigin) && Boolean(dropoffLocation);
+      // Mit Zwischenstopps bleibt die gespeicherte Route, sonst liefe die Linie an den Stopps vorbei.
+      const unterwegsAbFahrer = isTripInProgressStatus(rideStatus) && Boolean(driverLiveOrigin) && Boolean(dropoffLocation) && !ride?.zwischenstoppAnzahl;
       const tripOrigin = unterwegsAbFahrer
         ? (Number.isFinite(Number(routenStandort?.lat)) && Number.isFinite(Number(routenStandort?.lng))
           ? { lat: Number(routenStandort.lat), lng: Number(routenStandort.lng) }

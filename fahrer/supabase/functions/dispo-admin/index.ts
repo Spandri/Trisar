@@ -4,6 +4,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { importAktion } from './import.ts';
+import { kiFrage } from './ki.ts';
 import { stundenExport } from './stunden.ts';
 
 const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator']);
@@ -63,6 +64,12 @@ Deno.serve(async (req) => {
     // Stundenerfassung: Excel-Export (siehe stunden.ts).
     if (body?.aktion === 'stunden_export') {
       const { status, daten } = await stundenExport(admin, body);
+      return jsonResponse(status, daten);
+    }
+
+    // KI-Assistent (siehe ki.ts).
+    if (body?.aktion === 'ki_frage') {
+      const { status, daten } = await kiFrage(admin, body);
       return jsonResponse(status, daten);
     }
 

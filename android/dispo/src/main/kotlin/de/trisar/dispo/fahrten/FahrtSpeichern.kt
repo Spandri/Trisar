@@ -43,6 +43,9 @@ data class GeladeneFahrt(
     val fahrgaeste: String,
     val notiz: String,
     val aiBooked: Boolean,
+    val zwischenstopps: List<String> = emptyList(),
+    /** jobs.zwischenstopps gibt es in der Datenbank. */
+    val mitStoppSpalte: Boolean = false,
 )
 
 /** payload an onCreateRide / onSave. */
@@ -54,6 +57,16 @@ data class FahrtEingabe(
     val flugZielFlughafen: String,
     val flugAnkunftGeplant: String,
     val notiz: String,
+    val zwischenstopps: List<String> = emptyList(),
+    val aiBooked: Boolean = false,
+)
+
+/** Vorschlag des KI-Assistenten als Startwerte fuer „Fahrt erstellen“. */
+data class FahrtVorlage(
+    val werte: FahrtFormularWerte,
+    val fahrerNamen: List<String>,
+    val fahrgaeste: String,
+    val notiz: String,
 )
 
 /**
@@ -61,7 +74,7 @@ data class FahrtEingabe(
  * handleDeleteRide und loadRidesFromDb in admin/src/App.jsx (FahrtSpeichern.swift).
  */
 object FahrtSpeichern {
-    data class Ergebnis(val ok: Boolean, val fehler: String? = null)
+    data class Ergebnis(val ok: Boolean, val fehler: String? = null, val id: String? = null)
 
     private const val AI_TAG = "[AI_BOOKED]"
     private const val ALT_ANONYM = """^anonymer?\s+fahrgast(?:\s+\d+)?$"""
@@ -154,7 +167,11 @@ object FahrtSpeichern {
             filter { eq("id", id) }
             limit(1)
         }.decodeList<JsonObject>().firstOrNull()
-        val job = (try { mit("$spalten, pickup_ort_id, dropoff_ort_id") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { mit(spalten) })
+        var mitStoppSpalte = true
+        val job = (try { mit("$spalten, pickup_ort_id, dropoff_ort_id, zwischenstopps") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+            mitStoppSpalte = false
+            try { mit("$spalten, pickup_ort_id, dropoff_ort_id") } catch (e2: kotlinx.coroutines.CancellationException) { throw e2 } catch (e2: Exception) { mit(spalten) }
+        })
             ?: error("Fahrt nicht gefunden.")
 
         val archiv = still(emptyList()) { c.from("jobs_archive").select(Columns.raw("job_id")) { filter { eq("job_id", id) } }.decodeList<JsonObject>() }
@@ -268,7 +285,9 @@ object FahrtSpeichern {
             aktuellerStatus = FahrtText.editorStatus(jobStatus),
             anzahlFahrzeuge = fahrzeuge,
         )
-        return GeladeneFahrt(W.t(job["id"]).ifEmpty { id }, werte, namen.ifEmpty { listOf("") }, wirksam.joinToString(", "), dispoText, aiBooked)
+        return GeladeneFahrt(W.t(job["id"]).ifEmpty { id }, werte, namen.ifEmpty { listOf("") }, wirksam.joinToString(", "), dispoText, aiBooked,
+            zwischenstopps = (job["zwischenstopps"] as? JsonArray)?.map { FahrtText.getrimmt(stringWert(it)) }?.filter { it.isNotEmpty() } ?: emptyList(),
+            mitStoppSpalte = mitStoppSpalte)
     }
 
     // MARK: Gemeinsame Vorbereitung (Pruefungen vor dem Schreiben)
@@ -283,6 +302,7 @@ object FahrtSpeichern {
         val zielName: String,
         val zielAdresse: String,
         val zielOrt: String?,
+        val zwischenstopps: List<String>,
         val tag: String,
         val startZeit: String,
         val kolonne: String,
@@ -323,6 +343,7 @@ object FahrtSpeichern {
             start, ziel,
             startName = so?.name ?: start, startAdresse = so?.adresse ?: start, startOrt = so?.id,
             zielName = zo?.name ?: ziel, zielAdresse = zo?.adresse ?: ziel, zielOrt = zo?.id,
+            zwischenstopps = e.zwischenstopps.map { FahrtText.getrimmt(it) }.filter { it.isNotEmpty() },
             tag = tag, startZeit = startZeit,
             kolonne = FahrtText.getrimmt(e.werte.konvoi),
             fahrerNamen = FahrtText.fahrerNamenListe(e.fahrerNamen),
@@ -345,7 +366,7 @@ object FahrtSpeichern {
     private fun id(u: String?): JsonElement = u?.let { JsonPrimitive(it.lowercase()) } ?: JsonNull
 
     /** Gemeinsame Spalten von insertPayload / updatePayload. */
-    private fun jobSpalten(v: Vorbereitet, status: String, kolonne: String?, fahrer: String?, aiBooked: Boolean): MutableMap<String, JsonElement> {
+    private fun jobSpalten(v: Vorbereitet, status: String, kolonne: String?, fahrer: String?, aiBooked: Boolean, mitStoppSpalte: Boolean = false): MutableMap<String, JsonElement> {
         val jetzt = DispoDatum.iso()
         return linkedMapOf(
             "pickup_name" to JsonPrimitive(v.startName),
@@ -373,6 +394,9 @@ object FahrtSpeichern {
             if (EigeneOrte.verfuegbar) {
                 it["pickup_ort_id"] = id(v.startOrt)
                 it["dropoff_ort_id"] = id(v.zielOrt)
+            }
+            if (mitStoppSpalte || v.zwischenstopps.isNotEmpty()) {
+                it["zwischenstopps"] = JsonArray(v.zwischenstopps.map { t -> JsonPrimitive(t) })
             }
         }
     }
@@ -405,7 +429,7 @@ object FahrtSpeichern {
             for (n in v.fahrerNamen) fahrerID(n, fahrer)?.let { if (it !in fahrerIDs) fahrerIDs.add(it) }
             val kolonnenSync = kolonne != null || v.fahrerNamen.size > 1 || fahrerIDs.size > 1
 
-            val zeile = JsonObject(jobSpalten(v, FahrtText.jobStatus(e.werte.aktuellerStatus), kolonne, fahrerIDs.firstOrNull(), false))
+            val zeile = JsonObject(jobSpalten(v, FahrtText.jobStatus(e.werte.aktuellerStatus), kolonne, fahrerIDs.firstOrNull(), e.aiBooked))
             val neu = Backend.client.from("jobs").insert(zeile) {
                 select(Columns.raw("id"))
             }.decodeList<JsonObject>().first()
@@ -413,10 +437,10 @@ object FahrtSpeichern {
 
             kolonneAbgleichen(neuID, if (kolonnenSync) fahrerIDs else emptyList())
             if (v.flug.gueltig) FahrtPruefung.externerAbgleich(neuID, "create")
-            val notiz = FahrtText.getrimmt(e.notiz)
+            val notiz = listOf(if (e.aiBooked) AI_TAG else "", FahrtText.getrimmt(e.notiz)).filter { it.isNotEmpty() }.joinToString("\n")
             if (notiz.isNotEmpty()) still(Unit) { notizAnlegen(neuID, notiz) }
             if (v.gaeste.isNotEmpty()) gaesteVerknuepfen(neuID, v.gaeste)
-            Ergebnis(true)
+            Ergebnis(true, id = neuID)
         } catch (x: kotlinx.coroutines.CancellationException) {
             throw x
         } catch (x: Exception) {
@@ -477,7 +501,7 @@ object FahrtSpeichern {
             val kolonnenSync = kolonne != null || v.fahrerNamen.size > 1 || fahrerIDs.size > 1
             val zuordnung = if (kolonnenSync) fahrerIDs else listOfNotNull(fahrerNeu)
 
-            val spalten = jobSpalten(v, naechster, kolonne, fahrerNeu, geladen.aiBooked)
+            val spalten = jobSpalten(v, naechster, kolonne, fahrerNeu, geladen.aiBooked, geladen.mitStoppSpalte)
             if (neuAnfragen) {
                 spalten["driver_response_status"] = JsonPrimitive("pending")
                 spalten["driver_responded_at"] = JsonNull

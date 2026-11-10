@@ -99,6 +99,8 @@ internal data class KartenFahrt(
     val kolonnenFahrerIDs: List<String> = emptyList(),
     /** Pin des eigenen Orts (pickup_ort_id / dropoff_ort_id), sonst TomTom-Payload. Nur ohne beide wird die Adresse gesucht. */
     val vonPunkt: KartenPunkt? = null,
+    /** Zwischenstopps in Fahrtreihenfolge (TomTom-Payload). */
+    val stoppPunkte: List<KartenPunkt> = emptyList(),
     val nachPunkt: KartenPunkt? = null,
 )
 
@@ -619,6 +621,7 @@ internal object KartenRegeln {
         return KartenFahrt(
             jText(job["id"]), status(job["status"]), von, nach,
             vonPunkt = vo?.let { KartenPunkt(it.lat, it.lng) } ?: pv?.let { KartenPunkt(it.lat, it.lng) },
+            stoppPunkte = de.trisar.kern.Routen.stoppPunkte(job).map { KartenPunkt(it.lat, it.lng) },
             nachPunkt = no?.let { KartenPunkt(it.lat, it.lng) } ?: pn?.let { KartenPunkt(it.lat, it.lng) },
         )
     }

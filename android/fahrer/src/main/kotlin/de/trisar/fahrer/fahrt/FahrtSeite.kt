@@ -455,7 +455,7 @@ private fun navigationsURL(f: FahrtKopf): String? {
     if (abhol.isEmpty() && ziel.isEmpty()) return null
     fun k(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
     val basis = "https://www.google.com/maps/dir/?api=1&travelmode=driving"
-    return if (abhol.isNotEmpty() && ziel.isNotEmpty()) "$basis&waypoints=${k(abhol)}&destination=${k(ziel)}"
+    return if (abhol.isNotEmpty() && ziel.isNotEmpty()) "$basis&waypoints=${k((listOf(abhol) + f.zwischenstopps.take(8)).joinToString("|"))}&destination=${k(ziel)}"
     else "$basis&destination=${k(ziel.ifEmpty { abhol })}"
 }
 
@@ -513,6 +513,16 @@ private fun BlattInhalt(
         Row(Modifier.bei(20f, y(289f)).width(innen.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             OrtText(ortArt(fahrt.abholName, fahrt.abholAdresse), fahrt.abholKurz, nav, false, Modifier.weight(1f))
             OrtText(ortArt(fahrt.zielName, fahrt.zielAdresse), fahrt.zielKurz, nav, true, Modifier.weight(1f))
+        }
+
+        if (fahrt.zwischenstopps.isNotEmpty()) {
+            Text(
+                "Über: " + fahrt.zwischenstopps.joinToString("  ·  "),
+                style = grotesk(13f, 700, abstand = -0.3f, farbe = androidx.compose.ui.graphics.Color(0xFFE2F754)),
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.bei(20f, y(352f)).width(innen.dp),
+            )
         }
 
         if (merkmale.isNotEmpty()) {

@@ -28,6 +28,7 @@ import { gleicherOrt } from '../../../shared/utils/vorherigeFahrt';
 import { useDemoAnflug } from '../../../demo/flugAnflug';
 import { DEMO_MODE } from '../../../datenquelle';
 import { getRouteNavigationUrl } from '../../../shared/utils/navigation';
+import ZwischenstoppZeile from './ZwischenstoppZeile';
 import { ortIconFuer } from '../../../shared/orte';
 import { gaesteTeile, gaesteZeilen } from '../../../shared/gaesteAnzeige';
 const envOrDefault = (value, fallback) => {
@@ -1411,7 +1412,7 @@ export default function KoloneFlughafen({ job, setView, onCancelRide, onEndRide,
   const fromName = getDisplayLocationName(job?.from, 'München MUC');
   const toName = getDisplayLocationName(job?.to, 'Bayrischer Hof');
   // Beide Adressen oeffnen dieselbe Route: Standort -> Gast -> Endort.
-  const routeNavUrl = getRouteNavigationUrl(job?.from, job?.to);
+  const routeNavUrl = getRouteNavigationUrl(job?.from, job?.to, job?.zwischenstopps);
   const fromNavUrl = routeNavUrl;
   const toNavUrl = routeNavUrl;
   const fromTypeLabel = getLocationTypeLabel(job?.from, t);
@@ -1713,6 +1714,8 @@ export default function KoloneFlughafen({ job, setView, onCancelRide, onEndRide,
             <div className="absolute right-[20px] top-[211px] w-[64px] h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
               <img src={ortIconFuer(job?.to) || pickRideIcon(`${job?.to?.name || ''} ${job?.to?.address || ''} ${getDisplayLocationName(job?.to, "")}`)} alt="" className="w-[30px] h-[30px] object-contain" />
             </div>
+
+            <ZwischenstoppZeile stopps={job?.zwischenstopps} top={352} />
 
             <div className="absolute left-[20px] right-[20px] top-[289px] grid grid-cols-[minmax(0,1fr)_18px_minmax(0,1fr)] items-start">
               <div className="min-w-0">

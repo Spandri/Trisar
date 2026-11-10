@@ -5,6 +5,8 @@ import FahrerAutocomplete from '../ui/FahrerAutocomplete';
 import FahrgastAutocomplete from '../ui/FahrgastAutocomplete';
 import { useI18n } from '../../i18n';
 import OrtVorschlag from '../ui/OrtVorschlag';
+import ZwischenstoppVorschlaege from '../ui/ZwischenstoppVorschlaege';
+import { adressWarnung, fahrerFuersSpeichern, gleicheZeilen, useZwischenstopps, zeilenMitFreier } from '../../shared/fahrtZeilen';
 import { orteZurEingabe, useOrte } from '../../shared/orte';
 import { demoAlert, demoConfirm, tutorialLaeuft } from '../ui/demoDialoge';
 import RisikoAbschnitt from './RisikoAbschnitt';
@@ -334,6 +336,7 @@ export default function FahrtBearbeitenView({
     : null;
   const fahrtGeplant = fahrerPasst(risikoDieserFahrt, Array.isArray(initialData?.fahrerNamen) ? initialData.fahrerNamen : []);
   const [placePredictions, setPlacePredictions] = useState({ start: [], ziel: [] });
+  const stopps = useZwischenstopps({ start: formValues.start, anfang: initialData?.zwischenstopps || [], onFetchPlaceSuggestions, t });
   const [activeAddressField, setActiveAddressField] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [flightEtaIndicator, setFlightEtaIndicator] = useState({ text: '', colorClass: 'text-[#808080]' });
@@ -366,6 +369,7 @@ export default function FahrtBearbeitenView({
     setFahrerNamen(buildInitialDriverNames(initialData || {}));
     setFahrgaesteNamen(buildInitialGuestNames(initialData || {}));
     setFormValues(buildInitialFormValues(initialData || {}));
+    stopps.zuruecksetzen(initialData?.zwischenstopps || []);
     setFlightEtaIndicator({ text: '', colorClass: 'text-[#808080]' });
     setFlightValidationState({ status: 'empty', etaLabel: '', valid: false, startLocation: '' });
     setAppliedFlightNumber('');
@@ -385,7 +389,7 @@ export default function FahrtBearbeitenView({
   const pruefStart = formValues.startAdresse || formValues.start;
   const showVehicleCount = String(formValues.konvoi || '').trim().length > 0;
   const parsedVehicleCount = Number.parseInt(formValues.anzahlFahrzeuge, 10);
-  const fahrerCount = showVehicleCount ? Math.max(1, Number.isNaN(parsedVehicleCount) ? 1 : parsedVehicleCount) : 1;
+  const fahrerPlaetze = showVehicleCount ? Math.max(1, Number.isNaN(parsedVehicleCount) ? 1 : parsedVehicleCount) : 1;
   const filledGuestNames = fahrgaesteNamen.map((name) => String(name || '').trim()).filter(Boolean);
   const _filledGuestCount = filledGuestNames.length;
   const predictionRequestRef = useRef(null);
@@ -393,18 +397,13 @@ export default function FahrtBearbeitenView({
   const flightValidationSeqRef = useRef(0);
   const trainValidationSeqRef = useRef(0);
 
+  // Fahrer eingetragen: darunter kommt eine freie Zeile fuer den naechsten.
   useEffect(() => {
     setFahrerNamen((prev) => {
-      const next = [...prev];
-      if (next.length < fahrerCount) {
-        return [...next, ...Array.from({ length: fahrerCount - next.length }, () => '')];
-      }
-      if (next.length > fahrerCount) {
-        return next.slice(0, fahrerCount);
-      }
-      return next;
+      const next = zeilenMitFreier(prev, { mindestens: fahrerPlaetze });
+      return gleicheZeilen(next, prev) ? prev : next;
     });
-  }, [fahrerCount]);
+  }, [fahrerNamen, fahrerPlaetze]);
 
   useEffect(() => {
     setFahrgaesteNamen((prev) => {
@@ -639,6 +638,7 @@ export default function FahrtBearbeitenView({
   };
 
   const rows = [
+    ...stopps.rows,
     { key: 'ziel', label: t('fahrt.ziel'), mode: 'select', options: placePredictions.ziel, marker: 'feld-ziel' },
     {
       key: 'flugnummer',
@@ -665,9 +665,9 @@ export default function FahrtBearbeitenView({
     },
     { key: 'konvoi', label: t('fahrt.konvoi'), mode: 'text', marker: 'feld-konvoi' },
     ...(showVehicleCount ? [{ key: 'anzahlFahrzeuge', label: t('fahrt.anzahlFahrzeuge'), mode: 'number', options: ['1', '2', '3', '4'], marker: 'feld-fahrzeuge' }] : []),
-    ...Array.from({ length: fahrerCount }, (_, index) => ({
+    ...fahrerNamen.map((_, index) => ({
       key: `fahrer-${index}`,
-      label: showVehicleCount ? t('fahrt.fahrerNumbered', { n: index + 1 }) : t('fahrt.fahrer'),
+      label: showVehicleCount || fahrerNamen.length > 1 ? t('fahrt.fahrerNumbered', { n: index + 1 }) : t('fahrt.fahrer'),
       mode: 'fahrer',
       marker: index === 0 ? 'feld-fahrer' : `feld-fahrer-${index + 1}`,
       value: fahrerNamen[index] || '',
@@ -722,7 +722,7 @@ export default function FahrtBearbeitenView({
 
   const lastRowTop = ROW_START_TOP + (rows.length - 1) * ROW_STEP;
   const startRowTop = 342;
-  const zielRowTop = ROW_START_TOP;
+  const zielRowTop = ROW_START_TOP + stopps.rows.length * ROW_STEP;
   const risikoTop = lastRowTop + ROW_HEIGHT + NOTES_GAP;
   const notesTop = risikoTop + (risikoDieserFahrt && risikoHoehe ? risikoHoehe + NOTES_GAP : 0);
   const ctaTop = notesTop + 224 + CTA_GAP;
@@ -745,12 +745,13 @@ export default function FahrtBearbeitenView({
     const driverSlotsToSave = hasKonvoi
       ? Math.max(1, Number.isNaN(requestedVehicleCount) ? 1 : requestedVehicleCount)
       : 1;
-    const normalizedDriverNames = (Array.isArray(fahrerNamen) ? fahrerNamen : [])
-      .map((name) => String(name || '').trim());
-    const fahrerNamenForSave = normalizedDriverNames.slice(0, driverSlotsToSave);
-    while (fahrerNamenForSave.length < driverSlotsToSave) {
-      fahrerNamenForSave.push('');
-    }
+    const fahrerNamenForSave = fahrerFuersSpeichern(fahrerNamen, driverSlotsToSave);
+
+    const zwischenstopps = stopps.gefuellt;
+    setIsSaving(true);
+    const warnung = await adressWarnung([formValues.startAdresse || formValues.start, ...zwischenstopps, formValues.zielAdresse || formValues.ziel], t);
+    setIsSaving(false);
+    if (warnung && !demoConfirm(warnung)) return;
 
     const payload = {
       ...initialData,
@@ -760,6 +761,7 @@ export default function FahrtBearbeitenView({
       fahrgaeste: filledGuestNames.join('; '),
       anonymeGaeste: String(formValues.anonymeGaeste || '0'),
       fahrerNamen: fahrerNamenForSave,
+      zwischenstopps,
       flugZielFlughafen: flightAirportOverride,
       flugAnkunftGeplant: flightScheduledOverride,
       notes,
@@ -952,11 +954,11 @@ export default function FahrtBearbeitenView({
                   }
                   updateField(row.key, '');
                 }}
-                onFocus={row.key === 'ziel' ? () => setActiveAddressField('ziel') : undefined}
-                onBlur={row.key === 'ziel' ? () => setTimeout(() => {
+                onFocus={row.onFocus || (row.key === 'ziel' ? () => setActiveAddressField('ziel') : undefined)}
+                onBlur={row.onBlur || (row.key === 'ziel' ? () => setTimeout(() => {
                   if (tutorialLaeuft()) return;
                   setActiveAddressField((prev) => (prev === 'ziel' ? null : prev));
-                }, 120) : undefined}
+                }, 120) : undefined)}
                 mode={row.mode}
                 options={row.options}
                 optionLabels={row.optionLabels}
@@ -1007,6 +1009,8 @@ export default function FahrtBearbeitenView({
               ))}
             </div>
           )}
+
+          <ZwischenstoppVorschlaege panel={stopps.panel} top={ROW_START_TOP + (stopps.panel?.index ?? 0) * ROW_STEP + ROW_HEIGHT + 4} />
 
           {activeAddressField === 'ziel' && (placePredictions.ziel.length > 0 || ortTreffer.ziel.length > 0) && (
             <div

@@ -88,7 +88,8 @@ object Routen {
 
     /** Spaltenauswahl fuer die Punkte aus den TomTom-Payloads (wie JOBS_SELECT_PUNKTE im Web). */
     const val PAYLOAD_SPALTEN = "route_von:ext_route_payload->von, route_nach:ext_route_payload->nach, " +
-        "anfahrt_nach:ext_driver_to_pickup_payload->nach, zielfahrt_nach:ext_driver_to_dropoff_payload->nach"
+        "anfahrt_nach:ext_driver_to_pickup_payload->nach, zielfahrt_nach:ext_driver_to_dropoff_payload->nach, " +
+        "route_stopps:ext_route_payload->stopps"
 
     /**
      * Abholort und Ziel aus einer Fahrtzeile in der Reihenfolge von trisar_evaluate_job_status:
@@ -98,6 +99,10 @@ object Routen {
     fun payloadPunkte(zeile: JsonObject): Pair<GeoPunkt?, GeoPunkt?> =
         (koordinate(zeile["route_von"]) ?: koordinate(zeile["anfahrt_nach"])) to
             (koordinate(zeile["route_nach"]) ?: koordinate(zeile["zielfahrt_nach"]))
+
+    /** Zwischenstopps der Fahrt aus dem TomTom-Payload, in Fahrtreihenfolge. */
+    fun stoppPunkte(zeile: JsonObject): List<GeoPunkt> =
+        (zeile["route_stopps"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { koordinate(it) } ?: emptyList()
 
     private fun prefs(ctx: Context) = ctx.applicationContext.getSharedPreferences(SPEICHER, Context.MODE_PRIVATE)
 

@@ -210,6 +210,21 @@ const getOpenSkyRefreshIntervalSeconds = (
   return OPENSKY_MIN_REFRESH_SECONDS_IN_FLIGHT; // After departure: every minute.
 };
 
+const zwischenstoppsDerFahrt = (wert: unknown): string[] => (
+  Array.isArray(wert) ? wert.map((t) => String(t ?? '').trim()).filter(Boolean) : []
+);
+
+// Anfahrt zu den schon berechneten Punkten der Fahrt, nicht erneut zum Adresstext.
+const routenPunktText = (
+  routePatch: Record<string, unknown> | null | undefined,
+  job: { ext_route_payload?: unknown },
+  art: 'von' | 'nach',
+) => {
+  const payload = (routePatch?.ext_route_payload ?? job.ext_route_payload) as Record<string, { lat?: number; lon?: number }> | null;
+  const punkt = payload?.[art];
+  return Number.isFinite(punkt?.lat) && Number.isFinite(punkt?.lon) ? `${Number(punkt?.lat).toFixed(6)},${Number(punkt?.lon).toFixed(6)}` : '';
+};
+
 const getRefreshLockTtlSeconds = (reason: SyncReason) => {
   if (reason === 'live_view') return LIVE_VIEW_STALE_LOCK_SECONDS;
   if (reason === 'manual_refresh') return MANUAL_REFRESH_STALE_LOCK_SECONDS;
@@ -2521,7 +2536,7 @@ Deno.serve(async (req) => {
     const { data: jobs, error: jobsError } = await admin
       .from('jobs')
       .select(
-        'id,driver_id,trip_type,pickup_address,dropoff_address,flight_number,flight_origin,ride_date,ext_last_enriched_at,ext_driver_to_pickup_polyline,ext_flight_payload,ext_driver_to_pickup_last_sync_at,ext_driver_to_dropoff_last_sync_at',
+        'id,driver_id,trip_type,pickup_address,dropoff_address,zwischenstopps,ext_route_payload,flight_number,flight_origin,ride_date,ext_last_enriched_at,ext_driver_to_pickup_polyline,ext_flight_payload,ext_driver_to_pickup_last_sync_at,ext_driver_to_dropoff_last_sync_at',
       )
       .in('id', jobIds);
 
@@ -3024,10 +3039,11 @@ Deno.serve(async (req) => {
           typeof job.dropoff_address === 'string' &&
           job.dropoff_address.trim()
         ) {
+          const fahrtStopps = zwischenstoppsDerFahrt(job.zwischenstopps);
           const departureBucket = new Date();
           departureBucket.setUTCMinutes(Math.floor(departureBucket.getUTCMinutes() / 10) * 10, 0, 0);
           const bucketIso = departureBucket.toISOString();
-          const routeRawKey = `${job.pickup_address.trim().toLowerCase()}|${job.dropoff_address.trim().toLowerCase()}|${bucketIso}`;
+          const routeRawKey = `${job.pickup_address.trim().toLowerCase()}|${fahrtStopps.join('|').toLowerCase()}|${job.dropoff_address.trim().toLowerCase()}|${bucketIso}`;
           const routeKey = await sha256(routeRawKey);
 
           const { data: cachedRoute } = await admin
@@ -3064,7 +3080,7 @@ Deno.serve(async (req) => {
             } else {
               routeStatus = 'miss';
               externalCalls += 1;
-              const tt = await tomtomRoute(admin, tomtomKey, job.pickup_address, job.dropoff_address);
+              const tt = await tomtomRoute(admin, tomtomKey, job.pickup_address, job.dropoff_address, { stopps: fahrtStopps });
               await recordUsage(admin, {
                 job_id: jobId,
                 provider: TOMTOM_PROVIDER,
@@ -3204,7 +3220,7 @@ Deno.serve(async (req) => {
           if (!tomtomKey) return { patch: {}, errorText: 'Missing tomtom_routing_key' };
 
           externalCalls += 1;
-          const tt = await tomtomRoute(admin, tomtomKey, origin, destinationAddress);
+          const tt = await tomtomRoute(admin, tomtomKey, origin, destinationAddress, { ohneAnker: true });
           await recordUsage(admin, {
             job_id: jobId,
             provider: TOMTOM_PROVIDER,
@@ -3270,7 +3286,7 @@ Deno.serve(async (req) => {
         if (reason === 'manual_refresh' || reason === 'live_view') {
           if (typeof job.pickup_address === 'string' && job.pickup_address.trim()) {
             const approachResult = await resolveDriverRoute({
-              destinationAddress: job.pickup_address,
+              destinationAddress: routenPunktText(routePatch, job, 'von') || job.pickup_address,
               action: 'driver_to_pickup_lookup',
               patchType: 'pickup',
             });
@@ -3280,7 +3296,7 @@ Deno.serve(async (req) => {
 
           if (typeof job.dropoff_address === 'string' && job.dropoff_address.trim()) {
             const dropoffResult = await resolveDriverRoute({
-              destinationAddress: job.dropoff_address,
+              destinationAddress: routenPunktText(routePatch, job, 'nach') || job.dropoff_address,
               action: 'driver_to_dropoff_lookup',
               patchType: 'dropoff',
             });

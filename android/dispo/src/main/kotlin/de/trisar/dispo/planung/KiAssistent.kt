@@ -99,15 +99,34 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import java.time.LocalTime
+import io.github.jan.supabase.functions.functions
+import io.ktor.client.plugins.timeout
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import androidx.activity.compose.BackHandler
+import de.trisar.dispo.fahrten.FahrtEingabe
+import de.trisar.dispo.fahrten.FahrtFormularSeite
+import de.trisar.dispo.fahrten.FahrtFormularWerte
+import de.trisar.dispo.fahrten.FahrtSpeichern
+import de.trisar.dispo.fahrten.FahrtText
+import de.trisar.dispo.fahrten.FahrtVorlage
 
 // KI-Assistent (KiAssistentAnsicht.swift, KiAssistentDienst.swift, KiAssistentView.jsx): Chat mit dem Assistenten,
 // Verlauf unter demselben Schluessel wie localStorage im Web, Kopieren/Bearbeiten an den Nachrichten,
 // Buchungs-Vorschau und Neuplanungs-Link (beides kommt live derzeit nicht vor).
 
-/**
- * Nachbau von askDatabaseAssistant (Live-Zweig): dort ist noch kein Modell angebunden. Nach 900 ms kommt fuer
- * jede Nachricht nur der Hinweis. Der Ollama-/RAG-Teil danach ist im Web unerreichbar und fehlt hier.
- */
+/** Fragt dispo-admin (aktion ki_frage), wie das Web. Das Modell laeuft auf dem Server-Weg im Tailnet. */
 internal object KiAssistentDienst {
     class Antwort(val text: String, val buchungsVorschlag: KiBuchungsVorschlag? = null)
 
@@ -116,10 +135,43 @@ internal object KiAssistentDienst {
 
     fun cacheVerwerfen() { snapshotZeit = null }
 
-    suspend fun fragen(prompt: String, @Suppress("UNUSED_PARAMETER") verlauf: List<Pair<String, String>>): Antwort {
-        if (prompt.trim().isEmpty()) return Antwort("Bitte stelle eine Frage.")
-        delay(900)
-        return Antwort("Der Assistent ist im Testbetrieb noch nicht freigeschaltet.")
+    /** onCreateRide(payload, { aiBooked: true }) */
+    suspend fun buchen(v: KiBuchungsVorschlag): String? {
+        val w = v.vorlage.werte.let { it.copy(anonymeGaeste = it.anonymeGaeste.ifEmpty { "0" }) }
+        val e = FahrtSpeichern.anlegen(
+            FahrtEingabe(w, FahrtText.gaesteTeilen(v.fahrgaeste).joinToString("; "), v.fahrerNamen, "", "", v.notes, aiBooked = true),
+        )
+        if (!e.ok) throw IllegalStateException(e.fehler ?: "Unbekannter Fehler")
+        return e.id
+    }
+
+    /** Letzte Fahrer und Fahrten des Gespraechs, fuer Rueckfragen. */
+    private var kontext: JsonElement? = null
+
+    suspend fun fragen(prompt: String, verlauf: List<Pair<String, String>>): Antwort {
+        val frage = prompt.trim()
+        if (frage.isEmpty()) return Antwort("Bitte stelle eine Frage.")
+        val koerper = buildJsonObject {
+            put("aktion", "ki_frage")
+            put("frage", frage)
+            putJsonArray("verlauf") {
+                verlauf.forEach { (rolle, text) -> addJsonObject { put("role", rolle); put("text", text) } }
+            }
+            kontext?.let { put("kontext", it) }
+        }
+        // Eigene Zeitgrenze: das Modell braucht bis zu 52 s, Standard im Client sind 10 s.
+        val text = Backend.client.functions.invoke("dispo-admin") {
+            contentType(ContentType.Application.Json)
+            setBody(koerper.toString())
+            timeout { requestTimeoutMillis = 60_000; socketTimeoutMillis = 60_000 }
+        }.bodyAsText()
+        val antwort = Backend.json.parseToJsonElement(text).jsonObject
+        antwort["kontext"]?.takeUnless { it is JsonNull }?.let { kontext = it }
+        val aktion = antwort["action"] as? JsonObject
+        val vorschlag = if ((aktion?.get("type") as? JsonPrimitive)?.content == "booking_proposal") {
+            aktion["proposal"]?.let { Backend.json.decodeFromJsonElement(KiBuchungsVorschlag.serializer(), it) }
+        } else null
+        return Antwort((antwort["answer"] as? JsonPrimitive)?.content.orEmpty(), vorschlag)
     }
 }
 
@@ -130,6 +182,15 @@ internal data class KiBuchungsVorschlag(
     val fahrgaeste: String = "", val anonymeGaeste: String = "0", val fahrerNamen: List<String> = emptyList(),
     val konvoi: String = "", val flugnummer: String = "", val notes: String = "",
 ) {
+    /** Startwerte fuer das Fahrtformular (toCreateRidePayload). */
+    val vorlage: FahrtVorlage get() = FahrtVorlage(
+        FahrtFormularWerte(
+            datum = datum, startZeit = startZeit, start = start, ziel = ziel, flugnummer = flugnummer, konvoi = konvoi,
+            anonymeGaeste = if (anonymeGaeste == "0") "" else anonymeGaeste, aktuellerStatus = "offen",
+        ),
+        fahrerNamen, fahrgaeste, notes,
+    )
+
     /** hasMinimumBookingData */
     val hatPflichtfelder: Boolean get() = start.isNotBlank() && ziel.isNotBlank() && startZeit.isNotBlank()
 }
@@ -220,13 +281,15 @@ internal fun KiAssistentAnsicht(
     zurueck: (() -> Unit)? = null,
     oeffneNeuplanung: (String) -> Unit = {},
     /** onCreateRide(payload, { aiBooked: true }): liefert die ID der neuen Fahrt. null = nicht verbunden (wie iOS). */
-    fahrtBuchen: (suspend (KiBuchungsVorschlag) -> String?)? = null,
+    fahrtBuchen: (suspend (KiBuchungsVorschlag) -> String?)? = KiAssistentDienst::buchen,
 ) {
     var nachrichten by remember { mutableStateOf(KiVerlaufSpeicher.laden()) }
     var eingabe by remember { mutableStateOf("") }
     var bearbeiteteID by remember { mutableStateOf<String?>(null) }
     var kopierteID by remember { mutableStateOf<String?>(null) }
     var sendet by remember { mutableStateOf(false) }
+    /** Vorschlag, der gerade im Fahrtformular angepasst wird (Nachricht und Vorschlag). */
+    var formular by remember { mutableStateOf<Pair<String, KiBuchungsVorschlag>?>(null) }
     var fokussiert by remember { mutableStateOf(false) }
     val fokus = remember { FocusRequester() }
     val fokusVerwalter = LocalFocusManager.current
@@ -303,6 +366,12 @@ internal fun KiAssistentAnsicht(
         scope.launch { delay(1200); if (kopierteID == n.id) kopierteID = null }
     }
 
+    fun formularGebucht(id: String, fahrtID: String?) {
+        formular = null
+        aendern(id) { it.copy(bookingStatus = "booked", bookingRideId = fahrtID?.trim()?.ifEmpty { null }) }
+        hinweis("Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
+    }
+
     fun buchen(id: String, v: KiBuchungsVorschlag) {
         if (!v.hatPflichtfelder) {
             hinweis("Für diese Buchung fehlen noch Pflichtfelder (Start, Ziel oder Zeit).", "msg-ai-booking-error")
@@ -362,7 +431,7 @@ internal fun KiAssistentAnsicht(
                                                 contentAlignment = Alignment.Center,
                                             ) { PText("Neuplanung im Planer ansehen", 20f, 700, Color.Black, -0.5f) }
                                         }
-                                        n.bookingProposal?.let { v -> Buchung(n, v, { buchen(n.id, v) }, { aendern(n.id) { it.copy(bookingStatus = "cancelled") } }, oeffneFahrt) }
+                                        n.bookingProposal?.let { v -> Buchung(n, v, { formular = n.id to v }, { buchen(n.id, v) }, { aendern(n.id) { it.copy(bookingStatus = "cancelled") } }, oeffneFahrt) }
                                     }
                                 }
                             }
@@ -413,6 +482,14 @@ internal fun KiAssistentAnsicht(
             }
         }
         if (!fokussiert) Navileiste(DispoZiel.KI_ASSISTENT, zeigen)
+        formular?.let { (nachricht, vorschlag) ->
+            BackHandler { formular = null }
+            FahrtFormularSeite(
+                fahrtID = null, zurueck = { formular = null }, zeigen = null,
+                vorlage = vorschlag.vorlage,
+                nachAnlegen = { fahrtID -> formularGebucht(nachricht, fahrtID) },
+            )
+        }
     }
 }
 
@@ -478,9 +555,9 @@ private fun AssistentBlase(n: KiNachricht, kopiert: Boolean, kopieren: () -> Uni
 }
 
 @Composable
-private fun Buchung(n: KiNachricht, v: KiBuchungsVorschlag, buchen: () -> Unit, verwerfen: () -> Unit, oeffneFahrt: (String) -> Unit) {
+private fun Buchung(n: KiNachricht, v: KiBuchungsVorschlag, oeffnen: () -> Unit, buchen: () -> Unit, verwerfen: () -> Unit, oeffneFahrt: (String) -> Unit) {
     Column(Modifier.padding(top = 12.dp).width(362.dp)) {
-        KiBuchungsKarte(v)
+        KiBuchungsKarte(v, if (n.bookingStatus == "pending") oeffnen else null)
         when (n.bookingStatus) {
             "pending" -> Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.weight(1f).height(51.dp).background(hex(0xE3F754)).tippen(buchen), contentAlignment = Alignment.Center) {
@@ -509,7 +586,7 @@ private fun Buchung(n: KiNachricht, v: KiBuchungsVorschlag, buchen: () -> Unit, 
 
 /** BookingPreviewCard */
 @Composable
-private fun KiBuchungsKarte(v: KiBuchungsVorschlag) {
+private fun KiBuchungsKarte(v: KiBuchungsVorschlag, oeffnen: (() -> Unit)? = null) {
     val r = v.datum.trim()
     val datum = if (Regex("""^\d{4}-\d{2}-\d{2}$""").matches(r)) "${r.substring(8, 10)}.${r.substring(5, 7)}" else "--.--"
     // Gemeinsame Regel: nur anonyme Gaeste als "N Anonyme Gäste", sonst Namen plus "+ N".
@@ -517,10 +594,10 @@ private fun KiBuchungsKarte(v: KiBuchungsVorschlag) {
     val gast = if (gastTeile.namen.isEmpty() && gastTeile.anonym == 0) "Noch keine Gäste angegeben"
         else de.trisar.kern.GaesteAnzeige.text(gastTeile.namen, gastTeile.anonym)
     val fahrer = if (v.fahrerNamen.isEmpty()) "Fahrer fehlt" else v.fahrerNamen.joinToString(", ")
-    Box(Modifier.fillMaxWidth().heightIn(min = 144.dp).background(Color.White)) {
+    Box(Modifier.fillMaxWidth().heightIn(min = 144.dp).background(Color.White).let { if (oeffnen != null) it.tippen(oeffnen) else it }) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             PAbsatz(gast, 24f, 700, 26f, Color.Black, modifier = Modifier.padding(end = 86.dp))
-            PAbsatz("${v.start} - ${v.ziel}", 12f, 500, 16f, Color.Black.copy(alpha = 0.8f))
+            PAbsatz("${v.start} - ${v.ziel}", 12f, 500, 16f, Color.Black.copy(alpha = 0.8f), modifier = Modifier.padding(end = 86.dp))
             PAbsatz(fahrer, 16f, 700, 24f, Color.Black)
         }
         Column(Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 16.dp), horizontalAlignment = Alignment.End) {

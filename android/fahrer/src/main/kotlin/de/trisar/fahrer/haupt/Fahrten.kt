@@ -69,6 +69,7 @@ internal data class FahrtZeile(
     val driver_id: String? = null,
     val pickup_ort_id: String? = null,
     val dropoff_ort_id: String? = null,
+    val zwischenstopps: List<String>? = null,
 ) {
     companion object {
         // Alle Spalten wie iOS (select()). Eine feste Liste bricht das ganze Laden ab, sobald eine
@@ -114,6 +115,7 @@ data class Fahrt(
     /** Eigener Ort der Dispo (orte.id) fuer Start/Ziel, dann gilt sein Icon. */
     val abholOrtID: String? = null,
     val zielOrtID: String? = null,
+    val zwischenstopps: List<String> = emptyList(),
 ) {
     val abholKurz get() = Adresse.kurz(abholName, abholAdresse)
     val zielKurz get() = Adresse.kurz(zielName, zielAdresse)
@@ -334,6 +336,7 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
                         meineAntwort = eigene?.response_status ?: "pending",
                         abholOrtID = z.pickup_ort_id,
                         zielOrtID = z.dropoff_ort_id,
+                        zwischenstopps = z.zwischenstopps.orEmpty(),
                     )
                 }
                 dienstAnfragen.value = dienste

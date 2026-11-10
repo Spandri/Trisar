@@ -52,6 +52,25 @@ enum FahrtPruefung {
         return Array(festeOrte.filter { FahrtText.ortNormal($0).contains(q) }.prefix(8))
     }
 
+    /// Vor dem Speichern: Hinweis, wenn eine Adresse fehlt oder nicht zur Fahrt passt, sonst leer.
+    static func adressWarnung(_ adressen: [String]) async -> String {
+        let liste = adressen.map(FahrtText.getrimmt).filter { !$0.isEmpty }
+        guard case let .success(daten) = await aufrufen("places-proxy", [
+            "aktion": .string("adressen_pruefen"), "adressen": .array(liste.map(AnyJSON.string)),
+        ]) else { return "" }
+        let warnungen = daten.objectValue?["warnungen"]?.arrayValue ?? []
+        return warnungen.compactMap { w -> String? in
+            guard let o = w.objectValue, let adresse = o["adresse"]?.stringValue else { return nil }
+            switch o["grund"]?.stringValue {
+            case "nicht_gefunden": return FahrtText.tr("fahrt.adresseNichtGefunden", ["adresse": adresse])
+            case "weit_weg":
+                let km = o["km"]?.doubleValue.map { String(Int($0)) } ?? o["km"]?.intValue.map(String.init) ?? "?"
+                return FahrtText.tr("fahrt.adresseWeitWeg", ["adresse": adresse, "km": km])
+            default: return FahrtText.tr("fahrt.adresseOhneStadt", ["adresse": adresse])
+            }
+        }.joined(separator: "\n")
+    }
+
     static func ortsVorschlaege(_ eingabe: String) async -> [String] {
         let text = FahrtText.getrimmt(eingabe)
         if text.isEmpty { return [] }

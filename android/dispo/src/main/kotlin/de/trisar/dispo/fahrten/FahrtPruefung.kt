@@ -65,6 +65,26 @@ object FahrtPruefung {
         return festeOrte.filter { FahrtText.ortNormal(it).contains(q) }.take(8)
     }
 
+    /** Vor dem Speichern: Hinweis, wenn eine Adresse fehlt oder nicht zur Fahrt passt, sonst leer. */
+    suspend fun adressWarnung(adressen: List<String>): String {
+        val liste = adressen.map { FahrtText.getrimmt(it) }.filter { it.isNotEmpty() }
+        val r = aufrufen("places-proxy", buildJsonObject {
+            put("aktion", "adressen_pruefen")
+            put("adressen", JsonArray(liste.map { JsonPrimitive(it) }))
+        })
+        if (r !is Aufruf.Ok) return ""
+        val warnungen = (r.daten as? JsonObject)?.get("warnungen") as? JsonArray ?: return ""
+        return warnungen.mapNotNull { w ->
+            val o = w as? JsonObject ?: return@mapNotNull null
+            val adresse = s(o, "adresse")
+            when (s(o, "grund")) {
+                "nicht_gefunden" -> FahrtText.tr("fahrt.adresseNichtGefunden", mapOf("adresse" to adresse))
+                "weit_weg" -> FahrtText.tr("fahrt.adresseWeitWeg", mapOf("adresse" to adresse, "km" to s(o, "km")))
+                else -> FahrtText.tr("fahrt.adresseOhneStadt", mapOf("adresse" to adresse))
+            }
+        }.joinToString("\n")
+    }
+
     suspend fun ortsVorschlaege(eingabe: String): List<String> {
         val text = FahrtText.getrimmt(eingabe)
         if (text.isEmpty()) return emptyList()
