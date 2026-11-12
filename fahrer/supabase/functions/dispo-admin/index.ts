@@ -195,7 +195,11 @@ Deno.serve(async (req) => {
         .select('id, role, is_dispo')
         .eq('id', userId)
         .maybeSingle();
-      if (!ziel) return jsonResponse(404, { error: 'user_not_found' });
+      // Schon geloescht (z. B. zweiter Klick, Liste noch nicht neu geladen): als erledigt melden.
+      if (!ziel) {
+        await admin.auth.admin.deleteUser(userId).catch(() => null);
+        return jsonResponse(200, { user_id: userId, schon_geloescht: true });
+      }
       if (ziel.is_dispo === true || DISPO_ROLLEN.has(String(ziel.role || '').toLowerCase())) {
         return jsonResponse(400, { error: 'not_a_driver' });
       }
@@ -218,7 +222,10 @@ Deno.serve(async (req) => {
       // Erst abmelden (Signal an die Apps), dann loeschen.
       await admin.rpc('konto_abmelden_jetzt', { p_user: userId, p_grund: 'geloescht' });
       const { error } = await admin.auth.admin.deleteUser(userId);
-      if (error) return jsonResponse(400, { error: error.message });
+      // Ohne Auth-Konto (Altdaten) reicht das Profil zu loeschen.
+      if (error && !/not.?found/i.test(error.message || '') && (error as { status?: number }).status !== 404) {
+        return jsonResponse(400, { error: error.message });
+      }
       // Falls das Profil (Altdaten) nicht am Auth-Konto hing.
       await admin.from('profiles').delete().eq('id', userId);
       return jsonResponse(200, { user_id: userId });
