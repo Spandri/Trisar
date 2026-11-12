@@ -15,6 +15,8 @@ struct FahrtenListeAnsicht: View {
     @State private var stundenAblehnen: Stunden.Eintrag?
     /// Neu zeichnen, wenn ein Fahrzeugbild nicht laedt (Karte/Block werden kuerzer).
     @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
+    /// Standby am Event-Ort: Karte mit Knoepfen unter den Dienstanfragen des Tages.
+    @ObservedObject private var standby = StandbySpeicher.shared
 
     // Konstanten aus FahrtenScreen01View.jsx
     private let versatz: CGFloat = 20            // <div className="absolute left-0 top-[20px]">
@@ -75,6 +77,13 @@ struct FahrtenListeAnsicht: View {
                     }
                 }
 
+                ForEach(raster.standbys, id: \.standby.id) { e in
+                    StandbyKarte(standby: e.standby,
+                                 antworten: { a in Task { await standby.antworten(e.standby, annehmen: a) } },
+                                 melden: { art in Task { await standby.melden(e.standby, art: art) } })
+                        .platz(20, versatz + e.oben, 362, nil)
+                }
+
                 // Stunden am Ende des Diensttages
                 ForEach(raster.stunden, id: \.eintrag.id) { s in
                     // Stundenerfassung wie im Verlauf (Figma 2823-12431), Bearbeiten als Vollbild.
@@ -109,14 +118,14 @@ struct FahrtenListeAnsicht: View {
     }
 
     @ViewBuilder private var fehlerHinweis: some View {
-        if let fehler = speicher.fehler ?? stunden.fehler {
+        if let fehler = speicher.fehler ?? stunden.fehler ?? standby.fehler {
             Text(fehler)
                 .font(.grotesk(13, .medium))
                 .foregroundStyle(.black)
                 .padding(12)
                 .frame(maxWidth: .infinity)
                 .background(Farbe.fehler)
-                .onTapGesture { speicher.fehler = nil; stunden.fehler = nil }
+                .onTapGesture { speicher.fehler = nil; stunden.fehler = nil; standby.fehler = nil }
                 .padding(.top, 50)
         }
     }
@@ -128,6 +137,7 @@ struct FahrtenListeAnsicht: View {
         var dienste: [(anfrage: DienstAnfrage, oben: CGFloat, art: String, schluessel: String, zeile: AnfrageZeile?)] = []
         var fahrten: [(fahrt: Fahrt, oben: CGFloat, mitKnoepfen: Bool)] = []
         var stunden: [(eintrag: Stunden.Eintrag, oben: CGFloat)] = []
+        var standbys: [(standby: StandbySpeicher.Standby, oben: CGFloat)] = []
         var unterkante: CGFloat = 0
     }
 
@@ -150,8 +160,10 @@ struct FahrtenListeAnsicht: View {
         for fahrt in fahrten { fahrtenProTag[fahrt.fahrtDatum, default: []].append(fahrt) }
         var stundenProTag: [String: [Stunden.Eintrag]] = [:]
         for e in stunden.karten { stundenProTag[e.dienst.datum, default: []].append(e) }
-        // Alle Tage in Reihenfolge: Dienste, Fahrten, am Ende des Tages die Stunden.
-        let tage = Set(fahrtenProTag.keys).union(anfragenProTag.keys).union(stundenProTag.keys).sorted()
+        var standbyProTag: [String: [StandbySpeicher.Standby]] = [:]
+        for s in standby.liste { standbyProTag[s.datum, default: []].append(s) }
+        // Alle Tage in Reihenfolge: Dienste, Standby, Fahrten, am Ende des Tages die Stunden.
+        let tage = Set(fahrtenProTag.keys).union(anfragenProTag.keys).union(stundenProTag.keys).union(standbyProTag.keys).sorted()
         var r = Raster()
         var cursor = fahrzeugUnterkante + tagUnten
 
@@ -167,6 +179,10 @@ struct FahrtenListeAnsicht: View {
                 if i < anfragen.count - 1 { cursor += dienstAbstand }
             }
             if !anfragen.isEmpty { cursor += dienstListe }
+            for s in standbyProTag[tag] ?? [] {
+                r.standbys.append((s, cursor))
+                cursor += StandbySpeicher.blockHoehe(s) + dienstListe
+            }
             for anfrage in alle where anfrage.angenommen && zeigeStart(anfrage) {
                 r.dienste.append((anfrage, cursor, "start", anfrage.id.uuidString + "-start", nil))
                 cursor += dienstZeile + kartenAbstand

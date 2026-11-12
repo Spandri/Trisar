@@ -292,7 +292,7 @@ struct HeuteStundenKarte: View {
         guard let s = Stunden.heute(e) else { return 0 }
         let z = e.zettel
         let offen = s.fertig && Stunden.fahrerDran(z)
-        return 220 + (s.fertig && z != nil ? 30 : 0) + (offen ? 66 : 0)
+        return 220 + (s.fertig && z != nil ? 30 : 0) + (offen ? 66 : 0) + CGFloat((e.standby ?? []).count) * 26
     }
 
     @State private var zeigeVollbild = false
@@ -377,6 +377,12 @@ struct HeuteStundenKarte: View {
             .frame(width: 362, height: 220)
             .background(flaeche)
             .overlay(Rectangle().strokeBorder(rand, lineWidth: 2))
+
+            // Standby am Event-Ort: je Standby eine Zeile (Stunden.jsx).
+            ForEach(Array((eintrag.standby ?? []).enumerated()), id: \.offset) { _, sb in
+                Text("Standby \(sb.ort ?? "") \(sb.von ?? "")–\(sb.bis ?? "")").grotesk(14, .bold)
+                    .foregroundStyle(Color(hex: 0x868687)).lineLimit(1).frame(height: 20).padding(.top, 6)
+            }
 
             if s0.fertig, let z, werte == nil, let st = statusText(z) {
                 Text(st.0).grotesk(14, .bold).foregroundStyle(st.1).lineLimit(1).frame(height: 20).padding(.top, 10)

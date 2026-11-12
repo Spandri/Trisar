@@ -69,6 +69,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
     val geladen by speicher.geladen.collectAsState()
     val fahrten by speicher.fahrten.collectAsState()
     val anfragen by speicher.dienstAnfragen.collectAsState()
+    val standbyListe by de.trisar.fahrer.haupt.StandbySpeicher.liste.collectAsState()
     val fahrzeug by speicher.fahrzeug.collectAsState()
     var seite by remember { mutableStateOf<Seite?>(null) }
     var profilSeite by remember { mutableStateOf(ProfilUnterseite.PROFIL) }
@@ -108,6 +109,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
         FahrerOrtung.einrichten(ctx)
         FahrerOrtung.setzeFahrer(fahrerID)
         speicher.setzeFahrer(fahrerID)
+        de.trisar.fahrer.haupt.StandbySpeicher.setzeFahrer(fahrerID)
         if (FahrerOrtung.vorneFragen()) {
             val liste = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
             // Ohne Benachrichtigungs-Erlaubnis sieht der Fahrer „TRISAR ortet“ nicht (Android 13+).
@@ -133,6 +135,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                 speicher.neuLaden()
                 bereich.launch { anmeldung.profilLaden() }
                 bereich.launch { StundenSpeicher.laden() }
+                bereich.launch { de.trisar.fahrer.haupt.StandbySpeicher.laden() }
             }
         }
         lebenszyklus.addObserver(beobachter)
@@ -143,6 +146,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
         onDispose {
             FahrerOrtung.setzeFahrer(null)
             speicher.setzeFahrer(null)
+            de.trisar.fahrer.haupt.StandbySpeicher.setzeFahrer(null)
         }
     }
 
@@ -170,7 +174,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
             !geladen -> TrisarHintergrund()
             // Liste statt "Keine Fahrt", sobald Stundenkarten da sind.
             // Offene Dienstanfrage oder angenommener Dienst ab heute: auch Liste (12.11., sonst nach der Push nichts zu sehen).
-            fahrten.isEmpty() && stundenKarten.isEmpty() && anfragen.none { a ->
+            fahrten.isEmpty() && stundenKarten.isEmpty() && standbyListe.none { it.offen || !it.vorbei } && anfragen.none { a ->
                 if (!a.angenommen) return@none true
                 // Angenommen: bis Dienstende (Nachtdienst: Folgetag).
                 val tag = a.service_date.orEmpty().take(10)

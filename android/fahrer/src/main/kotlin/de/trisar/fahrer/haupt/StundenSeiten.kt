@@ -310,7 +310,7 @@ internal fun heuteKartenHoehe(e: Stunden.Eintrag): Float {
     val s = Stunden.heute(e) ?: return 0f
     val z = e.zettel
     val offen = s.fertig && Stunden.fahrerDran(z)
-    return 220f + (if (s.fertig && z != null) 30f else 0f) + (if (offen) 66f else 0f)
+    return 220f + (if (s.fertig && z != null) 30f else 0f) + (if (offen) 66f else 0f) + e.standby.size * 26f
 }
 
 /**
@@ -456,6 +456,12 @@ internal fun HeuteStundenKarte(
                     }
                 }
             }
+        }
+
+        // Standby am Event-Ort an diesem Tag (wie Stunden.jsx).
+        e.standby.forEach { sb ->
+            Text(sb.text, style = grotesk(14f, 700, zeilenHoehe = 20f, farbe = hex(0x868687)), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 6.dp).height(20.dp))
         }
 
         if (s0.fertig && z != null && w == null) {

@@ -87,6 +87,7 @@ private class ListenRaster {
     val dienste = mutableListOf<DienstEintrag>()
     val fahrten = mutableListOf<Triple<Fahrt, Float, Boolean>>()
     val stunden = mutableListOf<Pair<de.trisar.kern.Stunden.Eintrag, Float>>()
+    val standbys = mutableListOf<Pair<FahrerStandby, Float>>()
     var unterkante = 0f
 }
 
@@ -97,6 +98,7 @@ private class ListenRaster {
 private fun rasterBerechnen(
     alle: List<Fahrt>, anfragen: List<DienstAnfrage>, stundenKarten: List<de.trisar.kern.Stunden.Eintrag>,
     hoehe: (Fahrt) -> Float, fahrzeugKarte: Float = 268f, jetzt: java.time.Instant = java.time.Instant.now(),
+    standbys: List<FahrerStandby> = emptyList(),
 ): ListenRaster {
     fun minuten(zeit: String): Int {
         val t = zeit.split(":").mapNotNull { it.toIntOrNull() }
@@ -113,7 +115,8 @@ private fun rasterBerechnen(
     }
     val fahrtenProTag = fahrten.groupBy { it.fahrtDatum }
     val stundenProTag = stundenKarten.groupBy { it.dienst.datum }
-    val tage = (fahrtenProTag.keys + anfragenProTag.keys + stundenProTag.keys).toSortedSet()
+    val standbyProTag = standbys.groupBy { it.s.datum.take(10) }
+    val tage = (fahrtenProTag.keys + anfragenProTag.keys + stundenProTag.keys + standbyProTag.keys).toSortedSet()
     val r = ListenRaster()
     // Fahrzeugkarte top 118, Hoehe je nach vorhandenen Angaben (mit allem 268).
     var cursor = 118f + fahrzeugKarte + TAG_UNTEN
@@ -130,6 +133,11 @@ private fun rasterBerechnen(
             if (i < liste.size - 1) cursor += DIENST_ABSTAND
         }
         if (liste.isNotEmpty()) cursor += DIENST_LISTE
+        // Standby am Event-Ort: Karte mit Knoepfen, unter den Dienstanfragen des Tages.
+        for (sb in standbyProTag[tag].orEmpty()) {
+            r.standbys += sb to cursor
+            cursor += standbyBlockHoehe(sb) + DIENST_LISTE
+        }
         for (a in alleDienste.filter { it.angenommen && zeigeStart(it, jetzt) }) {
             r.dienste += DienstEintrag(a, cursor, "start")
             cursor += DIENST_ZEILE + KARTEN_ABSTAND
@@ -203,7 +211,11 @@ internal fun FahrtenListeSeite(
     androidx.compose.runtime.LaunchedEffect(Unit) {
         while (true) { kotlinx.coroutines.delay(30_000); jetzt = java.time.Instant.now() }
     }
-    val raster = remember(fahrten, anfragen, fahrzeugHoehe, stundenKarten, jetzt) { rasterBerechnen(fahrten, anfragen, stundenKarten, kartenHoehe, fahrzeugHoehe, jetzt) }
+    val standbys by StandbySpeicher.liste.collectAsState()
+    val standbyFehler by StandbySpeicher.fehler.collectAsState()
+    val raster = remember(fahrten, anfragen, fahrzeugHoehe, stundenKarten, jetzt, standbys) {
+        rasterBerechnen(fahrten, anfragen, stundenKarten, kartenHoehe, fahrzeugHoehe, jetzt, standbys)
+    }
 
     Box(Modifier.fillMaxSize()) {
         Leinwand(inhaltHoehe = raster.unterkante + VERSATZ + NACH_KNOPF + 64f + 40f) {
@@ -241,6 +253,10 @@ internal fun FahrtenListeSeite(
                 }
             }
 
+            for ((sb, oben) in raster.standbys) {
+                androidx.compose.runtime.key("standby-${sb.id}") { StandbyKarte(sb, Modifier.platz(20f, VERSATZ + oben, 362f)) }
+            }
+
             // Stunden am Ende des Diensttages
             for ((e, oben) in raster.stunden) {
                 androidx.compose.runtime.key(e.dienst.id) {
@@ -266,9 +282,9 @@ internal fun FahrtenListeSeite(
         }
         FussleisteUnten()
 
-        val f = fehler ?: stundenFehler
+        val f = fehler ?: stundenFehler ?: standbyFehler
         if (f != null) {
-            Box(Modifier.fillMaxWidth().padding(top = 50.dp).background(Farbe.fehler).tippen { speicher.fehler.value = null; StundenSpeicher.fehler.value = null }.padding(12.dp),
+            Box(Modifier.fillMaxWidth().padding(top = 50.dp).background(Farbe.fehler).tippen { speicher.fehler.value = null; StundenSpeicher.fehler.value = null; StandbySpeicher.fehler.value = null }.padding(12.dp),
                 contentAlignment = Alignment.Center) {
                 Text(f, style = grotesk(13f, 500, farbe = Color.Black), textAlign = TextAlign.Center)
             }

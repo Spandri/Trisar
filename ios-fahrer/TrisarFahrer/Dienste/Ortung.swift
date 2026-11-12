@@ -30,7 +30,9 @@ final class Ortung: NSObject, ObservableObject {
     @Published private(set) var dienstWechsel: Date?
     private var dienstTimer: Timer?
     private var wechselTimer: Timer?
-    private var hintergrundAktiv = false
+    /// nil = noch nie gesetzt. Die Ueberwachung grosser Ortswechsel ueberlebt einen App-Neustart
+    /// (iOS weckt die App damit auf), deshalb beim ersten Abgleich immer ausdruecklich setzen.
+    private var hintergrundAktiv: Bool?
 
     /// Fahrer kann die Ortung pausieren (z.B. Feierabend). Bleibt ueber App-Neustarts erhalten.
     @Published var eingeschaltet: Bool {

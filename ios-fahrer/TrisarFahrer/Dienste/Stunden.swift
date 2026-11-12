@@ -29,8 +29,11 @@ enum Stunden {
         let beginn: String; let ende: String; let begruendung: String?; let dispo_notiz: String?
         var pausen: [Vorschlag.PauseRoh]? = nil
     }
+    /// Standby am Event-Ort an diesem Tag (Vermerk "Standby BMW Welt 18:00–23:00").
+    struct StandbyVermerk: Decodable, Hashable { let ort: String?; let von: String?; let bis: String? }
     struct Eintrag: Decodable, Identifiable, Hashable {
         let dienst: Dienst; let vorschlag: Vorschlag?; let zettel: Zettel?; let vorbei: Bool
+        var standby: [StandbyVermerk]? = nil
         var id: UUID { dienst.id }
         /// Offen: Dienst vorbei und noch nicht erfasst, zurueckgegeben oder von der Dispo geaendert.
         var offen: Bool { vorbei && Stunden.fahrerDran(zettel) }

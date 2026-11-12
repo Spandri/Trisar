@@ -401,6 +401,12 @@ private struct DispoStundenKarte: View {
             .background(flaeche)
             .overlay(Rectangle().strokeBorder(rand, lineWidth: 2))
 
+            // Standby am Event-Ort an diesem Tag (FahrerStundenKarten.jsx).
+            ForEach(Array((eintrag.standby ?? []).enumerated()), id: \.offset) { _, sb in
+                Text("Standby \(sb.ort ?? "") \(sb.von ?? "")–\(sb.bis ?? "")").grotesk(14, .bold)
+                    .foregroundStyle(Color(hex: 0x868687)).lineLimit(1).padding(.top, 6)
+            }
+
             if werte == nil {
                 let st = statusText
                 Text(st.0).grotesk(14, .bold).foregroundStyle(st.1).padding(.top, 10)

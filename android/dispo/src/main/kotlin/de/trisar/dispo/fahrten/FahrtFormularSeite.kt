@@ -81,9 +81,11 @@ fun FahrtFormularSeite(
     nachAnlegen: ((String?) -> Unit)? = null,
     /** Aenderungsvorschlag: Startwerte aus der geladenen Fahrt. */
     anpassen: ((GeladeneFahrt) -> FahrtVorlage)? = null,
+    /** Schalter "Fahrt | Standby" (nur beim Anlegen): wechselt zu Standby verschicken. */
+    standbyWahl: (() -> Unit)? = null,
 ) {
     if (fahrtID == null) {
-        FormularInhalt(null, zurueck, zeigen, vorlage, nachAnlegen)
+        FormularInhalt(null, zurueck, zeigen, vorlage, nachAnlegen, standbyWahl)
         return
     }
     var geladen by remember(fahrtID) { mutableStateOf<GeladeneFahrt?>(null) }
@@ -126,6 +128,7 @@ private val statusWerte = listOf("offen", "beendet", "stoniert", "unterwegs")
 private fun FormularInhalt(
     geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen: ((DispoZiel) -> Unit)?,
     vorlage: FahrtVorlage? = null, nachAnlegen: ((String?) -> Unit)? = null,
+    standbyWahl: (() -> Unit)? = null,
 ) {
     // Raster aus FahrtAdd.jsx: Titel 140, Felder ab 206, Reihen alle 68, Zeilenhoehe 56.
     val reihenStart = 410f
@@ -543,6 +546,10 @@ private fun FormularInhalt(
                     // Sammel-Import aus Excel/CSV statt Einzelanlage (setView('importFahrten')).
                     Icon("import-fahrten", Modifier.platz(402f - 20f - 42f, 65f, 42f, 40f).tippen { importOffen = true })
                 }
+                // Fahrt oder Standby am Event-Ort (nicht beim Vorschlag des KI-Assistenten).
+                if (!bearbeiten && vorlage == null && standbyWahl != null) {
+                    de.trisar.dispo.standby.ArtUmschalter(false, Modifier.platz(0f, 67f, 402f, 40f), fahrt = {}, standbyWahl = standbyWahl)
+                }
                 Text(t(if (bearbeiten) "fahrt.editTitle" else "fahrt.createTitle"), style = css(42f, 700, 42f, farbe = LIME),
                     modifier = Modifier.platz(20f, 140f, if (bearbeiten) 400f else 320f))
 
@@ -731,7 +738,7 @@ private fun statusText(w: String): String = when (w) {
 }
 
 /** Vorschlaege wie das datalist im Web: enthaltene Treffer, nichts mehr wenn der Name vollstaendig dasteht. */
-private fun autoTreffer(wert: String, liste: List<String>): List<String> {
+internal fun autoTreffer(wert: String, liste: List<String>): List<String> {
     val suche = FahrtText.vergleichbar(wert)
     if (suche.isEmpty()) return emptyList()
     val treffer = liste.filter { FahrtText.vergleichbar(it).contains(suche) }
@@ -757,7 +764,7 @@ private fun kandidatText(k: FahrtPruefung.FlugKandidat, n: Int): String {
 
 /** Eingabe in der Zeile: Space Grotesk 16 medium, Lime (ZeilenEingabe in iOS). */
 @Composable
-private fun ZeilenEingabe(wert: String, aendern: (String) -> Unit, modifier: Modifier, zahl: Boolean = false, platzhalter: String = "", gesperrt: Boolean = false) {
+internal fun ZeilenEingabe(wert: String, aendern: (String) -> Unit, modifier: Modifier, zahl: Boolean = false, platzhalter: String = "", gesperrt: Boolean = false) {
     val stil = grotesk(16f, 500, abstand = 0.5f, farbe = LIME)
     BasicTextField(
         wert, aendern, modifier.fillMaxWidth(), enabled = !gesperrt, singleLine = true, textStyle = stil,

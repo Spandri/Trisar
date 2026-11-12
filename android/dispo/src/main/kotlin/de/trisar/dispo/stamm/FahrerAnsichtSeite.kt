@@ -398,6 +398,10 @@ private fun DispoStundenKarte(e: Stunden.Eintrag, fahrerID: String, ohneTitel: B
             Text(faHhmm(arbeits), style = grotesk(35f, 700, zeilenHoehe = 45f, abstand = -0.5f, farbe = hex(0xE2F754)), modifier = Modifier.padding(top = 9.dp))
         }
 
+        // Standby am Event-Ort an diesem Tag (FahrerStundenKarten.jsx).
+        e.standby.forEach { sb ->
+            Text(sb.text, style = grotesk(14f, 700, farbe = hex(0x868687)), maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+        }
         if (werte == null) {
             Text(statusText, style = grotesk(14f, 700, farbe = statusFarbe), modifier = Modifier.padding(top = 10.dp))
             if (z != null && z.status == "eingereicht" && z.begruendung.isNotEmpty())

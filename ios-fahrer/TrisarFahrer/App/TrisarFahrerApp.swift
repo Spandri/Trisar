@@ -68,6 +68,7 @@ struct TrisarFahrerApp: App {
             .onChange(of: anmeldung.fahrerID, initial: true) { _, id in
                 ortung.setzeFahrer(id)
                 fahrten.setzeFahrer(id)
+                Task { await StandbySpeicher.shared.setzeFahrer(id) }
                 if id != nil && ortung.berechtigung == .unbekannt {
                     ortung.berechtigungAnfragen()
                 }

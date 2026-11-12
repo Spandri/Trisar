@@ -76,6 +76,10 @@ fun DispoHaupt(anmeldung: Anmeldung) {
     val oeffneFahrt: (String) -> Unit = { bearbeiteteFahrt = it }
     /** Gaeste-Import aus der Kundenliste (ImportAnsicht(.gaeste) in iOS). */
     var gaesteImport by rememberSaveable { mutableStateOf(false) }
+    /** Standby verschicken (setView('standbyAdd')) und offener Standby (setView('standby')). */
+    var standbyNeu by rememberSaveable { mutableStateOf(false) }
+    var offenerStandby by rememberSaveable { mutableStateOf<String?>(null) }
+    val standbyZeigen: (DispoZiel) -> Unit = { standbyNeu = false; offenerStandby = null; ziel = it }
     // Tipp auf eine Mitteilung: Fahrt, Fahrzeuge, Fahrer oder Fahrten oeffnen.
     val pushZiel by de.trisar.kern.Push.ziel.collectAsState()
     androidx.compose.runtime.LaunchedEffect(pushZiel) {
@@ -95,8 +99,14 @@ fun DispoHaupt(anmeldung: Anmeldung) {
     }
 
     // Android-Zurueck: erst den Editor schliessen, dann zur Startseite.
-    BackHandler(enabled = gaesteImport || bearbeiteteFahrt != null || ziel != DispoZiel.START) {
-        if (gaesteImport) gaesteImport = false else if (bearbeiteteFahrt != null) bearbeiteteFahrt = null else ziel = DispoZiel.START
+    BackHandler(enabled = gaesteImport || bearbeiteteFahrt != null || standbyNeu || offenerStandby != null || ziel != DispoZiel.START) {
+        when {
+            gaesteImport -> gaesteImport = false
+            offenerStandby != null -> offenerStandby = null
+            standbyNeu -> standbyNeu = false
+            bearbeiteteFahrt != null -> bearbeiteteFahrt = null
+            else -> ziel = DispoZiel.START
+        }
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -108,16 +118,30 @@ fun DispoHaupt(anmeldung: Anmeldung) {
                 DispoZiel.FAHRZEUGE -> FahrzeugBereich(zeigen)
                 DispoZiel.KUNDEN -> KundenBereich(zeigen, importieren = { gaesteImport = true })
                 DispoZiel.PROFIL -> KoordinatorProfil(zeigen)
-                DispoZiel.FAHRTEN -> FahrtenSeite(zeigen, oeffneFahrt)
+                DispoZiel.FAHRTEN -> FahrtenSeite(zeigen, oeffneFahrt) { offenerStandby = it }
                 DispoZiel.KARTE -> DispoKarteSeite(zeigen)
                 DispoZiel.PLANUNG -> PlanungSeite(zeigen, oeffneFahrt)
                 DispoZiel.KI_ASSISTENT -> KiAssistentSeite(zeigen, oeffneFahrt)
-                DispoZiel.FAHRT_NEU -> FahrtFormularSeite(fahrtID = null, zurueck = { ziel = DispoZiel.START }, zeigen = zeigen)
+                DispoZiel.FAHRT_NEU -> FahrtFormularSeite(fahrtID = null, zurueck = { ziel = DispoZiel.START }, zeigen = zeigen, standbyWahl = { standbyNeu = true })
             }
         }
         // Editor liegt als eigene Seite darueber, ohne Hochschieben (wie setView im Web).
         bearbeiteteFahrt?.let { id ->
             key(id) { FahrtFormularSeite(fahrtID = id, zurueck = { bearbeiteteFahrt = null }, zeigen = null) }
+        }
+        // Standby verschicken liegt ueber "Fahrt hinzufuegen", der offene Standby ueber allem.
+        if (standbyNeu) {
+            de.trisar.dispo.standby.StandbyNeuSeite(
+                zurueck = { standbyNeu = false; ziel = DispoZiel.FAHRTEN },
+                zurFahrt = { standbyNeu = false; ziel = DispoZiel.FAHRT_NEU },
+                gesendet = { id -> standbyNeu = false; ziel = DispoZiel.FAHRTEN; offenerStandby = id },
+                zeigen = standbyZeigen,
+            )
+        }
+        offenerStandby?.let { id ->
+            key("standby-$id") {
+                de.trisar.dispo.standby.StandbyBearbeitenSeite(id, zurueck = { offenerStandby = null; ziel = DispoZiel.FAHRTEN }, zeigen = standbyZeigen)
+            }
         }
         if (gaesteImport) {
             de.trisar.dispo.einlesen.ImportSeite(

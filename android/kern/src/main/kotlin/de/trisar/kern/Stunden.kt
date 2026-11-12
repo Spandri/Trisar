@@ -50,7 +50,13 @@ object Stunden {
     class Dienst(val id: String, val datum: String, val beginn: String, val ende: String,
                  val pausen: List<Pair<String, String>> = emptyList())
 
-    class Eintrag(val dienst: Dienst, val vorschlag: Vorschlag, val zettel: Zettel?, val vorbei: Boolean) {
+    /** Standby am Event-Ort an diesem Tag: Vermerk "Standby BMW Welt 18:00–23:00". */
+    class StandbyVermerk(val ort: String, val von: String, val bis: String) {
+        val text: String get() = "Standby $ort $von–$bis"
+    }
+
+    class Eintrag(val dienst: Dienst, val vorschlag: Vorschlag, val zettel: Zettel?, val vorbei: Boolean,
+                  val standby: List<StandbyVermerk> = emptyList()) {
         /** Noch zu erfassen: vorbei und ohne Zettel oder zurueckgegeben. */
         val offen: Boolean get() = vorbei && fahrerDran(zettel)
     }
@@ -195,6 +201,9 @@ object Stunden {
                 )
             },
             vorbei = b(e["vorbei"]),
+            standby = (e["standby"] as? JsonArray).orEmpty().mapNotNull { x ->
+                (x as? JsonObject)?.let { StandbyVermerk(s(it["ort"]), s(it["von"]), s(it["bis"])) }
+            },
         )
     }
 

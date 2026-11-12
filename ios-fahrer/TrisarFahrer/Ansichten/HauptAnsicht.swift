@@ -10,11 +10,12 @@ struct HauptAnsicht: View {
     @State private var supportOffen = false
     @State private var fahrzeugOffen = false
     @ObservedObject private var stunden = StundenSpeicher.shared
+    @ObservedObject private var standby = StandbySpeicher.shared
 
     /// Offene Dienstanfrage oder angenommener Dienst ab heute: Liste statt "Keine Fahrt"
     /// (sonst sah der Fahrer nach der Push nichts, wenn er an dem Tag keine Fahrten hat, 12.11.).
     private var dienstSichtbar: Bool {
-        speicher.dienstAnfragen.contains { a in
+        standby.sichtbar || speicher.dienstAnfragen.contains { a in
             guard a.angenommen else { return true }
             // Angenommen: bis Dienstende (Nachtdienst: Folgetag).
             let tag = String((a.service_date ?? "").prefix(10))
@@ -48,6 +49,7 @@ struct HauptAnsicht: View {
         .onChange(of: speicher.fahrten.map(\.status)) { _, _ in Task { await stunden.laden() } }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             Task { await stunden.laden() }
+            Task { await standby.laden() }
         }
         .webVollbild(isPresented: $profilOffen) {
             ProfilFluss { profilOffen = false }

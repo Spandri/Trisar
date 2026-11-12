@@ -16,6 +16,8 @@ struct FahrtFormularAnsicht: View {
 
     @State private var geladen: GeladeneFahrt?
     @State private var ladeFehler: String?
+    /// Schalter „Fahrt | Standby“ beim Anlegen (StandbyAdd.jsx).
+    @State private var standby = false
 
     var body: some View {
         if let fahrtID {
@@ -41,8 +43,11 @@ struct FahrtFormularAnsicht: View {
                     do { geladen = try await FahrtSpeichern.laden(fahrtID) } catch { ladeFehler = error.localizedDescription }
                 }
             }
+        } else if standby && vorlage == nil {
+            StandbyFormularAnsicht(zurueck: zurueck, zuFahrt: { standby = false }, zeigen: { zeigen?($0) })
         } else {
-            FahrtFormularInhalt(geladen: nil, zurueck: zurueck, zeigen: zeigen, vorlage: vorlage, nachAnlegen: nachAnlegen)
+            FahrtFormularInhalt(geladen: nil, zurueck: zurueck, zeigen: zeigen, vorlage: vorlage, nachAnlegen: nachAnlegen,
+                                zuStandby: vorlage == nil ? { standby = true } : nil)
         }
     }
 }
@@ -71,6 +76,7 @@ private struct FahrtFormularInhalt: View {
     let zeigen: ((DispoZiel) -> Void)?
     let vorlage: FahrtVorlage?
     let nachAnlegen: ((UUID?) -> Void)?
+    var zuStandby: (() -> Void)?
 
     // Raster aus FahrtAdd.jsx: Titel 140, Felder ab 206, Reihen alle 68, Zeilenhoehe 56.
     private let reihenStart: CGFloat = 410
@@ -124,7 +130,8 @@ private struct FahrtFormularInhalt: View {
     @State private var risikoHoehe: CGFloat = 0
 
     init(geladen: GeladeneFahrt?, zurueck: @escaping () -> Void, zeigen: ((DispoZiel) -> Void)?,
-         vorlage: FahrtVorlage?, nachAnlegen: ((UUID?) -> Void)?) {
+         vorlage: FahrtVorlage?, nachAnlegen: ((UUID?) -> Void)?, zuStandby: (() -> Void)? = nil) {
+        self.zuStandby = zuStandby
         self.vorlage = vorlage
         self.nachAnlegen = nachAnlegen
         self.geladen = geladen
@@ -333,6 +340,10 @@ private struct FahrtFormularInhalt: View {
     private var kopf: some View {
         ZStack(alignment: .topLeading) {
             ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
+            // Fahrt oder Standby am Event-Ort (nicht beim Vorschlag des KI-Assistenten).
+            if !bearbeiten, let zuStandby {
+                ArtUmschalter(standby: false, fahrt: {}, zumStandby: zuStandby).platz(0, 67, 402, 36)
+            }
             if !bearbeiten && vorlage == nil {
                 // Sammel-Import aus Excel/CSV statt Einzelanlage (setView('importFahrten')).
                 Button { importOffen = true } label: {
