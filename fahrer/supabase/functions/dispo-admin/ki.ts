@@ -9,7 +9,9 @@ import { lohnVorschlag } from './lohn.ts';
 import { anlegenVorschlag, ohnePasswort } from './anlegen.ts';
 import { vorschlagOrteAufloesen } from './ortSuche.ts';
 import { flugHinweis, flugPruefen } from './flugKi.ts';
-import { standbyAntwort, standbyKarte, standbyKartenText, standbyTeil, standbyZurBuchung } from './standbyKi.ts';
+import { zuordnenVorschlag } from './zuordnenKi.ts';
+import { dienstFrage, gespraechsFahrer, stundenFrage } from './fragenKi.ts';
+import { standbyAllein, standbyAntwort, standbyKarte, standbyKartenText, standbyTeil, standbyZurBuchung } from './standbyKi.ts';
 
 const NICHT_ERREICHBAR = 'Der Assistent ist gerade nicht erreichbar, weil der Rechner mit dem Modell aus ist oder keine Verbindung hat.';
 const FEHLGESCHLAGEN = 'Der Assistent konnte gerade nicht antworten. Bitte versuch es gleich noch einmal.';
@@ -99,12 +101,25 @@ const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: stri
   const lohn = await lohnVorschlag(admin, frage, markiert, body?.kontext ?? null);
   if (lohn) return { status: 200, daten: { answer: lohn.answer, kontext: lohn.kontext } };
   // Fahrer oder Fahrzeug anlegen: Rueckfrage mit allen Angaben, "ja" legt an. Auch ohne Modell.
-  const anlegen = await anlegenVorschlag(admin, frage, body?.kontext ?? null);
-  if (anlegen) return { status: 200, daten: { answer: anlegen.answer, kontext: anlegen.kontext } };
+  const anlegen = await anlegenVorschlag(admin, frage, body?.kontext ?? null, body?.karten === true);
+  if (anlegen) return { status: 200, daten: { answer: anlegen.answer, kontext: anlegen.kontext, ...(anlegen.aktionen ? { aktionen: anlegen.aktionen } : {}) } };
+  // Fahrzeug einem Fahrer oder Tracker einem Fahrzeug zuordnen: Rueckfrage, "ja" speichert.
+  const zuordnung = await zuordnenVorschlag(admin, frage, body?.kontext ?? null);
+  if (zuordnung) return { status: 200, daten: { answer: zuordnung.answer, kontext: zuordnung.kontext } };
   // Offener Standby-Vorschlag (zur Fahrt): ja, nein, Fahrer oder Endzeit nachreichen.
   const sbAntwort = await standbyAntwort(admin, frage, body?.kontext ?? null, dispoId);
   if (sbAntwort) return { status: 200, daten: { answer: sbAntwort.answer, kontext: sbAntwort.kontext } };
-  const dienst = await dienstVorschlag(admin, frage, markiert);
+  // Fragen zu Dienst, Pausen und Stundenzetteln: aus den Tabellen, ohne Modell.
+  const dienstAntwortText = await dienstFrage(admin, frage, body?.kontext ?? null);
+  if (dienstAntwortText) return { status: 200, daten: { answer: dienstAntwortText, kontext: body?.kontext ?? null } };
+  const stundenAntwort = await stundenFrage(admin, frage, body?.kontext ?? null);
+  if (stundenAntwort) return { status: 200, daten: { answer: stundenAntwort, kontext: body?.kontext ?? null } };
+  // Standby ohne Fahrt, vor dem Dienst: "10-18 fuer Tim" waere sonst ein Dienst. Standby ohne Fahrt ("Standby morgen 10-18 am Kongress fuer Tim"): Karte oder Rueckfrage mit "ja".
+  const sbAllein = await standbyAllein(admin, frage, markiert, body?.kontext ?? null, body?.karten === true);
+  if (sbAllein) return { status: 200, daten: { answer: sbAllein.answer, kontext: sbAllein.kontext, ...(sbAllein.aktionen ? { aktionen: sbAllein.aktionen } : {}) } };
+  // Dienst senden: markierte Fahrer, sonst der Fahrer, um den es gerade ging ("Dann schick Dienststart fuer 9").
+  const fuerDienst = markiert.length ? markiert : await gespraechsFahrer(admin, body?.kontext ?? null, frage);
+  const dienst = await dienstVorschlag(admin, frage, fuerDienst);
   if (dienst) return { status: 200, daten: { ...dienst, kontext: body?.kontext ?? null } };
 
   // Haupt-Rechner (ollama_url, Mac mini) und Ersatz (ollama_url_ersatz, MacBook). Beide werden

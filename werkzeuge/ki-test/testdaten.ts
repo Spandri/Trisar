@@ -105,8 +105,19 @@ export const testdaten = (ollamaUrl: string, ollamaModell: string) => {
     ],
     driver_service_requests: [
       { id: ID.dienstStefano, driver_id: ID.stefano, service_date: heute, service_start_time: '08:00:00', service_end_time: null, status: 'accepted', created_at: jetzt },
+      // Anna morgen mit Pause, fuer Dienst- und Pausenfragen.
+      { id: 'dienst-anna', driver_id: ID.anna, service_date: tagBerlin(1), service_start_time: '07:00:00', service_end_time: '15:00:00', status: 'accepted', created_at: jetzt },
     ],
-    dienst_pausen: [],
+    obd_tracker: [
+      { imei: '350000000000003', nummer: 3, vehicle_id: 'v1' },
+      { imei: '350000000000004', nummer: 4, vehicle_id: null },
+    ],
+    dienst_pausen: [{ dienst_id: 'dienst-anna', pausen: [{ von: '11:30', bis: '12:00' }] }],
+    // Stundenzettel heute: Tim bestaetigt 8 h, Marvin offen 6:30 h.
+    stundenzettel: [
+      { id: 'z1', driver_id: ID.tim, datum: heute, arbeits_min: 480, status: 'bestaetigt', angepasst: false },
+      { id: 'z2', driver_id: ID.marvin, datum: heute, arbeits_min: 390, status: 'eingereicht', angepasst: true },
+    ],
     ki_protokoll: [],
   };
 };

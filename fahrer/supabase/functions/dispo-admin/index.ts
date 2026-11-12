@@ -5,6 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { importAktion } from './import.ts';
 import { kiFrage } from './ki.ts';
+import { anlegenAusKarte } from './anlegen.ts';
 import { dienstSenden } from './dienst.ts';
 import { stundenExport } from './stunden.ts';
 import { NAME_MUSTER, PLATZHALTER_DOMAIN, fehlerText, istPlatzhalter, kontoAnlegen } from './konto.ts';
@@ -59,6 +60,12 @@ Deno.serve(async (req) => {
     // KI-Assistent (siehe ki.ts).
     if (body?.aktion === 'ki_frage') {
       const { status, daten } = await kiFrage(admin, body, aufrufer.user.id);
+      return jsonResponse(status, daten);
+    }
+
+    // Karte des KI-Assistenten bestaetigt: Fahrer oder Fahrzeug anlegen (siehe anlegen.ts).
+    if (body?.aktion === 'ki_anlegen') {
+      const { status, daten } = await anlegenAusKarte(admin, body);
       return jsonResponse(status, daten);
     }
 

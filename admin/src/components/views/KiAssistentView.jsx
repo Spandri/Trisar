@@ -5,7 +5,7 @@ import FahrtAdd from './FahrtAdd';
 import StandbyAdd from './StandbyAdd';
 import { standbyAnlegen } from '../../shared/standby';
 import FahrtBearbeitenView, { buildInitialFormValues } from './FahrtBearbeitenView';
-import { askDatabaseAssistant, dienstSenden, invalidateDatabaseAssistantCache } from '../../services/kiAssistant';
+import { askDatabaseAssistant, dienstSenden, invalidateDatabaseAssistantCache, kiAnlegen } from '../../services/kiAssistant';
 import { fahrerMarkierung, useFahrerMarkierung } from '../../shared/fahrerMarkierung';
 import MarkierungsVermerk from '../ui/MarkierungsVermerk';
 import { supabase } from '../../services/supabase';
@@ -158,6 +158,44 @@ const BookingPreviewCard = ({ proposal, onOeffnen }) => {
         <img src={sendIconSrc} alt="" className="w-[34px] h-[21px] scale-[1.2]" />
       </div>
     </Huelle>
+  );
+};
+
+// Karte "Neuer Fahrer" / "Neues Fahrzeug" (dispo-admin/anlegen.ts). Antippen klappt die Felder zum Bearbeiten auf.
+const ANLEGEN_FELDER = {
+  fahrer: [['vor', 'Vorname'], ['nach', 'Nachname'], ['benutzername', 'Benutzername'], ['nummer', 'Fahrernummer'], ['telefon', 'Telefon'], ['email', 'E-Mail']],
+  fahrzeug: [['modell', 'Marke und Modell'], ['kennzeichen', 'Kennzeichen'], ['sitze', 'Sitze'], ['farbe', 'Farbe'], ['kraftstoff', 'Kraftstoff'], ['ausstattung', 'Art']],
+};
+const AnlegenPreviewCard = ({ art, daten, offen, onUmschalten, onAendern }) => {
+  const d = daten || {};
+  const titel = art === 'fahrer' ? `${d.vor || ''} ${d.nach || ''}`.trim() || 'Neuer Fahrer' : d.modell || 'Neues Fahrzeug';
+  const zeile = art === 'fahrer'
+    ? [d.benutzername && `Benutzername ${d.benutzername}`, d.nummer && `Nr. ${d.nummer}`, d.telefon].filter(Boolean).join(' · ')
+    : [d.kennzeichen || 'ohne Kennzeichen', d.sitze && `${d.sitze} Sitze`, d.farbe, d.kraftstoff].filter(Boolean).join(' · ');
+  return (
+    <div className="w-full max-w-[362px] bg-white text-black p-[18px] relative">
+      <button type="button" onClick={onUmschalten} className="block text-left w-full">
+        <div className="pr-[86px] text-[24px] leading-[26px] font-bold font-['Space_Grotesk'] break-words">{titel}</div>
+        <div className="mt-[5px] pr-[86px] text-xs leading-4 font-medium font-['Space_Grotesk'] opacity-80 break-words">{zeile}</div>
+        <div className="mt-[5px] text-base leading-6 font-bold font-['Space_Grotesk']">{art === 'fahrer' ? 'Neuer Fahrer' : 'Neues Fahrzeug'}</div>
+        {d.fehler ? <div className="mt-[3px] text-[11px] leading-4 font-bold font-['Space_Grotesk'] text-[#d23a2e]">{d.fehler}</div> : null}
+        <div className="absolute right-4 top-[18px] text-right text-[11px] font-bold font-['Space_Grotesk'] opacity-60">{offen ? 'Fertig' : 'Bearbeiten'}</div>
+      </button>
+      {offen ? (
+        <div className="mt-3 flex flex-col gap-2">
+          {ANLEGEN_FELDER[art].map(([feld, label]) => (
+            <label key={feld} className="flex flex-col text-[11px] font-bold font-['Space_Grotesk'] opacity-80">
+              {label}
+              <input
+                value={d[feld] || ''}
+                onChange={(e) => onAendern({ ...d, [feld]: e.target.value, fehler: '' })}
+                className="mt-1 h-9 px-2 border border-black/20 text-[14px] font-medium opacity-100"
+              />
+            </label>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 };
 
@@ -401,12 +439,14 @@ export default function KiAssistentView({
         // Weitere Karten: zusaetzliche Fahrten und Standbys, jede einzeln bearbeiten und bestaetigen.
         const karten = aktionen
           .map((a, i) => ({ a, i }))
-          .filter(({ a, i }) => (a?.type === 'booking_proposal' && i !== ersteBuchung) || a?.type === 'standby_proposal')
+          .filter(({ a, i }) => (a?.type === 'booking_proposal' && i !== ersteBuchung)
+            || ['standby_proposal', 'fahrer_proposal', 'fahrzeug_proposal'].includes(a?.type))
           .map(({ a, i }) => ({
             id: `karte-${Date.now()}-${i}`,
-            art: a.type === 'standby_proposal' ? 'standby' : 'fahrt',
+            art: { standby_proposal: 'standby', fahrer_proposal: 'fahrer', fahrzeug_proposal: 'fahrzeug' }[a.type] || 'fahrt',
             proposal: a.proposal || null,
             standby: a.standby || null,
+            daten: a.fahrer || a.fahrzeug || null,
             status: 'pending',
           }));
         setMessages((prev) => prev.map((msg) => (
@@ -578,6 +618,21 @@ export default function KiAssistentView({
     }]));
   };
   const handleKarteBuchen = async (messageId, karte) => {
+    if (karte.art === 'fahrer' || karte.art === 'fahrzeug') {
+      karteSetzen(messageId, karte.id, { status: 'saving', offen: false });
+      try {
+        const r = await kiAnlegen(karte.art, karte.daten);
+        if (!r?.ok) {
+          karteSetzen(messageId, karte.id, { status: 'pending', daten: { ...karte.daten, fehler: r?.text || 'Nicht angelegt.' } });
+          return;
+        }
+        karteSetzen(messageId, karte.id, { status: 'booked' });
+        hinweisAnhaengen(r.text);
+      } catch (error) {
+        karteSetzen(messageId, karte.id, { status: 'pending', daten: { ...karte.daten, fehler: error?.message || 'Nicht angelegt.' } });
+      }
+      return;
+    }
     if (karte.art === 'standby') {
       const sb = karte.standby || {};
       // Fehlt etwas, erst ins Formular.
@@ -1085,7 +1140,15 @@ export default function KiAssistentView({
                 {(message.karten || []).map((karte) => (
                   <div key={karte.id} className="mt-3 flex flex-col items-center">
                     <div className="w-full max-w-[362px]">
-                      {karte.art === 'standby' ? (
+                      {karte.art === 'fahrer' || karte.art === 'fahrzeug' ? (
+                        <AnlegenPreviewCard
+                          art={karte.art}
+                          daten={karte.daten}
+                          offen={Boolean(karte.offen) && karte.status === 'pending'}
+                          onUmschalten={() => { if (!DEMO_MODE && karte.status === 'pending') karteSetzen(message.id, karte.id, { offen: !karte.offen }); }}
+                          onAendern={(daten) => karteSetzen(message.id, karte.id, { daten })}
+                        />
+                      ) : karte.art === 'standby' ? (
                         <StandbyPreviewCard
                           standby={karte.standby}
                           onOeffnen={!DEMO_MODE && karte.status === 'pending'
@@ -1124,7 +1187,7 @@ export default function KiAssistentView({
                     ) : null}
                     {karte.status === 'booked' ? (
                       <div className="mt-3 w-full max-w-[362px] text-[#59BE80] text-[11px] font-medium font-['Space_Grotesk']">
-                        {karte.art === 'standby' ? 'Standby angelegt' : t('assist.booked')}
+                        {karte.art === 'standby' ? 'Standby angelegt' : karte.art === 'fahrer' ? 'Fahrer angelegt' : karte.art === 'fahrzeug' ? 'Fahrzeug angelegt' : t('assist.booked')}
                       </div>
                     ) : null}
                     {karte.status === 'cancelled' ? (

@@ -8,6 +8,8 @@
 
 // deno-lint-ignore-file no-explicit-any
 import { geocode, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
+import { datumAusText, genannteFahrer, jetztBerlin } from './dienst.ts';
+import { ortAufloesen, orteLaden } from './ortSuche.ts';
 
 const FRIST_MS = 30 * 60 * 1000;
 const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator', 'pruefung']);
@@ -241,4 +243,62 @@ export const standbyKartenText = (k: StandbyKarte) => {
     + `${k.fahrerNamen.length ? `, ${k.fahrerNamen.join(', ')}` : ''}.`;
   if (!k.fehlt.length) return `${kopf} Bestätige ihn auf seiner Karte.`;
   return `${kopf} Es fehlt noch ${k.fehlt.map((f) => FEHLT_TEXT[f] || f).join(' und ')}. Ergänze das über Bearbeiten auf der Karte.`;
+};
+
+// ---- Standby ohne Fahrt ---------------------------------------------------------------------------------
+// "Standby morgen 10–18 Uhr am Kongress fuer Tim und Marvin". Ort: eigener Ort im Text, sonst die Angabe nach
+// am/beim/im/an der ... (Adresssuche). Apps mit Karten bekommen eine Standby-Karte, sonst Rueckfrage mit "ja".
+const ORT_STOPP = /\s+(?:f(?:ü|ue)r|von|ab|bis|um|mit|und|morgen|heute|(?:ü|ue)bermorgen|am\s+\d|\d{1,2}(?::\d{2})?\s*(?:uhr|-|–))\b|,|\.|$/i;
+
+const ortImText = async (admin: any, roh: string) => {
+  const orte = await orteLaden(admin);
+  const n = (t: string) => normal(t).trim().split(' ').filter((w) => w.length >= 3 && !['der', 'die', 'das', 'den', 'dem', 'und'].includes(w));
+  const woerter = new Set(n(roh));
+  const voll = orte.filter((o) => { const w = n(o.name); return w.length && w.every((x) => woerter.has(x)); });
+  if (voll.length === 1) return { text: voll[0].name, ortId: voll[0].id, adresse: String(voll[0].adresse || '') };
+  const teil = orte.filter((o) => n(o.name).some((x) => x.length >= 5 && woerter.has(x)));
+  if (!voll.length && teil.length === 1) return { text: teil[0].name, ortId: teil[0].id, adresse: String(teil[0].adresse || '') };
+  const m = roh.match(/\b(?:am|an der|an dem|beim|bei der|bei dem|bei|im|in der|vor dem|vor der|vorm)\s+(?!\d)(.+)/i);
+  if (!m) return null;
+  const ortText = m[1].split(ORT_STOPP)[0].trim();
+  if (ortText.length < 3) return null;
+  return ortAufloesen(admin, ortText, orte);
+};
+
+export const standbyAllein = async (admin: any, frage: string, markiert: Fahrer[], kontext: any, karten: boolean) => {
+  const roh = String(frage || '');
+  if (!STANDBY_RE.test(roh)) return null;
+  const text = normal(roh);
+  // Mit Fahrt ("buche ... davor Standby") macht das die Buchung.
+  if (/\b(buch\w*|fahrt|abhol\w*)\b/.test(text) || /\b(von|vom)\s+\D.*\b(nach|zum|zur)\b/.test(text)) return null;
+  if (/^\s*(wer|wo|wann|welche\w*|wie|hat|ist|sind|gibt)\b/.test(text) || /\?\s*$/.test(roh)) return null;
+  const { datum: heute } = jetztBerlin();
+  const datum = datumAusText(text, heute);
+  const spanne = roh.match(new RegExp(`${ZEIT}\\s*(?:-|–|bis)\\s*${ZEIT}`, 'i'));
+  const vonM = roh.match(new RegExp(`\\b(?:ab|von|seit)\\s+${ZEIT}`, 'i'));
+  const bisM = roh.match(new RegExp(`\\bbis\\s+(?:um\\s+)?${ZEIT}`, 'i'));
+  const von = spanne ? hm(spanne[1], spanne[2]) : vonM ? hm(vonM[1], vonM[2]) : '';
+  const bis = spanne ? hm(spanne[3], spanne[4]) : bisM ? hm(bisM[1], bisM[2]) : '';
+  const ort = await ortImText(admin, roh);
+  const genannt = await genannteFahrer(admin, text);
+  const fahrer = genannt.length ? genannt : markiert;
+  const pseudo = {
+    datum, start: ort?.text || '', startOrtId: ort?.ortId || '', startAdresse: ort?.adresse || ort?.text || '',
+    fahrerNamen: fahrer.map((f) => f.name), startZeit: bis,
+  };
+  const k = await standbyKarte(admin, { von, bis }, pseudo);
+  if (karten) {
+    return { answer: standbyKartenText(k).replace(/^Dazu Standby/, 'Standby'), kontext, aktionen: [{ type: 'standby_proposal', standby: k }] };
+  }
+  const o: Offen = {
+    datum, von, bis,
+    ort: k.lat != null && k.lng != null
+      ? { id: k.ortId || null, name: k.ortName, adresse: k.adresse || null, lat: k.lat, lng: k.lng, rein: k.radiusRein, raus: k.radiusRaus }
+      : null,
+    ortText: k.ortName,
+    fahrer: k.fahrerIds.map((id, i) => ({ id, name: k.fahrerNamen[i] || 'Fahrer' })),
+    zeit: Date.now(),
+  };
+  if (!o.von) return { answer: 'Ab wann soll der Standby sein? Sag z. B. „Standby morgen 10 bis 18 Uhr am Kongress für Tim“.', kontext };
+  return { answer: offenText(o).replace(/^Dazu /, ''), kontext: { ...ohneOffenen(kontext), offenerStandby: o } };
 };

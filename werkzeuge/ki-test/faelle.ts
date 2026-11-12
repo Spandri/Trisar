@@ -126,6 +126,68 @@ export const faelle = (): Fall[] => {
     ein('Ohne Karten bleibt eine Nachricht ganz', 'Karten', 'Buche Tim morgen um 9 Uhr vom Hauptbahnhof zur Messe und buche Anna morgen um 18 Uhr vom Hotel Vier Jahreszeiten zum Bayerischer Hof',
       { art: ['fahrt_buchen', 'rueckfrage', 'antwort', 'booking_needs_clarification'], nicht: ['Aufträge erkannt'] }),
 
+    // --- Echte Fehlsaetze aus ki_protokoll 12.11. ---
+    ein('Schick eine Fahrt fuer jetzt', 'Protokoll', 'Schick Stefano Spandri eine Fahrt von Kreillerstraße 210 zur Erner Straße 5 für jetzt',
+      { art: 'fahrt_buchen', vorschlag: { start: 'Kreillerstraße 210', ziel: 'Erner Straße 5', fahrerNamen: 'Stefano' }, zeitNahe: 0 }),
+    ein('Schicke eine Fahrt fuer morgen', 'Protokoll', 'Schicke Stefano Spandri eine Fahrt für morgen 10:30 Uhr vom Hotel Bayerischer Hof zur Messe mit dem Gast Weber',
+      { art: 'fahrt_buchen', vorschlag: { datum: morgen, startZeit: '10:30', start: 'Bayerischer Hof', ziel: 'Messe', fahrerNamen: 'Stefano', fahrgaeste: 'Weber' } }),
+    ein('Fahrt Fahrer von nach', 'Protokoll', 'Fahrt Stefano morgen 9 Uhr von Brudermühlstraße 2, 81371 München zu Ernastraße 5, 81829 München',
+      { art: 'fahrt_buchen', vorschlag: { start: 'Brudermühlstraße 2, 81371', ziel: 'Ernastraße 5, 81829', fahrerNamen: 'Stefano', startZeit: '09:00' } }),
+    ein('Fahrt Fahrer von nach ohne Zeit fragt nach', 'Protokoll', 'Fahrt Stefano von Brudermühlstraße 2, 81371 München zu Ernastraße 5 81829 München',
+      { art: ['booking_needs_clarification', 'rueckfrage', 'antwort'], enthaelt: ['Uhr'], nicht: ['keine Informationen'] }),
+    ein('Wo sind die markierten', 'Protokoll', 'Wo sind die drei gerade',
+      { art: 'antwort', enthaelt: ['Tim', 'Stefano', 'Marvin'], nicht: ['Die drei sind'] }, [ID.tim, ID.stefano, ID.marvin]),
+    ein('Pause eingetragen', 'Protokoll', 'Hat Stefano morgen eine Pause eingetragen?',
+      { art: 'antwort', einesVon: ['Pause', 'Dienst'], nicht: ['nicht in den Daten'] }),
+    { name: 'Zwei Fahrer anlegen, ja', gruppe: 'Protokoll', schritte: [
+      { frage: 'kannst du fahrer Fertel garlo erstellen und fahrer Marvin hallo', erwartet: { art: 'antwort', enthaelt: ['Fertel Garlo', 'Marvin Hallo', 'alle'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Angelegt: Fertel Garlo', 'Angelegt: Marvin Hallo'] } },
+    ] },
+    ein('Zwei Namen ein Fahrer-Wort', 'Protokoll', 'Leg Max Muster und Lisa Lang als Fahrer an',
+      { art: 'antwort', enthaelt: ['Max Muster', 'Lisa Lang'] }),
+    ein('Zwei Fahrzeuge', 'Protokoll', 'Leg zwei Autos an: BMW 5er M-TR 107 und Audi A8 M-TR 108',
+      { art: 'antwort', enthaelt: ['BMW 5er', 'M-TR 107', 'Audi A8', 'M-TR 108'] }),
+    { name: 'Karten: zwei Fahrer', gruppe: 'Protokoll', schritte: [
+      { karten: true, frage: 'Leg Fahrer Fertel Garlo und Fahrer Marvin Hallo an', erwartet: { art: 'antwort', karten: ['fahrer_proposal', 'fahrer_proposal'] } },
+    ] },
+
+    // --- Dienst-, Pausen- und Stundenfragen ---
+    ein('Pause eingetragen ja', 'Fragen2', 'Hat Anna morgen eine Pause eingetragen?', { art: 'antwort', enthaelt: ['11:30', '12:00'] }),
+    ein('Pause eingetragen nein', 'Fragen2', 'Hat Stefano heute eine Pause?', { art: 'antwort', enthaelt: ['keine Pause'] }),
+    ein('Wann faengt an', 'Fragen2', 'Wann fängt Anna morgen an?', { art: 'antwort', enthaelt: ['07:00'] }),
+    ein('Wann Feierabend', 'Fragen2', 'Wann hat Anna morgen Feierabend?', { art: 'antwort', enthaelt: ['15:00'] }),
+    ein('Stunden heute einer', 'Fragen2', 'Wie viele Stunden hat Tim heute?', { art: 'antwort', enthaelt: ['8:00 h'] }),
+    ein('Stunden heute alle', 'Fragen2', 'Wie viele Stunden haben die Fahrer heute gearbeitet?', { art: 'antwort', enthaelt: ['14:30 h', 'Marvin', 'Tim'] }),
+    ein('Offene Stundenzettel', 'Fragen2', 'Welche Stundenzettel sind noch offen?', { art: 'antwort', enthaelt: ['Marvin', '6:30 h'], nicht: ['Tim'] }),
+    { name: 'Dienst fuer Fahrer aus dem Gespraech', gruppe: 'Fragen2', schritte: [
+      { frage: 'Wo ist Stefano?', erwartet: { art: 'antwort', enthaelt: ['Stefano'] } },
+      { frage: 'Dann schick Dienststart für morgen 9:00 Uhr', erwartet: { art: 'dienst_vorschlag', vorschlag: { start: '09:00', fahrer: 'Stefano' } } },
+    ] },
+
+    // --- Fahrzeug und Tracker zuordnen ---
+    { name: 'Fahrzeug an Fahrer, ja', gruppe: 'Zuordnen', schritte: [
+      { frage: 'Gib Marvin das Fahrzeug M-TR 102', erwartet: { art: 'antwort', enthaelt: ['Marvin', 'M-TR 102', 'Tim', 'ja'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Gespeichert', 'Marvin', 'M-TR 102'] } },
+    ] },
+    { name: 'Tracker ins Auto, nein', gruppe: 'Zuordnen', schritte: [
+      { frage: 'Steck Tracker 4 in den M-TR 103', erwartet: { art: 'antwort', enthaelt: ['Tracker 4', 'M-TR 103'] } },
+      { frage: 'nein', erwartet: { art: 'antwort', enthaelt: ['nichts geändert'] } },
+    ] },
+    ein('Tracker umstecken nennt bisheriges Auto', 'Zuordnen', 'Tracker 3 ins Auto M-TR 103', { art: 'antwort', enthaelt: ['Tracker 3', 'M-TR 103', 'M-TR 101'] }),
+    ein('Unbekanntes Kennzeichen', 'Zuordnen', 'Gib Tim den M-XY 999', { art: 'antwort', enthaelt: ['finde ich nicht'] }),
+
+    // --- Standby ohne Fahrt ---
+    { name: 'Standby allein, ja', gruppe: 'Standby2', schritte: [
+      { frage: 'Standby morgen 10-18 Uhr an der Messe für Tim und Marvin', erwartet: { art: 'antwort', enthaelt: ['Messe München', '10:00', '18:00', 'Tim', 'Marvin', 'ja'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Standby angelegt'] } },
+    ] },
+    { name: 'Karten: Standby allein', gruppe: 'Standby2', schritte: [
+      { karten: true, frage: 'Standby übermorgen von 9 bis 13 Uhr am Bayerischer Hof für Anna',
+        erwartet: { art: 'antwort', karten: ['standby_proposal'], standby: { von: '09:00', bis: '13:00', ortId: 'o1', fahrerNamen: 'Anna', fehlt: null } } },
+    ] },
+    ein('Standby allein ohne Fahrer fragt nach', 'Standby2', 'Standby morgen ab 10 bis 16 Uhr am Hauptbahnhof',
+      { art: 'antwort', enthaelt: ['Fahrer'] }),
+
     // --- Dienste ---
     ein('Dienst Start und Ende morgen', 'Dienst', 'Schick Tim morgen 7 bis 15 Uhr',
       { art: 'dienst_vorschlag', vorschlag: { datum: morgen, start: '07:00', ende: '15:00', fahrer: 'Tim' } }),

@@ -295,15 +295,30 @@ struct KiAssistentAnsicht: View {
     /// Weitere Karte (Fahrt oder Standby): Antippen oeffnet das Formular, eigener Status je Karte.
     @ViewBuilder private func karte(_ n: KiNachricht, _ k: KiKarte) -> some View {
         VStack(spacing: 0) {
-            Group {
-                if let sb = k.standby, k.art == "standby" {
-                    KiStandbyKarte(standby: sb)
-                } else if let v = k.proposal {
-                    KiBuchungsKarte(vorschlag: v)
+            if k.istAnlegen {
+                // Neuer Fahrer / neues Fahrzeug: Antippen klappt die Felder zum Bearbeiten auf.
+                KiAnlegenKarte(art: k.art, daten: k.daten ?? KiAnlegenDaten(),
+                               offen: k.offen == true && k.status == "pending",
+                               umschalten: { if k.status == "pending" { karteSetzen(n.id, k.id) { $0.offen = !($0.offen ?? false) } } },
+                               aendern: { feld, wert in
+                                   karteSetzen(n.id, k.id) {
+                                       var d = $0.daten ?? KiAnlegenDaten()
+                                       d[feld] = wert
+                                       d["fehler"] = ""
+                                       $0.daten = d
+                                   }
+                               })
+            } else {
+                Group {
+                    if let sb = k.standby, k.art == "standby" {
+                        KiStandbyKarte(standby: sb)
+                    } else if let v = k.proposal {
+                        KiBuchungsKarte(vorschlag: v)
+                    }
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { if k.status == "pending" { karteOeffnen(n.id, k) } }
             }
-            .contentShape(Rectangle())
-            .onTapGesture { if k.status == "pending" { karteOeffnen(n.id, k) } }
             switch k.status {
             case "pending":
                 HStack(spacing: 12) {
@@ -321,11 +336,12 @@ struct KiAssistentAnsicht: View {
                 }
                 .padding(.top, 12)
             case "saving":
-                Text(k.art == "standby" ? "Standby wird gespeichert..." : "Buchung wird gespeichert...")
+                Text(k.art == "standby" ? "Standby wird gespeichert..." : k.istAnlegen ? "Wird angelegt..." : "Buchung wird gespeichert...")
                     .font(.grotesk(11, .medium)).foregroundStyle(Color(hex: 0xE3F654))
                     .padding(.top, 12)
             case "booked":
-                Text(k.art == "standby" ? "Standby angelegt" : "Gebucht")
+                Text(k.art == "standby" ? "Standby angelegt" : k.art == "fahrer" ? "Fahrer angelegt"
+                     : k.art == "fahrzeug" ? "Fahrzeug angelegt" : "Gebucht")
                     .font(.grotesk(11, .medium)).foregroundStyle(Color(hex: 0x59BE80))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 12)
@@ -357,6 +373,26 @@ struct KiAssistentAnsicht: View {
 
     /// handleKarteBuchen: direkt speichern, fehlt etwas, erst ins Formular.
     private func karteBuchen(_ nachricht: String, _ k: KiKarte) async {
+        if k.istAnlegen {
+            let daten = k.daten ?? KiAnlegenDaten()
+            karteSetzen(nachricht, k.id) { $0.status = "saving"; $0.offen = false }
+            do {
+                let r = try await KiAssistentDienst.anlegen(art: k.art, daten: daten)
+                guard r.ok else {
+                    karteSetzen(nachricht, k.id) {
+                        $0.status = "pending"
+                        $0.daten?["fehler"] = r.text.isEmpty ? "Nicht angelegt." : r.text
+                    }
+                    return
+                }
+                karteSetzen(nachricht, k.id) { $0.status = "booked" }
+                if !r.text.isEmpty { hinweis(r.text, "msg-ai-karte") }
+            } catch {
+                let meldung = error.localizedDescription.isEmpty ? "Nicht angelegt." : error.localizedDescription
+                karteSetzen(nachricht, k.id) { $0.status = "pending"; $0.daten?["fehler"] = meldung }
+            }
+            return
+        }
         if k.art == "standby", let sb = k.standby {
             if !sb.fehlt.isEmpty { karteOeffnen(nachricht, k); return }
             karteSetzen(nachricht, k.id) { $0.status = "saving" }
@@ -665,7 +701,7 @@ enum KiVerlaufSpeicher {
             .map { n -> KiNachricht in
                 var n = n
                 if n.bookingStatus == "saving" { n.bookingStatus = "pending" }
-                n.karten = n.karten?.map { k in var k = k; if k.status == "saving" { k.status = "pending" }; return k }
+                n.karten = n.karten?.map { k in var k = k; if k.status == "saving" { k.status = "pending" }; k.offen = nil; return k }
                 if n.dienstStatus == "sendet" { n.dienstStatus = "offen" }
                 return n
             }
@@ -815,6 +851,96 @@ private struct KiBuchungsKarte: View {
             Image("Arrow_Trisar_Icons_01").resizable().frame(width: 34, height: 21).scaleEffect(1.2)
                 .padding(.trailing, 16).padding(.bottom, 18)
         }
+        .background(Color.white)
+    }
+}
+
+private extension KiKarte {
+    var istAnlegen: Bool { art == "fahrer" || art == "fahrzeug" }
+}
+
+/// Karte "Neuer Fahrer" / "Neues Fahrzeug" (AnlegenPreviewCard). Antippen klappt die Felder auf.
+private struct KiAnlegenKarte: View {
+    let art: String
+    let daten: KiAnlegenDaten
+    let offen: Bool
+    let umschalten: () -> Void
+    let aendern: (String, String) -> Void
+
+    /// ANLEGEN_FELDER
+    private var felder: [(String, String)] {
+        art == "fahrer"
+            ? [("vor", "Vorname"), ("nach", "Nachname"), ("benutzername", "Benutzername"), ("nummer", "Fahrernummer"),
+               ("telefon", "Telefon"), ("email", "E-Mail")]
+            : [("modell", "Marke und Modell"), ("kennzeichen", "Kennzeichen"), ("sitze", "Sitze"), ("farbe", "Farbe"),
+               ("kraftstoff", "Kraftstoff"), ("ausstattung", "Art")]
+    }
+
+    private var titel: String {
+        if art == "fahrer" {
+            let name = "\(daten["vor"]) \(daten["nach"])".trimmingCharacters(in: .whitespaces)
+            return name.isEmpty ? "Neuer Fahrer" : name
+        }
+        return daten["modell"].isEmpty ? "Neues Fahrzeug" : daten["modell"]
+    }
+
+    private var zeile: String {
+        func wenn(_ f: String, _ format: (String) -> String = { $0 }) -> String? {
+            let w = daten[f].trimmingCharacters(in: .whitespaces)
+            return w.isEmpty ? nil : format(w)
+        }
+        let teile: [String?] = art == "fahrer"
+            ? [wenn("benutzername") { "Benutzername \($0)" }, wenn("nummer") { "Nr. \($0)" }, wenn("telefon")]
+            : [wenn("kennzeichen") ?? "ohne Kennzeichen", wenn("sitze") { "\($0) Sitze" }, wenn("farbe"), wenn("kraftstoff")]
+        return teile.compactMap { $0 }.joined(separator: " · ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .topTrailing) {
+                VStack(alignment: .leading, spacing: 5) {
+                    WebText(text: titel, groesse: 24, gewicht: .bold, zeilenHoehe: 26, farbe: .black)
+                        .padding(.trailing, 86)
+                    if !zeile.isEmpty {
+                        WebText(text: zeile, groesse: 12, gewicht: .medium, zeilenHoehe: 16,
+                                farbe: UIColor.black.withAlphaComponent(0.8))
+                            .padding(.trailing, 86)
+                    }
+                    WebText(text: art == "fahrer" ? "Neuer Fahrer" : "Neues Fahrzeug", groesse: 16, gewicht: .bold,
+                            zeilenHoehe: 24, farbe: .black)
+                    if !daten["fehler"].isEmpty {
+                        WebText(text: daten["fehler"], groesse: 11, gewicht: .bold, zeilenHoehe: 16, farbe: UIColor(hex: 0xD23A2E))
+                            .padding(.top, -2)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Text(offen ? "Fertig" : "Bearbeiten")
+                    .font(.grotesk(11, .bold)).foregroundStyle(.black.opacity(0.6))
+                    .padding(.trailing, -2)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { umschalten() }
+            if offen {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(felder, id: \.0) { feld, label in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(label).font(.grotesk(11, .bold)).foregroundStyle(.black.opacity(0.8))
+                            TextField("", text: Binding(get: { daten[feld] }, set: { aendern(feld, $0) }))
+                                .font(.grotesk(14, .medium)).foregroundStyle(.black).tint(.black)
+                                .textInputAutocapitalization(feld == "email" || feld == "benutzername" ? .never : .words)
+                                .autocorrectionDisabled()
+                                .keyboardType(feld == "email" ? .emailAddress : feld == "telefon" ? .phonePad
+                                              : feld == "sitze" ? .numberPad : .default)
+                                .padding(.horizontal, 8).frame(height: 36)
+                                .overlay(Rectangle().strokeBorder(Color.black.opacity(0.2), lineWidth: 1))
+                        }
+                    }
+                }
+                .padding(.top, 12)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(Color.white)
     }
 }

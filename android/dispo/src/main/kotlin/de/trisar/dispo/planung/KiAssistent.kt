@@ -176,6 +176,31 @@ internal object KiAssistentDienst {
         return (antwort["anzahl"] as? JsonPrimitive)?.content?.toIntOrNull() ?: v.fahrer.size
     }
 
+    /** Karte "Neuer Fahrer" / "Neues Fahrzeug" bestaetigt (kiAnlegen im Web): der Server prueft und legt an (anlegen.ts). */
+    suspend fun anlegen(art: String, daten: Map<String, String>): Pair<Boolean, String> {
+        val koerper = buildJsonObject {
+            put("aktion", "ki_anlegen")
+            put("art", art)
+            put("daten", buildJsonObject { daten.forEach { (k, w) -> if (k != "fehler") put(k, w) } })
+        }
+        val text = Backend.client.functions.invoke("dispo-admin") {
+            contentType(ContentType.Application.Json)
+            setBody(koerper.toString())
+        }.bodyAsText()
+        val antwort = Backend.json.parseToJsonElement(text).jsonObject
+        val ok = (antwort["ok"] as? JsonPrimitive)?.content == "true"
+        val meldung = (antwort["text"] as? JsonPrimitive)?.content?.ifEmpty { null }
+            ?: (antwort["error"] as? JsonPrimitive)?.content?.ifEmpty { null }
+            ?: if (ok) "" else "Nicht angelegt."
+        return ok to meldung
+    }
+
+    /** Felder einer Anlegen-Karte als Text (Server liefert Strings, Zahlen werden tolerant uebernommen). */
+    private fun anlegenDaten(e: JsonElement?): Map<String, String>? {
+        val o = e as? JsonObject ?: return null
+        return o.mapNotNull { (k, w) -> (w as? JsonPrimitive)?.takeUnless { it is JsonNull }?.let { k to it.content } }.toMap()
+    }
+
     /** cachedSnapshotAt im Web. Live wird der Snapshot nie geladen, der Cache bleibt aber wie dort. */
     private var snapshotZeit: Long? = null
 
@@ -259,6 +284,8 @@ internal object KiAssistentDienst {
                     art(a) == "standby_proposal" -> a["standby"]?.let {
                         KiKarte("karte-$ms-$i", "standby", standby = Backend.json.decodeFromJsonElement(StandbyVorlage.serializer(), it))
                     }
+                    art(a) == "fahrer_proposal" -> anlegenDaten(a["fahrer"])?.let { KiKarte("karte-$ms-$i", "fahrer", daten = it) }
+                    art(a) == "fahrzeug_proposal" -> anlegenDaten(a["fahrzeug"])?.let { KiKarte("karte-$ms-$i", "fahrzeug", daten = it) }
                     else -> null
                 }
             }.getOrNull()
@@ -345,12 +372,22 @@ internal data class KiBuchungsVorschlag(
 @Serializable
 internal data class KiKarte(
     val id: String,
-    /** fahrt oder standby */
+    /** fahrt, standby, fahrer oder fahrzeug */
     val art: String,
     val proposal: KiBuchungsVorschlag? = null,
     val standby: StandbyVorlage? = null,
     val status: String = "pending",
     val rideId: String? = null,
+    /** Felder von Neuer Fahrer / Neues Fahrzeug (dispo-admin/anlegen.ts), dazu fehler. */
+    val daten: Map<String, String>? = null,
+    /** Felder zum Bearbeiten aufgeklappt. */
+    val offen: Boolean = false,
+)
+
+/** ANLEGEN_FELDER im Web: Feld und Beschriftung der Anlegen-Karten. */
+private val anlegenFelder = mapOf(
+    "fahrer" to listOf("vor" to "Vorname", "nach" to "Nachname", "benutzername" to "Benutzername", "nummer" to "Fahrernummer", "telefon" to "Telefon", "email" to "E-Mail"),
+    "fahrzeug" to listOf("modell" to "Marke und Modell", "kennzeichen" to "Kennzeichen", "sitze" to "Sitze", "farbe" to "Farbe", "kraftstoff" to "Kraftstoff", "ausstattung" to "Art"),
 )
 
 /** Fahrt- oder Standby-Formular, das gerade aus einer Nachricht (und ggf. einer weiteren Karte) offen ist. */
@@ -564,6 +601,25 @@ internal fun KiAssistentAnsicht(
     }
 
     fun karteBuchen(id: String, k: KiKarte) {
+        if (k.art == "fahrer" || k.art == "fahrzeug") {
+            val daten = k.daten ?: emptyMap()
+            karteSetzen(id, k.id) { it.copy(status = "saving", offen = false) }
+            scope.launch {
+                try {
+                    val (ok, text) = KiAssistentDienst.anlegen(k.art, daten)
+                    if (!ok) {
+                        karteSetzen(id, k.id) { it.copy(status = "pending", daten = daten + ("fehler" to text.ifEmpty { "Nicht angelegt." })) }
+                        return@launch
+                    }
+                    karteSetzen(id, k.id) { it.copy(status = "booked") }
+                    if (text.isNotBlank()) hinweis(text, "msg-ai-karte")
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    karteSetzen(id, k.id) { it.copy(status = "pending", daten = daten + ("fehler" to (e.message?.ifEmpty { null } ?: "Nicht angelegt."))) }
+                }
+            }
+            return
+        }
         val sb = k.standby
         if (k.art == "standby" && sb != null) {
             // Fehlt etwas (oder Ort/Fahrer ohne Daten), erst ins Formular.
@@ -679,8 +735,10 @@ internal fun KiAssistentAnsicht(
                                                 k,
                                                 oeffnen = { formular = KiFormular(n.id, vorschlag = k.proposal, standby = k.standby, karteId = k.id) },
                                                 buchen = { karteBuchen(n.id, k) },
-                                                verwerfen = { karteSetzen(n.id, k.id) { it.copy(status = "cancelled") } },
+                                                verwerfen = { karteSetzen(n.id, k.id) { it.copy(status = "cancelled", offen = false) } },
                                                 oeffneFahrt = oeffneFahrt,
+                                                umschalten = { karteSetzen(n.id, k.id) { if (it.status == "pending") it.copy(offen = !it.offen) else it } },
+                                                aendern = { daten -> karteSetzen(n.id, k.id) { it.copy(daten = daten) } },
                                             )
                                         }
                                     }
@@ -906,12 +964,17 @@ private fun KiBuchungsKarte(v: KiBuchungsVorschlag, oeffnen: (() -> Unit)? = nul
 
 /** Weitere Karte unter der ersten Fahrt (karten im Web): Fahrt oder Standby, eigene Knoepfe und eigener Status. */
 @Composable
-private fun WeitereKarte(k: KiKarte, oeffnen: () -> Unit, buchen: () -> Unit, verwerfen: () -> Unit, oeffneFahrt: (String) -> Unit) {
+private fun WeitereKarte(
+    k: KiKarte, oeffnen: () -> Unit, buchen: () -> Unit, verwerfen: () -> Unit, oeffneFahrt: (String) -> Unit,
+    umschalten: () -> Unit = {}, aendern: (Map<String, String>) -> Unit = {},
+) {
     val offen = k.status == "pending"
     Column(Modifier.padding(top = 12.dp).width(362.dp)) {
         val sb = k.standby
         val v = k.proposal
+        val anlegen = k.art == "fahrer" || k.art == "fahrzeug"
         when {
+            anlegen -> KiAnlegenKarte(k.art, k.daten ?: emptyMap(), k.offen && offen, umschalten, aendern)
             k.art == "standby" && sb != null -> KiStandbyKarte(sb, if (offen) oeffnen else null)
             v != null -> KiBuchungsKarte(v, if (offen) oeffnen else null)
             else -> return@Column
@@ -925,9 +988,13 @@ private fun WeitereKarte(k: KiKarte, oeffnen: () -> Unit, buchen: () -> Unit, ve
                     PText("nicht buchen", 24f, 700, hex(0xFF6F63), -0.5f)
                 }
             }
-            "saving" -> PText(if (k.art == "standby") "Standby wird gespeichert..." else "Buchung wird gespeichert...", 11f, 500, kiLime, modifier = Modifier.padding(top = 12.dp))
-            "booked" -> if (k.art == "standby") {
-                PText("Standby angelegt", 11f, 500, hex(0x59BE80), modifier = Modifier.padding(top = 12.dp))
+            "saving" -> PText(
+                when (k.art) { "standby" -> "Standby wird gespeichert..."; "fahrer" -> "Fahrer wird angelegt..."; "fahrzeug" -> "Fahrzeug wird angelegt..."; else -> "Buchung wird gespeichert..." },
+                11f, 500, kiLime, modifier = Modifier.padding(top = 12.dp),
+            )
+            "booked" -> if (k.art == "standby" || anlegen) {
+                val text = when (k.art) { "fahrer" -> "Fahrer angelegt"; "fahrzeug" -> "Fahrzeug angelegt"; else -> "Standby angelegt" }
+                PText(text, 11f, 500, hex(0x59BE80), modifier = Modifier.padding(top = 12.dp))
             } else {
                 Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     PText("Gebucht", 11f, 500, hex(0x59BE80))
@@ -941,6 +1008,58 @@ private fun WeitereKarte(k: KiKarte, oeffnen: () -> Unit, buchen: () -> Unit, ve
             }
             "cancelled" -> PText("Buchung verworfen", 11f, 500, Color.White.copy(alpha = 0.7f), modifier = Modifier.padding(top = 12.dp))
             else -> {}
+        }
+    }
+}
+
+/** AnlegenPreviewCard: Neuer Fahrer / Neues Fahrzeug. Antippen klappt die Felder zum Bearbeiten auf. */
+@Composable
+private fun KiAnlegenKarte(art: String, d: Map<String, String>, offen: Boolean, umschalten: () -> Unit, aendern: (Map<String, String>) -> Unit) {
+    fun f(k: String) = d[k].orEmpty().trim()
+    val titel = if (art == "fahrer") "${f("vor")} ${f("nach")}".trim().ifEmpty { "Neuer Fahrer" } else f("modell").ifEmpty { "Neues Fahrzeug" }
+    val zeile = if (art == "fahrer") {
+        listOf(f("benutzername").ifEmpty { null }?.let { "Benutzername $it" }, f("nummer").ifEmpty { null }?.let { "Nr. $it" }, f("telefon").ifEmpty { null })
+    } else {
+        listOf(f("kennzeichen").ifEmpty { "ohne Kennzeichen" }, f("sitze").ifEmpty { null }?.let { "$it Sitze" }, f("farbe").ifEmpty { null }, f("kraftstoff").ifEmpty { null })
+    }.filterNotNull().joinToString(" · ")
+    Column(Modifier.fillMaxWidth().background(Color.White)) {
+        Box(Modifier.fillMaxWidth().tippen(umschalten)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                PAbsatz(titel, 24f, 700, 26f, Color.Black, modifier = Modifier.padding(end = 86.dp))
+                if (zeile.isNotEmpty()) PAbsatz(zeile, 12f, 500, 16f, Color.Black.copy(alpha = 0.8f), modifier = Modifier.padding(end = 86.dp))
+                PAbsatz(if (art == "fahrer") "Neuer Fahrer" else "Neues Fahrzeug", 16f, 700, 24f, Color.Black)
+                val fehler = f("fehler")
+                if (fehler.isNotEmpty()) PAbsatz(fehler, 11f, 700, 16f, hex(0xD23A2E))
+            }
+            PText(if (offen) "Fertig" else "Bearbeiten", 11f, 700, Color.Black.copy(alpha = 0.6f), modifier = Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 16.dp))
+        }
+        if (offen) {
+            Column(Modifier.padding(start = 18.dp, end = 18.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                (anlegenFelder[art] ?: emptyList()).forEach { (feld, label) ->
+                    Column {
+                        PText(label, 11f, 700, Color.Black.copy(alpha = 0.8f))
+                        BasicTextField(
+                            d[feld].orEmpty(),
+                            { neu -> aendern(d + (feld to neu) + ("fehler" to "")) },
+                            singleLine = true,
+                            textStyle = grotesk(14f, 500, farbe = Color.Black),
+                            cursorBrush = SolidColor(Color.Black),
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = if (feld in setOf("benutzername", "email", "kennzeichen")) KeyboardCapitalization.None else KeyboardCapitalization.Words,
+                                keyboardType = when (feld) {
+                                    "telefon" -> androidx.compose.ui.text.input.KeyboardType.Phone
+                                    "email" -> androidx.compose.ui.text.input.KeyboardType.Email
+                                    "sitze", "nummer" -> androidx.compose.ui.text.input.KeyboardType.Number
+                                    else -> androidx.compose.ui.text.input.KeyboardType.Text
+                                },
+                                imeAction = ImeAction.Next,
+                            ),
+                            modifier = Modifier.padding(top = 4.dp).fillMaxWidth().height(36.dp)
+                                .border(1.dp, Color.Black.copy(alpha = 0.2f), RectangleShape).padding(horizontal = 8.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+            }
         }
     }
 }

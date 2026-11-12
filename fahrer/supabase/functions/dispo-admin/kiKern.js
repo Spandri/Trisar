@@ -556,7 +556,9 @@ const isBookingPrompt = (prompt) => {
   // "Hol Herrn Engel ... ab", "Ich brauche ein Auto ...", "Fahrt fuer Julia Weber morgen 11:30 ..."
   return /\bhol\b.*\bab\b|\babholen\b.*\b(und|bring)/.test(text)
     || /\bbrauch(e|en)?\b.*\b(auto|wagen|fahrzeug|fahrt|fahrer)\b/.test(text)
-    || /^(eine\s+)?fahrt\s+(fur|ab|von|um|morgen|heute|ubermorgen)\b/.test(text);
+    || /^(eine\s+)?fahrt\s+(fur|ab|von|um|morgen|heute|ubermorgen)\b/.test(text)
+    // "Fahrt Stefano von Brudermuehlstr. 2 zu Ernastr. 5": Fahrt + Name + von ... zu/nach.
+    || (/^(eine\s+|neue\s+)?fahrt\s+([a-z0-9#:]+\s+){0,6}(von|vom|ab)\b/.test(text) && /\b(zu|zum|zur|nach|bis)\b/.test(text));
 };
 
 const filterSnapshotByPrompt = (snapshot, prompt) => {
@@ -1625,7 +1627,8 @@ const extractBookingRouteFromPrompt = (prompt) => {
   const abholen = raw.match(new RegExp(`\\b(?:am|an der|an dem|vom|von der|beim)\\s+(.+?)\\s+ab\\b.*?\\b(?:nach|zum|zur|ins|in die|in den)\\s+(.+?)${ende}`, 'i'));
   if (abholen) return ohneVerbReste({ start: abholen[1].trim(), ziel: abholen[2].trim() });
   // Ein Ort endet vor "mit", "und", "fuer", "um 10", "morgen", "10 Uhr", Komma oder Satzende.
-  const pattern = /\b(von|vom|ab|aus)\s+(.+?)\s+(?:nach|zum|zur|ins|in die|in den)\s+(.+?)(?=(?:\s+mit\b|\s+und\b|\s+der\s+gast\b|\s+gast\s+hei(?:ss|ß)t\b|\s+fahrer\b|\s+f(?:ü|ue)r\b|\s+um\s+\d|\s+(?:heute|morgen|übermorgen|jetzt|sofort|gleich)\b|\s+\d{1,2}(?::\d{2})?\s*uhr\b|,|[.!?]|$))/i;
+  // "zu" auch ("von Brudermuehlstr. 2, 81371 Muenchen zu Ernastr. 5"). Komma vor einer PLZ gehoert zur Adresse.
+  const pattern = /\b(von|vom|ab|aus)\s+(.+?)\s+(?:nach|zu|zum|zur|ins|in die|in den)\s+(.+?)(?=(?:\s+mit\b|\s+und\b|\s+der\s+gast\b|\s+gast\s+hei(?:ss|ß)t\b|\s+fahrer\b|\s+f(?:ü|ue)r\b|\s+um\s+\d|\s+(?:heute|morgen|übermorgen|jetzt|sofort|gleich)\b|\s+\d{1,2}(?::\d{2})?\s*uhr\b|,(?!\s*\d{5}\b)|[.!?](?!\d)|$))/i;
   const match = raw.match(pattern);
   if (match?.[2] && match?.[3] && !/^(und|bring|mit)\b/i.test(match[2])) {
     return ohneVerbReste({

@@ -42,13 +42,16 @@ enum KiAssistentDienst {
         /// Unbekannte oder kaputte Teile einer Aktion lassen die Antwort nicht scheitern.
         struct Aktion: Decodable {
             let type: String?; let proposal: KiBuchungsVorschlag?; let vorschlag: DienstVorschlag?; let standby: KiStandbyVorschlag?
-            private enum CodingKeys: String, CodingKey { case type, proposal, vorschlag, standby }
+            let fahrer: KiAnlegenDaten?; let fahrzeug: KiAnlegenDaten?
+            private enum CodingKeys: String, CodingKey { case type, proposal, vorschlag, standby, fahrer, fahrzeug }
             init(from decoder: Decoder) throws {
                 let c = try decoder.container(keyedBy: CodingKeys.self)
                 type = try? c.decodeIfPresent(String.self, forKey: .type)
                 proposal = try? c.decodeIfPresent(KiBuchungsVorschlag.self, forKey: .proposal)
                 vorschlag = try? c.decodeIfPresent(DienstVorschlag.self, forKey: .vorschlag)
                 standby = try? c.decodeIfPresent(KiStandbyVorschlag.self, forKey: .standby)
+                fahrer = try? c.decodeIfPresent(KiAnlegenDaten.self, forKey: .fahrer)
+                fahrzeug = try? c.decodeIfPresent(KiAnlegenDaten.self, forKey: .fahrzeug)
             }
         }
         let answer: String?
@@ -109,6 +112,27 @@ enum KiAssistentDienst {
         }
     }
 
+    /// kiAnlegen: Karte "Neuer Fahrer" / "Neues Fahrzeug" bestaetigt, der Server prueft und legt an (anlegen.ts).
+    struct AnlegenAntwort: Decodable {
+        var ok = false
+        var text = ""
+        private enum CodingKeys: String, CodingKey { case ok, text }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            ok = ((try? c.decodeIfPresent(Bool.self, forKey: .ok)) ?? nil) ?? false
+            text = ((try? c.decodeIfPresent(String.self, forKey: .text)) ?? nil) ?? ""
+        }
+    }
+    private struct AnlegenAnfrage: Encodable {
+        let aktion = "ki_anlegen"
+        let art: String
+        let daten: KiAnlegenDaten
+    }
+    static func anlegen(art: String, daten: KiAnlegenDaten) async throws -> AnlegenAntwort {
+        try await Backend.client.functions.invoke("dispo-admin",
+                                                  options: FunctionInvokeOptions(body: AnlegenAnfrage(art: art, daten: daten)))
+    }
+
     private struct BuchungFehlgeschlagen: LocalizedError {
         let meldung: String
         var errorDescription: String? { meldung }
@@ -140,6 +164,12 @@ enum KiAssistentDienst {
             if a.type == "standby_proposal", let s = a.standby {
                 return KiKarte(id: "karte-\(ms)-\(i)", art: "standby", standby: s)
             }
+            if a.type == "fahrer_proposal" {
+                return KiKarte(id: "karte-\(ms)-\(i)", art: "fahrer", daten: a.fahrer ?? KiAnlegenDaten())
+            }
+            if a.type == "fahrzeug_proposal" {
+                return KiKarte(id: "karte-\(ms)-\(i)", art: "fahrzeug", daten: a.fahrzeug ?? KiAnlegenDaten())
+            }
             return nil
         }
         return Antwort(text: antwort.answer ?? "", buchungsVorschlag: vorschlag, dienstVorschlag: dienst, karten: weitere)
@@ -152,8 +182,47 @@ struct KiKarte: Codable, Equatable, Identifiable {
     var art: String
     var proposal: KiBuchungsVorschlag?
     var standby: KiStandbyVorschlag?
+    /// Neuer Fahrer oder neues Fahrzeug (art "fahrer"/"fahrzeug"), Felder wie vom Server.
+    var daten: KiAnlegenDaten?
     var status = "pending"
     var rideId: String?
+    /// Bearbeiten-Felder der Anlegen-Karte aufgeklappt.
+    var offen: Bool?
+}
+
+/// Felder einer Anlegen-Karte (dispo-admin/anlegen.ts). Alles Text, unbekannte Typen tolerant.
+/// Fahrer: vor, nach, benutzername, passwort, nummer, telefon, email. Fahrzeug: modell, ausstattung,
+/// kennzeichen, sitze, farbe, kraftstoff, vin. Beide: fehler.
+struct KiAnlegenDaten: Codable, Equatable {
+    var werte: [String: String] = [:]
+
+    init() {}
+
+    subscript(_ feld: String) -> String {
+        get { werte[feld] ?? "" }
+        set { werte[feld] = newValue }
+    }
+
+    private struct Schluessel: CodingKey {
+        var stringValue: String
+        var intValue: Int? { nil }
+        init(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Schluessel.self)
+        for k in c.allKeys {
+            if let s = (try? c.decodeIfPresent(String.self, forKey: k)) ?? nil { werte[k.stringValue] = s }
+            else if let i = (try? c.decodeIfPresent(Int.self, forKey: k)) ?? nil { werte[k.stringValue] = String(i) }
+            else if let d = (try? c.decodeIfPresent(Double.self, forKey: k)) ?? nil { werte[k.stringValue] = String(d) }
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Schluessel.self)
+        for (k, v) in werte { try c.encode(v, forKey: Schluessel(stringValue: k)) }
+    }
 }
 
 /// Standby-Karte des Assistenten (dispo-admin/standbyKi.ts standbyKarte).

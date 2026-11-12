@@ -24,7 +24,7 @@ const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'co
 type Fahrer = { id: string; name: string };
 type Pause = { von: string; bis: string };
 
-const normal = (text: string) => ` ${String(text || '').toLowerCase()
+export const normal = (text: string) => ` ${String(text || '').toLowerCase()
   .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
   .replace(/[^a-z0-9:.\-– ]+/g, ' ')
   .replace(/\s+/g, ' ')} `;
@@ -37,24 +37,24 @@ const SCHICK_RE = /\b(schick|schicke|schickt|sende|setz|setze|plan|plane)\b/;
 const FAHRT_RE = /fahrt|buch|abhol|flughafen|terminal|hotel|bahnhof|\bzum\b|\bzur\b|\bnach\b|gast|gaeste/;
 
 // Datum und Uhrzeit in Deutschland.
-const jetztBerlin = () => {
+export const jetztBerlin = () => {
   const teile = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   }).formatToParts(new Date()).map((t) => [t.type, t.value]));
   return { datum: `${teile.year}-${teile.month}-${teile.day}`, minuten: Number(teile.hour) * 60 + Number(teile.minute) };
 };
-const plusTage = (iso: string, n: number) => {
+export const plusTage = (iso: string, n: number) => {
   const d = new Date(`${iso}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
-const uhr = (min: number) => {
+export const uhr = (min: number) => {
   const x = ((min % 1440) + 1440) % 1440;
   return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`;
 };
 const zuMin = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
-const tagLesbar = (iso: string, heute: string) => {
+export const tagLesbar = (iso: string, heute: string) => {
   if (iso === heute) return 'heute';
   if (iso === plusTage(heute, 1)) return 'morgen';
   const d = new Date(`${iso}T12:00:00Z`);
@@ -63,7 +63,7 @@ const tagLesbar = (iso: string, heute: string) => {
 
 const WOCHENTAGE = ['sonntag', 'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag'];
 // heute, morgen, uebermorgen, Wochentag (naechster, heute eingeschlossen), 14.11. / 14.11.2026
-const datumAusText = (text: string, heute: string) => {
+export const datumAusText = (text: string, heute: string) => {
   if (/\buebermorgen\b/.test(text)) return plusTage(heute, 2);
   if (/\bmorgen\b/.test(text)) return plusTage(heute, 1);
   const tagMonat = text.match(/\b([0-3]?\d)\.([01]?\d)\.(\d{4})?/);
@@ -82,7 +82,7 @@ const datumAusText = (text: string, heute: string) => {
 
 // Alle Uhrzeiten mit Position: "12:30", "12.30", "12 uhr", "um 7", "halb 8".
 // Datumsangaben wie "14.11." werden vorher entfernt.
-const zeitenAusText = (text: string) => {
+export const zeitenAusText = (text: string) => {
   const ohneDatum = text.replace(/\b[0-3]?\d\.[01]?\d\.(\d{4})?/g, (m) => ' '.repeat(m.length));
   const treffer: { pos: number; zeit: string }[] = [];
   const H = '([01]?\\d|2[0-3])';
@@ -125,7 +125,7 @@ export const markierteFahrer = (body: any): Fahrer[] => (Array.isArray(body?.mar
   .filter((f: any) => UUID.test(f.id));
 
 // Fahrer, die im Text mit Namen oder Nummer genannt sind.
-const genannteFahrer = async (admin: any, text: string): Promise<Fahrer[]> => {
+export const genannteFahrer = async (admin: any, text: string): Promise<Fahrer[]> => {
   const { data, error } = await admin.from('profiles').select('id, first_name, last_name, driver_number, role');
   if (error || !Array.isArray(data)) return [];
   const fahrer = data

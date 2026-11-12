@@ -241,7 +241,7 @@ const fahrzeugSpeichern = async (admin: any, d: FahrzeugDaten) => {
 
 // ---- Ablauf ---------------------------------------------------------------------------------------
 
-export type AnlegenAntwort = { answer: string; kontext: any } | null;
+export type AnlegenAntwort = { answer: string; kontext: any; aktionen?: any[] } | null;
 
 const ohneOffenes = (kontext: any) => {
   const k = { ...(kontext || {}) };
@@ -281,12 +281,26 @@ const fahrzeugNachtrag = (alt: FahrzeugDaten, roh: string): FahrzeugDaten | null
   return geaendert ? neu : null;
 };
 
-export const anlegenVorschlag = async (admin: any, frage: string, kontext: any): Promise<AnlegenAntwort> => {
+export const anlegenVorschlag = async (admin: any, frage: string, kontext: any, karten = false): Promise<AnlegenAntwort> => {
   const roh = String(frage || '').trim();
   const text = normal(roh);
   const offen = kontext?.offenesAnlegen;
   const offenGueltig = offen && (offen.art === 'fahrer' || offen.art === 'fahrzeug') && offen.daten
     && Date.now() - Number(offen.zeit || 0) < FRIST_MS;
+
+  // Mehrere offen: "ja" legt alle an, die passen, "nein" verwirft alle.
+  if (offen?.art === 'mehrere' && Array.isArray(offen.liste) && Date.now() - Number(offen.zeit || 0) < FRIST_MS && roh.length <= 60) {
+    if (NEIN_RE.test(text)) return { answer: 'Okay, ich habe nichts angelegt.', kontext: ohneOffenes(kontext) };
+    if (JA_RE.test(text) && !/\?/.test(roh)) {
+      const ergebnisse: string[] = [];
+      for (const e of offen.liste) {
+        const fehler = e.art === 'fahrer' ? await fahrerPruefen(admin, e.daten) : await fahrzeugPruefen(admin, e.daten);
+        if (fehler) { ergebnisse.push(`Nicht angelegt: ${fehler}`); continue; }
+        ergebnisse.push(e.art === 'fahrer' ? await fahrerSpeichern(admin, e.daten) : await fahrzeugSpeichern(admin, e.daten));
+      }
+      return { answer: ergebnisse.join('\n\n'), kontext: ohneOffenes(kontext) };
+    }
+  }
 
   if (offenGueltig) {
     if (roh.length <= 60 && NEIN_RE.test(text)) {
@@ -325,36 +339,143 @@ export const anlegenVorschlag = async (admin: any, frage: string, kontext: any):
   if (!auftrag || ANDERES_RE.test(text)) return null;
   const istFahrzeug = FAHRZEUG_RE.test(text) || MARKEN.some((m) => new RegExp(`\\b${m}\\b`).test(text));
   const istFahrer = FAHRER_RE.test(text);
-  if (istFahrzeug && !istFahrer) {
-    const f = fahrzeugFelder(roh);
+  if (!istFahrzeug && !istFahrer) return null;
+
+  // Mehrere in einem Satz: "Fahrer Fertel Garlo und Fahrer Marvin Hallo", "zwei Autos: BMW 5er M-TR 104, Audi A8 M-TR 106",
+  // je Zeile einer. Jeder Teil wird fuer sich gelesen.
+  const teile = anlegenTeilen(roh, istFahrzeug && !istFahrer ? 'fahrzeug' : istFahrer && !istFahrzeug ? 'fahrer' : null);
+  const entwuerfe: Entwurf[] = [];
+  for (const teil of teile) {
+    const e = await entwurfAus(admin, teil.text, teil.art, entwuerfe);
+    if (e) entwuerfe.push(e);
+  }
+  if (!entwuerfe.length) {
+    if (istFahrer && !istFahrzeug) {
+      return { answer: 'Wie heißt der neue Fahrer? Sag mir Vor- und Nachnamen, z. B. „Leg Fahrer Max Mustermann an, Nummer 14“.', kontext: ohneOffenes(kontext) };
+    }
+    if (istFahrzeug && !istFahrer) {
+      return { answer: 'Welche Marke und welches Modell? Zum Beispiel „Neues Fahrzeug Mercedes V-Klasse, Kennzeichen M-TR 105“.', kontext: ohneOffenes(kontext) };
+    }
+    return null;
+  }
+
+  // Apps mit Karten: jede Anlage als eigene Karte, Buchen legt sie an (aktion ki_anlegen), Bearbeiten oeffnet das Formular.
+  if (karten) {
+    const aktionen = entwuerfe.map((e) => (e.art === 'fahrer'
+      ? { type: 'fahrer_proposal', fahrer: { ...e.daten, fehler: e.fehler || '' } }
+      : { type: 'fahrzeug_proposal', fahrzeug: { ...e.daten, fehler: e.fehler || '' } }));
+    const kopf = entwuerfe.length === 1
+      ? (entwuerfe[0].art === 'fahrer' ? 'Neuer Fahrer, prüfe die Karte und bestätige sie.' : 'Neues Fahrzeug, prüfe die Karte und bestätige es.')
+      : `Ich habe ${entwuerfe.length} Einträge vorbereitet. Jeden bestätigst du einzeln auf seiner Karte.`;
+    const fehler = entwuerfe.filter((e) => e.fehler).map((e) => `${e.titel}: ${e.fehler}`);
+    return { answer: [kopf, ...entwuerfe.filter((e) => e.hinweis).map((e) => e.hinweis), ...fehler].join('\n'), kontext: ohneOffenes(kontext), aktionen };
+  }
+
+  if (entwuerfe.length === 1) {
+    const e = entwuerfe[0];
+    if (e.art === 'fahrzeug' && e.fehler) return { answer: e.fehler, kontext: ohneOffenes(kontext) };
+    const text2 = e.art === 'fahrer' ? fahrerText(e.daten) : fahrzeugText(e.daten);
+    return { answer: e.fehler || `${e.hinweis ? `${e.hinweis}\n` : ''}${text2}`, kontext: mitOffenem(kontext, e.art, e.daten) };
+  }
+  // Mehrere ohne Karten: Liste, "ja" legt alle an, die passen.
+  const zeilen = entwuerfe.map((e, i) => `${i + 1}. ${e.titel}${e.fehler ? ` (geht nicht: ${e.fehler})` : ''}`);
+  return {
+    answer: `Ich lege an:\n${zeilen.join('\n')}\n\nMit „ja“ lege ich alle an, die passen. Mit „nein“ nichts.`,
+    kontext: { ...ohneOffenes(kontext), offenesAnlegen: { art: 'mehrere', liste: entwuerfe.map((e) => ({ art: e.art, daten: e.daten })), zeit: Date.now() } },
+  };
+};
+
+type Entwurf = { art: 'fahrer' | 'fahrzeug'; daten: any; titel: string; fehler: string; hinweis: string };
+
+// Teile einer Nachricht: je Zeile, sonst an "und"/"," vor Fahrer/Fahrzeug/Marke/Kennzeichen, sonst bei
+// Fahrern an "und" zwischen zwei Namen ("Leg Max Muster und Lisa Lang als Fahrer an").
+const anlegenTeilen = (roh: string, art: 'fahrer' | 'fahrzeug' | null): { text: string; art: 'fahrer' | 'fahrzeug' | null }[] => {
+  const zeilen = roh.split(/\n+/).map((z) => z.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim()).filter((z) => z.length > 2);
+  const artVon = (t: string): 'fahrer' | 'fahrzeug' | null => {
+    const n = normal(t);
+    if (FAHRER_RE.test(n) && !FAHRZEUG_RE.test(n)) return 'fahrer';
+    if (FAHRZEUG_RE.test(n) || MARKEN.some((m) => new RegExp(`\\b${m}\\b`).test(n)) || /\b[a-z]{1,3}-[a-z]{1,2} ?\d/i.test(t)) return 'fahrzeug';
+    return null;
+  };
+  let teile = zeilen.length > 1 ? zeilen : roh
+    .split(/\s*(?:,|\bund\b|\bsowie\b)\s*(?=(?:(?:noch\s+)?(?:einen?|den|die|das|ein)\s+)?(?:(?:neuen?|neues|weiteren?|zweiten?)\s+)?(?:fahrer(?:in)?|fahrzeug|auto|wagen)\b)/i)
+    .map((t) => t.trim()).filter(Boolean);
+  if (teile.length === 1 && art === 'fahrer') {
+    // "Max Muster und Lisa Lang": zwei Namen mit je zwei Woertern.
+    const zwei = roh.match(/^(.*?\b)([A-ZÄÖÜ][\wäöüß'-]+\s+[A-ZÄÖÜ][\wäöüß'-]+)\s+und\s+([A-ZÄÖÜ][\wäöüß'-]+\s+[A-ZÄÖÜ][\wäöüß'-]+)(.*)$/);
+    if (zwei) teile = [`${zwei[1]}${zwei[2]}${zwei[4]}`, `fahrer ${zwei[3]}`];
+  }
+  if (teile.length === 1 && art === 'fahrzeug') {
+    // Mehrere Kennzeichen: an jedem Komma oder "und" vor einer Marke trennen.
+    const nachMarke = roh.split(new RegExp(`\\s*(?:,|\\bund\\b)\\s*(?=(?:${MARKEN.map((m) => m.replace(/[-]/g, '\\-')).join('|')})\\b)`, 'i')).map((t) => t.trim()).filter(Boolean);
+    if (nachMarke.length > 1) teile = nachMarke;
+  }
+  let letzte = art;
+  return teile.slice(0, 10).map((t) => {
+    const a = artVon(t) || letzte;
+    letzte = a;
+    return { text: t, art: a };
+  });
+};
+
+const entwurfAus = async (admin: any, teil: string, art: 'fahrer' | 'fahrzeug' | null, bisher: Entwurf[]): Promise<Entwurf | null> => {
+  if (art === 'fahrzeug') {
+    const f = fahrzeugFelder(teil);
     const d: FahrzeugDaten = {
-      modell: modellAus(f.rest), ausstattung: f.ausstattung, kennzeichen: f.kennzeichen, sitze: f.sitze,
+      modell: modellAus(f.rest) || modellAus(`fahrzeug ${f.rest}`), ausstattung: f.ausstattung, kennzeichen: f.kennzeichen, sitze: f.sitze,
       farbe: f.farbe, kraftstoff: f.kraftstoff, vin: f.vin,
     };
-    const fehler = await fahrzeugPruefen(admin, d);
-    if (fehler) return { answer: fehler, kontext: ohneOffenes(kontext) };
-    return { answer: fahrzeugText(d), kontext: mitOffenem(kontext, 'fahrzeug', d) };
+    if (!d.modell && !d.kennzeichen) return null;
+    let fehler = await fahrzeugPruefen(admin, d);
+    if (!fehler && d.kennzeichen && bisher.some((e) => e.art === 'fahrzeug' && e.daten.kennzeichen === d.kennzeichen)) fehler = `Kennzeichen ${d.kennzeichen} steht doppelt.`;
+    return { art: 'fahrzeug', daten: d, titel: `${d.modell || 'Fahrzeug'}${d.kennzeichen ? ` (${d.kennzeichen})` : ''}`, fehler, hinweis: '' };
   }
-  if (istFahrer && !istFahrzeug) {
-    const f = fahrerFelder(roh);
+  if (art === 'fahrer') {
+    const f = fahrerFelder(teil);
     const name = nameAus(f.rest);
-    if (!name) {
-      return {
-        answer: 'Wie heißt der neue Fahrer? Sag mir Vor- und Nachnamen, z. B. „Leg Fahrer Max Mustermann an, Nummer 14“.',
-        kontext: ohneOffenes(kontext),
-      };
-    }
+    if (!name) return null;
+    const vergeben = new Set(bisher.filter((e) => e.art === 'fahrer').map((e) => e.daten.benutzername));
+    let benutzername = f.benutzername || await freierBenutzername(admin, benutzerVorschlag(name.vor, name.nach));
+    for (let i = 2; vergeben.has(benutzername) && i < 20; i += 1) benutzername = `${benutzerVorschlag(name.vor, name.nach)}${i}`;
     const d: FahrerDaten = {
-      vor: name.vor, nach: name.nach,
-      benutzername: f.benutzername || await freierBenutzername(admin, benutzerVorschlag(name.vor, name.nach)),
+      vor: name.vor, nach: name.nach, benutzername,
       passwort: f.passwort, nummer: f.nummer, telefon: f.telefon, email: f.email,
     };
     const fehler = await fahrerPruefen(admin, d);
     const { data: gleich } = await admin.from('profiles').select('id').ilike('first_name', d.vor).ilike('last_name', d.nach).limit(1);
-    const hinweis = Array.isArray(gleich) && gleich.length ? `Hinweis: Einen Fahrer ${d.vor} ${d.nach} gibt es schon.\n` : '';
-    return { answer: fehler || `${hinweis}${fahrerText(d)}`, kontext: mitOffenem(kontext, 'fahrer', d) };
+    const hinweis = Array.isArray(gleich) && gleich.length ? `Hinweis: Einen Fahrer ${d.vor} ${d.nach} gibt es schon.` : '';
+    return { art: 'fahrer', daten: d, titel: `${d.vor} ${d.nach} (Benutzername ${d.benutzername})`, fehler, hinweis };
   }
   return null;
+};
+
+// Karte bestaetigt (aktion ki_anlegen aus den Apps): pruefen und anlegen. Antwort mit Text (Passwort einmal).
+export const anlegenAusKarte = async (admin: any, body: any) => {
+  const art = body?.art === 'fahrzeug' ? 'fahrzeug' : body?.art === 'fahrer' ? 'fahrer' : '';
+  const roh = body?.daten || {};
+  if (art === 'fahrer') {
+    const d: FahrerDaten = {
+      vor: String(roh.vor || '').trim(), nach: String(roh.nach || '').trim(),
+      benutzername: String(roh.benutzername || '').trim().toLowerCase(), passwort: String(roh.passwort || ''),
+      nummer: String(roh.nummer || '').trim(), telefon: String(roh.telefon || '').trim(), email: String(roh.email || '').trim().toLowerCase(),
+    };
+    if (!d.vor || !d.nach) return { status: 400, daten: { ok: false, text: 'Vor- und Nachname fehlen.' } };
+    const fehler = await fahrerPruefen(admin, d);
+    if (fehler) return { status: 200, daten: { ok: false, text: fehler } };
+    const text = await fahrerSpeichern(admin, d);
+    return { status: 200, daten: { ok: /^Angelegt/.test(text), text } };
+  }
+  if (art === 'fahrzeug') {
+    const d: FahrzeugDaten = {
+      modell: String(roh.modell || '').trim(), ausstattung: String(roh.ausstattung || '').trim(), kennzeichen: String(roh.kennzeichen || '').trim().toUpperCase(),
+      sitze: String(roh.sitze || '').trim(), farbe: String(roh.farbe || '').trim(), kraftstoff: String(roh.kraftstoff || '').trim(), vin: String(roh.vin || '').trim(),
+    };
+    const fehler = await fahrzeugPruefen(admin, d);
+    if (fehler) return { status: 200, daten: { ok: false, text: fehler } };
+    const text = await fahrzeugSpeichern(admin, d);
+    return { status: 200, daten: { ok: /^Angelegt/.test(text), text } };
+  }
+  return { status: 400, daten: { ok: false, text: 'Unbekannte Art.' } };
 };
 
 // Passwoerter fuer das Protokoll unkenntlich machen.

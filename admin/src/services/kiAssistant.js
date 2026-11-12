@@ -313,3 +313,10 @@ export const dienstSenden = async ({ art, zeit, datum, start = null, ende = null
   if (!data?.ok) throw new Error(data?.error || 'Senden fehlgeschlagen');
   return data;
 };
+
+// Karte "Neuer Fahrer" / "Neues Fahrzeug" des Assistenten bestaetigt: der Server prueft und legt an (anlegen.ts).
+export const kiAnlegen = async (art, daten) => {
+  const { data, error } = await supabase.functions.invoke('dispo-admin', { body: { aktion: 'ki_anlegen', art, daten } });
+  if (error) throw error;
+  return data || { ok: false, text: 'Keine Antwort vom Server.' };
+};
