@@ -42,6 +42,7 @@ const felder = (daten: any): Record<string, string> => {
       datum: String(p.datum || ''), startZeit: String(p.startZeit || ''), start: String(p.start || ''),
       ziel: String(p.ziel || ''), fahrgaeste: String(p.fahrgaeste || ''),
       fahrerNamen: (p.fahrerNamen || []).join(', '), fahrtId: String(p.fahrtId || ''),
+      startOrtId: String(p.startOrtId || ''), zielOrtId: String(p.zielOrtId || ''),
     };
   }
   return {};
@@ -63,6 +64,18 @@ const pruefen = (daten: any, e: Erwartung): string[] => {
     const ist = f[k] ?? '';
     if (soll === null) { if (ist) fehler.push(`${k} soll leer sein, ist "${ist}"`); continue; }
     if (!ist.toLowerCase().includes(soll.toLowerCase())) fehler.push(`${k} "${ist}", erwartet "${soll}"`);
+  }
+  // Karten-Liste (karten: true): Typen der aktionen in Reihenfolge, Standby-Felder.
+  if (e.karten) {
+    const ist = (Array.isArray(daten?.aktionen) ? daten.aktionen : []).map((a: any) => a?.type);
+    if (ist.join(',') !== e.karten.join(',')) fehler.push(`Karten ${ist.join(',') || 'keine'}, erwartet ${e.karten.join(',')}`);
+  }
+  const sb = (Array.isArray(daten?.aktionen) ? daten.aktionen : []).find((a: any) => a?.type === 'standby_proposal')?.standby;
+  for (const [k, soll] of Object.entries(e.standby || {})) {
+    const roh = sb?.[k];
+    const ist = Array.isArray(roh) ? roh.join(', ') : String(roh ?? '');
+    if (soll === null) { if (ist) fehler.push(`standby.${k} soll leer sein, ist "${ist}"`); continue; }
+    if (!ist.toLowerCase().includes(soll.toLowerCase())) fehler.push(`standby.${k} "${ist}", erwartet "${soll}"`);
   }
   // Relative Zeit ("jetzt", "in 20 Minuten"): Abfahrt zwischen jetzt+Minuten und 10 Minuten spaeter.
   if (e.zeitNahe != null) {
@@ -91,6 +104,7 @@ for (const fall of alle) {
     const body = {
       aktion: 'ki_frage', frage: s.frage, verlauf, kontext, offenerVorschlag, letzteFahrtId,
       markierteFahrer: (s.markiert || []).map((id) => ({ id, name: NAMEN[id] || '' })),
+      ...(s.karten ? { karten: true } : {}),
     };
     const beginn = Date.now();
     let daten: any;

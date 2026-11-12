@@ -42,7 +42,7 @@ const distanceKm = (a, b) => {
 
 const fetchPosition = async (endpoint, q) => {
   const url = `https://api.tomtom.com/search/2/${endpoint}/${encodeURIComponent(q)}.json`
-    + `?key=${KEY}&limit=1&lat=${MUC.lat}&lon=${MUC.lon}&countrySet=DE&language=de-DE`;
+    + `?key=${KEY}&limit=1&lat=${MUC.lat}&lon=${MUC.lon}&countrySet=DE,AT,CH&language=de-DE`;
   let res = await fetch(url);
   if (res.status === 429) {
     // Freemium-Ratelimit: einmal kurz warten und erneut versuchen.

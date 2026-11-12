@@ -283,10 +283,11 @@ export default function FahrtAdd({
     start: vorlage?.start || '',
     ziel: vorlage?.ziel || '',
     // Eigener Ort (Karten Filter): ID und Adresse, solange der Name nicht weiter bearbeitet wird.
-    startOrtId: '',
-    startAdresse: '',
-    zielOrtId: '',
-    zielAdresse: '',
+    // Vom KI-Assistenten erkannter eigener Ort kommt gleich mit.
+    startOrtId: vorlage?.startOrtId || '',
+    startAdresse: vorlage?.startOrtId ? (vorlage?.startAdresse || '') : '',
+    zielOrtId: vorlage?.zielOrtId || '',
+    zielAdresse: vorlage?.zielOrtId ? (vorlage?.zielAdresse || '') : '',
     flugnummer: vorlage?.flugnummer || '',
     zugnummer: '',
     konvoi: vorlage?.konvoi || '',

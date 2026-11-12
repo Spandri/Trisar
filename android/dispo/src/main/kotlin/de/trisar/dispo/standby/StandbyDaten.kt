@@ -78,6 +78,23 @@ internal data class StandbyDaten(
     val notiz: String? = null,
 )
 
+/**
+ * Standby-Karte des KI-Assistenten (dispo-admin/standbyKi.ts standbyKarte), auch Vorlage fuer "Standby verschicken".
+ * ortId leer = kein eigener Ort, lat/lng null = Ort noch nicht gefunden, fehlt aus von, bis, zeiten, ort, fahrer.
+ */
+@Serializable
+data class StandbyVorlage(
+    val datum: String = "", val von: String = "", val bis: String = "",
+    val ortName: String = "", val ortId: String = "", val adresse: String = "",
+    val lat: Double? = null, val lng: Double? = null,
+    val radiusRein: Int? = null, val radiusRaus: Int? = null,
+    val fahrerNamen: List<String> = emptyList(), val fahrerIds: List<String> = emptyList(),
+    val notiz: String = "", val fehlt: List<String> = emptyList(),
+) {
+    /** Text im Ortsfeld: Name beim eigenen Ort, sonst die Adresse. */
+    val ortFeld: String get() = if (ortId.isNotBlank()) ortName else adresse.ifBlank { ortName }
+}
+
 @Serializable
 internal data class StandbyFahrerZeile(
     val standby_id: String,

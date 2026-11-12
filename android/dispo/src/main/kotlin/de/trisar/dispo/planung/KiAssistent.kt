@@ -125,6 +125,10 @@ import de.trisar.dispo.fahrten.FahrtText
 import de.trisar.dispo.fahrten.FahrtVorlage
 import de.trisar.dispo.fahrten.GeladeneFahrt
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.JsonArray
+import de.trisar.dispo.standby.DispoStandbySpeicher
+import de.trisar.dispo.standby.StandbyNeuSeite
+import de.trisar.dispo.standby.StandbyVorlage
 
 // KI-Assistent (KiAssistentAnsicht.swift, KiAssistentDienst.swift, KiAssistentView.jsx): Chat mit dem Assistenten,
 // Verlauf unter demselben Schluessel wie localStorage im Web, Kopieren/Bearbeiten an den Nachrichten,
@@ -132,7 +136,23 @@ import kotlinx.serialization.json.encodeToJsonElement
 
 /** Fragt dispo-admin (aktion ki_frage), wie das Web. Das Modell laeuft auf dem Server-Weg im Tailnet. */
 internal object KiAssistentDienst {
-    class Antwort(val text: String, val buchungsVorschlag: KiBuchungsVorschlag? = null, val dienstVorschlag: KiDienstVorschlag? = null)
+    class Antwort(
+        val text: String, val buchungsVorschlag: KiBuchungsVorschlag? = null, val dienstVorschlag: KiDienstVorschlag? = null,
+        /** Weitere Karten nach der ersten Fahrt: Fahrten und Standbys (aktionen neuer Server). */
+        val karten: List<KiKarte> = emptyList(),
+    )
+
+    /** Standby aus einer Karte direkt anlegen (standbyAnlegen im Web). Liefert die ID. */
+    suspend fun standbyAnlegen(sb: StandbyVorlage): String {
+        val eigener = sb.ortId.ifBlank { null }?.let { de.trisar.kern.EigeneOrte.einmalLaden(); de.trisar.kern.EigeneOrte.zuID(it) }
+        val lat = sb.lat ?: eigener?.lat ?: throw IllegalStateException("Ort ohne Koordinaten")
+        val lng = sb.lng ?: eigener?.lng ?: throw IllegalStateException("Ort ohne Koordinaten")
+        val ort = DispoStandbySpeicher.OrtWahl(
+            sb.ortId.ifBlank { null }, sb.ortName.ifBlank { eigener?.name ?: sb.adresse },
+            sb.adresse.ifBlank { eigener?.adresse }?.ifBlank { null }, lat, lng, sb.radiusRein ?: 150, sb.radiusRaus ?: 300,
+        )
+        return DispoStandbySpeicher.anlegen(sb.datum, sb.von, sb.bis, ort, sb.notiz.trim(), sb.fahrerIds.distinct()).getOrThrow()
+    }
 
     /** Dienststart oder Dienstende fuer markierte Fahrer senden (Vorschlag des Assistenten bestaetigt). Liefert die Anzahl. */
     suspend fun dienstSenden(v: KiDienstVorschlag): Int {
@@ -163,6 +183,8 @@ internal object KiAssistentDienst {
 
     /** onCreateRide(payload, { aiBooked: true }) */
     suspend fun buchen(v: KiBuchungsVorschlag): String? {
+        // Eigener Ort im Vorschlag: Adresse kommt beim Speichern aus EigeneOrte.
+        if (v.startOrtId.isNotBlank() || v.zielOrtId.isNotBlank()) de.trisar.kern.EigeneOrte.einmalLaden()
         val fahrtID = v.fahrtId
         if (fahrtID != null) {
             val g = FahrtSpeichern.laden(fahrtID)
@@ -207,6 +229,8 @@ internal object KiAssistentDienst {
             offenerVorschlag?.let { put("offenerVorschlag", Backend.json.encodeToJsonElement(KiBuchungsVorschlag.serializer(), it)) }
             letzteFahrtId?.let { put("letzteFahrtId", it) }
             putJsonArray("markierteFahrer") { markierteFahrer.forEach { f -> addJsonObject { put("id", f.id); put("name", f.name) } } }
+            // Mehrere Vorschlaege als Karten (aktionen), wie das Web.
+            put("karten", true)
         }
         // Eigene Zeitgrenze: das Modell braucht bis zu 52 s, Standard im Client sind 10 s.
         val text = Backend.client.functions.invoke("dispo-admin") {
@@ -217,13 +241,30 @@ internal object KiAssistentDienst {
         val antwort = Backend.json.parseToJsonElement(text).jsonObject
         antwort["kontext"]?.takeUnless { it is JsonNull }?.let { kontext = it }
         val aktion = antwort["action"] as? JsonObject
-        val vorschlag = if ((aktion?.get("type") as? JsonPrimitive)?.content == "booking_proposal") {
-            aktion["proposal"]?.let { Backend.json.decodeFromJsonElement(KiBuchungsVorschlag.serializer(), it) }
-        } else null
+        // Neue Server liefern alle Vorschlaege als aktionen (Karten-Liste), aeltere nur action.
+        val aktionen = (antwort["aktionen"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: listOfNotNull(aktion)
+        fun art(a: JsonObject) = (a["type"] as? JsonPrimitive)?.content
+        val ersteBuchung = aktionen.indexOfFirst { art(it) == "booking_proposal" }
+        val vorschlag = aktionen.getOrNull(ersteBuchung)?.get("proposal")?.let { Backend.json.decodeFromJsonElement(KiBuchungsVorschlag.serializer(), it) }
+        // Weitere Karten: zusaetzliche Fahrten und Standbys, jede einzeln bearbeiten und bestaetigen.
+        val ms = System.currentTimeMillis()
+        val karten = aktionen.mapIndexedNotNull { i, a ->
+            runCatching {
+                when {
+                    art(a) == "booking_proposal" && i != ersteBuchung -> a["proposal"]?.let {
+                        KiKarte("karte-$ms-$i", "fahrt", proposal = Backend.json.decodeFromJsonElement(KiBuchungsVorschlag.serializer(), it))
+                    }
+                    art(a) == "standby_proposal" -> a["standby"]?.let {
+                        KiKarte("karte-$ms-$i", "standby", standby = Backend.json.decodeFromJsonElement(StandbyVorlage.serializer(), it))
+                    }
+                    else -> null
+                }
+            }.getOrNull()
+        }
         val dienst = if ((aktion?.get("type") as? JsonPrimitive)?.content == "dienst_vorschlag") {
             aktion["vorschlag"]?.let { runCatching { Backend.json.decodeFromJsonElement(KiDienstVorschlag.serializer(), it) }.getOrNull() }
         } else null
-        return Antwort((antwort["answer"] as? JsonPrimitive)?.content.orEmpty(), vorschlag, dienst)
+        return Antwort((antwort["answer"] as? JsonPrimitive)?.content.orEmpty(), vorschlag, dienst, karten)
     }
 }
 
@@ -266,14 +307,16 @@ internal data class KiBuchungsVorschlag(
     val konvoi: String = "", val flugnummer: String = "", val notes: String = "",
     /** Nur bei Aenderung einer bestehenden Fahrt: welche Fahrt und welche Felder. */
     val fahrtId: String? = null, val geaendert: List<String> = emptyList(),
+    /** Eigener Ort, vom Server erkannt (dispo-admin/ortSuche.ts): gespeichert wie bei Auswahl im Formular. */
+    val startOrtId: String = "", val startAdresse: String = "", val zielOrtId: String = "", val zielAdresse: String = "",
 ) {
     /** Nur die geaenderten Felder uebernehmen, alles andere bleibt wie an der Fahrt. */
     fun aenderung(g: GeladeneFahrt): FahrtVorlage {
         var w = g.werte
         if ("datum" in geaendert) w = w.copy(datum = datum)
         if ("startZeit" in geaendert) w = w.copy(startZeit = startZeit)
-        if ("start" in geaendert) w = w.copy(start = start, startOrtID = "")
-        if ("ziel" in geaendert) w = w.copy(ziel = ziel, zielOrtID = "")
+        if ("start" in geaendert) w = w.copy(start = start, startOrtID = startOrtId)
+        if ("ziel" in geaendert) w = w.copy(ziel = ziel, zielOrtID = zielOrtId)
         return FahrtVorlage(
             w, if ("fahrerNamen" in geaendert) fahrerNamen else g.fahrerNamen,
             if ("fahrgaeste" in geaendert) fahrgaeste else g.fahrgaeste, g.notiz,
@@ -283,7 +326,8 @@ internal data class KiBuchungsVorschlag(
     /** Startwerte fuer das Fahrtformular (toCreateRidePayload). */
     val vorlage: FahrtVorlage get() = FahrtVorlage(
         FahrtFormularWerte(
-            datum = datum, startZeit = startZeit, start = start, ziel = ziel, flugnummer = flugnummer, konvoi = konvoi,
+            datum = datum, startZeit = startZeit, start = start, ziel = ziel, startOrtID = startOrtId, zielOrtID = zielOrtId,
+            flugnummer = flugnummer, konvoi = konvoi,
             anonymeGaeste = if (anonymeGaeste == "0") "" else anonymeGaeste, aktuellerStatus = "offen",
         ),
         fahrerNamen, fahrgaeste, notes,
@@ -292,6 +336,21 @@ internal data class KiBuchungsVorschlag(
     /** hasMinimumBookingData */
     val hatPflichtfelder: Boolean get() = start.isNotBlank() && ziel.isNotBlank() && startZeit.isNotBlank()
 }
+
+/** Weitere Karte einer Antwort (karten im Web): Fahrt oder Standby mit eigenem Status pending, saving, booked, cancelled. */
+@Serializable
+internal data class KiKarte(
+    val id: String,
+    /** fahrt oder standby */
+    val art: String,
+    val proposal: KiBuchungsVorschlag? = null,
+    val standby: StandbyVorlage? = null,
+    val status: String = "pending",
+    val rideId: String? = null,
+)
+
+/** Fahrt- oder Standby-Formular, das gerade aus einer Nachricht (und ggf. einer weiteren Karte) offen ist. */
+private data class KiFormular(val nachricht: String, val vorschlag: KiBuchungsVorschlag? = null, val standby: StandbyVorlage? = null, val karteId: String? = null)
 
 /** Eine Chat-Nachricht mit denselben Feldnamen wie im Web (JSON in localStorage). */
 @Serializable
@@ -310,6 +369,7 @@ internal data class KiNachricht(
     val dienstStatus: String? = null,
     val dienstAnzahl: Int? = null,
     val dienstFehler: String? = null,
+    val karten: List<KiKarte> = emptyList(),
 ) {
     companion object {
         fun uhrzeit(): String = LocalTime.now().let { zwei(it.hour) + ":" + zwei(it.minute) }
@@ -331,6 +391,7 @@ internal object KiVerlaufSpeicher {
         val bereinigt = liste.filter { it.pending != true && !it.text.contains("Online-Demo deaktiviert", ignoreCase = true) }
             .map { if (it.bookingStatus == "saving") it.copy(bookingStatus = "pending") else it }
             .map { if (it.dienstStatus == "sendet") it.copy(dienstStatus = "offen") else it }
+            .map { n -> if (n.karten.any { it.status == "saving" }) n.copy(karten = n.karten.map { if (it.status == "saving") it.copy(status = "pending") else it }) else n }
         if (bereinigt.isEmpty() || (bereinigt.size == 1 && bereinigt[0].id == "init")) return standard
         return bereinigt
     }
@@ -393,7 +454,7 @@ internal fun KiAssistentAnsicht(
     var kopierteID by remember { mutableStateOf<String?>(null) }
     var sendet by remember { mutableStateOf(false) }
     /** Vorschlag, der gerade im Fahrtformular angepasst wird (Nachricht und Vorschlag). */
-    var formular by remember { mutableStateOf<Pair<String, KiBuchungsVorschlag>?>(null) }
+    var formular by remember { mutableStateOf<KiFormular?>(null) }
     var fokussiert by remember { mutableStateOf(false) }
     val fokus = remember { FocusRequester() }
     val fokusVerwalter = LocalFocusManager.current
@@ -409,7 +470,7 @@ internal fun KiAssistentAnsicht(
     }
     LaunchedEffect(nachrichten) { KiVerlaufSpeicher.sichern(nachrichten) }
     val letzte = nachrichten.lastOrNull()
-    val signatur = letzte?.let { "${nachrichten.size}|${it.id}|${it.pending == true}|${it.text}|${it.bookingStatus ?: ""}" } ?: ""
+    val signatur = letzte?.let { "${nachrichten.size}|${it.id}|${it.pending == true}|${it.text}|${it.bookingStatus ?: ""}|${it.karten.size}" } ?: ""
     LaunchedEffect(signatur, fokussiert) { if (nachrichten.isNotEmpty()) liste.animateScrollToItem(nachrichten.size) }
 
     fun aendern(id: String, f: (KiNachricht) -> KiNachricht) { nachrichten = nachrichten.map { if (it.id == id) f(it) else it } }
@@ -460,6 +521,7 @@ internal fun KiAssistentAnsicht(
                         n.copy(
                             text = a.text.ifEmpty { "Ich konnte dazu keine Antwort erzeugen." },
                             bookingProposal = a.buchungsVorschlag, bookingStatus = if (a.buchungsVorschlag == null) null else "pending",
+                            karten = a.karten,
                             dienstVorschlag = a.dienstVorschlag, dienstStatus = if (a.dienstVorschlag == null) null else "offen",
                         )
                     },
@@ -492,8 +554,57 @@ internal fun KiAssistentAnsicht(
         }
     }
 
-    fun formularGebucht(id: String, fahrtID: String?, aenderung: Boolean) {
+    // Weitere Karten (Fahrten und Standbys) einer Nachricht.
+    fun karteSetzen(id: String, karteId: String, f: (KiKarte) -> KiKarte) {
+        aendern(id) { n -> n.copy(karten = n.karten.map { if (it.id == karteId) f(it) else it }) }
+    }
+
+    fun karteBuchen(id: String, k: KiKarte) {
+        val sb = k.standby
+        if (k.art == "standby" && sb != null) {
+            // Fehlt etwas (oder Ort/Fahrer ohne Daten), erst ins Formular.
+            val ohneOrt = (sb.lat == null || sb.lng == null) && sb.ortId.isBlank()
+            if (sb.fehlt.isNotEmpty() || ohneOrt || sb.fahrerIds.isEmpty()) { formular = KiFormular(id, standby = sb, karteId = k.id); return }
+            karteSetzen(id, k.id) { it.copy(status = "saving") }
+            scope.launch {
+                try {
+                    KiAssistentDienst.standbyAnlegen(sb)
+                    karteSetzen(id, k.id) { it.copy(status = "booked") }
+                    hinweis("Standby angelegt: ${sb.ortName}, ${sb.von}–${sb.bis}. Die Fahrer bekommen die Anfrage.", "msg-ai-karte")
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    karteSetzen(id, k.id) { it.copy(status = "pending") }
+                    hinweis("Standby nicht angelegt: ${e.message?.ifEmpty { null } ?: "unbekannter Fehler"}", "msg-ai-karte")
+                }
+            }
+            return
+        }
+        val v = k.proposal ?: return
+        if (!v.hatPflichtfelder) { formular = KiFormular(id, vorschlag = v, karteId = k.id); return }
+        karteSetzen(id, k.id) { it.copy(status = "saving") }
+        scope.launch {
+            try {
+                val buchen = fahrtBuchen ?: throw IllegalStateException("Buchungsfunktion ist nicht verbunden.")
+                val fahrtID = buchen(v)
+                karteSetzen(id, k.id) { it.copy(status = "booked", rideId = fahrtID?.trim()?.ifEmpty { null }) }
+                hinweis(if (v.fahrtId != null) "Änderung gespeichert." else "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-karte")
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                karteSetzen(id, k.id) { it.copy(status = "pending") }
+                hinweis("Buchung fehlgeschlagen: ${e.message?.ifEmpty { null } ?: "Unbekannter Fehler"}", "msg-ai-karte")
+            }
+        }
+    }
+
+    fun formularGebucht(id: String, fahrtID: String?, aenderung: Boolean, text: String? = null) {
+        val karteId = formular?.karteId
         formular = null
+        val meldung = text ?: if (aenderung) "Änderung gespeichert." else "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert."
+        if (karteId != null) {
+            karteSetzen(id, karteId) { it.copy(status = "booked", rideId = fahrtID?.trim()?.ifEmpty { null }) }
+            hinweis(meldung, "msg-ai-karte")
+            return
+        }
         aendern(id) { it.copy(bookingStatus = "booked", bookingRideId = fahrtID?.trim()?.ifEmpty { null }) }
         hinweis(if (aenderung) "Änderung gespeichert." else "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
     }
@@ -558,7 +669,16 @@ internal fun KiAssistentAnsicht(
                                             ) { PText("Neuplanung im Planer ansehen", 20f, 700, Color.Black, -0.5f) }
                                         }
                                         n.dienstVorschlag?.let { v -> DienstVorschlagKnoepfe(n, v, { dienstSenden(n.id, v) }) { aendern(n.id) { it.copy(dienstStatus = "verworfen") } } }
-                                        n.bookingProposal?.let { v -> Buchung(n, v, { formular = n.id to v }, { buchen(n.id, v) }, { aendern(n.id) { it.copy(bookingStatus = "cancelled") } }, oeffneFahrt) }
+                                        n.bookingProposal?.let { v -> Buchung(n, v, { formular = KiFormular(n.id, vorschlag = v) }, { buchen(n.id, v) }, { aendern(n.id) { it.copy(bookingStatus = "cancelled") } }, oeffneFahrt) }
+                                        n.karten.forEach { k ->
+                                            WeitereKarte(
+                                                k,
+                                                oeffnen = { formular = KiFormular(n.id, vorschlag = k.proposal, standby = k.standby, karteId = k.id) },
+                                                buchen = { karteBuchen(n.id, k) },
+                                                verwerfen = { karteSetzen(n.id, k.id) { it.copy(status = "cancelled") } },
+                                                oeffneFahrt = oeffneFahrt,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -614,8 +734,19 @@ internal fun KiAssistentAnsicht(
             }
         }
         if (!fokussiert) Navileiste(DispoZiel.KI_ASSISTENT, zeigen)
-        formular?.let { (nachricht, vorschlag) ->
+        formular?.let { f ->
             BackHandler { formular = null }
+            val sb = f.standby
+            if (sb != null) {
+                StandbyNeuSeite(
+                    zurueck = { formular = null }, zurFahrt = {},
+                    gesendet = { formularGebucht(f.nachricht, null, false, "Standby angelegt. Die Fahrer bekommen die Anfrage.") },
+                    zeigen = zeigen, vorlage = sb,
+                )
+                return@let
+            }
+            val nachricht = f.nachricht
+            val vorschlag = f.vorschlag ?: return@let
             FahrtFormularSeite(
                 fahrtID = vorschlag.fahrtId, zurueck = { formular = null }, zeigen = null,
                 vorlage = if (vorschlag.fahrtId == null) vorschlag.vorlage else null,
@@ -761,6 +892,75 @@ private fun KiBuchungsKarte(v: KiBuchungsVorschlag, oeffnen: (() -> Unit)? = nul
         Column(Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 16.dp), horizontalAlignment = Alignment.End) {
             Box(Modifier.height(20.dp), contentAlignment = Alignment.Center) { PText(datum, 16f, 700, Color.Black) }
             Box(Modifier.height(20.dp), contentAlignment = Alignment.Center) { PText(v.startZeit.ifEmpty { "--:--" }, 16f, 400, Color.Black) }
+        }
+        Icon("Arrow_Trisar_Icons_01", Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp).size(34.dp, 21.dp).scale(1.2f), skalierung = ContentScale.FillBounds)
+    }
+}
+
+/** Weitere Karte unter der ersten Fahrt (karten im Web): Fahrt oder Standby, eigene Knoepfe und eigener Status. */
+@Composable
+private fun WeitereKarte(k: KiKarte, oeffnen: () -> Unit, buchen: () -> Unit, verwerfen: () -> Unit, oeffneFahrt: (String) -> Unit) {
+    val offen = k.status == "pending"
+    Column(Modifier.padding(top = 12.dp).width(362.dp)) {
+        val sb = k.standby
+        val v = k.proposal
+        when {
+            k.art == "standby" && sb != null -> KiStandbyKarte(sb, if (offen) oeffnen else null)
+            v != null -> KiBuchungsKarte(v, if (offen) oeffnen else null)
+            else -> return@Column
+        }
+        when (k.status) {
+            "pending" -> Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.weight(1f).height(51.dp).background(hex(0xE3F754)).tippen(buchen), contentAlignment = Alignment.Center) {
+                    PText("buchen", 24f, 700, Color.Black, -0.5f)
+                }
+                Box(Modifier.weight(1f).height(51.dp).border(2.dp, hex(0xFF6F63), RectangleShape).tippen(verwerfen), contentAlignment = Alignment.Center) {
+                    PText("nicht buchen", 24f, 700, hex(0xFF6F63), -0.5f)
+                }
+            }
+            "saving" -> PText(if (k.art == "standby") "Standby wird gespeichert..." else "Buchung wird gespeichert...", 11f, 500, kiLime, modifier = Modifier.padding(top = 12.dp))
+            "booked" -> if (k.art == "standby") {
+                PText("Standby angelegt", 11f, 500, hex(0x59BE80), modifier = Modifier.padding(top = 12.dp))
+            } else {
+                Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PText("Gebucht", 11f, 500, hex(0x59BE80))
+                    val id = (k.rideId ?: "").trim()
+                    if (id.isNotEmpty()) {
+                        Box(Modifier.fillMaxWidth().height(44.dp).background(kiLime).tippen { oeffneFahrt(id) }, contentAlignment = Alignment.Center) {
+                            PText("Fahrt bearbeiten", 14f, 700, Color.Black)
+                        }
+                    }
+                }
+            }
+            "cancelled" -> PText("Buchung verworfen", 11f, 500, Color.White.copy(alpha = 0.7f), modifier = Modifier.padding(top = 12.dp))
+            else -> {}
+        }
+    }
+}
+
+private val standbyFehltText = mapOf("von" to "Startzeit", "bis" to "Endzeit", "zeiten" to "Endzeit nach Start", "ort" to "Ort", "fahrer" to "Fahrer")
+
+/** StandbyPreviewCard: Titel Standby, Ort, Fahrer, rechts oben Datum und von–bis. */
+@Composable
+private fun KiStandbyKarte(sb: StandbyVorlage, oeffnen: (() -> Unit)? = null) {
+    val r = sb.datum.trim()
+    val datum = if (Regex("""^\d{4}-\d{2}-\d{2}$""").matches(r)) "${r.substring(8, 10)}.${r.substring(5, 7)}" else "--.--"
+    val fahrer = if (sb.fahrerNamen.isEmpty()) "Fahrer fehlt" else sb.fahrerNamen.joinToString(", ")
+    val fehlt = sb.fehlt.map { standbyFehltText[it] ?: it }
+    Box(Modifier.fillMaxWidth().heightIn(min = 144.dp).background(Color.White).let { if (oeffnen != null) it.tippen(oeffnen) else it }) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            PAbsatz("Standby", 24f, 700, 26f, Color.Black, modifier = Modifier.padding(end = 86.dp))
+            PAbsatz(sb.ortName.ifBlank { sb.adresse }.ifBlank { "Ort offen" }, 12f, 500, 16f, Color.Black.copy(alpha = 0.8f), modifier = Modifier.padding(end = 86.dp))
+            PAbsatz(fahrer, 16f, 700, 24f, Color.Black)
+            if (fehlt.isNotEmpty()) {
+                PAbsatz("Fehlt: ${fehlt.joinToString(", ")}", 11f, 700, 16f, hex(0xD23A2E), modifier = Modifier.padding(end = 60.dp))
+            }
+        }
+        Column(Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 16.dp), horizontalAlignment = Alignment.End) {
+            Box(Modifier.height(20.dp), contentAlignment = Alignment.Center) { PText(datum, 16f, 700, Color.Black) }
+            Box(Modifier.height(20.dp), contentAlignment = Alignment.Center) {
+                PText("${sb.von.ifBlank { "--:--" }}–${sb.bis.ifBlank { "--:--" }}", 16f, 400, Color.Black)
+            }
         }
         Icon("Arrow_Trisar_Icons_01", Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp).size(34.dp, 21.dp).scale(1.2f), skalierung = ContentScale.FillBounds)
     }

@@ -156,7 +156,7 @@ const tomtomSuche = async (
     : `&lat=${MUC.lat}&lon=${MUC.lon}`;
   for (const art of ['geocode', 'search']) {
     const url = `https://api.tomtom.com/search/2/${art}/${encodeURIComponent(adresse.trim())}.json`
-      + `?key=${schluessel}&limit=1${umkreis}&countrySet=DE&language=de-DE`;
+      + `?key=${schluessel}&limit=1${umkreis}&countrySet=DE,AT,CH&language=de-DE`;
     const res = await fetch(url);
     if (!res.ok) continue;
     const json = await res.json().catch(() => ({}));

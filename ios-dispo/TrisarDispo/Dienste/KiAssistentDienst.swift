@@ -9,6 +9,8 @@ enum KiAssistentDienst {
         var buchungsVorschlag: KiBuchungsVorschlag?
         /// Dienststart/Dienstende fuer die markierten Fahrer, erst der Knopf schickt ab.
         var dienstVorschlag: DienstVorschlag?
+        /// Weitere Karten (nur mit karten: true): zusaetzliche Fahrten und Standbys, jede einzeln bestaetigen.
+        var karten: [KiKarte] = []
     }
 
     /// Letzte Fahrer und Fahrten des Gespraechs, fuer Rueckfragen.
@@ -32,12 +34,27 @@ enum KiAssistentDienst {
         let letzteFahrtId: String?
         /// Auf der Karte markierte Fahrer: "schick die alle in Feierabend" meint sie.
         let markierteFahrer: [MarkierterFahrer]
+        /// Diese Ansicht zeigt alle Vorschlaege als Karten (Standby eigene Karte, mehrere Auftraege einzeln).
+        let karten: Bool?
     }
     private struct MarkierterFahrer: Encodable { let id: String; let name: String }
     private struct ServerAntwort: Decodable {
-        struct Aktion: Decodable { let type: String?; let proposal: KiBuchungsVorschlag?; let vorschlag: DienstVorschlag? }
+        /// Unbekannte oder kaputte Teile einer Aktion lassen die Antwort nicht scheitern.
+        struct Aktion: Decodable {
+            let type: String?; let proposal: KiBuchungsVorschlag?; let vorschlag: DienstVorschlag?; let standby: KiStandbyVorschlag?
+            private enum CodingKeys: String, CodingKey { case type, proposal, vorschlag, standby }
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                type = try? c.decodeIfPresent(String.self, forKey: .type)
+                proposal = try? c.decodeIfPresent(KiBuchungsVorschlag.self, forKey: .proposal)
+                vorschlag = try? c.decodeIfPresent(DienstVorschlag.self, forKey: .vorschlag)
+                standby = try? c.decodeIfPresent(KiStandbyVorschlag.self, forKey: .standby)
+            }
+        }
         let answer: String?
         let action: Aktion?
+        /// Neue Server mit karten: true liefern alle Vorschlaege als Liste, aeltere nur action.
+        let aktionen: [Aktion]?
         let kontext: AnyJSON?
     }
 
@@ -65,6 +82,31 @@ enum KiAssistentDienst {
         return ergebnis.id?.uuidString
     }
 
+    /// standbyAnlegen aus der Standby-Karte (KiAssistentView.jsx handleKarteBuchen).
+    /// Nil = es fehlt noch etwas (Ort ohne Koordinaten oder keine Fahrer), dann ins Formular.
+    @MainActor static func standbyAnlegen(_ s: KiStandbyVorschlag) async throws -> UUID? {
+        let fahrerIDs = s.fahrerIds.compactMap(UUID.init(uuidString:))
+        guard !fahrerIDs.isEmpty else { return nil }
+        let ortID = UUID(uuidString: s.ortId)
+        var ort: DispoStandbySpeicher.OrtDaten
+        if let lat = s.lat, let lng = s.lng {
+            ort = .init(id: ortID, name: s.ortName, adresse: s.adresse.isEmpty ? nil : s.adresse, lat: lat, lng: lng,
+                        radiusRein: s.radiusRein > 0 ? s.radiusRein : 150, radiusRaus: s.radiusRaus > 0 ? s.radiusRaus : 300)
+        } else if let ortID {
+            await OrteSpeicher.geteilt.ladenFallsNoetig()
+            guard let o = OrteSpeicher.geteilt.ort(ortID) else { return nil }
+            ort = .init(id: o.id, name: o.name, adresse: o.adresse, lat: o.lat, lng: o.lng,
+                        radiusRein: max(150, o.radius_rein_m), radiusRaus: max(300, o.radius_raus_m))
+        } else {
+            return nil
+        }
+        switch await DispoStandbySpeicher.gemeinsam.anlegen(datum: s.datum, von: s.von, bis: s.bis, ort: ort,
+                                                              notiz: FahrtText.getrimmt(s.notiz), fahrerIDs: fahrerIDs) {
+        case let .success(id): return id
+        case let .failure(e): throw e
+        }
+    }
+
     private struct BuchungFehlgeschlagen: LocalizedError {
         let meldung: String
         var errorDescription: String? { meldung }
@@ -72,18 +114,95 @@ enum KiAssistentDienst {
 
     /// askDatabaseAssistant({ prompt, chatHistory })
     @MainActor static func fragen(_ prompt: String, verlauf: [(rolle: String, text: String)],
-                                  offenerVorschlag: KiBuchungsVorschlag? = nil, letzteFahrtId: String? = nil) async throws -> Antwort {
+                                  offenerVorschlag: KiBuchungsVorschlag? = nil, letzteFahrtId: String? = nil,
+                                  karten: Bool = false) async throws -> Antwort {
         let frage = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if frage.isEmpty { return Antwort(text: "Bitte stelle eine Frage.") }
         let anfrage = Anfrage(frage: frage, verlauf: verlauf.map { Eintrag(role: $0.rolle, text: $0.text) }, kontext: kontext,
                               offenerVorschlag: offenerVorschlag, letzteFahrtId: letzteFahrtId,
                               markierteFahrer: FahrerMarkierung.geteilt.wirkt
-                                ? FahrerMarkierung.geteilt.fahrer.map { MarkierterFahrer(id: $0.id, name: $0.name) } : [])
+                                ? FahrerMarkierung.geteilt.fahrer.map { MarkierterFahrer(id: $0.id, name: $0.name) } : [],
+                              karten: karten ? true : nil)
         let antwort: ServerAntwort = try await Backend.client.functions.invoke("dispo-admin", options: FunctionInvokeOptions(body: anfrage))
         if let neu = antwort.kontext { kontext = neu }
-        let vorschlag = antwort.action?.type == "booking_proposal" ? antwort.action?.proposal : nil
+        let aktionen = antwort.aktionen ?? (antwort.action.map { [$0] } ?? [])
+        let ersteBuchung = aktionen.firstIndex { $0.type == "booking_proposal" && $0.proposal != nil }
+        let vorschlag = ersteBuchung.flatMap { aktionen[$0].proposal }
         let dienst = antwort.action?.type == "dienst_vorschlag" ? antwort.action?.vorschlag : nil
-        return Antwort(text: antwort.answer ?? "", buchungsVorschlag: vorschlag, dienstVorschlag: dienst)
+        // Weitere Karten: alle Fahrten ausser der ersten und alle Standbys.
+        let ms = Int(Date().timeIntervalSince1970 * 1000)
+        let weitere: [KiKarte] = aktionen.enumerated().compactMap { i, a in
+            if a.type == "booking_proposal", i != ersteBuchung, let p = a.proposal {
+                return KiKarte(id: "karte-\(ms)-\(i)", art: "fahrt", proposal: p)
+            }
+            if a.type == "standby_proposal", let s = a.standby {
+                return KiKarte(id: "karte-\(ms)-\(i)", art: "standby", standby: s)
+            }
+            return nil
+        }
+        return Antwort(text: antwort.answer ?? "", buchungsVorschlag: vorschlag, dienstVorschlag: dienst, karten: weitere)
+    }
+}
+
+/// Weitere Vorschlagskarte einer Antwort (Fahrt oder Standby), Status pending, saving, booked, cancelled.
+struct KiKarte: Codable, Equatable, Identifiable {
+    var id: String
+    var art: String
+    var proposal: KiBuchungsVorschlag?
+    var standby: KiStandbyVorschlag?
+    var status = "pending"
+    var rideId: String?
+}
+
+/// Standby-Karte des Assistenten (dispo-admin/standbyKi.ts standbyKarte).
+struct KiStandbyVorschlag: Codable, Equatable {
+    var datum = ""
+    var von = ""
+    var bis = ""
+    var ortName = ""
+    /// Leer = kein eigener Ort.
+    var ortId = ""
+    var adresse = ""
+    var lat: Double?
+    var lng: Double?
+    var radiusRein = 150
+    var radiusRaus = 300
+    var fahrerNamen: [String] = []
+    var fahrerIds: [String] = []
+    var notiz = ""
+    /// Teilmenge von von, bis, zeiten, ort, fahrer.
+    var fehlt: [String] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case datum, von, bis, ortName, ortId, adresse, lat, lng, radiusRein, radiusRaus, fahrerNamen, fahrerIds, notiz, fehlt
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func text(_ k: CodingKeys) -> String { ((try? c.decodeIfPresent(String.self, forKey: k)) ?? nil) ?? "" }
+        func zahl(_ k: CodingKeys) -> Double? {
+            if let d = (try? c.decodeIfPresent(Double.self, forKey: k)) ?? nil { return d }
+            return ((try? c.decodeIfPresent(String.self, forKey: k)) ?? nil).flatMap(Double.init)
+        }
+        func liste(_ k: CodingKeys) -> [String] { ((try? c.decodeIfPresent([String].self, forKey: k)) ?? nil) ?? [] }
+        datum = text(.datum); von = text(.von); bis = text(.bis)
+        ortName = text(.ortName); ortId = text(.ortId); adresse = text(.adresse)
+        lat = zahl(.lat); lng = zahl(.lng)
+        radiusRein = zahl(.radiusRein).map { Int($0) } ?? 150
+        radiusRaus = zahl(.radiusRaus).map { Int($0) } ?? 300
+        fahrerNamen = liste(.fahrerNamen); fahrerIds = liste(.fahrerIds)
+        notiz = text(.notiz); fehlt = liste(.fehlt)
+    }
+
+    /// Ort, wie er im Standby-Formular im Feld steht.
+    var ortText: String { !ortId.isEmpty ? ortName : (adresse.isEmpty ? ortName : adresse) }
+
+    /// Fehlt-Liste als Text fuer die Karte.
+    var fehltText: [String] {
+        let namen = ["von": "Startzeit", "bis": "Endzeit", "zeiten": "Endzeit nach Start", "ort": "Ort", "fahrer": "Fahrer"]
+        return fehlt.map { namen[$0] ?? $0 }
     }
 }
 
@@ -102,6 +221,21 @@ struct KiBuchungsVorschlag: Codable, Equatable {
     /// Nur bei Aenderung einer bestehenden Fahrt: welche Fahrt und welche Felder.
     var fahrtId: String?
     var geaendert: [String]?
+    /// Eigener Ort, vom Server erkannt (dispo-admin/ortSuche.ts): gespeichert wie bei Auswahl im Formular.
+    var startOrtId: String?
+    var startAdresse: String?
+    var zielOrtId: String?
+    var zielAdresse: String?
+
+    /// Start/Ziel ins Formular: mit eigenem Ort Name im Feld, ID und Adresse dahinter.
+    private func ortSetzen(_ w: inout FahrtFormularWerte) {
+        w.start = start
+        w.startOrtID = startOrtId.flatMap(UUID.init(uuidString:))
+        w.startOrtAdresse = w.startOrtID != nil ? (startAdresse ?? "") : ""
+        w.ziel = ziel
+        w.zielOrtID = zielOrtId.flatMap(UUID.init(uuidString:))
+        w.zielOrtAdresse = w.zielOrtID != nil ? (zielAdresse ?? "") : ""
+    }
 
     var fahrtUUID: UUID? { fahrtId.flatMap(UUID.init(uuidString:)) }
 
@@ -111,8 +245,10 @@ struct KiBuchungsVorschlag: Codable, Equatable {
         var w = g.werte
         if felder.contains("datum") { w.datum = datum }
         if felder.contains("startZeit") { w.startZeit = startZeit }
-        if felder.contains("start") { w.start = start; w.startOrtID = nil; w.startOrtAdresse = "" }
-        if felder.contains("ziel") { w.ziel = ziel; w.zielOrtID = nil; w.zielOrtAdresse = "" }
+        var neu = w
+        ortSetzen(&neu)
+        if felder.contains("start") { w.start = neu.start; w.startOrtID = neu.startOrtID; w.startOrtAdresse = neu.startOrtAdresse }
+        if felder.contains("ziel") { w.ziel = neu.ziel; w.zielOrtID = neu.zielOrtID; w.zielOrtAdresse = neu.zielOrtAdresse }
         return FahrtVorlage(werte: w, fahrerNamen: felder.contains("fahrerNamen") ? fahrerNamen : g.fahrerNamen,
                             fahrgaeste: felder.contains("fahrgaeste") ? fahrgaeste : g.fahrgaeste, notiz: g.notiz)
     }
@@ -122,8 +258,7 @@ struct KiBuchungsVorschlag: Codable, Equatable {
         var w = FahrtFormularWerte()
         w.datum = datum
         w.startZeit = startZeit
-        w.start = start
-        w.ziel = ziel
+        ortSetzen(&w)
         w.flugnummer = flugnummer
         w.konvoi = konvoi
         w.anonymeGaeste = anonymeGaeste == "0" ? "" : anonymeGaeste

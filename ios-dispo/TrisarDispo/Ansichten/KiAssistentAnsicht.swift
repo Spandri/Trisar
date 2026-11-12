@@ -61,11 +61,16 @@ struct KiAssistentAnsicht: View {
                     .ignoresSafeArea(.keyboard)
             }
 
-            if let formular {
-                let v = formular.vorschlag
+            if let formular, let sb = formular.standby {
+                StandbyFormularAnsicht(zurueck: { self.formular = nil }, zuFahrt: {},
+                                       zeigen: { ziel in self.formular = nil; zeigen(ziel) },
+                                       vorlage: sb,
+                                       gesendet: { _ in standbyGesendet(formular) })
+                    .zIndex(3)
+            } else if let formular, let v = formular.vorschlag {
                 FahrtFormularAnsicht(fahrtID: v.fahrtUUID, zurueck: { self.formular = nil },
                                      vorlage: v.fahrtUUID == nil ? v.vorlage : nil,
-                                     nachAnlegen: { fahrtID in formularGebucht(formular.nachricht, fahrtID, aenderung: v.fahrtUUID != nil) },
+                                     nachAnlegen: { fahrtID in formularGebucht(formular, fahrtID, aenderung: v.fahrtUUID != nil) },
                                      anpassen: v.fahrtUUID == nil ? nil : { v.aenderung(auf: $0) })
                     .zIndex(3)
             }
@@ -127,7 +132,8 @@ struct KiAssistentAnsicht: View {
 
     private var letzteSignatur: String {
         guard let l = nachrichten.last else { return "" }
-        return "\(nachrichten.count)|\(l.id)|\(l.pending == true)|\(l.text)|\(l.bookingStatus ?? "")|\(l.dienstStatus ?? "")"
+        return "\(nachrichten.count)|\(l.id)|\(l.pending == true)|\(l.text)|\(l.bookingStatus ?? "")|\(l.dienstStatus ?? "")|"
+            + (l.karten ?? []).map(\.status).joined(separator: ",")
     }
 
     @ViewBuilder private func zeile(_ n: KiNachricht) -> some View {
@@ -143,6 +149,7 @@ struct KiAssistentAnsicht: View {
                 assistentBlase(n)
                 if let tag = n.stoerungTag { neuplanungLink(tag) }
                 if let vorschlag = n.bookingProposal { buchung(n, vorschlag) }
+                ForEach(n.karten ?? []) { k in karte(n, k) }
                 if let d = n.dienstVorschlag { dienst(n, d) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -285,6 +292,110 @@ struct KiAssistentAnsicht: View {
         .padding(.top, 12)
     }
 
+    /// Weitere Karte (Fahrt oder Standby): Antippen oeffnet das Formular, eigener Status je Karte.
+    @ViewBuilder private func karte(_ n: KiNachricht, _ k: KiKarte) -> some View {
+        VStack(spacing: 0) {
+            Group {
+                if let sb = k.standby, k.art == "standby" {
+                    KiStandbyKarte(standby: sb)
+                } else if let v = k.proposal {
+                    KiBuchungsKarte(vorschlag: v)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { if k.status == "pending" { karteOeffnen(n.id, k) } }
+            switch k.status {
+            case "pending":
+                HStack(spacing: 12) {
+                    Button { Task { await karteBuchen(n.id, k) } } label: {
+                        Text("buchen").grotesk(24, .bold, abstand: -0.5).foregroundStyle(.black)
+                            .frame(maxWidth: .infinity).frame(height: 51).background(Color(hex: 0xE3F754))
+                    }
+                    .buttonStyle(.web)
+                    Button { karteSetzen(n.id, k.id) { $0.status = "cancelled" } } label: {
+                        Text("nicht buchen").grotesk(24, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0xFF6F63))
+                            .frame(maxWidth: .infinity).frame(height: 51)
+                            .overlay(Rectangle().strokeBorder(Color(hex: 0xFF6F63), lineWidth: 2))
+                    }
+                    .buttonStyle(.web)
+                }
+                .padding(.top, 12)
+            case "saving":
+                Text(k.art == "standby" ? "Standby wird gespeichert..." : "Buchung wird gespeichert...")
+                    .font(.grotesk(11, .medium)).foregroundStyle(Color(hex: 0xE3F654))
+                    .padding(.top, 12)
+            case "booked":
+                Text(k.art == "standby" ? "Standby angelegt" : "Gebucht")
+                    .font(.grotesk(11, .medium)).foregroundStyle(Color(hex: 0x59BE80))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 12)
+            case "cancelled":
+                Text("Buchung verworfen").font(.grotesk(11, .medium)).foregroundStyle(.white.opacity(0.7))
+                    .padding(.top, 12)
+            default:
+                EmptyView()
+            }
+        }
+        .frame(maxWidth: 362)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
+    }
+
+    private func karteSetzen(_ nachricht: String, _ karte: String, _ aendern: (inout KiKarte) -> Void) {
+        guard let i = nachrichten.firstIndex(where: { $0.id == nachricht }),
+              let j = nachrichten[i].karten?.firstIndex(where: { $0.id == karte }) else { return }
+        aendern(&nachrichten[i].karten![j])
+    }
+
+    private func karteOeffnen(_ nachricht: String, _ k: KiKarte) {
+        if k.art == "standby", let sb = k.standby {
+            formular = KiFormular(nachricht: nachricht, standby: sb, karte: k.id)
+        } else if let v = k.proposal {
+            formular = KiFormular(nachricht: nachricht, vorschlag: v, karte: k.id)
+        }
+    }
+
+    /// handleKarteBuchen: direkt speichern, fehlt etwas, erst ins Formular.
+    private func karteBuchen(_ nachricht: String, _ k: KiKarte) async {
+        if k.art == "standby", let sb = k.standby {
+            if !sb.fehlt.isEmpty { karteOeffnen(nachricht, k); return }
+            karteSetzen(nachricht, k.id) { $0.status = "saving" }
+            do {
+                guard try await KiAssistentDienst.standbyAnlegen(sb) != nil else {
+                    karteSetzen(nachricht, k.id) { $0.status = "pending" }
+                    karteOeffnen(nachricht, k)
+                    return
+                }
+                karteSetzen(nachricht, k.id) { $0.status = "booked" }
+                hinweis("Standby angelegt: \(sb.ortName), \(sb.von)–\(sb.bis). Die Fahrer bekommen die Anfrage.", "msg-ai-karte")
+            } catch {
+                karteSetzen(nachricht, k.id) { $0.status = "pending" }
+                let meldung = error.localizedDescription.isEmpty ? "unbekannter Fehler" : error.localizedDescription
+                hinweis("Standby nicht angelegt: \(meldung)", "msg-ai-karte")
+            }
+            return
+        }
+        guard let v = k.proposal else { return }
+        if !v.hatPflichtfelder { karteOeffnen(nachricht, k); return }
+        karteSetzen(nachricht, k.id) { $0.status = "saving" }
+        do {
+            guard let fahrtBuchen else { throw KiBuchungsFehler("Buchungsfunktion ist nicht verbunden.") }
+            let fahrtID = (try await fahrtBuchen(v) ?? "").trimmingCharacters(in: .whitespaces)
+            karteSetzen(nachricht, k.id) { $0.status = "booked"; $0.rideId = fahrtID.isEmpty ? nil : fahrtID }
+            hinweis(v.fahrtId != nil ? "Änderung gespeichert." : "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-karte")
+        } catch {
+            karteSetzen(nachricht, k.id) { $0.status = "pending" }
+            let meldung = error.localizedDescription.isEmpty ? "Unbekannter Fehler" : error.localizedDescription
+            hinweis("Buchung fehlgeschlagen: \(meldung)", "msg-ai-karte")
+        }
+    }
+
+    private func standbyGesendet(_ f: KiFormular) {
+        formular = nil
+        if let karte = f.karte { karteSetzen(f.nachricht, karte) { $0.status = "booked" } }
+        hinweis("Standby angelegt. Die Fahrer bekommen die Anfrage.", "msg-ai-karte")
+    }
+
     /// Dienststart/Dienstende fuer markierte Fahrer (KiAssistentView.jsx): gruen senden, rot Nein.
     @ViewBuilder private func dienst(_ n: KiNachricht, _ d: DienstVorschlag) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -404,7 +515,8 @@ struct KiAssistentAnsicht: View {
             let beginn = Date()
             let ergebnis: Result<KiAssistentDienst.Antwort, Error>
             do {
-                ergebnis = .success(try await KiAssistentDienst.fragen(text, verlauf: verlauf, offenerVorschlag: offen, letzteFahrtId: letzteFahrtID))
+                ergebnis = .success(try await KiAssistentDienst.fragen(text, verlauf: verlauf, offenerVorschlag: offen,
+                                                                       letzteFahrtId: letzteFahrtID, karten: true))
             } catch { ergebnis = .failure(error) }
             let rest = Self.denkzeit - Date().timeIntervalSince(beginn)
             if rest > 0 { try? await Task.sleep(for: .seconds(rest)) }
@@ -420,6 +532,7 @@ struct KiAssistentAnsicht: View {
                 nachrichten[i].text = antwort.text.isEmpty ? "Ich konnte dazu keine Antwort erzeugen." : antwort.text
                 nachrichten[i].bookingProposal = antwort.buchungsVorschlag
                 nachrichten[i].bookingStatus = antwort.buchungsVorschlag == nil ? nil : "pending"
+                nachrichten[i].karten = antwort.karten.isEmpty ? nil : antwort.karten
                 nachrichten[i].dienstVorschlag = antwort.dienstVorschlag
                 nachrichten[i].dienstStatus = antwort.dienstVorschlag == nil ? nil : "offen"
             case .failure(let fehler):
@@ -451,8 +564,14 @@ struct KiAssistentAnsicht: View {
                                        role: "assistant", text: text, time: KiNachricht.uhrzeit()))
     }
 
-    private func formularGebucht(_ id: String, _ fahrtID: UUID?, aenderung: Bool) {
+    private func formularGebucht(_ f: KiFormular, _ fahrtID: UUID?, aenderung: Bool) {
+        let id = f.nachricht
         formular = nil
+        if let karte = f.karte {
+            karteSetzen(id, karte) { $0.status = "booked"; $0.rideId = fahrtID?.uuidString }
+            hinweis(aenderung ? "Änderung gespeichert." : "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
+            return
+        }
         if let i = nachrichten.firstIndex(where: { $0.id == id }) {
             nachrichten[i].bookingStatus = "booked"
             nachrichten[i].bookingRideId = fahrtID?.uuidString
@@ -485,7 +604,10 @@ struct KiAssistentAnsicht: View {
 
 private struct KiFormular {
     let nachricht: String
-    let vorschlag: KiBuchungsVorschlag
+    var vorschlag: KiBuchungsVorschlag?
+    var standby: KiStandbyVorschlag?
+    /// Weitere Karte der Nachricht, sonst die erste Buchung.
+    var karte: String?
 }
 
 private struct KiBuchungsFehler: LocalizedError {
@@ -512,6 +634,8 @@ struct KiNachricht: Codable, Equatable, Identifiable {
     var dienstStatus: String?
     var dienstAnzahl: Int?
     var dienstFehler: String?
+    /// Weitere Vorschlagskarten (Fahrten und Standbys) unter der ersten Buchung.
+    var karten: [KiKarte]?
 
     static func uhrzeit(_ d: Date = Date()) -> String {
         let f = DateFormatter()
@@ -541,6 +665,7 @@ enum KiVerlaufSpeicher {
             .map { n -> KiNachricht in
                 var n = n
                 if n.bookingStatus == "saving" { n.bookingStatus = "pending" }
+                n.karten = n.karten?.map { k in var k = k; if k.status == "saving" { k.status = "pending" }; return k }
                 if n.dienstStatus == "sendet" { n.dienstStatus = "offen" }
                 return n
             }
@@ -645,8 +770,11 @@ private struct KiDenktSymbol: View {
 private struct KiBuchungsKarte: View {
     let vorschlag: KiBuchungsVorschlag
 
-    private var datum: String {
-        let r = vorschlag.datum.trimmingCharacters(in: .whitespaces)
+    private var datum: String { Self.tagMonat(vorschlag.datum) }
+
+    /// "2026-11-12" wird "12.11", sonst "--.--".
+    static func tagMonat(_ iso: String) -> String {
+        let r = iso.trimmingCharacters(in: .whitespaces)
         guard r.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil else { return "--.--" }
         let z = Array(r)
         return "\(z[8])\(z[9]).\(z[5])\(z[6])"
@@ -672,6 +800,47 @@ private struct KiBuchungsKarte: View {
             VStack(alignment: .trailing, spacing: 0) {
                 Text(datum).font(.grotesk(16, .bold)).frame(height: 20)
                 Text(vorschlag.startZeit.isEmpty ? "--:--" : vorschlag.startZeit).font(.grotesk(16)).frame(height: 20)
+            }
+            .foregroundStyle(.black)
+            .padding(.top, 18).padding(.trailing, 16)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(maxWidth: .infinity, minHeight: 144, alignment: .topLeading)
+        .overlay(alignment: .bottomTrailing) {
+            Image("Arrow_Trisar_Icons_01").resizable().frame(width: 34, height: 21).scaleEffect(1.2)
+                .padding(.trailing, 16).padding(.bottom, 18)
+        }
+        .background(Color.white)
+    }
+}
+
+/// Standby-Karte des Assistenten (StandbyPreviewCard): Ort, Datum, von–bis, Fahrer.
+private struct KiStandbyKarte: View {
+    let standby: KiStandbyVorschlag
+
+    var body: some View {
+        let ort = !standby.ortName.isEmpty ? standby.ortName : (!standby.adresse.isEmpty ? standby.adresse : "Ort offen")
+        let fahrer = standby.fahrerNamen.isEmpty ? "Fahrer fehlt" : standby.fahrerNamen.joined(separator: ", ")
+        let fehlt = standby.fehltText
+        ZStack(alignment: .topLeading) {
+            VStack(alignment: .leading, spacing: 5) {
+                WebText(text: "Standby", groesse: 24, gewicht: .bold, zeilenHoehe: 26, farbe: .black)
+                    .padding(.trailing, 86)
+                WebText(text: ort, groesse: 12, gewicht: .medium, zeilenHoehe: 16, farbe: UIColor.black.withAlphaComponent(0.8))
+                    .padding(.trailing, 86)
+                WebText(text: fahrer, groesse: 16, gewicht: .bold, zeilenHoehe: 24, farbe: .black)
+                if !fehlt.isEmpty {
+                    WebText(text: "Fehlt: \(fehlt.joined(separator: ", "))", groesse: 11, gewicht: .bold, zeilenHoehe: 16,
+                            farbe: UIColor(hex: 0xD23A2E))
+                        .padding(.trailing, 60)
+                        .padding(.top, -2)
+                }
+            }
+            .padding(18)
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(KiBuchungsKarte.tagMonat(standby.datum)).font(.grotesk(16, .bold)).frame(height: 20)
+                Text("\(standby.von.isEmpty ? "--:--" : standby.von)–\(standby.bis.isEmpty ? "--:--" : standby.bis)")
+                    .font(.grotesk(16)).frame(height: 20)
             }
             .foregroundStyle(.black)
             .padding(.top, 18).padding(.trailing, 16)

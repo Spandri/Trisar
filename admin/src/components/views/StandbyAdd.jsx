@@ -22,23 +22,27 @@ const HINTERGRUND = 'radial-gradient(ellipse 141.42% 102.21% at 0% 0%, #0048cf 0
 
 const heute = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
 
-export default function StandbyAdd({ setView, onFetchPlaceSuggestions = async () => [], onGesendet = () => {} }) {
+// vorlage: Standby-Karte des KI-Assistenten (dispo-admin/standbyKi.ts standbyKarte) zum Bearbeiten.
+export default function StandbyAdd({
+  setView, onFetchPlaceSuggestions = async () => [], onGesendet = () => {}, vorlage = null, onVorlageZurueck = null,
+}) {
   const { t } = useI18n();
   const { orte } = useOrte();
-  const [datum, setDatum] = useState(heute());
-  const [von, setVon] = useState('');
-  const [bis, setBis] = useState('');
+  const [datum, setDatum] = useState(vorlage?.datum || heute());
+  const [von, setVon] = useState(vorlage?.von || '');
+  const [bis, setBis] = useState(vorlage?.bis || '');
   const datumZustand = datum;
   const vonZustand = von;
   const bisZustand = bis;
-  const [ort, setOrt] = useState({ text: '', ortId: '' });
+  const [ort, setOrt] = useState({ text: vorlage?.ortId ? (vorlage?.ortName || '') : (vorlage?.adresse || vorlage?.ortName || ''), ortId: vorlage?.ortId || '' });
   const [vorschlaege, setVorschlaege] = useState([]);
   const [ortOffen, setOrtOffen] = useState(false);
-  const [notiz, setNotiz] = useState('');
+  const [notiz, setNotiz] = useState(vorlage?.notiz || '');
   const [fehler, setFehler] = useState('');
   const [sendet, setSendet] = useState(false);
   // Auf der Karte markierte Fahrer sind schon eingetragen.
   const [fahrerNamen, setFahrerNamen] = useState(() => {
+    if (vorlage) return [...(vorlage.fahrerNamen || []).filter(Boolean), ''];
     if (fahrerMarkierung.wirkt()) {
       const namen = fahrerMarkierung.lesen().fahrer.map((f) => f.name).filter(Boolean);
       if (namen.length) return [...namen, ''];
@@ -98,6 +102,9 @@ export default function StandbyAdd({ setView, onFetchPlaceSuggestions = async ()
           id: eigener.id, name: eigener.name, adresse: eigener.adresse, lat: eigener.lat, lng: eigener.lng,
           radius_rein_m: Math.max(150, eigener.radius_rein_m || 0), radius_raus_m: Math.max(300, eigener.radius_raus_m || 0),
         };
+      } else if (vorlage && vorlage.lat != null && vorlage.lng != null && ort.text === (vorlage.adresse || vorlage.ortName)) {
+        // Ort vom Assistenten schon gefunden (Server, TomTom D/A/CH).
+        ortDaten = { name: vorlage.ortName || ort.text.split(',')[0].trim(), adresse: vorlage.adresse || ort.text, lat: vorlage.lat, lng: vorlage.lng };
       } else {
         const pos = await geocodeAddress(ort.text);
         if (!pos) { setFehler('Adresse nicht gefunden. Bitte genauer eingeben oder einen eigenen Ort wählen.'); return; }
@@ -127,8 +134,8 @@ export default function StandbyAdd({ setView, onFetchPlaceSuggestions = async ()
     <div className="w-[min(402px,100vw)] h-dvh relative mx-auto overflow-hidden" style={{ background: HINTERGRUND }}>
       <div className="h-full overflow-y-auto overflow-x-hidden overscroll-none pb-[151px]">
         <div className="w-[402px] relative overflow-hidden" style={{ height: `${hoehe}px`, background: HINTERGRUND }}>
-          <BackCircleButton onClick={() => setView('ankuenfte')} className="absolute left-[20px] top-[60px]" />
-          <ArtUmschalter standby onFahrt={() => setView('fahrtAdd')} onStandby={() => {}} />
+          <BackCircleButton onClick={() => (onVorlageZurueck ? onVorlageZurueck() : setView('ankuenfte'))} className="absolute left-[20px] top-[60px]" />
+          {!vorlage ? <ArtUmschalter standby onFahrt={() => setView('fahrtAdd')} onStandby={() => {}} /> : null}
 
           <div className="absolute left-[20px] top-[140px] text-[42px] leading-[42px] font-bold font-['Space_Grotesk']" style={{ color: GREEN }}>
             Standby

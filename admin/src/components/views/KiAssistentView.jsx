@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
 import FahrtAdd from './FahrtAdd';
+import StandbyAdd from './StandbyAdd';
+import { standbyAnlegen } from '../../shared/standby';
 import FahrtBearbeitenView, { buildInitialFormValues } from './FahrtBearbeitenView';
 import { askDatabaseAssistant, dienstSenden, invalidateDatabaseAssistantCache } from '../../services/kiAssistant';
 import { fahrerMarkierung, useFahrerMarkierung } from '../../shared/fahrerMarkierung';
@@ -82,6 +84,11 @@ const toCreateRidePayload = (proposal) => ({
   startZeit: String(proposal?.startZeit || '').trim(),
   start: String(proposal?.start || '').trim(),
   ziel: String(proposal?.ziel || '').trim(),
+  // Eigener Ort, vom Server erkannt (dispo-admin/ortSuche.ts): gespeichert wie bei Auswahl im Formular.
+  startOrtId: String(proposal?.startOrtId || '').trim(),
+  startAdresse: String(proposal?.startAdresse || '').trim(),
+  zielOrtId: String(proposal?.zielOrtId || '').trim(),
+  zielAdresse: String(proposal?.zielAdresse || '').trim(),
   fahrgaeste: String(proposal?.fahrgaeste || '').trim(),
   anonymeGaeste: String(proposal?.anonymeGaeste || '0').trim(),
   fahrerNamen: Array.isArray(proposal?.fahrerNamen)
@@ -100,8 +107,15 @@ const aenderungAnwenden = (editor, proposal) => {
   ['datum', 'startZeit', 'fahrgaeste', 'fahrerNamen'].forEach((feld) => {
     if (geaendert.includes(feld)) neu[feld] = proposal[feld];
   });
-  if (geaendert.includes('start')) Object.assign(neu, { start: proposal.start, startOrtId: '', startOrtName: '' });
-  if (geaendert.includes('ziel')) Object.assign(neu, { ziel: proposal.ziel, zielOrtId: '', zielOrtName: '' });
+  // Im Editor ist start die Adresse und startOrtName der Name des eigenen Orts.
+  const ort = (seite) => {
+    const id = String(proposal?.[`${seite}OrtId`] || '').trim();
+    return id
+      ? { [seite]: proposal[`${seite}Adresse`] || proposal[seite], [`${seite}OrtId`]: id, [`${seite}OrtName`]: proposal[seite] }
+      : { [seite]: proposal[seite], [`${seite}OrtId`]: '', [`${seite}OrtName`]: '' };
+  };
+  if (geaendert.includes('start')) Object.assign(neu, ort('start'));
+  if (geaendert.includes('ziel')) Object.assign(neu, ort('ziel'));
   return neu;
 };
 
@@ -132,6 +146,35 @@ const BookingPreviewCard = ({ proposal, onOeffnen }) => {
       <div className="absolute right-4 top-[18px] text-right">
         <div className="text-base leading-5 font-bold font-['Space_Grotesk']">{dateLabel}</div>
         <div className="text-base leading-5 font-normal font-['Space_Grotesk']">{payload.startZeit || '--:--'}</div>
+      </div>
+      <div className="absolute right-4 bottom-[18px]">
+        <img src={sendIconSrc} alt="" className="w-[34px] h-[21px] scale-[1.2]" />
+      </div>
+    </Huelle>
+  );
+};
+
+// Standby-Karte des Assistenten (dispo-admin/standbyKi.ts standbyKarte): Ort, Datum, von–bis, Fahrer.
+const STANDBY_FEHLT = { von: 'Startzeit', bis: 'Endzeit', zeiten: 'Endzeit nach Start', ort: 'Ort', fahrer: 'Fahrer' };
+const StandbyPreviewCard = ({ standby, onOeffnen }) => {
+  const fehlt = (standby?.fehlt || []).map((f) => STANDBY_FEHLT[f] || f);
+  const Huelle = onOeffnen ? 'button' : 'div';
+  return (
+    <Huelle
+      {...(onOeffnen ? { type: 'button', onClick: onOeffnen } : {})}
+      className="block text-left w-full max-w-[362px] min-h-36 bg-white text-black p-[18px] relative"
+    >
+      <div className="pr-[86px] text-[24px] leading-[26px] font-bold font-['Space_Grotesk'] break-words">Standby</div>
+      <div className="mt-[5px] pr-[86px] text-xs leading-4 font-medium font-['Space_Grotesk'] opacity-80 break-words">{standby?.ortName || standby?.adresse || 'Ort offen'}</div>
+      <div className="mt-[5px] text-base leading-6 font-bold font-['Space_Grotesk'] break-words">
+        {(standby?.fahrerNamen || []).length ? standby.fahrerNamen.join(', ') : 'Fahrer fehlt'}
+      </div>
+      {fehlt.length ? (
+        <div className="mt-[3px] pr-[60px] text-[11px] leading-4 font-bold font-['Space_Grotesk'] text-[#d23a2e]">Fehlt: {fehlt.join(', ')}</div>
+      ) : null}
+      <div className="absolute right-4 top-[18px] text-right">
+        <div className="text-base leading-5 font-bold font-['Space_Grotesk']">{toDisplayDate(standby?.datum || '')}</div>
+        <div className="text-base leading-5 font-normal font-['Space_Grotesk']">{standby?.von || '--:--'}–{standby?.bis || '--:--'}</div>
       </div>
       <div className="absolute right-4 bottom-[18px]">
         <img src={sendIconSrc} alt="" className="w-[34px] h-[21px] scale-[1.2]" />
@@ -343,8 +386,22 @@ export default function KiAssistentView({
         const answerText = typeof result === 'string'
           ? result
           : (result?.answerKey ? t(result.answerKey, result.answerVars) : result?.answer);
-        const bookingProposal = result?.action?.type === 'booking_proposal' ? result?.action?.proposal : null;
+        // Neue Server liefern alle Vorschlaege als aktionen (Karten-Liste), aeltere nur action.
+        const aktionen = Array.isArray(result?.aktionen) ? result.aktionen : (result?.action ? [result.action] : []);
+        const ersteBuchung = aktionen.findIndex((a) => a?.type === 'booking_proposal');
+        const bookingProposal = ersteBuchung >= 0 ? aktionen[ersteBuchung].proposal : null;
         const dienstVorschlag = result?.action?.type === 'dienst_vorschlag' ? result?.action?.vorschlag : null;
+        // Weitere Karten: zusaetzliche Fahrten und Standbys, jede einzeln bearbeiten und bestaetigen.
+        const karten = aktionen
+          .map((a, i) => ({ a, i }))
+          .filter(({ a, i }) => (a?.type === 'booking_proposal' && i !== ersteBuchung) || a?.type === 'standby_proposal')
+          .map(({ a, i }) => ({
+            id: `karte-${Date.now()}-${i}`,
+            art: a.type === 'standby_proposal' ? 'standby' : 'fahrt',
+            proposal: a.proposal || null,
+            standby: a.standby || null,
+            status: 'pending',
+          }));
         setMessages((prev) => prev.map((msg) => (
           // Ein neuer Vorschlag loest den alten ab, damit nur einer bestaetigt werden kann.
           bookingProposal && msg.id !== pendingAssistantId && msg.bookingStatus === 'pending'
@@ -358,6 +415,7 @@ export default function KiAssistentView({
                 pending: false,
                 bookingProposal,
                 bookingStatus: bookingProposal ? 'pending' : undefined,
+                karten,
                 dienstVorschlag,
                 dienstStatus: dienstVorschlag ? 'offen' : undefined,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -498,8 +556,64 @@ export default function KiAssistentView({
     }
   };
 
+  // Weitere Karten (Fahrten und Standbys) einer Nachricht.
+  const karteSetzen = (messageId, karteId, aenderung) => {
+    setMessages((prev) => prev.map((msg) => (
+      msg.id === messageId
+        ? { ...msg, karten: (msg.karten || []).map((k) => (k.id === karteId ? { ...k, ...aenderung } : k)) }
+        : msg
+    )));
+  };
+  const hinweisAnhaengen = (text) => {
+    setMessages((prev) => ([...prev, {
+      id: `msg-ai-karte-${Date.now()}`, role: 'assistant', text,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }]));
+  };
+  const handleKarteBuchen = async (messageId, karte) => {
+    if (karte.art === 'standby') {
+      const sb = karte.standby || {};
+      // Fehlt etwas, erst ins Formular.
+      if ((sb.fehlt || []).length) { setFormular({ id: messageId, karteId: karte.id, standby: sb }); return; }
+      karteSetzen(messageId, karte.id, { status: 'saving' });
+      const r = await standbyAnlegen({
+        datum: sb.datum, von: sb.von, bis: sb.bis,
+        ort: {
+          id: sb.ortId || null, name: sb.ortName, adresse: sb.adresse || null, lat: sb.lat, lng: sb.lng,
+          radius_rein_m: sb.radiusRein || 150, radius_raus_m: sb.radiusRaus || 300,
+        },
+        notiz: sb.notiz || '',
+        fahrerIds: sb.fahrerIds || [],
+      });
+      if (!r.ok) {
+        karteSetzen(messageId, karte.id, { status: 'pending' });
+        hinweisAnhaengen(`Standby nicht angelegt: ${r.fehler || 'unbekannter Fehler'}`);
+        return;
+      }
+      karteSetzen(messageId, karte.id, { status: 'booked' });
+      hinweisAnhaengen(`Standby angelegt: ${sb.ortName}, ${sb.von}–${sb.bis}. Die Fahrer bekommen die Anfrage.`);
+      return;
+    }
+    if (!hasMinimumBookingData(karte.proposal)) { setFormular({ id: messageId, karteId: karte.id, proposal: karte.proposal }); return; }
+    karteSetzen(messageId, karte.id, { status: 'saving' });
+    try {
+      const result = await onCreateRide(toCreateRidePayload(karte.proposal), { aiBooked: true });
+      if (!result?.ok) throw new Error(result?.error || t('assist.bookingFailed'));
+      karteSetzen(messageId, karte.id, { status: 'booked', rideId: String(result?.rideId || '').trim() || null });
+      hinweisAnhaengen(t('assist.bookedInfo'));
+    } catch (error) {
+      karteSetzen(messageId, karte.id, { status: 'pending' });
+      hinweisAnhaengen(t('assist.bookingFailedWithMessage', { message: error?.message || t('assist.unknownError') }));
+    }
+  };
+
   const handleFormularGebucht = (messageId, rideId, text = t('assist.bookedInfo')) => {
     setFormular(null);
+    if (formular?.karteId) {
+      karteSetzen(messageId, formular.karteId, { status: 'booked', rideId: String(rideId || '').trim() || null });
+      hinweisAnhaengen(text);
+      return;
+    }
     setMessages((prev) => ([
       ...prev.map((msg) => (
         msg.id === messageId
@@ -695,6 +809,18 @@ export default function KiAssistentView({
     const rafId = window.requestAnimationFrame(scrollToBottom);
     return () => window.cancelAnimationFrame(rafId);
   }, [messages.length, lastMessageSignature, isInputFocused]);
+
+  if (formular?.standby) {
+    return (
+      <StandbyAdd
+        setView={setView}
+        onFetchPlaceSuggestions={onFetchPlaceSuggestions}
+        vorlage={formular.standby}
+        onVorlageZurueck={() => setFormular(null)}
+        onGesendet={() => handleFormularGebucht(formular.id, null, 'Standby angelegt. Die Fahrer bekommen die Anfrage.')}
+      />
+    );
+  }
 
   if (formular?.editor) {
     return (
@@ -948,6 +1074,57 @@ export default function KiAssistentView({
                     ) : null}
                   </div>
                 ) : null}
+
+                {(message.karten || []).map((karte) => (
+                  <div key={karte.id} className="mt-3 flex flex-col items-center">
+                    <div className="w-full max-w-[362px]">
+                      {karte.art === 'standby' ? (
+                        <StandbyPreviewCard
+                          standby={karte.standby}
+                          onOeffnen={!DEMO_MODE && karte.status === 'pending'
+                            ? () => setFormular({ id: message.id, karteId: karte.id, standby: karte.standby })
+                            : undefined}
+                        />
+                      ) : (
+                        <BookingPreviewCard
+                          proposal={karte.proposal}
+                          onOeffnen={!DEMO_MODE && karte.status === 'pending'
+                            ? () => setFormular({ id: message.id, karteId: karte.id, proposal: karte.proposal })
+                            : undefined}
+                        />
+                      )}
+                    </div>
+                    {karte.status === 'pending' ? (
+                      <div className="mt-3 flex items-center gap-3 w-full max-w-[362px]">
+                        <button
+                          type="button"
+                          onClick={() => handleKarteBuchen(message.id, karte)}
+                          className="flex-1 h-[51px] bg-[#e3f754] flex items-center justify-center"
+                        >
+                          <span className="text-black text-[24px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">{t('assist.book')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => karteSetzen(message.id, karte.id, { status: 'cancelled' })}
+                          className="flex-1 h-[51px] border-2 border-[#ff6f63] flex items-center justify-center"
+                        >
+                          <span className="text-[#ff6f63] text-[24px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">{t('assist.dontBook')}</span>
+                        </button>
+                      </div>
+                    ) : null}
+                    {karte.status === 'saving' ? (
+                      <div className="mt-3 text-[#E3F654] text-[11px] font-medium font-['Space_Grotesk']">{t('assist.bookingSaving')}</div>
+                    ) : null}
+                    {karte.status === 'booked' ? (
+                      <div className="mt-3 w-full max-w-[362px] text-[#59BE80] text-[11px] font-medium font-['Space_Grotesk']">
+                        {karte.art === 'standby' ? 'Standby angelegt' : t('assist.booked')}
+                      </div>
+                    ) : null}
+                    {karte.status === 'cancelled' ? (
+                      <div className="mt-3 text-white/70 text-[11px] font-medium font-['Space_Grotesk']">{t('assist.bookingDiscarded')}</div>
+                    ) : null}
+                  </div>
+                ))}
               </div>
             )
           );

@@ -152,6 +152,28 @@ struct StandbyFormularAnsicht: View {
     let zurueck: () -> Void
     let zuFahrt: () -> Void
     let zeigen: (DispoZiel) -> Void
+    /// Standby-Karte des KI-Assistenten zum Bearbeiten (StandbyAdd.jsx vorlage). Ohne Umschalter Fahrt/Standby.
+    let vorlage: KiStandbyVorschlag?
+    /// Nach dem Senden statt in die Fahrtenliste (onGesendet im Web).
+    let gesendet: ((UUID) -> Void)?
+
+    init(zurueck: @escaping () -> Void, zuFahrt: @escaping () -> Void, zeigen: @escaping (DispoZiel) -> Void,
+         vorlage: KiStandbyVorschlag? = nil, gesendet: ((UUID) -> Void)? = nil) {
+        self.zurueck = zurueck
+        self.zuFahrt = zuFahrt
+        self.zeigen = zeigen
+        self.vorlage = vorlage
+        self.gesendet = gesendet
+        if let v = vorlage {
+            _datum = State(initialValue: v.datum.isEmpty ? Stunden.heuteDatum : v.datum)
+            _von = State(initialValue: v.von)
+            _bis = State(initialValue: v.bis)
+            _ortText = State(initialValue: v.ortText)
+            _ortID = State(initialValue: UUID(uuidString: v.ortId))
+            _notiz = State(initialValue: v.notiz)
+            _fahrerNamen = State(initialValue: fahrerZeilen(v.fahrerNamen))
+        }
+    }
 
     @ObservedObject private var orte = OrteSpeicher.geteilt
     @State private var datum = Stunden.heuteDatum
@@ -182,7 +204,9 @@ struct StandbyFormularAnsicht: View {
                 ZStack(alignment: .topLeading) {
                     DispoHintergrund().frame(width: 402, height: hoehe + 151)
                     ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
-                    ArtUmschalter(standby: true, fahrt: zuFahrt, zumStandby: {}).platz(0, 67, 402, 36)
+                    if vorlage == nil {
+                        ArtUmschalter(standby: true, fahrt: zuFahrt, zumStandby: {}).platz(0, 67, 402, 36)
+                    }
                     Text("Standby").font(.grotesk(42, .bold)).foregroundStyle(formularLime).platz(20, 140, 362, 42)
 
                     DatumZeile(wert: $datum).platz(20, 206, 362, 56)
@@ -293,6 +317,10 @@ struct StandbyFormularAnsicht: View {
         if let id = ortID, let o = orte.orte.first(where: { $0.id == id }) {
             ort = .init(id: o.id, name: o.name, adresse: o.adresse, lat: o.lat, lng: o.lng,
                         radiusRein: max(150, o.radius_rein_m), radiusRaus: max(300, o.radius_raus_m))
+        } else if let v = vorlage, let lat = v.lat, let lng = v.lng, ortText == v.ortText {
+            // Ort vom Assistenten schon gefunden (Server, TomTom D/A/CH).
+            let name = v.ortName.isEmpty ? (ortText.split(separator: ",").first.map { FahrtText.getrimmt(String($0)) } ?? ortText) : v.ortName
+            ort = .init(id: nil, name: name, adresse: v.adresse.isEmpty ? ortText : v.adresse, lat: lat, lng: lng)
         } else {
             guard let p = await Routen.punkt(fuer: ortText) else {
                 fehler = "Adresse nicht gefunden. Bitte genauer eingeben oder einen eigenen Ort wählen."; return
@@ -309,6 +337,7 @@ struct StandbyFormularAnsicht: View {
         switch await DispoStandbySpeicher.gemeinsam.anlegen(datum: datum, von: von, bis: bis, ort: ort,
                                                               notiz: FahrtText.getrimmt(notiz), fahrerIDs: ids) {
         case let .success(id):
+            if let gesendet { gesendet(id); return }
             DispoStandbySpeicher.gemeinsam.oeffnen = id
             zeigen(.fahrten)
         case let .failure(e):

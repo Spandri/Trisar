@@ -20,8 +20,10 @@ export type Erwartung = {
   nicht?: string[];
   zeitNahe?: number;
   vorschlag?: Record<string, string | null>;
+  karten?: string[];
+  standby?: Record<string, string | null>;
 };
-export type Schritt = { frage: string; erwartet: Erwartung; markiert?: string[] };
+export type Schritt = { frage: string; erwartet: Erwartung; markiert?: string[]; karten?: boolean };
 export type Fall = { name: string; gruppe: string; schritte: Schritt[] };
 
 const naechsterWochentag = (ziel: number) => {
@@ -85,6 +87,45 @@ export const faelle = (): Fall[] => {
     ein('Kennzeichen schon vergeben', 'Anlegen', 'Lege das Fahrzeug Audi A8 mit Kennzeichen M-TR 101 an',
       { art: 'antwort', enthaelt: ['M-TR 101', 'gibt es schon'] }),
 
+    // --- Standby zur Fahrt: Fahrt als Karte, Standby nach "ja" ---
+    { name: 'Fahrt mit Standby davor, dann ja', gruppe: 'Standby', schritte: [
+      { frage: 'Buche Tim morgen um 14:30 vom Flughafen München Terminal 2 zum Bayerischer Hof, davor dort Standby ab 10:00 Uhr',
+        erwartet: { art: 'fahrt_buchen', enthaelt: ['Standby', '10:00', '14:30', 'Tim'],
+          vorschlag: { startZeit: '14:30', start: 'Terminal 2', startOrtId: 'o4', fahrerNamen: 'Tim' } } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Standby angelegt', 'Tim'] } },
+    ] },
+    { name: 'Standby ohne Fahrer fragt nach', gruppe: 'Standby', schritte: [
+      { frage: 'Buche morgen um 16 Uhr eine Fahrt von der Messe zum Hauptbahnhof, vorher Standby an der Messe ab 12 Uhr',
+        erwartet: { art: 'fahrt_buchen', enthaelt: ['Standby', '12:00', 'Fahrer'], vorschlag: { startZeit: '16:00' } } },
+      { frage: 'Marvin', erwartet: { art: 'antwort', enthaelt: ['Marvin', '12:00', '16:00', 'ja'] } },
+      { frage: 'nein', erwartet: { art: 'antwort', enthaelt: ['kein Standby'] } },
+    ] },
+    ein('Standby wie getippt mit Flug', 'Standby', 'Buche Tim morgen vom Flughafen München Terminal 2 zum Hotel Vier Jahreszeiten, der Flug LH2471 landet um 15:10 und davor dort standby von ab 10:00 uhr',
+      { art: 'fahrt_buchen', enthaelt: ['Standby', '10:00', '15:10'], vorschlag: { startZeit: '15:10', startOrtId: 'o4', ziel: 'Vier Jahreszeiten' } }),
+    ein('Standby mit eigener Endzeit', 'Standby', 'Buche Anna morgen 18 Uhr vom Hotel Vier Jahreszeiten zur Messe, davor Standby von 15 bis 17:30',
+      { art: 'fahrt_buchen', enthaelt: ['15:00', '17:30'], vorschlag: { startZeit: '18:00' } }),
+
+    // --- Karten-Liste (neue Apps): Standby als eigene Karte, mehrere Auftraege einzeln ---
+    { name: 'Karten: Fahrt und Standby', gruppe: 'Karten', schritte: [
+      { karten: true, frage: 'Buche Tim morgen um 14:30 vom Flughafen München Terminal 2 zum Bayerischer Hof, davor dort Standby ab 10:00 Uhr',
+        erwartet: { art: 'fahrt_buchen', karten: ['booking_proposal', 'standby_proposal'],
+          standby: { von: '10:00', bis: '14:30', ortId: 'o4', fahrerNamen: 'Tim', fehlt: null }, vorschlag: { startZeit: '14:30' } } },
+    ] },
+    { name: 'Karten: Standby ohne Fahrer', gruppe: 'Karten', schritte: [
+      { karten: true, frage: 'Buche morgen um 16 Uhr eine Fahrt von der Messe zum Hauptbahnhof, vorher Standby an der Messe ab 12 Uhr',
+        erwartet: { art: 'fahrt_buchen', karten: ['booking_proposal', 'standby_proposal'], standby: { von: '12:00', bis: '16:00', fehlt: 'fahrer' } } },
+    ] },
+    { name: 'Karten: zwei Fahrten in einer Nachricht', gruppe: 'Karten', schritte: [
+      { karten: true, frage: 'Buche Tim morgen um 9 Uhr vom Hauptbahnhof zur Messe und buche Anna morgen um 18 Uhr vom Hotel Vier Jahreszeiten zum Bayerischer Hof',
+        erwartet: { art: 'fahrt_buchen', karten: ['booking_proposal', 'booking_proposal'], enthaelt: ['2 Aufträge'] } },
+    ] },
+    { name: 'Karten: zwei Zeilen mit Standby', gruppe: 'Karten', schritte: [
+      { karten: true, frage: 'Buche Tim morgen 14:30 vom Flughafen München Terminal 2 zum Bayerischer Hof, davor dort Standby ab 11 Uhr\nBuche Marvin morgen 20 Uhr von der Messe zum Hauptbahnhof',
+        erwartet: { art: 'fahrt_buchen', karten: ['booking_proposal', 'standby_proposal', 'booking_proposal'] } },
+    ] },
+    ein('Ohne Karten bleibt eine Nachricht ganz', 'Karten', 'Buche Tim morgen um 9 Uhr vom Hauptbahnhof zur Messe und buche Anna morgen um 18 Uhr vom Hotel Vier Jahreszeiten zum Bayerischer Hof',
+      { art: ['fahrt_buchen', 'rueckfrage', 'antwort', 'booking_needs_clarification'], nicht: ['Aufträge erkannt'] }),
+
     // --- Dienste ---
     ein('Dienst Start und Ende morgen', 'Dienst', 'Schick Tim morgen 7 bis 15 Uhr',
       { art: 'dienst_vorschlag', vorschlag: { datum: morgen, start: '07:00', ende: '15:00', fahrer: 'Tim' } }),
@@ -116,6 +157,10 @@ export const faelle = (): Fall[] => {
     // --- Neue Fahrten ---
     ein('Buchung komplett', 'Buchen', 'Buche morgen 9:00 vom Hauptbahnhof zum Flughafen Terminal 2 für Julia Weber',
       { art: 'fahrt_buchen', vorschlag: { datum: morgen, startZeit: '09:00', start: 'Hauptbahnhof', ziel: 'Flughafen', fahrgaeste: 'Weber' } }),
+    ein('Buchen nimmt eigene Orte mit ID', 'Buchen', 'Buche morgen um 10 Uhr eine Fahrt vom Bayerischer Hof zur Messe',
+      { art: 'fahrt_buchen', vorschlag: { startZeit: '10:00', start: 'Hotel Bayerischer Hof', startOrtId: 'o1', ziel: 'Messe München', zielOrtId: 'o5' } }),
+    ein('Buchen fremder Ort ohne Ort-ID', 'Buchen', 'Buche morgen um 9 Uhr eine Fahrt von Vier Jahreszeiten nach Salzburg Flughafen',
+      { art: 'fahrt_buchen', vorschlag: { start: 'Hotel Vier Jahreszeiten', startOrtId: 'o6', ziel: 'Salzburg', zielOrtId: null } }),
     ein('Buchung mit Fahrer und Gästezahl', 'Buchen', 'Neue Fahrt heute 20 Uhr Messe nach Bayerischer Hof, 2 Gäste, Fahrer Tim',
       { art: 'fahrt_buchen', vorschlag: { startZeit: '20:00', start: 'Messe', ziel: 'Bayerischer Hof', fahrerNamen: 'Tim' } }),
     ein('Buchung übermorgen', 'Buchen', 'Fahrt für Julia Weber übermorgen 11:30 Flughafen T1 zum Hotel Vier Jahreszeiten',

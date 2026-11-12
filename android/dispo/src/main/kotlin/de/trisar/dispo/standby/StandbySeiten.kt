@@ -141,24 +141,29 @@ private fun fahrerSetzen(alt: List<String>, i: Int, wert: String): List<String> 
  * Jeder Fahrer bekommt eine eigene Anfrage zum Annehmen oder Ablehnen.
  */
 @Composable
-fun StandbyNeuSeite(zurueck: () -> Unit, zurFahrt: () -> Unit, gesendet: (String) -> Unit, zeigen: (DispoZiel) -> Unit) {
+fun StandbyNeuSeite(
+    zurueck: () -> Unit, zurFahrt: () -> Unit, gesendet: (String) -> Unit, zeigen: (DispoZiel) -> Unit,
+    /** Standby-Karte des KI-Assistenten: Felder vorbelegt, ohne Umschalter Fahrt/Standby. */
+    vorlage: StandbyVorlage? = null,
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val fokusManager = LocalFocusManager.current
-    var datum by remember { mutableStateOf(LocalDate.now(BERLIN).toString()) }
-    var von by remember { mutableStateOf("") }
-    var bis by remember { mutableStateOf("") }
-    var ortText by remember { mutableStateOf("") }
-    var ortID by remember { mutableStateOf<String?>(null) }
+    var datum by remember { mutableStateOf(vorlage?.datum?.ifBlank { null } ?: LocalDate.now(BERLIN).toString()) }
+    var von by remember { mutableStateOf(vorlage?.von.orEmpty()) }
+    var bis by remember { mutableStateOf(vorlage?.bis.orEmpty()) }
+    var ortText by remember { mutableStateOf(vorlage?.ortFeld.orEmpty()) }
+    var ortID by remember { mutableStateOf(vorlage?.ortId?.ifBlank { null }) }
     var ortOffen by remember { mutableStateOf(false) }
     var vorschlaege by remember { mutableStateOf(emptyList<String>()) }
     var vorschlagLauf by remember { mutableStateOf<Job?>(null) }
     var vorschlagNr by remember { mutableIntStateOf(0) }
-    var notiz by remember { mutableStateOf("") }
+    var notiz by remember { mutableStateOf(vorlage?.notiz.orEmpty()) }
     var fehler by remember { mutableStateOf("") }
     var sendet by remember { mutableStateOf(false) }
     // Auf der Karte markierte Fahrer sind schon eingetragen.
     var fahrerNamen by remember {
+        if (vorlage != null) return@remember mutableStateOf(vorlage.fahrerNamen.filter { it.isNotBlank() } + "")
         val markierte = if (FahrerMarkierung.wirkt) FahrerMarkierung.fahrer.map { it.name }.filter { it.isNotEmpty() } else emptyList()
         mutableStateOf(markierte + "")
     }
@@ -198,10 +203,17 @@ fun StandbyNeuSeite(zurueck: () -> Unit, zurFahrt: () -> Unit, gesendet: (String
         scope.launch {
             try {
                 // Ort: eigener Ort mit Radius, sonst Adresse suchen (Radius 150 rein, 300 raus).
+                if (ortID != null) EigeneOrte.einmalLaden()
                 val eigener: Ort? = EigeneOrte.zuID(ortID)
+                val vLat = vorlage?.lat
+                val vLng = vorlage?.lng
                 val ort = if (eigener != null) {
                     DispoStandbySpeicher.OrtWahl(eigener.id, eigener.name, eigener.adresse, eigener.lat, eigener.lng,
                         maxOf(150, eigener.radius_rein_m), maxOf(300, eigener.radius_raus_m))
+                } else if (vorlage != null && vLat != null && vLng != null && ortText == vorlage.adresse.ifBlank { vorlage.ortName }) {
+                    // Ort vom Assistenten schon gefunden (Server, TomTom D/A/CH).
+                    DispoStandbySpeicher.OrtWahl(null, vorlage.ortName.ifBlank { ortText.split(",").first().trim() },
+                        vorlage.adresse.ifBlank { ortText }, vLat, vLng)
                 } else {
                     val p = Routen.punkt(ctx, ortText)
                     if (p == null) { fehler = "Adresse nicht gefunden. Bitte genauer eingeben oder einen eigenen Ort wählen."; return@launch }
@@ -232,7 +244,7 @@ fun StandbyNeuSeite(zurueck: () -> Unit, zurFahrt: () -> Unit, gesendet: (String
             Box(Modifier.fillMaxWidth().height(hoehe.dp)) {
                 DispoHintergrund(Modifier.fillMaxWidth().height(hoehe.dp))
                 ZurueckKnopf(Modifier.platz(20f, 60f), zurueck)
-                ArtUmschalter(true, Modifier.platz(0f, 67f, 402f, 40f), fahrt = zurFahrt, standbyWahl = {})
+                if (vorlage == null) ArtUmschalter(true, Modifier.platz(0f, 67f, 402f, 40f), fahrt = zurFahrt, standbyWahl = {})
                 Text("Standby", style = css(42f, 700, 42f, farbe = LIME), modifier = Modifier.platz(20f, 140f, 320f))
 
                 FormularZeile("Datum", datum, Modifier.platz(20f, 206f, 362f, ZEILE), zuruecksetzen = { datum = "" }) {

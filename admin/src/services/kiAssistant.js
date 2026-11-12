@@ -270,6 +270,8 @@ export const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVo
         letzteFahrtId,
         // Auf der Karte markierte Fahrer: "schick die alle in Feierabend" meint sie.
         markierteFahrer,
+        // Diese App zeigt alle Vorschlaege als Karten (Standby eigene Karte, mehrere Auftraege einzeln).
+        karten: true,
       },
     });
     if (error) throw error;
