@@ -63,3 +63,33 @@ export const kontoAnlegen = async (admin: any, d: KontoDaten): Promise<{ userId:
   }
   return { userId: neueId };
 };
+
+const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator']);
+const LAUFEND = ['in_progress', 'unterwegs', 'started', 'on_trip', 'ongoing', 'active', 'at_pickup', 'beim_pickup'];
+
+// Fahrerkonto endgueltig loeschen (aktion konto_loeschen und KI-Assistent, loeschenKi.ts). Auth-Konto weg,
+// alles am Profil faellt per ON DELETE CASCADE mit. Offene Fahrten werden wieder frei, laufende blockieren.
+export const kontoLoeschen = async (admin: any, userId: string): Promise<{ ok: true; schonGeloescht?: boolean } | { fehler: string }> => {
+  const { data: ziel } = await admin.from('profiles').select('id, role, is_dispo').eq('id', userId).maybeSingle();
+  // Schon geloescht (z. B. zweiter Klick, Liste noch nicht neu geladen): als erledigt melden.
+  if (!ziel) {
+    await admin.auth.admin.deleteUser(userId).catch(() => null);
+    return { ok: true, schonGeloescht: true };
+  }
+  if (ziel.is_dispo === true || DISPO_ROLLEN.has(String(ziel.role || '').toLowerCase())) return { fehler: 'not_a_driver' };
+  const { data: aktiv, error: aktivFehler } = await admin.from('jobs').select('id').eq('driver_id', userId).in('status', LAUFEND).limit(1);
+  if (aktivFehler) return { fehler: aktivFehler.message };
+  if (aktiv?.length) return { fehler: 'ride_running' };
+  // Zugewiesene, noch offene Fahrten wieder freigeben, damit sie neu vergeben werden.
+  const { error: freiFehler } = await admin.from('jobs').update({ status: 'pending', driver_id: null })
+    .eq('driver_id', userId).in('status', ['assigned', 'zugewiesen', 'offered']);
+  if (freiFehler) return { fehler: freiFehler.message };
+  // Erst abmelden (Signal an die Apps), dann loeschen.
+  await admin.rpc('konto_abmelden_jetzt', { p_user: userId, p_grund: 'geloescht' });
+  const { error } = await admin.auth.admin.deleteUser(userId);
+  // Ohne Auth-Konto (Altdaten) reicht das Profil zu loeschen.
+  if (error && !/not.?found/i.test(error.message || '') && error.status !== 404) return { fehler: error.message };
+  // Falls das Profil (Altdaten) nicht am Auth-Konto hing.
+  await admin.from('profiles').delete().eq('id', userId);
+  return { ok: true };
+};

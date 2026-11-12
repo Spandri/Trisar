@@ -12,8 +12,8 @@ const JA_RE = /^\s*(ja|jo|jap|japp|yes|ok|okay|okey|klar|genau|passt|stimmt|rich
 const NEIN_RE = /^\s*(nein|ne|nee|nope|nicht|abbrechen|abbruch|stopp?|lass(e|en)? (es|das)|vergiss|verwerfen|doch nicht)\b/;
 const VERB_RE = /\b(gib|gebe|geben|bekommt|bekommen|kriegt|faehrt|fahrt mit|nimmt|nehmen|zuordn\w*|zuweis\w*|zuteil\w*|steck\w*|einbau\w*|bau\w*|setz\w*|haeng\w*|gehoert|soll)\b/;
 // Kennzeichen: Grossbuchstaben ("M TR 105", "MTR105") oder klein mit Strich ("m-tr 105"). Sonst waere "um 6" eins.
-const PLATE_RE = /\b(?:[A-ZÄÖÜ]{1,3}[- ]?[A-Z]{1,2}|[a-zäöü]{1,3}-[a-z]{1,2})[- ]?\d{1,4}[EHeh]?\b/g;
-const plateKey = (t: string) => String(t || '').toUpperCase().replace(/[^A-Z0-9ÄÖÜ]/g, '');
+export const PLATE_RE = /\b(?:[A-ZÄÖÜ]{1,3}[- ]?[A-Z]{1,2}|[a-zäöü]{1,3}-[a-z]{1,2})[- ]?\d{1,4}[EHeh]?\b/g;
+export const plateKey = (t: string) => String(t || '').toUpperCase().replace(/[^A-Z0-9ÄÖÜ]/g, '');
 
 type Offen = { art: 'fahrer' | 'tracker'; fahrerId?: string; fahrerName?: string; trackerImei?: string; trackerName?: string;
   fahrzeugId: string; fahrzeugName: string; zeit: number };

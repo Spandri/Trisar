@@ -19,6 +19,12 @@ export class SpeicherDb {
     return new Abfrage(this, tabelle);
   }
 
+  // RPCs (konto_abmelden_jetzt beim Loeschen): nur ins Log.
+  async rpc(name: string, args: any) {
+    this.schreibLog.push({ tabelle: `rpc.${name}`, art: 'rpc', daten: args });
+    return { data: null, error: null };
+  }
+
   // Wird von kiKern nicht genutzt, aber manche Pfade pruefen auth.
   auth = {
     getUser: async () => ({ data: { user: null }, error: null }),

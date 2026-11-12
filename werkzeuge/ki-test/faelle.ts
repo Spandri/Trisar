@@ -188,6 +188,20 @@ export const faelle = (): Fall[] => {
     ein('Standby allein ohne Fahrer fragt nach', 'Standby2', 'Standby morgen ab 10 bis 16 Uhr am Hauptbahnhof',
       { art: 'antwort', enthaelt: ['Fahrer'] }),
 
+    // --- Loeschen: Rueckfrage, nur "löschen" loescht ---
+    { name: 'Fahrer loeschen, ja reicht nicht, loeschen', gruppe: 'Loeschen', schritte: [
+      { frage: 'Lösche den Fahrer Marvin Keller', erwartet: { art: 'antwort', enthaelt: ['Marvin Keller', 'endgültig', 'löschen'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['„löschen“'], nicht: ['gelöscht.'] } },
+      { frage: 'löschen', erwartet: { art: 'antwort', enthaelt: ['Marvin Keller gelöscht'] } },
+    ] },
+    { name: 'Fahrzeug loeschen, nein', gruppe: 'Loeschen', schritte: [
+      { frage: 'Lösche das Fahrzeug M-TR 103', erwartet: { art: 'antwort', enthaelt: ['BMW X5', 'M-TR 103', 'löschen'] } },
+      { frage: 'nein', erwartet: { art: 'antwort', enthaelt: ['nichts gelöscht'] } },
+    ] },
+    ein('Alle loeschen geht nicht', 'Loeschen', 'Lösche alle Fahrzeuge', { art: 'antwort', enthaelt: ['einzeln'] }),
+    ein('Zwei Fahrer loeschen', 'Loeschen', 'Entferne die Fahrer Tim Schedler und Anna Berger', { art: 'antwort', enthaelt: ['Tim Schedler', 'Anna Berger'] }),
+    ein('Fahrt loeschen bleibt bei der Fahrt', 'Loeschen', 'Lösche die Fahrt von Tim', { art: 'antwort', enthaelt: ['Fahrt'], nicht: ['endgültig löschen'] }),
+
     // --- Dienste ---
     ein('Dienst Start und Ende morgen', 'Dienst', 'Schick Tim morgen 7 bis 15 Uhr',
       { art: 'dienst_vorschlag', vorschlag: { datum: morgen, start: '07:00', ende: '15:00', fahrer: 'Tim' } }),

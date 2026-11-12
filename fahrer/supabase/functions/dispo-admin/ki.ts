@@ -10,6 +10,7 @@ import { anlegenVorschlag, ohnePasswort } from './anlegen.ts';
 import { vorschlagOrteAufloesen } from './ortSuche.ts';
 import { flugHinweis, flugPruefen } from './flugKi.ts';
 import { zuordnenVorschlag } from './zuordnenKi.ts';
+import { loeschenVorschlag } from './loeschenKi.ts';
 import { dienstFrage, gespraechsFahrer, stundenFrage } from './fragenKi.ts';
 import { standbyAllein, standbyAntwort, standbyKarte, standbyKartenText, standbyTeil, standbyZurBuchung } from './standbyKi.ts';
 
@@ -103,6 +104,9 @@ const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: stri
   // Fahrer oder Fahrzeug anlegen: Rueckfrage mit allen Angaben, "ja" legt an. Auch ohne Modell.
   const anlegen = await anlegenVorschlag(admin, frage, body?.kontext ?? null, body?.karten === true);
   if (anlegen) return { status: 200, daten: { answer: anlegen.answer, kontext: anlegen.kontext, ...(anlegen.aktionen ? { aktionen: anlegen.aktionen } : {}) } };
+  // Fahrer oder Fahrzeug loeschen: Rueckfrage mit allen Folgen, erst "löschen" loescht.
+  const loeschen = await loeschenVorschlag(admin, frage, body?.kontext ?? null, dispoId);
+  if (loeschen) return { status: 200, daten: { answer: loeschen.answer, kontext: loeschen.kontext } };
   // Fahrzeug einem Fahrer oder Tracker einem Fahrzeug zuordnen: Rueckfrage, "ja" speichert.
   const zuordnung = await zuordnenVorschlag(admin, frage, body?.kontext ?? null);
   if (zuordnung) return { status: 200, daten: { answer: zuordnung.answer, kontext: zuordnung.kontext } };
