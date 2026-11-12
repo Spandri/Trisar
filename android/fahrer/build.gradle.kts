@@ -39,8 +39,8 @@ android {
         }
         minSdk = 26
         targetSdk = 35
-        versionCode = 32
-        versionName = "0.1.31"
+        versionCode = 33
+        versionName = "0.1.32"
     }
     // Eigener Release-Schluessel in android/signatur/ (nicht im Git, sicher aufbewahren).
     // Fehlt er, wird mit dem Debug-Schluessel signiert.
@@ -75,4 +75,6 @@ android {
 
 dependencies {
     implementation(project(":kern"))
+    // Android Auto (Paket auto/): Vorlagen der Car App Library, wie CarPlay in iOS.
+    implementation("androidx.car.app:app:1.4.0")
 }

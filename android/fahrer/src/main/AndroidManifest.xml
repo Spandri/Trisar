@@ -56,6 +56,21 @@
                 <action android:name="de.trisar.ORTUNG_START" />
             </intent-filter>
         </receiver>
+        <!-- Android Auto: Fahrtenliste, Fahrt mit Infos, Navigation, Annehmen/Ablehnen (wie CarPlay). -->
+        <service
+            android:name=".auto.TrisarAutoDienst"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.POI" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
         <!-- Kamera-Fotos fuer „Schaden melden“. -->
         <provider
             android:name="androidx.core.content.FileProvider"
