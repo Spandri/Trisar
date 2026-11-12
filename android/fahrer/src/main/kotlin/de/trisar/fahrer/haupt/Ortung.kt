@@ -32,6 +32,7 @@ import de.trisar.kern.Konfig
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +72,11 @@ object FahrerOrtung {
     val laeuft = MutableStateFlow(false)
     /** Fahrer kann die Ortung pausieren. Bleibt ueber App-Neustarts erhalten. */
     val eingeschaltet = MutableStateFlow(true)
+    /** Arbeitszeit (ortung_status): Dienst, Standby oder Fahrt. Ausserhalb ortet das Handy nicht. */
+    val imDienst = MutableStateFlow(false)
+    /** Naechster Wechsel (Dienstende bzw. naechster Start), zur Anzeige. */
+    val dienstWechsel = MutableStateFlow<Instant?>(null)
+    private var dienstTakt: Job? = null
 
     private const val SCHALTER = "ortungEingeschaltet"
     private const val VORNE_GEFRAGT = "trisar_vorne_gefragt"
@@ -112,8 +118,34 @@ object FahrerOrtung {
         verlaufPuffer.clear()
         wartend.value = 0
         profilGeladen.value = false
+        imDienst.value = false
+        dienstWechsel.value = null
+        dienstTakt?.cancel(); dienstTakt = null
+        if (id != null) {
+            // Auch ohne GPS: alle 2 Minuten bzw. zum geplanten Wechsel pruefen, ob die Arbeitszeit laeuft.
+            dienstTakt = bereich.launch {
+                while (isActive) {
+                    dienstPruefen()
+                    val bisWechsel = dienstWechsel.value?.let { it.toEpochMilli() - System.currentTimeMillis() + 5_000 }
+                    delay(if (bisWechsel != null && bisWechsel in 1..120_000) bisWechsel else 120_000)
+                }
+            }
+        }
         aktualisieren()
         bereich.launch { profilUndFahrtLaden() }
+    }
+
+    /** Darf das Handy jetzt orten? Fragt ortung_status (Dienst, Standby, Fahrt). */
+    suspend fun dienstPruefen() {
+        if (fahrerID == null) return
+        runCatching {
+            Backend.client.postgrest.rpc("ortung_status").decodeAs<JsonObject>()
+        }.onSuccess { o ->
+            imDienst.value = (o["erlaubt"] as? JsonPrimitive)?.content == "true"
+            dienstWechsel.value = (o["wechsel"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+                ?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant() }.getOrNull() }
+            aktualisieren()
+        }
     }
 
     /** Beim Zurueckkommen in die App: Berechtigung, Ortungsart und Fahrt sofort neu. */
@@ -167,7 +199,8 @@ object FahrerOrtung {
         if (!::app.isInitialized) return
         val darf = berechtigung.value == Berechtigung.IMMER || berechtigung.value == Berechtigung.NUR_BEIM_VERWENDEN
         // Bei OBD keine Dauerbenachrichtigung: das Handy sendet dann ohnehin nichts.
-        val soll = eingeschaltet.value && fahrerID != null && darf && !nutztOBD.value
+        // Ausserhalb der Arbeitszeit (Dienst, Standby, Fahrt) kein GPS.
+        val soll = eingeschaltet.value && fahrerID != null && darf && !nutztOBD.value && imDienst.value
         val dienst = Intent(app, OrtungsDienst::class.java)
         if (soll && !laeuft.value) {
             runCatching { ContextCompat.startForegroundService(app, dienst) }
@@ -224,6 +257,7 @@ object FahrerOrtung {
             profilGeladen.value = true
             aktualisieren()
         }
+        dienstPruefen()
         aktiveFahrtID = aktiveFahrt(id)
     }
 

@@ -100,7 +100,17 @@ struct OrtungAnsicht: View {
         switch ortung.berechtigung {
         case .verweigert: return "Standort nicht erlaubt"
         case .unbekannt: return "Standort noch nicht erlaubt"
-        default: return ortung.laeuft ? "Ortung aktiv" : "Ortung startet …"
+        default:
+            if !ortung.imDienst {
+                // Ausserhalb von Dienst, Standby und Fahrt wird nicht geortet.
+                if let w = ortung.dienstWechsel {
+                    let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.timeZone = Stunden.berlin
+                    f.dateFormat = Calendar.current.isDateInToday(w) ? "HH:mm" : "EE HH:mm"
+                    return "Keine Ortung außerhalb der Arbeitszeit, ab \(f.string(from: w))"
+                }
+                return "Keine Ortung außerhalb der Arbeitszeit"
+            }
+            return ortung.laeuft ? "Ortung aktiv" : "Ortung startet …"
         }
     }
 
@@ -109,6 +119,7 @@ struct OrtungAnsicht: View {
         if !ortung.eingeschaltet || ortung.berechtigung == .verweigert || ortung.berechtigung == .unbekannt {
             return Farbe.fehler
         }
+        if !ortung.imDienst { return .white.opacity(0.6) }
         if ortung.berechtigung == .nurBeimVerwenden { return .orange }
         return ortung.letzterFehler == nil ? .green : .orange
     }

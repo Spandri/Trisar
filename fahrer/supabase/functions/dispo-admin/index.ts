@@ -172,6 +172,8 @@ Deno.serve(async (req) => {
         const { error } = await admin.auth.admin.updateUserById(userId, authAenderung);
         if (error) return jsonResponse(400, { error: fehlerText(error.message) });
       }
+      // Neues Passwort: alle Sitzungen beenden, die Apps zeigen sofort den Login.
+      if (passwort) await admin.rpc('konto_abmelden_jetzt', { p_user: userId, p_grund: 'passwort' });
       if (hatName) {
         if (!name && istPlatzhalter(String(authAenderung.email || altMail))) {
           return jsonResponse(400, { error: 'login_missing' });
@@ -213,6 +215,8 @@ Deno.serve(async (req) => {
         .eq('driver_id', userId)
         .in('status', ['assigned', 'zugewiesen', 'offered']);
       if (freiFehler) return jsonResponse(400, { error: freiFehler.message });
+      // Erst abmelden (Signal an die Apps), dann loeschen.
+      await admin.rpc('konto_abmelden_jetzt', { p_user: userId, p_grund: 'geloescht' });
       const { error } = await admin.auth.admin.deleteUser(userId);
       if (error) return jsonResponse(400, { error: error.message });
       // Falls das Profil (Altdaten) nicht am Auth-Konto hing.

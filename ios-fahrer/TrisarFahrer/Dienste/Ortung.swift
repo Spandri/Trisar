@@ -23,6 +23,13 @@ final class Ortung: NSObject, ObservableObject {
     /// Erst nach dem Profil wissen wir, ob das Handy orten soll (sonst OBD).
     private var profilGeladen = false
     @Published private(set) var laeuft = false
+    /// Arbeitszeit (ortung_status): Dienst, Standby oder Fahrt. Ausserhalb ortet das Handy nicht
+    /// (bei OBD liefert der Tracker im Auto, dort bleibt alles wie bisher).
+    @Published private(set) var imDienst = false
+    /// Naechster Wechsel (Dienstende bzw. naechster Start), zur Anzeige.
+    @Published private(set) var dienstWechsel: Date?
+    private var dienstTimer: Timer?
+    private var wechselTimer: Timer?
     private var hintergrundAktiv = false
 
     /// Fahrer kann die Ortung pausieren (z.B. Feierabend). Bleibt ueber App-Neustarts erhalten.
@@ -66,8 +73,36 @@ final class Ortung: NSObject, ObservableObject {
         nutztOBD = false
         verlaufPuffer.removeAll()
         wartend = 0
+        imDienst = false
+        dienstWechsel = nil
+        dienstTimer?.invalidate(); dienstTimer = nil
+        wechselTimer?.invalidate(); wechselTimer = nil
+        if id != nil {
+            // Auch wenn das GPS aus ist: alle 2 Minuten pruefen, ob die Arbeitszeit begonnen hat.
+            dienstTimer = Timer.scheduledTimer(withTimeInterval: 120, repeats: true) { [weak self] _ in
+                Task { @MainActor in await self?.dienstPruefen() }
+            }
+        }
         aktualisieren()
         Task { await profilUndFahrtLaden() }
+    }
+
+    /// Darf das Handy jetzt orten? Fragt ortung_status (Dienst, Standby, Fahrt) und plant den Wechsel.
+    func dienstPruefen() async {
+        guard fahrerID != nil else { return }
+        struct Status: Decodable { let erlaubt: Bool; let wechsel: String? }
+        guard let s: Status = try? await Backend.client.rpc("ortung_status").execute().value else { return }
+        imDienst = s.erlaubt
+        let iso = ISO8601DateFormatter(); iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso2 = ISO8601DateFormatter()
+        dienstWechsel = s.wechsel.flatMap { iso.date(from: $0) ?? iso2.date(from: $0) }
+        wechselTimer?.invalidate(); wechselTimer = nil
+        if let w = dienstWechsel, w > Date() {
+            wechselTimer = Timer.scheduledTimer(withTimeInterval: w.timeIntervalSinceNow + 5, repeats: false) { [weak self] _ in
+                Task { @MainActor in await self?.dienstPruefen() }
+            }
+        }
+        aktualisieren()
     }
 
     func berechtigungAnfragen() {
@@ -97,8 +132,10 @@ final class Ortung: NSObject, ObservableObject {
     // MARK: - Start/Stopp
 
     private func aktualisieren() {
+        // Ausserhalb der Arbeitszeit kein GPS (bei OBD nur Vordergrund fuer die eigene Karte, wie bisher).
         let soll = eingeschaltet && fahrerID != nil
             && (berechtigung == .immer || berechtigung == .nurBeimVerwenden)
+            && (imDienst || (profilGeladen && nutztOBD))
         if soll && !laeuft {
             manager.startUpdatingLocation()
             laeuft = true
@@ -193,6 +230,7 @@ final class Ortung: NSObject, ObservableObject {
             aktualisieren()
             immerAnfragenFallsNoetig()
         }
+        await dienstPruefen()
         aktiveFahrtID = await Self.aktiveFahrt(fahrer: id)
     }
 

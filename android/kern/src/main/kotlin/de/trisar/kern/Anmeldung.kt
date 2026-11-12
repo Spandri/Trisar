@@ -10,6 +10,13 @@ import io.github.jan.supabase.auth.user.UserSession
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.RealtimeChannel
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.postgresChangeFlow
+import io.github.jan.supabase.realtime.realtime
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -64,9 +71,12 @@ class Anmeldung(
                             return@collect
                         }
                         if ((zustand.value as? Zustand.Angemeldet)?.id != id) zustand.value = Zustand.Angemeldet(id)
+                        wacheStarten(id)
+                        // Auch beim Zurueckkehren in die App (Status kommt dann neu): Sitzung beim Server pruefen.
+                        sitzungPruefen()
                         profilLaden()
                     }
-                    is SessionStatus.NotAuthenticated -> { zustand.value = Zustand.Abgemeldet; profil.value = null }
+                    is SessionStatus.NotAuthenticated -> { zustand.value = Zustand.Abgemeldet; profil.value = null; wacheStoppen() }
                     is SessionStatus.RefreshFailure -> { /* bleibt angemeldet, naechster Versuch automatisch */ }
                     // Beim Zurueckkehren in die App (z. B. aus der Dateiauswahl) prueft die Bibliothek die
                     // Sitzung kurz neu. Eine bestehende Anmeldung bleibt dabei stehen, sonst wuerde die
@@ -78,6 +88,64 @@ class Anmeldung(
     }
 
     val fahrerID: String? get() = (zustand.value as? Zustand.Angemeldet)?.id
+
+    // ---- Zwangsabmeldung: Dispo aendert Passwort oder loescht Konto (konto_abmelden) ----
+    private var wache: Job? = null
+    private var wacheKanal: RealtimeChannel? = null
+    private var wacheFuer: String? = null
+
+    private fun wacheStarten(id: String) {
+        if (wacheFuer == id) return
+        wacheStoppen()
+        wacheFuer = id
+        val k = Backend.client.channel("konto-abmelden-$id")
+        wacheKanal = k
+        val strom = k.postgresChangeFlow<PostgresAction>(schema = "public") {
+            table = "konto_abmelden"; filter("user_id", FilterOperator.EQ, id)
+        }
+        wache = viewModelScope.launch {
+            launch {
+                strom.collect { a ->
+                    val satz = when (a) { is PostgresAction.Insert -> a.record; is PostgresAction.Update -> a.record; else -> return@collect }
+                    zwangsAbmelden((satz["grund"] as? JsonPrimitive)?.content ?: "passwort")
+                }
+            }
+            runCatching { k.subscribe() }
+        }
+    }
+
+    private fun wacheStoppen() {
+        wache?.cancel(); wache = null
+        wacheFuer = null
+        wacheKanal?.let { kanal -> viewModelScope.launch { runCatching { Backend.client.realtime.removeChannel(kanal) } } }
+        wacheKanal = null
+    }
+
+    /** Sitzung beendet (Passwort geaendert) oder Konto weg: abmelden. Netzfehler zaehlen nicht. */
+    private suspend fun sitzungPruefen() {
+        if (fahrerID == null) return
+        try {
+            Backend.client.auth.retrieveUserForCurrentSession()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: RestException) {
+            val t = (e.error + " " + e.message).lowercase()
+            when {
+                "user_not_found" in t || ("user" in t && "not exist" in t) -> zwangsAbmelden("geloescht")
+                e.statusCode in listOf(401, 403) || "session_not_found" in t -> zwangsAbmelden("passwort")
+            }
+        } catch (_: Exception) {}
+    }
+
+    private suspend fun zwangsAbmelden(grund: String) {
+        if (fahrerID == null) return
+        // Erst Text und Abmelden, zuletzt die Wache beenden (laeuft evtl. gerade in ihr).
+        fehler.value = if (grund == "geloescht") "Dein Konto wurde gelöscht." else "Dein Passwort wurde geändert. Bitte neu anmelden."
+        zustand.value = Zustand.Abgemeldet
+        profil.value = null
+        runCatching { Backend.client.auth.signOut(SignOutScope.LOCAL) }
+        wacheStoppen()
+    }
 
     /** kennung: Benutzername oder E-Mail. Mit '@' direkt bei Supabase, sonst ueber die Funktion `anmelden`. */
     fun anmelden(kennung: String, passwort: String, fertig: () -> Unit = {}) {

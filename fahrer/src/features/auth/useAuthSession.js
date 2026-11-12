@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../shared/supabase/client';
 import { anmeldenMitKennung } from '../../shared/anmeldung';
+import { DEMO_MODE } from '../../datenquelle';
 
 // Demo-Trailer: bis zur Freigabe bleibt die Sitzung bewusst leer.
 export const TRAILER_AKTIV = typeof window !== 'undefined'
@@ -231,6 +232,39 @@ export const useAuthSession = () => {
     }
     return true;
   };
+
+  // Dispo hat Passwort geaendert oder Konto geloescht: sofort abmelden, Login zeigen.
+  // Live per Realtime (konto_abmelden), dazu beim Zurueckholen der App die Sitzung beim Server pruefen.
+  const sitzungUserId = session?.user?.id || '';
+  useEffect(() => {
+    if (!sitzungUserId || DEMO_MODE) return undefined;
+    let erledigt = false;
+    const raus = async (grund) => {
+      if (erledigt) return;
+      erledigt = true;
+      await supabase.auth.signOut({ scope: 'local' });
+      setAuthError(grund === 'geloescht'
+        ? 'Dein Konto wurde gelöscht.'
+        : 'Dein Passwort wurde geändert. Bitte neu anmelden.');
+    };
+    const kanal = supabase.channel(`konto-abmelden-${sitzungUserId}-${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'konto_abmelden', filter: `user_id=eq.${sitzungUserId}` },
+        (e) => raus(e?.new?.grund))
+      .subscribe();
+    const pruefen = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const { error } = await supabase.auth.getUser();
+      // 401/403: Sitzung beendet oder Konto weg. Netzfehler (kein status) nicht abmelden.
+      if (error && [401, 403, 404].includes(Number(error.status))) raus(/not exist|not found/i.test(error.message || '') && /user/i.test(error.message || '') ? 'geloescht' : 'passwort');
+    };
+    document.addEventListener('visibilitychange', pruefen);
+    pruefen();
+    return () => {
+      erledigt = true;
+      supabase.removeChannel(kanal);
+      document.removeEventListener('visibilitychange', pruefen);
+    };
+  }, [sitzungUserId]);
 
   const signOut = async () => {
     // Nur dieses Geraet abmelden. Standard waere 'global' und wuerde auch die Dispo-Sitzung

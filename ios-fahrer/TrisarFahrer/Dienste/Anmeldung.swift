@@ -1,5 +1,6 @@
 import Foundation
 import Supabase
+import UIKit
 
 /// Anmeldestatus des Fahrers. Gleiches Konto wie in der Web-App (Benutzername oder E-Mail + Passwort).
 @MainActor
@@ -16,6 +17,10 @@ final class Anmeldung: ObservableObject {
     @Published private(set) var arbeitet = false
 
     private var beobachter: Task<Void, Never>?
+    /// Wache: Dispo aendert Passwort oder loescht Konto -> sofort abmelden (konto_abmelden).
+    private var wache: [Task<Void, Never>] = []
+    private var wacheKanal: RealtimeChannelV2?
+    private var wacheFuer: UUID?
     /// Optional: Zugang nur fuer bestimmte Konten (Dispo-App: Rolle dispo/admin/koordinator).
     private let zugang: ((Session) async -> Bool)?
     private let zugangVerweigert: String
@@ -34,16 +39,82 @@ final class Anmeldung: ObservableObject {
                         continue
                     }
                     self.zustand = .angemeldet(sitzung.user.id)
+                    await self.wacheStarten(sitzung.user.id)
                     await self.profilLaden()
                 } else if sitzung == nil {
                     self.zustand = .abgemeldet
                     self.profil = nil
+                    await self.wacheStoppen()
                 }
             }
         }
     }
 
-    deinit { beobachter?.cancel() }
+    deinit { beobachter?.cancel(); wache.forEach { $0.cancel() } }
+
+    // MARK: Zwangsabmeldung
+
+    private func wacheStarten(_ id: UUID) async {
+        guard wacheFuer != id else { return }
+        await wacheStoppen()
+        wacheFuer = id
+        let kanal = Backend.client.channel("konto-abmelden-\(id.uuidString)")
+        let strom = kanal.postgresChange(AnyAction.self, schema: "public", table: "konto_abmelden",
+                                         filter: .eq("user_id", value: id.uuidString.lowercased()))
+        wacheKanal = kanal
+        wache = [
+            Task { [weak self] in
+                for await aktion in strom {
+                    var grund = "passwort"
+                    switch aktion {
+                    case let .insert(a): grund = a.record["grund"]?.stringValue ?? grund
+                    case let .update(a): grund = a.record["grund"]?.stringValue ?? grund
+                    default: continue
+                    }
+                    await self?.zwangsAbmelden(grund)
+                }
+            },
+            // App wieder vorne: Sitzung beim Server pruefen (Signal kann verpasst worden sein).
+            Task { [weak self] in
+                for await _ in NotificationCenter.default.notifications(named: UIApplication.willEnterForegroundNotification) {
+                    await self?.sitzungPruefen()
+                }
+            },
+        ]
+        try? await kanal.subscribeWithError()
+        await sitzungPruefen()
+    }
+
+    private func wacheStoppen() async {
+        wache.forEach { $0.cancel() }
+        wache = []
+        wacheFuer = nil
+        if let k = wacheKanal { await Backend.client.removeChannel(k) }
+        wacheKanal = nil
+    }
+
+    /// Sitzung beendet (Passwort geaendert) oder Konto weg: abmelden. Netzfehler zaehlen nicht.
+    private func sitzungPruefen() async {
+        guard fahrerID != nil else { return }
+        do {
+            _ = try await Backend.client.auth.user()
+        } catch let AuthError.api(_, code, _, antwort) {
+            if code == .userNotFound { await zwangsAbmelden("geloescht") }
+            else if code == .sessionNotFound || [401, 403].contains(antwort.statusCode) { await zwangsAbmelden("passwort") }
+        } catch AuthError.sessionMissing {
+            await zwangsAbmelden("passwort")
+        } catch {}
+    }
+
+    private func zwangsAbmelden(_ grund: String) async {
+        guard fahrerID != nil else { return }
+        // Erst Text und Abmelden, zuletzt die Wache beenden (laeuft evtl. gerade in ihr).
+        fehler = grund == "geloescht" ? "Dein Konto wurde gelöscht." : "Dein Passwort wurde geändert. Bitte neu anmelden."
+        zustand = .abgemeldet
+        profil = nil
+        try? await Backend.client.auth.signOut(scope: .local)
+        await wacheStoppen()
+    }
 
     var fahrerID: UUID? {
         if case let .angemeldet(id) = zustand { return id }
