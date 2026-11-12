@@ -57,6 +57,34 @@ export const faelle = (): Fall[] => {
     ein('Stundenlohn absurd hoch wird abgelehnt', 'Stundenlohn', 'Gib allen Fahrern 3000 € Stundenlohn',
       { art: 'antwort', enthaelt: ['unwahrscheinlich'], nicht: ['speichern'] }),
 
+    // --- Fahrer und Fahrzeuge anlegen: erst Rueckfrage, "ja" legt an ---
+    { name: 'Fahrer anlegen, dann ja', gruppe: 'Anlegen', schritte: [
+      { frage: 'Leg Fahrer Max Mustermann an, Nummer 14, Telefon 0151 2345678',
+        erwartet: { art: 'antwort', enthaelt: ['Max Mustermann', 'max.mustermann', '14', '0151 2345678', 'speichere'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Angelegt', 'max.mustermann', 'Passwort'] } },
+    ] },
+    { name: 'Fahrer anlegen, Benutzername nachreichen, nein', gruppe: 'Anlegen', schritte: [
+      { frage: 'Erstelle einen neuen Fahrer namens Ali Yilmaz', erwartet: { art: 'antwort', enthaelt: ['Ali Yilmaz', 'ali.yilmaz'] } },
+      { frage: 'Benutzername ayilmaz', erwartet: { art: 'antwort', enthaelt: ['ayilmaz'], nicht: ['ali.yilmaz'] } },
+      { frage: 'nein', erwartet: { art: 'antwort', enthaelt: ['nichts angelegt'] } },
+    ] },
+    ein('Fahrernummer schon vergeben', 'Anlegen', 'Neuer Fahrer Lena Fischer mit Nummer 113',
+      { art: 'antwort', enthaelt: ['113', 'Tim'] }),
+    ein('Fahrer ohne Nachnamen fragt nach', 'Anlegen', 'Leg einen neuen Fahrer an',
+      { art: 'antwort', enthaelt: ['Vor- und Nachnamen'] }),
+    ein('Frage nach neuen Fahrern legt nichts an', 'Anlegen', 'Welche Fahrer sind neu?',
+      { art: ['antwort', 'rueckfrage'], nicht: ['Neuer Fahrer:'] }),
+    { name: 'Fahrzeug anlegen, Sitze aendern, ja', gruppe: 'Anlegen', schritte: [
+      { frage: 'Neues Fahrzeug Mercedes V-Klasse, Kennzeichen M-TR 105, 7 Sitze, schwarz, Diesel',
+        erwartet: { art: 'antwort', enthaelt: ['Mercedes V-Klasse', 'M-TR 105', '7', 'schwarz', 'Diesel'] } },
+      { frage: '8 Sitze', erwartet: { art: 'antwort', enthaelt: ['Sitze: 8', 'M-TR 105'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Angelegt', 'M-TR 105'] } },
+    ] },
+    ein('Fahrzeug Kurzform', 'Anlegen', 'leg ein auto an: BMW 5er M-TR 104',
+      { art: 'antwort', enthaelt: ['BMW 5er', 'M-TR 104'] }),
+    ein('Kennzeichen schon vergeben', 'Anlegen', 'Lege das Fahrzeug Audi A8 mit Kennzeichen M-TR 101 an',
+      { art: 'antwort', enthaelt: ['M-TR 101', 'gibt es schon'] }),
+
     // --- Dienste ---
     ein('Dienst Start und Ende morgen', 'Dienst', 'Schick Tim morgen 7 bis 15 Uhr',
       { art: 'dienst_vorschlag', vorschlag: { datum: morgen, start: '07:00', ende: '15:00', fahrer: 'Tim' } }),

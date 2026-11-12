@@ -20,7 +20,21 @@ export class SpeicherDb {
   }
 
   // Wird von kiKern nicht genutzt, aber manche Pfade pruefen auth.
-  auth = { getUser: async () => ({ data: { user: null }, error: null }) };
+  auth = {
+    getUser: async () => ({ data: { user: null }, error: null }),
+    // Konto anlegen (KI legt Fahrer an, anlegen.ts): nur im Speicher, Log wie bei Tabellen.
+    admin: {
+      createUser: async (daten: any) => {
+        const id = crypto.randomUUID();
+        this.schreibLog.push({ tabelle: 'auth.users', art: 'insert', daten: { id, email: daten?.email } });
+        return { data: { user: { id } }, error: null };
+      },
+      deleteUser: async (id: string) => {
+        this.schreibLog.push({ tabelle: 'auth.users', art: 'delete', daten: { id } });
+        return { data: null, error: null };
+      },
+    },
+  };
 }
 
 const vergleich = (a: any, b: any) => {

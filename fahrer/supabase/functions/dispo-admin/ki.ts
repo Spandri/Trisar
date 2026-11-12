@@ -6,6 +6,7 @@ import { einstellung } from './import.ts';
 import { kiErstellen } from './kiKern.js';
 import { dienstVorschlag, markierteFahrer } from './dienst.ts';
 import { lohnVorschlag } from './lohn.ts';
+import { anlegenVorschlag, ohnePasswort } from './anlegen.ts';
 
 const NICHT_ERREICHBAR = 'Der Assistent ist gerade nicht erreichbar, weil der Rechner mit dem Modell aus ist oder keine Verbindung hat.';
 const FEHLGESCHLAGEN = 'Der Assistent konnte gerade nicht antworten. Bitte versuch es gleich noch einmal.';
@@ -67,9 +68,9 @@ export const kiFrage = async (admin: any, body: any, dispoId: string | null = nu
     const d = ergebnis.daten as any;
     await protokollieren(admin, {
       dispo_id: dispoId,
-      frage,
+      frage: ohnePasswort(frage),
       art: antwortArt(d, d?.kontext),
-      antwort: String(d?.answer || '').slice(0, 4000),
+      antwort: ohnePasswort(String(d?.answer || '')).slice(0, 4000),
       aktion: d?.action ?? null,
       dauer_ms: Date.now() - beginn,
       modell: d?.modell ?? null,
@@ -87,6 +88,9 @@ const kiFrageIntern = async (admin: any, body: any, frage: string) => {
   // Stundenlohn setzen oder nachschauen: Rueckfrage, "ja" speichert. Auch ohne Modell.
   const lohn = await lohnVorschlag(admin, frage, markiert, body?.kontext ?? null);
   if (lohn) return { status: 200, daten: { answer: lohn.answer, kontext: lohn.kontext } };
+  // Fahrer oder Fahrzeug anlegen: Rueckfrage mit allen Angaben, "ja" legt an. Auch ohne Modell.
+  const anlegen = await anlegenVorschlag(admin, frage, body?.kontext ?? null);
+  if (anlegen) return { status: 200, daten: { answer: anlegen.answer, kontext: anlegen.kontext } };
   const dienst = await dienstVorschlag(admin, frage, markiert);
   if (dienst) return { status: 200, daten: { ...dienst, kontext: body?.kontext ?? null } };
 
