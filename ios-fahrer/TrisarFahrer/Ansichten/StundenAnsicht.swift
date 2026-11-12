@@ -17,11 +17,10 @@ final class StundenSpeicher: ObservableObject {
     @Published private(set) var arbeitetID: UUID?
     @Published var fehler: String?
 
-    /// Karten fuer die Startseite: Dienst vorbei, noch nicht bestaetigt.
-    /// Dazu der laufende Dienst von heute (Figma 2823-12431).
+    /// Karten fuer die Startseite: Dienst vorbei, noch nicht bestaetigt. Der laufende Dienst von heute
+    /// steht nur im Verlauf, nicht auf der Startseite.
     var karten: [Stunden.Eintrag] {
-        eintraege.filter { ($0.vorbei && $0.zettel?.status != "bestaetigt")
-            || (!$0.vorbei && $0.dienst.datum == Stunden.heuteDatum && Stunden.heute($0) != nil) }
+        eintraege.filter { $0.vorbei && $0.zettel?.status != "bestaetigt" }
     }
 
     func laden() async { eintraege = await Stunden.verlauf(tage: 14) }

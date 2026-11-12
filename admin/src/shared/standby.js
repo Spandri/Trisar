@@ -162,10 +162,10 @@ export const fahrtenBilden = (ereignisse) => {
   return fahrten.map((f) => ({ ...f, status: f.zurueck ? 'zurueck' : f.ende ? 'beendet' : f.abgesetzt ? 'rueckweg' : 'unterwegs' }));
 };
 
-// Ereignisse der laufenden Standbys live, dazu die Ankunft zurueck am Event (TomTom, jede Minute neu).
+// Ereignisse der laufenden Standbys live. Die Ankunft zurueck am Event rechnet der Server mit TomTom
+// (standby_fahrer.rueck_ankunft, Migration 20261112130000), kommt per Realtime mit useStandbys.
 export const useStandbyFahrten = (standbys) => {
   const [ereignisse, setEreignisse] = useState([]);
-  const [eta, setEta] = useState({});
   const [stand, setStand] = useState(0);
   const ids = (standbys || []).map((s) => s.id).join(',');
 
@@ -186,33 +186,10 @@ export const useStandbyFahrten = (standbys) => {
     return () => { supabase.removeChannel(kanal); };
   }, [ids]);
 
-  const fahrten = fahrtenBilden(ereignisse);
-  const rueck = fahrten.filter((f) => f.status === 'rueckweg');
-  const rueckSchluessel = rueck.map((f) => f.id).join(',');
-
-  // Ankunftszeit: Route vom Live-Standort des Fahrers zum Event-Ort.
-  useEffect(() => {
-    if (DEMO_MODE || !rueck.length) return undefined;
-    let aktiv = true;
-    const rechnen = async () => {
-      const { routeThrough } = await import('../services/tomtomRoute');
-      const { data: orte } = await supabase.from('driver_live_locations').select('driver_id, lat, lng').in('driver_id', rueck.map((f) => f.driver_id));
-      const pos = new Map((orte || []).map((o) => [o.driver_id, o]));
-      const neu = {};
-      for (const f of rueck) {
-        const s = (standbys || []).find((x) => x.id === f.standby_id);
-        const p = pos.get(f.driver_id);
-        if (!s || !p) continue;
-        const r = await routeThrough([{ lat: p.lat, lon: p.lng }, { lat: s.lat, lon: s.lng }]);
-        if (r?.[0]?.minutes) neu[f.id] = new Date(Date.now() + r[0].minutes * 60000).toISOString();
-      }
-      if (aktiv) setEta(neu);
-    };
-    rechnen();
-    const id = setInterval(rechnen, 60000);
-    return () => { aktiv = false; clearInterval(id); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rueckSchluessel]);
-
-  return fahrten.map((f) => ({ ...f, ankunft: eta[f.id] || null }));
+  const ankunftVon = (f) => {
+    if (f.status !== 'rueckweg') return null;
+    const s = (standbys || []).find((x) => x.id === f.standby_id);
+    return s?.fahrer?.find((y) => y.driver_id === f.driver_id)?.rueck_ankunft || null;
+  };
+  return fahrtenBilden(ereignisse).map((f) => ({ ...f, ankunft: ankunftVon(f) }));
 };

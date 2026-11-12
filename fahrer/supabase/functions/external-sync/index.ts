@@ -2466,6 +2466,48 @@ const getUserFromAuthHeader = async (
   return data.user;
 };
 
+// Ankunft eines Standby-Fahrers auf dem Rueckweg: Route vom Live-Standort zum Event-Ort mit Verkehr.
+// deno-lint-ignore no-explicit-any
+const standbyRueckweg = async (admin: any, body: Record<string, unknown>) => {
+  const standbyId = String(body?.standby_id || '');
+  const driverId = String(body?.driver_id || '');
+  if (!isValidUuid(standbyId) || !isValidUuid(driverId)) return jsonResponse(400, { error: 'ids_missing' });
+  const [{ data: f }, { data: s }, { data: ort }] = await Promise.all([
+    admin.from('standby_fahrer').select('zustand,status').eq('standby_id', standbyId).eq('driver_id', driverId).maybeSingle(),
+    admin.from('standby').select('lat,lng').eq('id', standbyId).maybeSingle(),
+    admin.from('driver_live_locations').select('lat,lng').eq('driver_id', driverId).maybeSingle(),
+  ]);
+  if (f?.zustand !== 'rueckweg') return jsonResponse(200, { ok: true, uebersprungen: 'kein_rueckweg' });
+  const ziel = { lat: toFiniteNumber(s?.lat), lng: toFiniteNumber(s?.lng) };
+  const start = { lat: toFiniteNumber(ort?.lat), lng: toFiniteNumber(ort?.lng) };
+  if (ziel.lat === null || ziel.lng === null || start.lat === null || start.lng === null) {
+    return jsonResponse(200, { ok: false, fehler: 'punkt_fehlt' });
+  }
+  const schluessel = await tomtomSchluessel(admin);
+  if (!schluessel) return jsonResponse(200, { ok: false, fehler: 'Missing tomtom_routing_key' });
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/${start.lat},${start.lng}:${ziel.lat},${ziel.lng}/json`
+    + `?key=${schluessel}&traffic=true&travelMode=car&routeType=fastest`;
+  const res = await fetch(url);
+  const json = await res.json().catch(() => ({}));
+  const summe = json?.routes?.[0]?.summary;
+  await recordUsageWithCost(admin, {
+    provider: TOMTOM_PROVIDER,
+    action: 'standby_rueckweg',
+    reason: 'live_view',
+    cache_hit: false,
+    requested_by: driverId,
+    http_status: res.status,
+    error_text: res.ok && summe ? null : `HTTP ${res.status}`,
+  }).catch(() => {});
+  if (!res.ok || !summe) return jsonResponse(200, { ok: false, fehler: `HTTP ${res.status}` });
+  const sekunden = Number(summe.travelTimeInSeconds || 0);
+  const ankunft = summe.arrivalTime ? new Date(summe.arrivalTime).toISOString() : new Date(Date.now() + sekunden * 1000).toISOString();
+  await admin.from('standby_fahrer')
+    .update({ rueck_ankunft: ankunft, rueck_minuten: Math.ceil(sekunden / 60), rueck_sync: new Date().toISOString() })
+    .eq('standby_id', standbyId).eq('driver_id', driverId).eq('zustand', 'rueckweg');
+  return jsonResponse(200, { ok: true, ankunft });
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -2481,6 +2523,14 @@ Deno.serve(async (req) => {
     const supabaseServiceRoleKey = ensureEnv('SUPABASE_SERVICE_ROLE_KEY');
 
     const body = await req.json().catch(() => ({}));
+
+    // Standby-Rueckweg: Ankunft zurueck am Event mit TomTom (nur vom Datenbank-Trigger, service_role).
+    if (body?.aktion === 'standby_rueckweg') {
+      const rolle = parseJwtPayload(getBearerToken(req.headers.get('Authorization')) || '')?.role;
+      if (rolle !== 'service_role') return jsonResponse(401, { error: 'Unauthorized' });
+      return await standbyRueckweg(createClient(supabaseUrl, supabaseServiceRoleKey), body);
+    }
+
     const reason = body?.reason as SyncReason;
     const forceRefresh = Boolean(body?.force_refresh);
     const bodyCurrentLat = toFiniteNumber(body?.current_location?.lat);

@@ -18,6 +18,8 @@ struct TrisarFahrerApp: App {
         Push.shared.einrichten(app: "fahrer")
         // Annehmen/Ablehnen aus der Mitteilung (iPhone und Apple Watch), ohne die App zu oeffnen.
         Push.shared.fahrtAntwort = { id, annehmen in await PushAntwort.ausfuehren(jobID: id, annehmen: annehmen) }
+        // "Arbeitszeit beginnt" weckt die App im Hintergrund: Ortung pruefen und starten.
+        Push.shared.wecken = { await Geteilt.ortung.wecken() }
         LiveFahrt.shared.beobachten(Geteilt.fahrten)
         // Apple Watch (TrisarFahrerUhr): Stand schicken, Annehmen/Ablehnen von der Uhr ausfuehren.
         UhrBruecke.shared.starten()

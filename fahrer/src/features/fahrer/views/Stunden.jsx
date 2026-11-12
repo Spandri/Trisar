@@ -101,9 +101,9 @@ export const useStundenVerlauf = (tage = 60) => {
 // Karten fuer die Fahrtenliste: Dienst vorbei, noch nicht bestaetigt (letzte zwei Wochen).
 export const useStundenKarten = () => {
   const { eintraege, laden } = useStundenVerlauf(14);
-  // Vorbei und noch nicht von der Dispo bestaetigt, dazu der laufende Dienst von heute (Figma 2823-12431).
-  const karten = useMemo(() => (eintraege || []).filter((e) => (e.vorbei && e.zettel?.status !== 'bestaetigt')
-    || (!e.vorbei && e.dienst?.datum === heuteBerlin() && heuteStand(e))), [eintraege]);
+  // Startseite: nur vorbei und noch nicht von der Dispo bestaetigt. Der laufende Dienst von heute
+  // steht nur im Verlauf, nicht auf der Startseite (Wunsch 12.11.).
+  const karten = useMemo(() => (eintraege || []).filter((e) => e.vorbei && e.zettel?.status !== 'bestaetigt'), [eintraege]);
   return { karten, laden };
 };
 

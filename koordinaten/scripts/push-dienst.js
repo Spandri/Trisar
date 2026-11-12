@@ -113,6 +113,8 @@ const apnsSenden = (host, z, geraet, nachricht) => new Promise((fertig) => {
       alert: { title: nachricht.titel, body: nachricht.text },
       sound: 'default',
       'thread-id': nachricht.art,
+      // Arbeitszeit beginnt: App im Hintergrund wecken, damit sie das GPS startet.
+      ...(nachricht.art === 'ortung_start' ? { 'content-available': 1 } : {}),
       ...(KATEGORIE[nachricht.art] ? { category: KATEGORIE[nachricht.art] } : {}),
     },
     ...nachricht.daten,
@@ -266,6 +268,13 @@ const ausgangAbarbeiten = async () => {
 };
 
 const erinnern = async () => {
+  try {
+    // Fahrer, deren Arbeitszeit gerade beginnt: Mitteilung "Arbeitszeit beginnt" weckt die App.
+    const anzahl = await rest('rpc/ortung_wecken', { methode: 'POST', koerper: {} });
+    if (anzahl) log(`${anzahl} Fahrer zur Arbeitszeit geweckt`);
+  } catch (e) {
+    if (!/ortung_wecken|PGRST202/.test(String(e.message || e))) log('Fehler beim Wecken:', e.message || e);
+  }
   try {
     const anzahl = await rest('rpc/push_erinnerungen', { methode: 'POST', koerper: {} });
     if (anzahl) log(`${anzahl} Erinnerung(en) angelegt`);

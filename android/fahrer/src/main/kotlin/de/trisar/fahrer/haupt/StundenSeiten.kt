@@ -81,10 +81,9 @@ internal object StundenSpeicher {
     val fehler = MutableStateFlow<String?>(null)
 
     /** Karten fuer die Startseite: Dienst vorbei, noch nicht bestaetigt. */
-    /** Vorbei und noch nicht bestaetigt, dazu der laufende Dienst von heute (Figma 2823-12431). */
+    /** Vorbei und noch nicht bestaetigt. Der laufende Dienst von heute steht nur im Verlauf. */
     fun karten(liste: List<Stunden.Eintrag>): List<Stunden.Eintrag> = liste.filter {
-        (it.vorbei && it.zettel?.status != "bestaetigt")
-            || (!it.vorbei && it.dienst.datum == Stunden.heuteDatum() && Stunden.heute(it) != null)
+        it.vorbei && it.zettel?.status != "bestaetigt"
     }
 
     suspend fun laden() {

@@ -47,6 +47,8 @@ final class DispoStandbySpeicher: ObservableObject {
         let hatVorher: Bool
         let zustand: String?
         let zustandSeit: Date?
+        /// Ankunft zurueck am Event auf dem Rueckweg (Server, TomTom mit Verkehr).
+        let rueckAnkunft: Date?
         let profil: Profil?
         var id: UUID { driverID }
     }
@@ -93,7 +95,6 @@ final class DispoStandbySpeicher: ObservableObject {
 
     private var kanal: RealtimeChannelV2?
     private var beobachter: [Task<Void, Never>] = []
-    private var etaTakt: Task<Void, Never>?
 
     var aktuelle: [Standby] { (liste ?? []).filter(\.aktuell) }
 
@@ -103,7 +104,7 @@ final class DispoStandbySpeicher: ObservableObject {
     }
     private struct FahrerZeile: Decodable {
         let standby_id: UUID; let driver_id: UUID; let status: String?; let vorher: AnyJSON?
-        let zustand: String?; let zustand_seit: String?
+        let zustand: String?; let zustand_seit: String?; let rueck_ankunft: String?
     }
 
     static func hm(_ s: String?) -> String { String((s ?? "").prefix(5)) }
@@ -143,7 +144,8 @@ final class DispoStandbySpeicher: ObservableObject {
                     fahrer: f.filter { $0.standby_id == x.id }.map { y in
                         Fahrer(standbyID: y.standby_id, driverID: y.driver_id, status: (y.status ?? "pending").lowercased(),
                                hatVorher: { if case .some(.null) = y.vorher { return false }; return y.vorher != nil }(),
-                               zustand: y.zustand, zustandSeit: StandbyZeit.datum(y.zustand_seit), profil: profilJe[y.driver_id])
+                               zustand: y.zustand, zustandSeit: StandbyZeit.datum(y.zustand_seit),
+                               rueckAnkunft: StandbyZeit.datum(y.rueck_ankunft), profil: profilJe[y.driver_id])
                     }.sorted { ($0.profil?.name ?? "") < ($1.profil?.name ?? "") })
         }
         await ereignisseLaden()
@@ -175,29 +177,14 @@ final class DispoStandbySpeicher: ObservableObject {
         etaStarten()
     }
 
-    /// Ankunft zurueck am Event fuer Fahrer auf dem Rueckweg (Route ab Live-Standort, jede Minute neu).
+    /// Ankunft zurueck am Event: rechnet der Server mit TomTom (standby_fahrer.rueck_ankunft),
+    /// kommt per Realtime mit laden().
     private func etaStarten() {
-        etaTakt?.cancel()
-        let rueck = fahrten.filter { $0.status == "rueckweg" }
-        guard !rueck.isEmpty else { ankunft = [:]; return }
-        etaTakt = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.etaRechnen(rueck)
-                try? await Task.sleep(for: .seconds(60))
-            }
-        }
-    }
-
-    private func etaRechnen(_ rueck: [Fahrt]) async {
-        struct Ort: Decodable { let driver_id: UUID; let lat: Double; let lng: Double }
-        let orte: [Ort] = (try? await Backend.client.from("driver_live_locations").select("driver_id, lat, lng")
-            .in("driver_id", values: rueck.map { $0.driverID.uuidString.lowercased() }).execute().value) ?? []
         var neu: [String: Date] = [:]
-        for f in rueck {
-            guard let s = aktuelle.first(where: { $0.id == f.standbyID }), let p = orte.first(where: { $0.driver_id == f.driverID }) else { continue }
-            let r = await Routen.strecke(von: CLLocationCoordinate2D(latitude: p.lat, longitude: p.lng),
-                                         bis: CLLocationCoordinate2D(latitude: s.lat, longitude: s.lng))
-            if r.sekunden > 0 { neu[f.id] = Date().addingTimeInterval(Double(r.sekunden)) }
+        for f in fahrten where f.status == "rueckweg" {
+            if let a = aktuelle.first(where: { $0.id == f.standbyID })?.fahrer.first(where: { $0.driverID == f.driverID })?.rueckAnkunft {
+                neu[f.id] = a
+            }
         }
         ankunft = neu
     }

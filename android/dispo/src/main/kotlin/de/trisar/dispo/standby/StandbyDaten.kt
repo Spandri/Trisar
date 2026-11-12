@@ -86,6 +86,8 @@ internal data class StandbyFahrerZeile(
     val vorher: JsonElement? = null,
     val zustand: String? = null,
     val zustand_seit: String? = null,
+    /** Ankunft zurueck am Event auf dem Rueckweg (Server, TomTom mit Verkehr). */
+    val rueck_ankunft: String? = null,
 )
 
 internal data class SbProfil(val id: String, val vorname: String, val nachname: String, val nummer: String) {
@@ -213,7 +215,7 @@ internal object DispoStandbySpeicher {
             }.decodeList<StandbyDaten>()
             val ids = standbys.map { it.id }
             val fahrer = if (ids.isEmpty()) emptyList() else Backend.client.from("standby_fahrer")
-                .select(Columns.raw("standby_id, driver_id, status, vorher, zustand, zustand_seit")) { filter { isIn("standby_id", ids) } }
+                .select(Columns.raw("standby_id, driver_id, status, vorher, zustand, zustand_seit, rueck_ankunft")) { filter { isIn("standby_id", ids) } }
                 .decodeList<StandbyFahrerZeile>()
             val fids = fahrer.map { it.driver_id }.distinct()
             val profile = if (fids.isEmpty()) emptyList() else Backend.client.from("profiles")
@@ -235,25 +237,20 @@ internal object DispoStandbySpeicher {
                 filter { isIn("standby_id", ids) }
                 order("zeit", io.github.jan.supabase.postgrest.query.Order.ASCENDING)
             }.decodeList<StandbyEreignis>()
-        }.onSuccess { ereignisse = it }
+        }.onSuccess { ereignisse = it; ankunftAusListe() }
     }
 
-    /** Ankunftszeit fuer Fahrten auf dem Rueckweg: Route vom Live-Standort des Fahrers zum Event-Ort. */
-    suspend fun ankunftRechnen(ctx: Context) {
+    /** Ankunftszeit fuer Fahrten auf dem Rueckweg: rechnet der Server mit TomTom (standby_fahrer.rueck_ankunft),
+     *  kommt per Realtime mit laden(). ctx bleibt fuer den Aufrufer. */
+    @Suppress("UNUSED_PARAMETER")
+    suspend fun ankunftRechnen(ctx: Context) = ankunftAusListe()
+
+    private fun ankunftAusListe() {
         val aktuell = (liste ?: emptyList()).filter(::standbyAktuell)
-        val rueck = fahrtenBilden(ereignisse).filter { it.status == "rueckweg" }
-        if (rueck.isEmpty()) { ankunft = emptyMap(); return }
-        val orte = runCatching {
-            Backend.client.from("driver_live_locations").select(Columns.raw("driver_id, lat, lng")) {
-                filter { isIn("driver_id", rueck.map { it.driverId }.distinct()) }
-            }.decodeList<JsonObject>()
-        }.getOrDefault(emptyList()).associate { s(it, "driver_id") to GeoPunkt(s(it, "lat").toDoubleOrNull() ?: 0.0, s(it, "lng").toDoubleOrNull() ?: 0.0) }
         val neu = mutableMapOf<String, Instant>()
-        for (f in rueck) {
-            val sb = aktuell.firstOrNull { it.id == f.standbyId } ?: continue
-            val p = orte[f.driverId] ?: continue
-            val r = runCatching { Routen.strecke(ctx, p, GeoPunkt(sb.d.lat, sb.d.lng)) }.getOrNull() ?: continue
-            neu[f.id] = Instant.now().plusSeconds(r.minuten * 60L)
+        for (f in fahrtenBilden(ereignisse).filter { it.status == "rueckweg" }) {
+            val z = aktuell.firstOrNull { it.d.id == f.standbyId }?.fahrer?.firstOrNull { it.zeile.driver_id == f.driverId }?.zeile
+            zeitpunkt(z?.rueck_ankunft)?.let { neu[f.id] = it }
         }
         ankunft = neu
     }

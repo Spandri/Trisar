@@ -135,6 +135,17 @@ object FahrerOrtung {
         bereich.launch { profilUndFahrtLaden() }
     }
 
+    /** Geweckt durch "Arbeitszeit beginnt": Fahrer aus der Sitzung holen (App evtl. frisch gestartet),
+     *  Profil und Arbeitszeit pruefen, dann startet aktualisieren() den Ortungsdienst. */
+    suspend fun wecken() {
+        if (fahrerID == null) {
+            runCatching { Backend.client.auth.awaitInitialization() }
+            Backend.client.auth.currentUserOrNull()?.id?.let { setzeFahrer(it) }
+        }
+        berechtigungPruefen()
+        profilUndFahrtLaden()
+    }
+
     /** Darf das Handy jetzt orten? Fragt ortung_status (Dienst, Standby, Fahrt). */
     suspend fun dienstPruefen() {
         if (fahrerID == null) return

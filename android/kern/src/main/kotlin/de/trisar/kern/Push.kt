@@ -45,6 +45,8 @@ object Push {
     const val KANAL_WARNUNG = "trisar_dispo_warnung"
     /** Knoepfe Annehmen/Ablehnen: Broadcast an die eigene App (FahrtAntwortEmpfaenger der Fahrer-App). */
     const val AKTION_FAHRT_ANTWORT = "de.trisar.FAHRT_ANTWORT"
+    /** "Arbeitszeit beginnt" (art ortung_start): Broadcast an die Fahrer-App (OrtungWeckEmpfaenger), GPS starten. */
+    const val AKTION_ORTUNG_START = "de.trisar.ORTUNG_START"
     const val EXTRA_FAHRT = "fahrt_id"
     const val EXTRA_ANNEHMEN = "annehmen"
     const val EXTRA_MITTEILUNG = "mitteilung_id"
@@ -201,6 +203,10 @@ class PushEmpfaenger : FirebaseMessagingService() {
         val daten = nachricht.data
         val titel = nachricht.notification?.title ?: daten["titel"] ?: return
         val text = nachricht.notification?.body ?: daten["text"] ?: ""
+        // Arbeitszeit beginnt: die Fahrer-App weckt ihre Ortung (auch wenn der Prozess neu startet).
+        if (daten["art"] == "ortung_start") {
+            runCatching { sendBroadcast(Intent(Push.AKTION_ORTUNG_START).setPackage(packageName)) }
+        }
         Push.zeigen(this, titel, text, daten)
     }
 }

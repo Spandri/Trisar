@@ -48,6 +48,14 @@
                 <action android:name="de.trisar.FAHRT_ANTWORT" />
             </intent-filter>
         </receiver>
+        <!-- „Arbeitszeit beginnt“: Ortung starten, auch wenn die App geschlafen hat. -->
+        <receiver
+            android:name=".OrtungWeckEmpfaenger"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="de.trisar.ORTUNG_START" />
+            </intent-filter>
+        </receiver>
         <!-- Kamera-Fotos fuer „Schaden melden“. -->
         <provider
             android:name="androidx.core.content.FileProvider"

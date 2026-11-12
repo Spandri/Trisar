@@ -9,6 +9,9 @@ import UserNotifications
 /// das Ziel in `ziel` ab, die Hauptansicht oeffnet dann Fahrt, Chat oder Fahrzeug.
 @MainActor
 final class Push: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
+    /// Fahrer-App: beim Wecken durch "Arbeitszeit beginnt" die Ortung starten (Dispo-App: nil).
+    var wecken: (() async -> Void)?
+
     static let shared = Push()
 
     /// Ziel aus der zuletzt angetippten Mitteilung ("ziel", "job_id", "kolonne_id", ...).
@@ -132,6 +135,17 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         print("Push: Registrierung fehlgeschlagen: \(error.localizedDescription)")
+    }
+
+    /// Mitteilung mit content-available (art ortung_start): App im Hintergrund wecken, die Fahrer-App
+    /// startet dann die Ortung (Push.shared.wecken).
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                     fetchCompletionHandler fertig: @escaping (UIBackgroundFetchResult) -> Void) {
+        guard (userInfo["art"] as? String) == "ortung_start" else { fertig(.noData); return }
+        Task { @MainActor in
+            if let wecken = Push.shared.wecken { await wecken() }
+            fertig(.newData)
+        }
     }
 }
 

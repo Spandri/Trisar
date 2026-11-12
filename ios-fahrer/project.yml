@@ -21,7 +21,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.1"
-    CURRENT_PROJECT_VERSION: "35"
+    CURRENT_PROJECT_VERSION: "36"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     # App-ID, die Widget-Erweiterung haengt .widget an. aufs-iphone.sh setzt sie auf de.trisar.fahrer.dev.
@@ -77,6 +77,7 @@ targets:
           - UIInterfaceOrientationPortrait
         UIBackgroundModes:
           - location
+          - remote-notification
         NSLocationWhenInUseUsageDescription: "TRISAR nutzt deinen Standort, damit die Disposition sieht, wo du bist, und Fahrten automatisch starten und beenden kann."
         NSLocationAlwaysAndWhenInUseUsageDescription: "Damit dein Standort auch weiter gesendet wird, während Google Maps navigiert oder der Bildschirm aus ist, wähle bitte „Immer“."
         ITSAppUsesNonExemptEncryption: false

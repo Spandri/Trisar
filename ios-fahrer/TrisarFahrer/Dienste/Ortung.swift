@@ -89,6 +89,15 @@ final class Ortung: NSObject, ObservableObject {
         Task { await profilUndFahrtLaden() }
     }
 
+    /// Geweckt durch die Mitteilung "Arbeitszeit beginnt" (auch aus dem Hintergrund, App evtl. frisch
+    /// gestartet): Fahrer aus der Sitzung holen, Profil und Arbeitszeit pruefen, GPS starten.
+    func wecken() async {
+        if fahrerID == nil, let sitzung = try? await Backend.client.auth.session {
+            setzeFahrer(sitzung.user.id)
+        }
+        await profilUndFahrtLaden()
+    }
+
     /// Darf das Handy jetzt orten? Fragt ortung_status (Dienst, Standby, Fahrt) und plant den Wechsel.
     func dienstPruefen() async {
         guard fahrerID != nil else { return }
