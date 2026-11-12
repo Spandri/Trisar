@@ -69,7 +69,8 @@ enum KiAssistentDienst {
                 werte: w, fahrgaeste: FahrtText.gaesteTeilen(neu.fahrgaeste).joined(separator: "; "),
                 fahrerNamen: neu.fahrerNamen.map(FahrtText.getrimmt).filter { !$0.isEmpty },
                 zwischenstopps: g.zwischenstopps,
-                flugZielFlughafen: "", flugAnkunftGeplant: "", notiz: neu.notiz), geladen: g)
+                flugZielFlughafen: "", flugAnkunftGeplant: "", notiz: neu.notiz,
+                flugOhnePruefung: v.flugUnbestaetigt == true), geladen: g)
             if !ergebnis.ok { throw BuchungFehlgeschlagen(meldung: ergebnis.fehler ?? "Unbekannter Fehler") }
             return fahrtID.uuidString
         }
@@ -77,7 +78,8 @@ enum KiAssistentDienst {
         w.anonymeGaeste = w.anonymeGaeste.isEmpty ? "0" : w.anonymeGaeste
         let ergebnis = await FahrtSpeichern.anlegen(FahrtEingabe(
             werte: w, fahrgaeste: FahrtText.gaesteTeilen(v.fahrgaeste).joined(separator: "; "), fahrerNamen: v.fahrerNamen,
-            flugZielFlughafen: "", flugAnkunftGeplant: "", notiz: v.notes, aiBooked: true))
+            flugZielFlughafen: "", flugAnkunftGeplant: "", notiz: v.notes, aiBooked: true,
+            flugOhnePruefung: v.flugUnbestaetigt == true))
         if !ergebnis.ok { throw BuchungFehlgeschlagen(meldung: ergebnis.fehler ?? "Unbekannter Fehler") }
         return ergebnis.id?.uuidString
     }
@@ -222,6 +224,8 @@ struct KiBuchungsVorschlag: Codable, Equatable {
     var fahrtId: String?
     var geaendert: [String]?
     /// Eigener Ort, vom Server erkannt (dispo-admin/ortSuche.ts): gespeichert wie bei Auswahl im Formular.
+    /// Flug vom Server nicht bestaetigt (dispo-admin/flugKi.ts): buchen speichert trotzdem.
+    var flugUnbestaetigt: Bool?
     var startOrtId: String?
     var startAdresse: String?
     var zielOrtId: String?

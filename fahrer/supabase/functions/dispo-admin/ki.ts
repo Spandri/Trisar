@@ -8,6 +8,7 @@ import { dienstVorschlag, markierteFahrer } from './dienst.ts';
 import { lohnVorschlag } from './lohn.ts';
 import { anlegenVorschlag, ohnePasswort } from './anlegen.ts';
 import { vorschlagOrteAufloesen } from './ortSuche.ts';
+import { flugHinweis, flugPruefen } from './flugKi.ts';
 import { standbyAntwort, standbyKarte, standbyKartenText, standbyTeil, standbyZurBuchung } from './standbyKi.ts';
 
 const NICHT_ERREICHBAR = 'Der Assistent ist gerade nicht erreichbar, weil der Rechner mit dem Modell aus ist oder keine Verbindung hat.';
@@ -41,6 +42,8 @@ const vorschlagVereinheitlichen = (v: any) => ({
   notes: String(v?.notes || '').trim(),
   // Nur bei Aenderung einer bestehenden Fahrt: welche Fahrt und welche Felder.
   fahrtId: v?.fahrtId ? String(v.fahrtId) : null,
+  // Flug nicht bestaetigt (flugKi.ts): Buchen speichert ohne Flugpruefung.
+  flugUnbestaetigt: v?.flugUnbestaetigt === true,
   geaendert: Array.isArray(v?.geaendert) ? v.geaendert.map(String) : [],
 });
 
@@ -191,6 +194,15 @@ const buchungsRunde = async (o: {
       daten.action.proposal = vorschlagVereinheitlichen(
         await vorschlagOrteAufloesen(admin, vorschlagVereinheitlichen(daten.action.proposal), dispoId),
       );
+      // Flugnummer gleich pruefen: nicht bestaetigt heisst Hinweis statt Fehler beim Buchen.
+      const p0 = daten.action.proposal;
+      if (p0.flugnummer && p0.datum && (!p0.fahrtId || (p0.geaendert || []).includes('flugnummer'))) {
+        const flug = await flugPruefen(p0.flugnummer, p0.datum, p0.startAdresse || p0.start);
+        if (flug && !flug.gueltig) {
+          p0.flugUnbestaetigt = true;
+          daten.answer = `${String(daten.answer || '').trim()}\n\n${flugHinweis(p0.flugnummer, p0.datum, flug.grund)}`.trim();
+        }
+      }
       aktionen.push(daten.action);
     } else if (daten?.action) {
       aktionen.push(daten.action);

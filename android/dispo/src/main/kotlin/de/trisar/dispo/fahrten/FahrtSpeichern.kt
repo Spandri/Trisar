@@ -59,6 +59,8 @@ data class FahrtEingabe(
     val notiz: String,
     val zwischenstopps: List<String> = emptyList(),
     val aiBooked: Boolean = false,
+    /** KI-Assistent: Flug nicht bestaetigt und trotzdem gebucht, Nummer ohne Flugdaten behalten (Web: flugOhnePruefung). */
+    val flugOhnePruefung: Boolean = false,
 )
 
 /** Vorschlag des KI-Assistenten als Startwerte fuer „Fahrt erstellen“. */
@@ -313,6 +315,8 @@ object FahrtSpeichern {
         val zugNr: String,
         val flug: FahrtPruefung.ZumSpeichern,
         val zug: FahrtPruefung.ZumSpeichern,
+        /** Flugnummer ungeprueft speichern (flugOhnePruefung). */
+        val flugUngeprueft: Boolean = false,
         val zugZeiten: FahrtPruefung.ZugZeiten,
         val zugLive: JsonElement,
     )
@@ -331,7 +335,9 @@ object FahrtSpeichern {
         val zugNr = FahrtText.nummer(e.werte.zugnummer)
         if (flugNr.isNotEmpty() && zugNr.isNotEmpty()) throw Abbruch(FahrtText.tr("app.nurFlugOderZug"))
         val hinweis = FahrtText.getrimmt(e.flugZielFlughafen)
-        val flug = FahrtPruefung.flugZumSpeichern(flugNr, tag, hinweis.ifEmpty { start }, e.flugAnkunftGeplant)
+        val ungeprueft = e.flugOhnePruefung && flugNr.isNotEmpty()
+        val flug = if (ungeprueft) FahrtPruefung.ZumSpeichern()
+        else FahrtPruefung.flugZumSpeichern(flugNr, tag, hinweis.ifEmpty { start }, e.flugAnkunftGeplant)
         if (!flug.ok) throw Abbruch(flug.fehler ?: FahrtText.tr("app.flugValidierungFehler"))
         val zug = FahrtPruefung.zugZumSpeichern(zugNr, tag, start)
         if (!zug.ok) throw Abbruch(zug.fehler ?: FahrtText.tr("app.zugValidierungFehler"))
@@ -350,7 +356,7 @@ object FahrtSpeichern {
             fahrerNamen = FahrtText.fahrerNamenListe(e.fahrerNamen),
             gaeste = FahrtText.gaesteTeilen(e.fahrgaeste),
             anonym = maxOf(0, FahrtText.getrimmt(e.werte.anonymeGaeste.ifEmpty { "0" }).toIntOrNull() ?: 0),
-            flugNr = flugNr, zugNr = zugNr, flug = flug, zug = zug, zugZeiten = zeiten, zugLive = live,
+            flugNr = flugNr, zugNr = zugNr, flug = flug, zug = zug, zugZeiten = zeiten, zugLive = live, flugUngeprueft = ungeprueft,
         )
     }
 
@@ -381,11 +387,11 @@ object FahrtSpeichern {
             "convoy_id" to id(kolonne),
             "driver_id" to id(fahrer),
             "passengers" to JsonArray(v.gaeste.map { JsonPrimitive(it) }),
-            "flight_number" to (if (v.flug.gueltig) JsonPrimitive(v.flugNr) else JsonNull),
+            "flight_number" to (if (v.flug.gueltig || v.flugUngeprueft) JsonPrimitive(v.flugNr) else JsonNull),
             "train_number" to (if (v.zug.gueltig) JsonPrimitive(v.zugNr) else JsonNull),
             "train_planned_time" to (if (v.zug.gueltig) text(v.zugZeiten.geplant) else JsonNull),
             "train_predicted_time" to (if (v.zug.gueltig) text(v.zugZeiten.erwartet) else JsonNull),
-            "trip_type" to JsonPrimitive(if (v.flug.gueltig) "airport" else if (v.zug.gueltig) "train" else "normal"),
+            "trip_type" to JsonPrimitive(if (v.flug.gueltig || v.flugUngeprueft) "airport" else if (v.zug.gueltig) "train" else "normal"),
             "ext_flight_payload" to (if (v.zug.gueltig) v.zugLive else JsonNull),
             "ext_flight_last_sync_at" to (if (v.zug.gueltig) JsonPrimitive(jetzt) else JsonNull),
             "anonymous_guests" to JsonPrimitive(v.anonym),

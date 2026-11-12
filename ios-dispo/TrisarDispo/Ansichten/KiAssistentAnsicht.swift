@@ -795,6 +795,11 @@ private struct KiBuchungsKarte: View {
                         farbe: UIColor.black.withAlphaComponent(0.8))
                     .padding(.trailing, 86)
                 WebText(text: fahrer, groesse: 16, gewicht: .bold, zeilenHoehe: 24, farbe: .black)
+                if vorschlag.flugUnbestaetigt == true {
+                    WebText(text: "Flug \(vorschlag.flugnummer) nicht bestätigt", groesse: 11, gewicht: .bold, zeilenHoehe: 16,
+                            farbe: UIColor(red: 0.82, green: 0.23, blue: 0.18, alpha: 1))
+                        .padding(.trailing, 60)
+                }
             }
             .padding(18)
             VStack(alignment: .trailing, spacing: 0) {

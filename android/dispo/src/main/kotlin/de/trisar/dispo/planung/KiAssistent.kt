@@ -194,6 +194,7 @@ internal object KiAssistentDienst {
                 FahrtEingabe(
                     w, FahrtText.gaesteTeilen(neu.fahrgaeste).joinToString("; "),
                     neu.fahrerNamen.map { FahrtText.getrimmt(it) }.filter { it.isNotEmpty() }, "", "", neu.notiz, g.zwischenstopps,
+                    flugOhnePruefung = v.flugUnbestaetigt,
                 ),
                 g,
             )
@@ -202,7 +203,8 @@ internal object KiAssistentDienst {
         }
         val w = v.vorlage.werte.let { it.copy(anonymeGaeste = it.anonymeGaeste.ifEmpty { "0" }) }
         val e = FahrtSpeichern.anlegen(
-            FahrtEingabe(w, FahrtText.gaesteTeilen(v.fahrgaeste).joinToString("; "), v.fahrerNamen, "", "", v.notes, aiBooked = true),
+            FahrtEingabe(w, FahrtText.gaesteTeilen(v.fahrgaeste).joinToString("; "), v.fahrerNamen, "", "", v.notes, aiBooked = true,
+                flugOhnePruefung = v.flugUnbestaetigt),
         )
         if (!e.ok) throw IllegalStateException(e.fehler ?: "Unbekannter Fehler")
         return e.id
@@ -307,6 +309,8 @@ internal data class KiBuchungsVorschlag(
     val konvoi: String = "", val flugnummer: String = "", val notes: String = "",
     /** Nur bei Aenderung einer bestehenden Fahrt: welche Fahrt und welche Felder. */
     val fahrtId: String? = null, val geaendert: List<String> = emptyList(),
+    /** Flug vom Server nicht bestaetigt (dispo-admin/flugKi.ts): buchen speichert trotzdem. */
+    val flugUnbestaetigt: Boolean = false,
     /** Eigener Ort, vom Server erkannt (dispo-admin/ortSuche.ts): gespeichert wie bei Auswahl im Formular. */
     val startOrtId: String = "", val startAdresse: String = "", val zielOrtId: String = "", val zielAdresse: String = "",
 ) {
@@ -888,6 +892,9 @@ private fun KiBuchungsKarte(v: KiBuchungsVorschlag, oeffnen: (() -> Unit)? = nul
             PAbsatz(gast, 24f, 700, 26f, Color.Black, modifier = Modifier.padding(end = 86.dp))
             PAbsatz("${v.start} - ${v.ziel}", 12f, 500, 16f, Color.Black.copy(alpha = 0.8f), modifier = Modifier.padding(end = 86.dp))
             PAbsatz(fahrer, 16f, 700, 24f, Color.Black)
+            if (v.flugUnbestaetigt) {
+                PAbsatz("Flug ${v.flugnummer} nicht bestätigt", 11f, 700, 16f, Color(0xFFD23A2E), modifier = Modifier.padding(end = 60.dp))
+            }
         }
         Column(Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 16.dp), horizontalAlignment = Alignment.End) {
             Box(Modifier.height(20.dp), contentAlignment = Alignment.Center) { PText(datum, 16f, 700, Color.Black) }

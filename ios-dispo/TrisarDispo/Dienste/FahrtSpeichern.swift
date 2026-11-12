@@ -48,6 +48,8 @@ struct FahrtEingabe {
     var flugAnkunftGeplant: String
     var notiz: String
     var aiBooked = false
+    /// KI-Assistent: Flug nicht bestaetigt und trotzdem gebucht, Nummer ohne Flugdaten behalten (Web: flugOhnePruefung).
+    var flugOhnePruefung = false
 }
 
 /// Vorschlag des KI-Assistenten als Startwerte fuer „Fahrt erstellen“.
@@ -361,6 +363,8 @@ enum FahrtSpeichern {
         var flugNr: String
         var zugNr: String
         var flug: FahrtPruefung.ZumSpeichern
+        /// Flugnummer ungeprueft speichern (flugOhnePruefung).
+        var flugUngeprueft = false
         var zug: FahrtPruefung.ZumSpeichern
         var zugZeiten: FahrtPruefung.ZugZeiten
         var zugLive: AnyJSON
@@ -376,8 +380,10 @@ enum FahrtSpeichern {
         let flugNr = FahrtText.nummer(e.werte.flugnummer), zugNr = FahrtText.nummer(e.werte.zugnummer)
         if !flugNr.isEmpty && !zugNr.isEmpty { return .failure(.text(FahrtText.tr("app.nurFlugOderZug"))) }
         let hinweis = FahrtText.getrimmt(e.flugZielFlughafen)
-        let flug = await FahrtPruefung.flugZumSpeichern(flugNr, datum: tag, hinweis: hinweis.isEmpty ? start : hinweis,
-                                                         ankunftGeplant: e.flugAnkunftGeplant)
+        let ungeprueft = e.flugOhnePruefung && !flugNr.isEmpty
+        let flug = ungeprueft ? FahrtPruefung.ZumSpeichern()
+            : await FahrtPruefung.flugZumSpeichern(flugNr, datum: tag, hinweis: hinweis.isEmpty ? start : hinweis,
+                                                   ankunftGeplant: e.flugAnkunftGeplant)
         if !flug.ok { return .failure(.text(flug.fehler ?? FahrtText.tr("app.flugValidierungFehler"))) }
         let zug = await FahrtPruefung.zugZumSpeichern(zugNr, datum: tag, hinweis: start)
         if !zug.ok { return .failure(.text(zug.fehler ?? FahrtText.tr("app.zugValidierungFehler"))) }
@@ -399,7 +405,7 @@ enum FahrtSpeichern {
             fahrerNamen: FahrtText.fahrerNamenListe(e.fahrerNamen),
             gaeste: FahrtText.gaesteTeilen(e.fahrgaeste),
             anonym: max(0, Int(FahrtText.getrimmt(e.werte.anonymeGaeste.isEmpty ? "0" : e.werte.anonymeGaeste)) ?? 0),
-            flugNr: flugNr, zugNr: zugNr, flug: flug, zug: zug, zugZeiten: zeiten, zugLive: live
+            flugNr: flugNr, zugNr: zugNr, flug: flug, flugUngeprueft: ungeprueft, zug: zug, zugZeiten: zeiten, zugLive: live
         ))
     }
 
@@ -429,11 +435,11 @@ enum FahrtSpeichern {
             "convoy_id": id(kolonne),
             "driver_id": id(fahrer),
             "passengers": .array(v.gaeste.map(AnyJSON.string)),
-            "flight_number": v.flug.gueltig ? .string(v.flugNr) : .null,
+            "flight_number": (v.flug.gueltig || v.flugUngeprueft) ? .string(v.flugNr) : .null,
             "train_number": v.zug.gueltig ? .string(v.zugNr) : .null,
             "train_planned_time": v.zug.gueltig ? text(v.zugZeiten.geplant) : .null,
             "train_predicted_time": v.zug.gueltig ? text(v.zugZeiten.erwartet) : .null,
-            "trip_type": .string(v.flug.gueltig ? "airport" : (v.zug.gueltig ? "train" : "normal")),
+            "trip_type": .string((v.flug.gueltig || v.flugUngeprueft) ? "airport" : (v.zug.gueltig ? "train" : "normal")),
             "ext_flight_payload": v.zug.gueltig ? v.zugLive : .null,
             "ext_flight_last_sync_at": v.zug.gueltig ? .string(jetzt) : .null,
             "anonymous_guests": .integer(v.anonym),

@@ -2629,12 +2629,15 @@ export default function App() {
     if (normalizedFlightNumber && normalizedTrainNumber) {
       return { ok: false, error: t('app.nurFlugOderZug') };
     }
-    const flightValidation = await validateFlightForSave(
-      normalizedFlightNumber,
-      rideDate,
-      String(payload?.flugZielFlughafen || '').trim() || startAdresse,
-      String(payload?.flugAnkunftGeplant || '').trim(),
-    );
+    // KI-Assistent: Flug nicht bestaetigt und trotzdem gebucht (flugOhnePruefung), Nummer ohne Flugdaten behalten.
+    const flightValidation = payload?.flugOhnePruefung && normalizedFlightNumber
+      ? { ok: true, valid: false, skipped: true, unverified: true }
+      : await validateFlightForSave(
+        normalizedFlightNumber,
+        rideDate,
+        String(payload?.flugZielFlughafen || '').trim() || startAdresse,
+        String(payload?.flugAnkunftGeplant || '').trim(),
+      );
     if (!flightValidation.ok) {
       return { ok: false, error: flightValidation.error || t('app.flugValidierungFehler') };
     }
@@ -3080,12 +3083,15 @@ export default function App() {
     if (normalizedFlightNumber && normalizedTrainNumber) {
       return { ok: false, error: t('app.nurFlugOderZug') };
     }
-    const flightValidation = await validateFlightForSave(
-      normalizedFlightNumber,
-      rideDate,
-      String(payload?.flugZielFlughafen || '').trim() || startAdresse,
-      String(payload?.flugAnkunftGeplant || '').trim(),
-    );
+    // KI-Assistent: Flug nicht bestaetigt und trotzdem gebucht (flugOhnePruefung), Nummer ohne Flugdaten behalten.
+    const flightValidation = payload?.flugOhnePruefung && normalizedFlightNumber
+      ? { ok: true, valid: false, skipped: true, unverified: true }
+      : await validateFlightForSave(
+        normalizedFlightNumber,
+        rideDate,
+        String(payload?.flugZielFlughafen || '').trim() || startAdresse,
+        String(payload?.flugAnkunftGeplant || '').trim(),
+      );
     if (!flightValidation.ok) {
       return { ok: false, error: flightValidation.error || t('app.flugValidierungFehler') };
     }

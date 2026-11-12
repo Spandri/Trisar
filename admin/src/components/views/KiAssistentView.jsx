@@ -98,6 +98,8 @@ const toCreateRidePayload = (proposal) => ({
   flugnummer: String(proposal?.flugnummer || '').trim(),
   notes: String(proposal?.notes || '').trim(),
   aktuellerStatus: 'offen',
+  // Flug vom Server nicht bestaetigt: Buchen speichert trotzdem (mit Nummer, ohne Flugdaten).
+  flugOhnePruefung: proposal?.flugUnbestaetigt === true,
 });
 
 // Nur die Felder aus dem Aenderungsvorschlag uebernehmen, alles andere bleibt wie an der Fahrt.
@@ -143,6 +145,11 @@ const BookingPreviewCard = ({ proposal, onOeffnen }) => {
       <div className="pr-[86px] text-[24px] leading-[26px] font-bold font-['Space_Grotesk'] break-words">{guestLabel}</div>
       <div className="mt-[5px] pr-[86px] text-xs leading-4 font-medium font-['Space_Grotesk'] opacity-80 break-words">{payload.start} - {payload.ziel}</div>
       <div className="mt-[5px] text-base leading-6 font-bold font-['Space_Grotesk'] break-words">{driverLabel}</div>
+      {proposal?.flugUnbestaetigt ? (
+        <div className="mt-[3px] pr-[60px] text-[11px] leading-4 font-bold font-['Space_Grotesk'] text-[#d23a2e]">
+          Flug {payload.flugnummer} nicht bestätigt
+        </div>
+      ) : null}
       <div className="absolute right-4 top-[18px] text-right">
         <div className="text-base leading-5 font-bold font-['Space_Grotesk']">{dateLabel}</div>
         <div className="text-base leading-5 font-normal font-['Space_Grotesk']">{payload.startZeit || '--:--'}</div>
