@@ -8,9 +8,17 @@ import WatchConnectivity
 @MainActor
 final class DispoUhrBruecke: NSObject {
     static let shared = DispoUhrBruecke()
-    private let karte = KartenDaten()
+    /// Auch fuer CarPlay (DispoCarPlaySzene): dieselben Daten, nichts doppelt laden.
+    let karte = KartenDaten()
     private var abos = Set<AnyCancellable>()
-    private var angemeldet = false
+    private(set) var angemeldet = false
+    /// CarPlay verbunden: Daten laufen auch ohne gekoppelte Uhr.
+    private var carPlay = false
+
+    func carPlayVerbunden(_ an: Bool) {
+        carPlay = an
+        datenStarten()
+    }
     private var datenLaufen = false
     private var letzterStand: DispoUhrStand?
 
@@ -34,7 +42,7 @@ final class DispoUhrBruecke: NSObject {
     }
 
     private func datenStarten() {
-        guard angemeldet, uhrDa, !datenLaufen else { return }
+        guard angemeldet, uhrDa || carPlay, !datenLaufen else { return }
         datenLaufen = true
         let fahrten = DispoFahrtenSpeicher.gemeinsam
         fahrten.starten()
