@@ -4,6 +4,7 @@ import BackCircleButton from '../ui/BackCircleButton';
 import AiDienstplanView from './KiPlanerDemoView';
 import DienstePlanenBlatt from './DienstePlanenBlatt';
 import { pausenText } from '../../shared/dienstBestand';
+import { reihenfolgeFehler } from '../../shared/zeitReihenfolge';
 import { DEFAULT_PLANNER_SETTINGS } from './KiPlanerSettingsView';
 import { computeDemandCurve, pickBusiestDayRides } from '../../demo/planungsKurven';
 import { DEMO_MODE, hasSupabaseAdminConfig, hasSupabaseConfig, supabase, supabaseAdmin } from '../../services/supabase';
@@ -1694,6 +1695,12 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
       isResetRequest,
       bulkServiceDate,
     });
+    // Reihenfolge Dienststart < Pausen < Dienstende (das Blatt sperrt Senden schon, hier als Rueckfall).
+    const reihenfolge = reihenfolgeFehler(nextStart, nextEnd, bulkPausen);
+    if (reihenfolge) {
+      setBulkPlanError(reihenfolge);
+      return;
+    }
     const hasValidDate = /^\d{4}-\d{2}-\d{2}$/.test(nextDate);
     if (!isResetRequest && !hasValidDate) {
       setBulkPlanError(t('fahrer.setValidDate'));

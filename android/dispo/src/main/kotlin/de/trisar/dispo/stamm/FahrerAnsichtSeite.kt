@@ -330,6 +330,11 @@ private fun DispoStundenKarte(e: Stunden.Eintrag, fahrerID: String, ohneTitel: B
         Stunden.zuZeitpunkt(tag, hm, nach?.toString())?.let { Instant.parse(it) }
     fun waehlen(t: Instant, setzen: (Instant) -> Unit) = zeitRadWaehlen(ctx, minutenVon(t)) { hm -> aus(hm)?.let(setzen) }
 
+    // Reihenfolge: Start < Pausenanfang < Pausenende < Ende (ueber Mitternacht ab Start).
+    val reihenfolge = werte?.let { w ->
+        Stunden.reihenfolgeFehler(Stunden.uhrZeit(w.start), Stunden.uhrZeit(w.ende),
+            w.pausen.map { Stunden.uhrZeit(it.first) to Stunden.uhrZeit(it.second) })
+    }
     val arbeits = werte?.let { w ->
         Stunden.halbeAuf((w.ende.epochSecond - w.start.epochSecond) / 60.0 - Stunden.pausenMin(w.pausen.map { it.first to it.second }, w.ende))
     } ?: s.arbeits
@@ -449,6 +454,7 @@ private fun DispoStundenKarte(e: Stunden.Eintrag, fahrerID: String, ohneTitel: B
             }
         } else {
             val w = werte!!
+            reihenfolge?.let { Text(it, style = grotesk(14f, 700, farbe = FA_ROT), modifier = Modifier.padding(top = 8.dp)) }
             Text("Zeiten antippen zum Ändern, × entfernt eine Pause, + fügt eine hinzu. Pausen unter 3 Stunden zählen als Arbeitszeit. Der Fahrer muss die Änderung bestätigen.",
                 style = grotesk(13f, 500, farbe = Color.White.copy(alpha = 0.5f)), modifier = Modifier.padding(top = 8.dp))
             Box(Modifier.padding(top = 12.dp).width(362.dp).height(80.dp).background(Color.White).padding(12.dp)) {
@@ -456,8 +462,8 @@ private fun DispoStundenKarte(e: Stunden.Eintrag, fahrerID: String, ohneTitel: B
                 BasicTextField(notiz, { notiz = it }, Modifier.fillMaxSize(), textStyle = TextStyle(color = Color.Black, fontFamily = grotesk(14f).fontFamily, fontSize = grotesk(14f).fontSize))
             }
             Row(
-                Modifier.padding(top = 12.dp).width(362.dp).height(56.dp).background(FA_LIME).alpha(if (busy) 0.6f else 1f).tippen {
-                    if (busy) return@tippen
+                Modifier.padding(top = 12.dp).width(362.dp).height(56.dp).background(FA_LIME).alpha(if (busy || reihenfolge != null) 0.5f else 1f).tippen {
+                    if (busy || reihenfolge != null) return@tippen
                     scope.launch { ausfuehren { senden(e, fahrerID, w, notiz) } }
                 }.padding(horizontal = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,

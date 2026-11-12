@@ -915,6 +915,12 @@ struct DienstePlanenBlatt: View {
         return .angefragt
     }
 
+    /// Reihenfolge Dienststart < Pausenanfang < Pausenende < Dienstende (Stunden.reihenfolgeFehler).
+    private var reihenFehler: String? {
+        Stunden.reihenfolgeFehler(start: start.isEmpty ? nil : start, ende: ende.isEmpty ? nil : ende,
+                                  pausen: pausen.map { (von: $0.von, bis: $0.bis) })
+    }
+
     private var unveraendert: Bool {
         bestand != nil && zustand("start") != .neu && zustand("ende") != .neu && zustand("pausen") != .neu
     }
@@ -1170,6 +1176,11 @@ struct DienstePlanenBlatt: View {
                 }
                 .padding(.top, 10)
 
+                if let reihenFehler {
+                    Text(reihenFehler).grotesk(13, .medium).foregroundStyle(Color(hex: 0xFF8E8E))
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
+                }
+
                 if unveraendert {
                     Text("Schon gesendet. Zeit antippen zum Ändern.").grotesk(13, .medium).foregroundStyle(.white.opacity(0.6))
                         .frame(maxWidth: .infinity).padding(.top, 8)
@@ -1189,14 +1200,17 @@ struct DienstePlanenBlatt: View {
                         knopfInhalt(speichert ? "Speichern ..." : "Senden (\(fahrerIDs.count))", farbe: Self.gruen)
                     }
                     .buttonStyle(.web)
-                    .disabled(speichert || nichtsGesetzt || unveraendert || fahrerIDs.isEmpty)
-                    .opacity(speichert || nichtsGesetzt || unveraendert || fahrerIDs.isEmpty ? 0.5 : 1)
+                    .disabled(speichert || nichtsGesetzt || unveraendert || reihenFehler != nil || fahrerIDs.isEmpty)
+                    .opacity(speichert || nichtsGesetzt || unveraendert || reihenFehler != nil || fahrerIDs.isEmpty ? 0.5 : 1)
                 }
                 .padding(.top, 12)
             }
             .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 22)
         }
         .background(Color.black.ignoresSafeArea())
+        // Nicht per Wischen schliessen: schon leichtes Runterziehen hat die Planung verworfen.
+        // Zu geht es nur ueber Abbrechen oder Senden.
+        .interactiveDismissDisabled()
         // Drehrad wie in der Stundenerfassung: Stunden und Minuten in 15-Minuten-Schritten.
         .sheet(isPresented: $radOffen) {
             VStack(spacing: 0) {
@@ -1354,6 +1368,7 @@ struct DienstePlanenBlatt: View {
     private func senden() async {
         guard !fahrerIDs.isEmpty else { fehler = "Bitte mindestens einen Fahrer auswählen."; return }
         guard !start.isEmpty || !ende.isEmpty || !pausen.isEmpty else { return }
+        if let f = reihenFehler { fehler = f; return }
         speichert = true; fehler = nil
         defer { speichert = false }
         let c = Backend.client

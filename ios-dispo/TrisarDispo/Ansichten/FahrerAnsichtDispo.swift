@@ -453,6 +453,12 @@ private struct DispoStundenKarte: View {
                 TextField("", text: $notiz, prompt: Text("Notiz an den Fahrer (optional)").foregroundStyle(Color.gray), axis: .vertical)
                     .font(.grotesk(14)).foregroundStyle(.black).lineLimit(3, reservesSpace: true)
                     .padding(12).frame(width: 362).background(Color.white).padding(.top, 12)
+                // Reihenfolge Beginn < Pausenanfang < Pausenende < Ende (Stunden.reihenfolgeFehler).
+                let reihe = werte.flatMap { w in Stunden.reihenfolgeFehler(start: w.start, ende: w.ende, pausen: w.pausen.map { (von: $0.von, bis: $0.bis) }) }
+                if let reihe {
+                    Text(reihe).grotesk(14, .medium).foregroundStyle(rot)
+                        .frame(width: 362, alignment: .leading).padding(.top, 10)
+                }
                 Button { Task { await senden() } } label: {
                     HStack {
                         Text("An Fahrer senden").grotesk(16, .bold, abstand: -0.5).foregroundStyle(.black)
@@ -461,7 +467,7 @@ private struct DispoStundenKarte: View {
                     }
                     .padding(.horizontal, 24).frame(width: 362, height: 56).background(lime)
                 }
-                .buttonStyle(.web).disabled(busy).padding(.top, 12)
+                .buttonStyle(.web).disabled(busy || reihe != nil).opacity(reihe != nil ? 0.5 : 1).padding(.top, 12)
                 Button { werte = nil; fehler = nil } label: {
                     Text("Abbrechen").grotesk(14, .bold).foregroundStyle(.white.opacity(0.6))
                 }
@@ -556,6 +562,9 @@ private struct DispoStundenKarte: View {
     /// Dispo bearbeitet: Zeiten speichern, der Fahrer muss zustimmen (Stand dispo_geaendert).
     private func senden() async {
         guard let w = werte else { return }
+        if let f = Stunden.reihenfolgeFehler(start: w.start, ende: w.ende, pausen: w.pausen.map { (von: $0.von, bis: $0.bis) }) {
+            fehler = f; return
+        }
         // Enden vor dem Beginn liegen am Folgetag (Nachtdienst).
         let ende = w.ende <= w.start ? w.ende.addingTimeInterval(86400) : w.ende
         let pausen = w.pausen.map { p -> (Date, Date) in

@@ -887,6 +887,8 @@ internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe?
 
     // Senden geht auch nur mit einer Pause (Dienst des Tages bleibt, der Fahrer bestaetigt nur die Pause).
     val nurPause = start.isEmpty() && ende.isEmpty() && pausen.isNotEmpty()
+    // Reihenfolge: Dienststart < Pausenanfang < Pausenende < Dienstende (ueber Mitternacht ab Start).
+    val reihenfolge = de.trisar.kern.Stunden.reihenfolgeFehler(start.ifEmpty { null }, ende.ifEmpty { null }, pausen.toList())
     val nichtsGesetzt = start.isEmpty() && ende.isEmpty() && !nurPause
     val anzahl = fahrerIDs.size
     val feldName = when {
@@ -899,6 +901,7 @@ internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe?
     fun senden() {
         if (fahrerIDs.isEmpty()) { fehler = "Bitte mindestens einen Fahrer markieren."; return }
         if (nichtsGesetzt) return
+        if (reihenfolge != null) { fehler = reihenfolge; return }
         if (tageListe.isEmpty()) { fehler = "Bitte einen Tag im Kalender wählen."; return }
         // Vorausgefuellter Dienst: nur Geaendertes senden (fehlende Zeiten uebernimmt der DB-Trigger).
         val b = if (fahrerIDs.size == 1 && tageListe.size == 1) bestand else null
@@ -1104,6 +1107,11 @@ internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe?
                     }
                 }
 
+                reihenfolge?.let {
+                    Text(it, style = grotesk(13f, 700, farbe = hex(0xFF8E8E)), textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                }
+
                 // Dauer gross, wie die Arbeitszeit in der Stundenerfassung
                 Column(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     if (start.isNotEmpty() && ende.isNotEmpty()) {
@@ -1142,7 +1150,7 @@ internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe?
             }
             fehler?.let { Text(it, style = grotesk(13f, 500, farbe = hex(0xFF8E8E)), modifier = Modifier.padding(top = 8.dp)) }
 
-            val sendenAktiv = !speichert && !nichtsGesetzt && !unveraendert && anzahl > 0
+            val sendenAktiv = !speichert && !nichtsGesetzt && !unveraendert && reihenfolge == null && anzahl > 0
             Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 Row(Modifier.weight(1f).height(56.dp).background(rot).tippen { fertig() }.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Abbrechen", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x202020)), modifier = Modifier.weight(1f), maxLines = 1)

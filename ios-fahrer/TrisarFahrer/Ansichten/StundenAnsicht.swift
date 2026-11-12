@@ -431,8 +431,16 @@ struct HeuteStundenKarte: View {
                 .padding(.leading, -20)
                 .padding(.top, 16)
 
+                // Reihenfolge Beginn < Pausenanfang < Pausenende < Ende (Stunden.reihenfolgeFehler).
+                let reihe = Stunden.reihenfolgeFehler(start: w.start, ende: w.ende, pausen: w.pausen.map { (von: $0.von, bis: $0.bis) })
+                if let reihe {
+                    Text(reihe).grotesk(14, .medium).foregroundStyle(rot)
+                        .frame(width: 362, alignment: .leading).padding(.top, 12)
+                }
+
                 Button {
                     fokus = false
+                    if let reihe { fehler = reihe; return }
                     let n = notiz.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !n.isEmpty else { fehler = "Bitte kurz schreiben, warum die Zeiten abweichen."; return }
                     senden(beginn: w.start, ende: w.ende, pausen: w.pausen.map { ($0.von, $0.bis) }, angepasst: true, begruendung: n)
@@ -447,7 +455,8 @@ struct HeuteStundenKarte: View {
                     .background(lime)
                 }
                 .buttonStyle(.web)
-                .disabled(busy)
+                .disabled(busy || reihe != nil)
+                .opacity(reihe != nil ? 0.5 : 1)
                 .padding(.top, 20)
 
                 Button { werte = nil; fehler = nil; schliessen?() } label: {
@@ -696,6 +705,9 @@ struct StundenBearbeitenAnsicht: View {
                     }
                     .padding(.top, 12)
                     Text("Pause erst ab 3 Stunden, kürzere Pausen sind Arbeitszeit.").grotesk(13, .medium).foregroundStyle(.white.opacity(0.5)).padding(.top, 8)
+                    if let reihe = reihenFehler {
+                        Text(reihe).grotesk(14, .medium).foregroundStyle(rot).padding(.top, 8)
+                    }
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Warum weicht es ab?").grotesk(16, .bold, abstand: 0.5).foregroundStyle(Color(hex: 0x1D1C1D))
@@ -728,7 +740,8 @@ struct StundenBearbeitenAnsicht: View {
                 .padding(.horizontal, 24).frame(width: 362, height: 56).background(lime)
             }
             .buttonStyle(.web)
-            .disabled(busy)
+            .disabled(busy || reihenFehler != nil)
+            .opacity(reihenFehler != nil ? 0.5 : 1)
             .padding(.top, 24).padding(.bottom, 70)
             .frame(maxWidth: .infinity)
             .background(LinearGradient(stops: [.init(color: .black.opacity(0), location: 0), .init(color: .black, location: 0.35)], startPoint: .top, endPoint: .bottom))
@@ -772,7 +785,11 @@ struct StundenBearbeitenAnsicht: View {
         begruendung = (z?.begruendung ?? "").replacingOccurrences(of: "Abgelehnt: ", with: "")
     }
 
+    /// Ende nach Beginn (hier ohne Pausenzeiten, nur die Dauer).
+    private var reihenFehler: String? { Stunden.reihenfolgeFehler(start: beginn, ende: ende, pausen: []) }
+
     private func speichern() async {
+        if let f = reihenFehler { fehler = f; return }
         let grund = begruendung.trimmingCharacters(in: .whitespacesAndNewlines)
         if grund.isEmpty { fehler = "Bitte kurz schreiben, warum die Zeiten abweichen."; return }
         func hhmm(_ m: Int) -> String { String(format: "%02d:%02d", m / 60, m % 60) }

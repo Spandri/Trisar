@@ -345,6 +345,11 @@ internal fun HeuteStundenKarte(
     val arbeits = if (w == null) s0.arbeitsMin
         else Stunden.halbeAuf(java.time.Duration.between(w.start, w.ende).seconds / 60.0 - Stunden.pausenMin(w.pausen.map { it.first to it.second }, w.ende))
     val zeit = "%02d:%02d".format(arbeits / 60, arbeits % 60)
+    // Reihenfolge: Start < Pausenanfang < Pausenende < Ende (ueber Mitternacht ab Start).
+    val reihenfolge = w?.let { x ->
+        Stunden.reihenfolgeFehler(Stunden.uhrZeit(x.start), Stunden.uhrZeit(x.ende),
+            x.pausen.map { Stunden.uhrZeit(it.first) to Stunden.uhrZeit(it.second) })
+    }
     val zahl = hex(0xE2F754)
     val grau = hex(0x5F5F5F)
     val gruen = hex(0x59BE80)
@@ -490,6 +495,7 @@ internal fun HeuteStundenKarte(
         }
 
         if (w != null) {
+            reihenfolge?.let { Text(it, style = grotesk(14f, 700, farbe = ROT), modifier = Modifier.padding(top = 8.dp)) }
             Text("Zeiten antippen zum Ändern. Pause erst ab 3 Stunden, kürzere Pausen sind Arbeitszeit.",
                 style = grotesk(13f, 500, farbe = Color.White.copy(alpha = 0.5f)), modifier = Modifier.padding(top = 8.dp))
             // Notiz wie beim Stornieren (NotizBlatt in KeineFahrt.kt): dunkle Flaeche 402 breit, weisses Feld 362.
@@ -518,10 +524,11 @@ internal fun HeuteStundenKarte(
                     )
                 }
             }
-            Box(Modifier.padding(top = 20.dp)) {
+            Box(Modifier.padding(top = 20.dp).alpha(if (reihenfolge != null) 0.5f else 1f)) {
                 knopf("Anfrage senden", LIME, 362f, true) {
                     val n = notiz.trim()
-                    if (n.isEmpty()) fehler = "Bitte kurz schreiben, warum die Zeiten abweichen."
+                    if (reihenfolge != null) fehler = reihenfolge
+                    else if (n.isEmpty()) fehler = "Bitte kurz schreiben, warum die Zeiten abweichen."
                     else senden(w.start, w.ende, w.pausen, angepasst = true, begruendung = n)
                 }
             }
@@ -670,10 +677,14 @@ internal fun StundenBearbeitenSeite(eintrag: Stunden.Eintrag, fahrerID: String, 
         maxOf(0, dauer - (if (pause >= Stunden.PAUSE_MINDEST) pause else 0))
     }
 
+    fun hhmm(m: Int) = "%02d:%02d".format(m / 60, m % 60)
+    // Reihenfolge: hier ohne Pausenzeiten, also nur Ende nach Beginn.
+    val reihenfolge = Stunden.reihenfolgeFehler(hhmm(beginn), hhmm(ende), emptyList())
+
     fun speichern() {
         val grund = begruendung.trim()
+        if (reihenfolge != null) { fehler = reihenfolge; return }
         if (grund.isEmpty()) { fehler = "Bitte kurz schreiben, warum die Zeiten abweichen."; return }
-        fun hhmm(m: Int) = "%02d:%02d".format(m / 60, m % 60)
         val b = Stunden.zuZeitpunkt(tag, hhmm(beginn))
         val e = b?.let { Stunden.zuZeitpunkt(tag, hhmm(ende), it) }
         if (b == null || e == null) { fehler = "Beginn und Ende wählen."; return }
@@ -715,6 +726,7 @@ internal fun StundenBearbeitenSeite(eintrag: Stunden.Eintrag, fahrerID: String, 
                     Rad("Ende", ende, HALBE, { Stunden.hmm(it) }) { ende = it }
                     Rad("Pause", pause, PAUSEN, { "${Stunden.hmm(it)} h" }) { pause = it }
                 }
+                reihenfolge?.let { Text(it, style = grotesk(14f, 700, farbe = ROT), modifier = Modifier.padding(top = 8.dp)) }
                 Text("Pause erst ab 3 Stunden, kürzere Pausen sind Arbeitszeit.", style = grotesk(13f, 500, farbe = Color.White.copy(alpha = 0.5f)), modifier = Modifier.padding(top = 8.dp))
 
                 Column(Modifier.padding(top = 12.dp).width(362.dp).background(Color.White).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -745,7 +757,7 @@ internal fun StundenBearbeitenSeite(eintrag: Stunden.Eintrag, fahrerID: String, 
                 contentAlignment = Alignment.Center,
             ) {
                 Row(
-                    Modifier.size(362.dp, 56.dp).alpha(if (beschaeftigt) 0.6f else 1f).background(LIME).tippen { if (!beschaeftigt) speichern() }
+                    Modifier.size(362.dp, 56.dp).alpha(if (beschaeftigt || reihenfolge != null) 0.5f else 1f).background(LIME).tippen { if (!beschaeftigt) speichern() }
                         .padding(horizontal = 24.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

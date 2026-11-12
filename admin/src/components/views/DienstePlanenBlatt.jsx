@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import ZeitRad from '../ui/ZeitRad';
 import { dienstBestandLaden, pausenText } from '../../shared/dienstBestand';
+import { reihenfolgeFehler } from '../../shared/zeitReihenfolge';
 
 const LIME = '#E3F654';
 const GRUEN = '#59BE80';
@@ -332,6 +333,8 @@ export default function DienstePlanenBlatt({
   // Senden geht auch nur mit einer Pause (Dienst des Tages bleibt, der Fahrer bestaetigt nur die Pause).
   const nurPause = !start && !ende && liste.some((p) => p.von && p.bis);
   const nichtsGesetzt = !start && !ende && !nurPause;
+  // Dienststart < Pausenanfang < Pausenende < Dienstende (ueber Mitternacht ab Dienststart gerechnet).
+  const reihenfolge = reihenfolgeFehler(start, ende, liste);
 
   return (
     <div
@@ -452,6 +455,10 @@ export default function DienstePlanenBlatt({
         })}
       </div>
 
+      {reihenfolge ? (
+        <div className="mt-[8px] text-center text-[13px] font-bold" style={{ color: ROT }}>{reihenfolge}</div>
+      ) : null}
+
       {unveraendert ? (
         <div className="mt-[8px] text-center text-[13px] font-medium text-white/60">Schon gesendet. Zeit antippen zum Ändern.</div>
       ) : null}
@@ -475,7 +482,7 @@ export default function DienstePlanenBlatt({
           type="button"
           onClick={onAnwenden}
           data-tutorial="dienst-anwenden"
-          disabled={speichert || nichtsGesetzt || unveraendert || !anzahl}
+          disabled={speichert || nichtsGesetzt || unveraendert || Boolean(reihenfolge) || !anzahl}
           className="h-[56px] px-[16px] flex items-center justify-between text-[#202020] text-[16px] font-medium tracking-[0.5px] disabled:opacity-50"
           style={{ background: GRUEN }}
         >

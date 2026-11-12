@@ -12,6 +12,7 @@ import { supabase } from '../../../shared/supabase/client';
 import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
 import TrisarFooter from '../../../components/ui/TrisarFooter';
 import CancelRideSheet from './CancelRideSheet';
+import { reihenfolgeFehler } from '../../../shared/zeitReihenfolge';
 
 const LIME = '#E3F654';
 const ROT = '#ff6f63';
@@ -320,8 +321,11 @@ export function StundenBearbeiten({ eintrag, schliessen, fertig }) {
   let dauer = ende - beginn;
   if (dauer <= 0) dauer += 1440;
   const arbeitsMin = Math.max(0, dauer - pauseZaehlt(pause));
+  // Beginn vor Ende (ueber Mitternacht gerechnet), Pausen hier nur als Dauer.
+  const reihenfolge = reihenfolgeFehler(alsUhr(beginn), alsUhr(ende), []);
 
   const senden = async () => {
+    if (reihenfolge) return;
     if (!begruendung.trim()) { setFehler(tx('begruendungFehlt')); return; }
     const b = zuZeitpunkt(tag, alsUhr(beginn));
     const e = zuZeitpunkt(tag, alsUhr(ende), b);
@@ -368,11 +372,12 @@ export function StundenBearbeiten({ eintrag, schliessen, fertig }) {
             style={schrift}
           />
         </div>
+        {reihenfolge ? <div className="mt-[12px] text-[14px] font-bold" style={{ ...schrift, color: ROT }}>{reihenfolge}</div> : null}
         {fehler ? <div className="mt-[12px] text-[14px] font-medium" style={{ ...schrift, color: ROT }}>{fehler}</div> : null}
       </div>
 
       <div className="fixed left-0 right-0 bottom-[40px] z-[101] pt-[24px] pb-[30px] bg-gradient-to-t from-black via-black to-transparent">
-        <button type="button" disabled={busy} onClick={senden} className="mx-auto w-[362px] h-14 px-6 flex items-center justify-between disabled:opacity-60" style={{ background: LIME }}>
+        <button type="button" disabled={busy || Boolean(reihenfolge)} onClick={senden} className="mx-auto w-[362px] h-14 px-6 flex items-center justify-between disabled:opacity-50" style={{ background: LIME }}>
           <span className="text-black text-[16px] font-bold tracking-[-0.5px]" style={schrift}>{tx('senden')}</span>
           <img src="/icon/_Icon_Schwarz/Arrow_Trisar_Icons_01.svg" alt="" className="w-[34px] h-[20px]" />
         </button>
@@ -631,7 +636,10 @@ export function HeuteStunden({ eintrag, nachher, vollbild = false }) {
     pausen: s0.pausen.map((p) => ({ von: new Date(p.von).toISOString(), bis: new Date(p.bis || s0.ende).toISOString() })),
     angepasst: false,
   }));
+  // Start < Pausenanfang < Pausenende < Ende (ueber Mitternacht ab Start gerechnet).
+  const reihenfolge = werte ? reihenfolgeFehler(werte.start, werte.ende, werte.pausen) : '';
   const senden = () => {
+    if (reihenfolge) return;
     if (!notiz.trim()) { setFehler(tx('begruendungFehlt')); return; }
     const b = alsIso(werte.start);
     ausfuehren({
@@ -713,11 +721,12 @@ export function HeuteStunden({ eintrag, nachher, vollbild = false }) {
               />
             </div>
           </div>
+          {reihenfolge ? <div className="mt-[12px] text-[14px] font-bold" style={{ ...schrift, color: ROT }}>{reihenfolge}</div> : null}
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || Boolean(reihenfolge)}
             onClick={senden}
-            className="mt-[20px] w-[362px] h-[56px] px-6 flex items-center justify-between disabled:opacity-60"
+            className="mt-[20px] w-[362px] h-[56px] px-6 flex items-center justify-between disabled:opacity-50"
             style={{ background: LIME }}
           >
             <span className="text-black text-[16px] font-bold tracking-[-0.5px]" style={schrift}>Anfrage senden</span>

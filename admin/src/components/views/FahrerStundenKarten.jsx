@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import ZeitRad from '../ui/ZeitRad';
 import { supabase } from '../../services/supabase';
 import { DEMO_MODE } from '../../datenquelle';
+import { reihenfolgeFehler } from '../../shared/zeitReihenfolge';
 
 const LIME = '#E3F654';
 const ROT = '#ff6f63';
@@ -160,7 +161,10 @@ function Karte({ eintrag, busy, bestaetigen, speichern, loeschen, ohneTitel = fa
     setWerte({ start: uhrMs(s0.start), ende: uhrMs(ende), pausen: s0.pausen.map((p) => ({ von: uhrMs(p.von), bis: uhrMs(p.bis || ende) })) });
     setNotiz('');
   };
+  // Start < Pausenanfang < Pausenende < Ende (ueber Mitternacht ab Start gerechnet).
+  const reihenfolge = werte ? reihenfolgeFehler(werte.start, werte.ende, werte.pausen) : '';
   const senden = async () => {
+    if (reihenfolge) return;
     const b = alsIso(werte.start);
     const e = alsIso(werte.ende, b);
     const pausen = werte.pausen.map((x) => { const von = alsIso(x.von, b); return { von, bis: alsIso(x.bis, von) }; });
@@ -228,7 +232,8 @@ function Karte({ eintrag, busy, bestaetigen, speichern, loeschen, ohneTitel = fa
         <>
           <div className="mt-[8px] text-[13px] font-medium text-white/50" style={schrift}>Zeiten antippen zum Ändern, × entfernt eine Pause, + fügt eine hinzu. Pausen unter 3 Stunden zählen als Arbeitszeit. Der Fahrer muss die Änderung bestätigen.</div>
           <textarea value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="Notiz an den Fahrer (optional)" className="mt-[12px] w-full h-[80px] bg-white p-3 text-[14px] text-black outline-none resize-none" style={schrift} />
-          <button type="button" disabled={busy} onClick={senden} className="mt-[12px] w-full h-[56px] px-6 flex items-center justify-between disabled:opacity-60" style={{ background: LIME }}>
+          {reihenfolge ? <div className="mt-[10px] text-[13px] font-bold" style={{ ...schrift, color: ROT }}>{reihenfolge}</div> : null}
+          <button type="button" disabled={busy || Boolean(reihenfolge)} onClick={senden} className="mt-[12px] w-full h-[56px] px-6 flex items-center justify-between disabled:opacity-50" style={{ background: LIME }}>
             <span className="text-black text-[16px] font-bold tracking-[-0.5px]" style={schrift}>An Fahrer senden</span>
             <img src="/icon/_Icon_Schwarz/Arrow_Trisar_Icons_01.svg" alt="" className="w-[34px] h-[20px]" />
           </button>

@@ -290,3 +290,60 @@ enum Verlauf {
         return "\(datum) \(zeit)"
     }
 }
+
+// MARK: Reihenfolge der Zeiten
+
+extension Stunden {
+    /// Regel (12.11.): Dienststart < Pausenanfang < Pausenende < Dienstende, gerechnet in Minuten ab
+    /// Dienststart (ueber Mitternacht). Pausen ueberschneiden sich nicht. Ohne Start nur von != bis.
+    /// nil = alles in Ordnung, sonst der Fehlertext. Gleiche Regel in Web und Android.
+    static func reihenfolgeFehler(start: Int?, ende: Int?, pausen: [(von: Int, bis: Int)]) -> String? {
+        guard let s = start else {
+            return pausen.contains { $0.von == $0.bis } ? "Pausenende muss nach Pausenanfang liegen." : nil
+        }
+        let off = { (t: Int) -> Int in (((t - s) % 1440) + 1440) % 1440 }
+        var offEnde = 1440
+        if let e = ende {
+            offEnde = off(e)
+            if offEnde == 0 { return "Dienstende muss nach Dienststart liegen." }
+        }
+        // Pausen weit hinter dem Ende (zweite Tageshaelfte nach Dienstende) liegen in Wahrheit vor dem
+        // Start: dann Dienststart-Fehler statt Dienstende-Fehler. Gleich wie Web und Android.
+        let grenze = ende == nil ? 960 : (offEnde + 1440) / 2
+        let p = pausen.map { (von: off($0.von), bis: off($0.bis)) }.sorted { $0.von < $1.von }
+        for x in p {
+            if x.von == 0 || x.von >= grenze { return "Pausenanfang muss nach Dienststart liegen." }
+            if x.von >= offEnde { return "Dienstende muss nach Pausenende liegen." }
+            if x.bis <= x.von { return "Pausenende muss nach Pausenanfang liegen." }
+            if x.bis >= offEnde { return "Dienstende muss nach Pausenende liegen." }
+        }
+        for i in p.indices.dropFirst() where p[i - 1].bis > p[i].von {
+            return "Pausen dürfen sich nicht überschneiden."
+        }
+        return nil
+    }
+
+    /// "HH:MM" -> Minuten des Tages.
+    static func minutenAus(_ hhmm: String?) -> Int? {
+        let t = (hhmm ?? "").prefix(5).split(separator: ":").compactMap { Int($0) }
+        return t.count == 2 ? t[0] * 60 + t[1] : nil
+    }
+
+    /// Zeitpunkt -> Minuten des Tages in Berlin.
+    static func minutenAus(_ d: Date?) -> Int? {
+        guard let d else { return nil }
+        var k = Calendar(identifier: .gregorian); k.timeZone = berlin
+        let c = k.dateComponents([.hour, .minute], from: d)
+        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
+    }
+
+    static func reihenfolgeFehler(start: String?, ende: String?, pausen: [(von: String, bis: String)]) -> String? {
+        reihenfolgeFehler(start: minutenAus(start), ende: minutenAus(ende),
+                          pausen: pausen.compactMap { p in minutenAus(p.von).flatMap { v in minutenAus(p.bis).map { (von: v, bis: $0) } } })
+    }
+
+    static func reihenfolgeFehler(start: Date?, ende: Date?, pausen: [(von: Date, bis: Date)]) -> String? {
+        reihenfolgeFehler(start: minutenAus(start), ende: minutenAus(ende),
+                          pausen: pausen.compactMap { p in minutenAus(p.von).flatMap { v in minutenAus(p.bis).map { (von: v, bis: $0) } } })
+    }
+}

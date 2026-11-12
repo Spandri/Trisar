@@ -301,6 +301,42 @@ object Stunden {
         return t.toString()
     }
 
+    /**
+     * Reihenfolge der Uhrzeiten (Wunsch 12.11.): Dienststart < Pausenanfang < Pausenende < Dienstende.
+     * Gerechnet in Minuten ab Dienststart, ueber Mitternacht. Ohne Ende gilt der ganze Tag ab Start.
+     * Ohne Start wird je Pause nur geprueft, dass Anfang und Ende verschieden sind.
+     * Zeiten als "HH:MM" (auch "HH:MM:SS"). Liefert den ersten Fehler oder null.
+     */
+    fun reihenfolgeFehler(start: String?, ende: String?, pausen: List<Pair<String, String>>): String? {
+        fun m(t: String?): Int? {
+            val teile = t?.trim()?.split(":") ?: return null
+            if (teile.size < 2) return null
+            val h = teile[0].toIntOrNull() ?: return null
+            val mm = teile[1].take(2).toIntOrNull() ?: return null
+            return h * 60 + mm
+        }
+        val p = pausen.mapNotNull { (v, b) -> val a = m(v); val c = m(b); if (a == null || c == null) null else a to c }
+        val s = m(start)
+        if (s == null) return if (p.any { it.first == it.second }) "Pausenende muss nach Pausenanfang liegen." else null
+        fun off(t: Int) = ((t - s) % 1440 + 1440) % 1440
+        val e = m(ende)
+        val offEnde = if (e == null) 1440 else off(e)
+        if (e != null && offEnde == 0) return "Dienstende muss nach Dienststart liegen."
+        // Grenze zwischen "vor dem Start" und "nach dem Ende" (gleich wie Web und iOS).
+        val grenze = if (e == null) 960 else (offEnde + 1440) / 2
+        val sortiert = p.map { off(it.first) to off(it.second) }.sortedBy { it.first }
+        for ((a, b) in sortiert) {
+            if (a == 0 || a >= grenze) return "Pausenanfang muss nach Dienststart liegen."
+            if (a >= offEnde) return "Dienstende muss nach Pausenende liegen."
+            if (b <= a) return "Pausenende muss nach Pausenanfang liegen."
+            if (b >= offEnde) return "Dienstende muss nach Pausenende liegen."
+        }
+        for (i in 1 until sortiert.size) {
+            if (sortiert[i - 1].second > sortiert[i].first) return "Pausen dürfen sich nicht überschneiden."
+        }
+        return null
+    }
+
     /** Minuten zwischen zwei Zeitpunkten (gerundet), 0 wenn einer fehlt. */
     fun minuten(von: String?, bis: String?): Int {
         val a = von?.let { instant(it) } ?: return 0
