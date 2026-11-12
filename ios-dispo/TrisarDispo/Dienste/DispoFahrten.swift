@@ -46,6 +46,8 @@ struct DispoFahrt: Identifiable, Equatable {
     var datum: String
     var bestaetigt: Bool
     var jobStatus: String
+    /// Alle Fahrer der Fahrt (jobs.driver_id und Kolonne), fuer die Mehrfachauswahl.
+    var fahrerIds: [String] = []
 
     var archiviert: Bool { ["archived", "cancelled"].contains(jobStatus) }
 }
@@ -215,32 +217,47 @@ final class DispoFahrtenSpeicher: ObservableObject {
             let jobFahrerIDs = Array(Set(jobs.map { W.t($0["driver_id"]) }.filter { !$0.isEmpty }))
             let konvoiIDs = Array(Set(jobs.map { W.t($0["convoy_id"]) }.filter { !$0.isEmpty }))
 
-            let zuordnungen = try await stapelweise(jobIDs, tolerieren: #"relation .*convoy_assignments|table .*convoy_assignments|does not exist"#) {
-                try await Backend.client.from("convoy_assignments").select("job_id, driver_id, response_status").in("job_id", values: $0).execute().value
-            }
-            let fahrerIDs = Array(Set(jobFahrerIDs + zuordnungen.map { W.t($0["driver_id"]) }.filter { !$0.isEmpty }))
-            let profile = try await stapelweise(fahrerIDs) {
-                try await Backend.client.from("profiles").select("id, first_name, last_name, driver_number").in("id", values: $0).execute().value
-            }
-            let jobGaeste = try await stapelweise(jobIDs) {
-                try await Backend.client.from("job_guests").select("job_id, guest_id, is_main_contact").in("job_id", values: $0).execute().value
-            }
-            let notizZeilen = try await stapelweise(jobIDs, tolerieren: #"relation .*job_notes|table .*job_notes|does not exist"#) {
+            // Die Nebentabellen gleichzeitig holen statt nacheinander. Nur Fahrer haengen an den
+            // Zuordnungen und Gaeste an job_guests, die laufen jeweils als Kette.
+            let archivVorher = lokalArchiviert
+            async let zuordnungenUndProfile: ([DBZeile], [DBZeile]) = {
+                let zuordnungen = try await self.stapelweise(jobIDs, tolerieren: #"relation .*convoy_assignments|table .*convoy_assignments|does not exist"#) {
+                    try await Backend.client.from("convoy_assignments").select("job_id, driver_id, response_status").in("job_id", values: $0).execute().value
+                }
+                let fahrerIDs = Array(Set(jobFahrerIDs + zuordnungen.map { W.t($0["driver_id"]) }.filter { !$0.isEmpty }))
+                let profile = try await self.stapelweise(fahrerIDs) {
+                    try await Backend.client.from("profiles").select("id, first_name, last_name, driver_number").in("id", values: $0).execute().value
+                }
+                return (zuordnungen, profile)
+            }()
+            async let gaesteKette: ([DBZeile], [DBZeile]) = {
+                let jobGaeste = try await self.stapelweise(jobIDs) {
+                    try await Backend.client.from("job_guests").select("job_id, guest_id, is_main_contact").in("job_id", values: $0).execute().value
+                }
+                let gastIDs = Array(Set(jobGaeste.map { W.t($0["guest_id"]) }.filter { !$0.isEmpty }))
+                let gaeste = try await self.stapelweise(gastIDs) {
+                    try await Backend.client.from("guests").select("id, first_name, last_name").in("id", values: $0).execute().value
+                }
+                return (jobGaeste, gaeste)
+            }()
+            async let notizZeilenLaden = stapelweise(jobIDs, tolerieren: #"relation .*job_notes|table .*job_notes|does not exist"#) {
                 try await Backend.client.from("job_notes").select("job_id, note_text, created_at, author_name")
                     .in("job_id", values: $0).order("created_at", ascending: false).execute().value
             }
             // Archiv: Fehler (fehlende Tabelle, keine Rechte) zaehlen wie leer.
-            let archivZeilen = (try? await stapelweise(jobIDs) {
+            async let archivZeilenLaden: [DBZeile] = (try? await stapelweise(jobIDs) {
                 try await Backend.client.from("jobs_archive").select("job_id").in("job_id", values: $0).execute().value
             }) ?? []
-            let archivIDs = lokalArchiviert.union(archivZeilen.map { W.t($0["job_id"]) }.filter { !$0.isEmpty })
-            let gastIDs = Array(Set(jobGaeste.map { W.t($0["guest_id"]) }.filter { !$0.isEmpty }))
-            let gaeste = try await stapelweise(gastIDs) {
-                try await Backend.client.from("guests").select("id, first_name, last_name").in("id", values: $0).execute().value
-            }
-            let konvois = try await stapelweise(konvoiIDs) {
+            async let konvoisLaden = stapelweise(konvoiIDs) {
                 try await Backend.client.from("convoys").select("id, name").in("id", values: $0).execute().value
             }
+
+            let (zuordnungen, profile) = try await zuordnungenUndProfile
+            let (jobGaeste, gaeste) = try await gaesteKette
+            let notizZeilen = try await notizZeilenLaden
+            let archivZeilen = await archivZeilenLaden
+            let konvois = try await konvoisLaden
+            let archivIDs = archivVorher.union(archivZeilen.map { W.t($0["job_id"]) }.filter { !$0.isEmpty })
 
             fahrten = Self.abbilden(jobs: jobs, zuordnungen: zuordnungen, profile: profile, jobGaeste: jobGaeste,
                                     notizZeilen: notizZeilen, archivIDs: archivIDs, gaeste: gaeste, konvois: konvois)
@@ -472,7 +489,8 @@ final class DispoFahrtenSpeicher: ObservableObject {
                 ohneFahrerVariante: !hatFahrer,
                 datum: datum,
                 bestaetigt: antworten.contains("accepted"),
-                jobStatus: jobStatus
+                jobStatus: jobStatus,
+                fahrerIds: Array(Set([fahrerID] + zeilen.map(\.fahrer) + zusammen.map(\.id))).filter { !$0.isEmpty }
             )
         }
     }
@@ -586,7 +604,7 @@ final class DispoFahrtenSpeicher: ObservableObject {
                                konvoi: fahrt.konvoi, notiz: fahrt.notiz, notizen: fahrt.notizen, kiGebucht: fahrt.kiGebucht,
                                zeiten: fahrt.zeiten, verzugMinuten: fahrt.verzugMinuten, verspaetet: fahrt.verspaetet,
                                ohneFahrerVariante: fahrt.ohneFahrerVariante, datum: fahrt.datum, bestaetigt: fahrt.bestaetigt,
-                               jobStatus: fahrt.jobStatus)
+                               jobStatus: fahrt.jobStatus, fahrerIds: fahrt.fahrerIds)
             if let i = fahrten.firstIndex(where: { $0.id == fahrt.id }) { fahrten.insert(lokal, at: i + 1) }
             else { fahrten.insert(lokal, at: 0) }
             spaeterLaden(1200)

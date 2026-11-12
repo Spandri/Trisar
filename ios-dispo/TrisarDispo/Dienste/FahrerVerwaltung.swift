@@ -19,6 +19,10 @@ struct DispoFahrer: Identifiable, Equatable, Hashable {
     var serviceEndTime: String
     let serviceStartDate: String
     var planRequestStatus: String
+    /// profiles.vehicle_id (leer = kein Fahrzeug), fuer den Sprung zu „Fahrzeug bearbeiten“.
+    var vehicleId: String = ""
+    /// profiles.flagge (flagge1 bis flagge3), nil = keine.
+    var flagge: String? = nil
 
     /// isDriverIncomplete: ohne Fahrzeug, Nummer oder vollstaendige Dienstzeit.
     var unfertig: Bool {
@@ -205,8 +209,16 @@ final class FahrerListeDienst: ObservableObject {
     private var beobachter: [Task<Void, Never>] = []
     private var abfrage: Task<Void, Never>?
 
+    private static func fahrzeugText(_ f: Zeile.Fahrzeug?, id: String?) -> String {
+        let p = (f?.license_plate ?? "").trimmingCharacters(in: .whitespaces)
+        if !p.isEmpty { return p }
+        let m = (f?.brand_model ?? "").trimmingCharacters(in: .whitespaces)
+        if !m.isEmpty { return m }
+        return (id ?? "").isEmpty ? "" : "Fahrzeug"
+    }
+
     private struct Zeile: Decodable {
-        struct Fahrzeug: Decodable { let license_plate: String? }
+        struct Fahrzeug: Decodable { let license_plate: String?; let brand_model: String? }
         let id: String?
         let first_name: String?
         let last_name: String?
@@ -218,6 +230,8 @@ final class FahrerListeDienst: ObservableObject {
         let service_end_time: String?
         let service_start_date: String?
         let vehicles: Fahrzeug?
+        let vehicle_id: String?
+        let flagge: String?
     }
 
     private struct Anfrage: Decodable {
@@ -227,10 +241,12 @@ final class FahrerListeDienst: ObservableObject {
 
     // Gleiche Rueckfall-Reihe wie im Web, falls Spalten fehlen.
     private static let auswahlListe = [
-        "id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate)",
-        "id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate)",
-        "id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate)",
-        "id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate)",
+        // Mit Flagge zuerst. Fehlt die Spalte noch, greifen die alten Abfragen.
+        "id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, flagge, vehicles:vehicle_id(license_plate,brand_model)",
+        "id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate,brand_model)",
+        "id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate,brand_model)",
+        "id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate,brand_model)",
+        "id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate,brand_model)",
     ]
 
     func laden() async {
@@ -278,14 +294,18 @@ final class FahrerListeDienst: ObservableObject {
                 name: name.isEmpty ? "Ohne Name" : name,
                 firstName: vor, lastName: nach,
                 email: (z.email ?? "").trimmingCharacters(in: .whitespaces),
-                vehicle: z.vehicles?.license_plate ?? "",
+                // Kennzeichen, sonst Modell, sonst "Fahrzeug": ein zugeordnetes Fahrzeug ohne Kennzeichen
+                // zaehlt trotzdem (sonst rot als "unfertig", 12.11.).
+                vehicle: Self.fahrzeugText(z.vehicles, id: z.vehicle_id),
                 role: z.role,
                 driverNumber: z.driver_number,
                 driverActivityState: z.driver_activity_state,
                 serviceStartTime: Dienstzeit.normal(z.service_start_time),
                 serviceEndTime: Dienstzeit.normal(z.service_end_time),
                 serviceStartDate: (z.service_start_date ?? "").trimmingCharacters(in: .whitespaces),
-                planRequestStatus: ""
+                planRequestStatus: "",
+                vehicleId: (z.vehicle_id ?? "").trimmingCharacters(in: .whitespaces),
+                flagge: Flaggen.id(z.flagge)
             )
         }
 
@@ -424,6 +444,8 @@ final class FahrerEditorModell: ObservableObject {
     /// 'app' = Handy-Standort aus der Fahrer-App, 'obd' = Tracker (IMEI) im Auto.
     @Published var ortung = "app"
     @Published var imei = ""
+    /// Stundenlohn in Euro (profiles.stundenlohn) als Text, Komma oder Punkt. Leer = null.
+    @Published var stundenlohn = ""
     @Published private(set) var fahrzeuge: [DispoFahrzeug] = []
     @Published private(set) var fahrzeugeLaden = false
     @Published private(set) var tracker: [TrackerEintrag] = []
@@ -510,9 +532,10 @@ final class FahrerEditorModell: ObservableObject {
         let driver_number: Int?
         let tracking_mode: String?
         let username: String?
+        let stundenlohn: Double?
 
         enum CodingKeys: String, CodingKey {
-            case first_name, last_name, email, phone, street, street_number, city, zip, language, vehicle_id, driver_number, tracking_mode, username
+            case first_name, last_name, email, phone, street, street_number, city, zip, language, vehicle_id, driver_number, tracking_mode, username, stundenlohn
         }
 
         // Text- oder Zahlspalten (PLZ, Hausnummer ...) wie String(...) im Web lesen.
@@ -536,6 +559,8 @@ final class FahrerEditorModell: ObservableObject {
             driver_number = (try? c.decodeIfPresent(Int.self, forKey: .driver_number)) ?? text(.driver_number).flatMap { Int($0) }
             tracking_mode = text(.tracking_mode)
             username = text(.username)
+            // numeric kommt je nach Weg als Zahl oder als Text.
+            stundenlohn = (try? c.decodeIfPresent(Double.self, forKey: .stundenlohn)) ?? text(.stundenlohn).flatMap { Double($0) }
         }
     }
 
@@ -579,6 +604,7 @@ final class FahrerEditorModell: ObservableObject {
             ortung = d.tracking_mode == "obd" ? "obd" : "app"
             benutzername = (d.username ?? "").trimmingCharacters(in: .whitespaces).lowercased()
             urspruenglicherName = benutzername
+            stundenlohn = d.stundenlohn.map { Self.lohnText($0) } ?? ""
 
             struct Imei: Decodable { let imei: String? }
             let aktiv: Imei? = try await Backend.client.from("imei_driver_map").select("imei")
@@ -588,6 +614,20 @@ final class FahrerEditorModell: ObservableObject {
         } catch {
             rueckmeldung = "Fahrerdaten konnten nicht geladen werden: \(dbMeldung(error))"
         }
+    }
+
+    /// 12.5 -> "12,5" wie String(...).replace('.', ',') im Web.
+    static func lohnText(_ wert: Double) -> String {
+        var t = String(wert)
+        if t.hasSuffix(".0") { t.removeLast(2) }
+        return t.replacingOccurrences(of: ".", with: ",")
+    }
+
+    /// Eingabe -> Euro, auf 2 Stellen gerundet. Leer oder ungueltig = null.
+    var stundenlohnWert: AnyJSON {
+        let t = stundenlohn.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        guard let n = Double(t), n.isFinite, n >= 0 else { return .null }
+        return .double((n * 100).rounded() / 100)
     }
 
     /// normalizePhone: "+49 1234" -> ("+49", "1234").
@@ -635,7 +675,7 @@ final class FahrerEditorModell: ObservableObject {
         strasse = ""; hausnummer = ""; ort = ""; plz = ""
         sprache = "Deutsch"; fahrzeugID = ""; nummer = ""
         urspruenglicheEmail = ""
-        ortung = "app"; imei = ""
+        ortung = "app"; imei = ""; stundenlohn = ""
     }
 
     /// Fahrer endgueltig loeschen (dispo-admin, aktion konto_loeschen). true = geloescht.
@@ -712,6 +752,7 @@ final class FahrerEditorModell: ObservableObject {
             "vehicle_id": fahrzeugID.isEmpty ? .null : .string(fahrzeugID),
             "driver_number": .integer(fahrerNummer),
             "tracking_mode": .string(ortung),
+            "stundenlohn": stundenlohnWert,
         ]
         // Rolle nur beim Anlegen setzen. Beim Bearbeiten bleibt sie, sonst verliert ein Dispo-Konto seine Rechte.
         if !bearbeiten {

@@ -5,6 +5,7 @@ import './index.css';
 import { karteBereitstellen } from './shared/karte/maplibreKarte';
 import App from './App.jsx';
 import AnmeldeTor from './components/AnmeldeTor.jsx';
+import FehlerGrenze from './components/FehlerGrenze.jsx';
 import { DEMO_MODE } from './datenquelle.js';
 import splashVideo from './assets/loadScreen.mp4';
 
@@ -40,7 +41,7 @@ function BootSplashGate() {
 
   return (
     <>
-      {DEMO_MODE ? <App /> : <AnmeldeTor><App /></AnmeldeTor>}
+      <FehlerGrenze>{DEMO_MODE ? <App /> : <AnmeldeTor><App /></AnmeldeTor>}</FehlerGrenze>
       {showSplash ? (
         <div
           style={{

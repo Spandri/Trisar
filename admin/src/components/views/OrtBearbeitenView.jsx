@@ -286,7 +286,9 @@ export default function OrtBearbeitenView({ ort = null, onClose = () => {}, onFe
   const radienTop = pinHinweisTop + 32;
   const iconLabelTop = radienTop + ROW_HEIGHT + 24;
   const iconTop = iconLabelTop + 32;
-  const hinweisTop = iconTop + 52 + 16;
+  // Raster mit 6 Icons je Reihe, 62 px Abstand wie bisher.
+  const iconReihen = Math.ceil(ORT_ICONS.length / 6);
+  const hinweisTop = iconTop + iconReihen * 62 - 10 + 16;
   const speichernTop = hinweisTop + (hinweis ? 48 : 4);
   const loeschenTop = speichernTop + 68;
   const seitenHoehe = (istNeu ? speichernTop : loeschenTop) + ROW_HEIGHT + 120;
@@ -362,10 +364,11 @@ export default function OrtBearbeitenView({ ort = null, onClose = () => {}, onFe
                   type="button"
                   data-tutorial={`ort-icon-${eintrag.key}`}
                   onClick={() => setIcon(eintrag.key)}
-                  aria-label={t(`orte.icon_${eintrag.key}`)}
+                  aria-label={eintrag.label || t(`orte.icon_${eintrag.key}`)}
+                  title={eintrag.label || t(`orte.icon_${eintrag.key}`)}
                   aria-pressed={gewaehlt}
                   className={`absolute w-[52px] h-[52px] border-2 flex items-center justify-center transition-colors ${gewaehlt ? 'border-[#E3F654]' : 'border-[#E3F654]/30'}`}
-                  style={{ left: `${20 + index * 62}px`, top: `${iconTop}px` }}
+                  style={{ left: `${20 + (index % 6) * 62}px`, top: `${iconTop + Math.floor(index / 6) * 62}px` }}
                 >
                   <img src={gewaehlt ? eintrag.lime : eintrag.grau} alt="" className="w-[30px] h-[30px] object-contain" />
                 </button>

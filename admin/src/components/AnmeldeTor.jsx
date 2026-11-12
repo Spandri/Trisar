@@ -103,15 +103,31 @@ export default function AnmeldeTor({ children }) {
         return;
       }
       sitzungPruefen(data?.session);
+    }).catch(() => {
+      // Sperre nicht bekommen (z. B. anderer Tab haengt): Anmeldung zeigen statt schwarz.
+      if (aktiv) setZustand('abgemeldet');
     });
     const { data: abo } = supabase.auth.onAuthStateChange((ereignis, session) => {
       if (ereignis === 'SIGNED_OUT') setZustand('abgemeldet');
       // Link aus der Reset- oder Einladungs-Mail: erst neues Passwort setzen.
       if (ereignis === 'PASSWORD_RECOVERY') setZustand('neuesPasswort');
-      if (ereignis === 'SIGNED_IN' && !ausMailLink) sitzungPruefen(session);
+      // Nicht direkt im Rueckruf auf Supabase warten: das haelt die Anmelde-Sperre fest und
+      // die Seite bleibt schwarz haengen (bekannte Falle in supabase-js). Darum entkoppelt.
+      if (ereignis === 'SIGNED_IN' && !ausMailLink) window.setTimeout(() => sitzungPruefen(session), 0);
     });
+    // Notbremse: haengt die Pruefung (Sperre in einem anderen Tab, Netz weg), nach 8 s die Anmeldung zeigen
+    // statt einer schwarzen Seite.
+    const notbremse = window.setTimeout(() => {
+      if (!aktiv) return;
+      setZustand((z) => {
+        if (z !== 'pruefen') return z;
+        setFehler('Anmeldung hängt. Bitte andere TRISAR-Tabs schließen und neu anmelden.');
+        return 'abgemeldet';
+      });
+    }, 8000);
     return () => {
       aktiv = false;
+      window.clearTimeout(notbremse);
       abo?.subscription?.unsubscribe();
     };
   }, []);

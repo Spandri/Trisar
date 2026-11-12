@@ -102,7 +102,9 @@ struct KarteAnsicht: UIViewRepresentable {
             linie(stil, kennung: "anfahrt", pfad: inhalt.anfahrt, farbe: UIColor(hex: 0xE3F654), breite: 5, gestrichelt: true)
             linie(stil, kennung: "flugspur", pfad: inhalt.flugSpur, farbe: UIColor(hex: 0xE3F654).withAlphaComponent(0.95), breite: 3, gestrichelt: false)
 
-            if !punkte.isEmpty { karte.removeAnnotations(punkte) }
+            // Pins nie mitten in einem Rueckruf der Karte tauschen: MapLibre bricht ab, wenn ein Punkt
+            // waehrend des Zeichnens verschwindet (TestFlight-Absturz Dispo Build 19). Daher einen Moment spaeter.
+            let alt = punkte
             punkte = []
             func pin(_ ort: CLLocationCoordinate2D?, _ art: String, _ text: String? = nil) {
                 guard let ort else { return }
@@ -119,8 +121,12 @@ struct KarteAnsicht: UIViewRepresentable {
             for k in inhalt.kollegen { pin(k.ort, k.nummer ? "kollege-nr" : "kollege-kz", k.beschriftung) }
             pin(inhalt.flugzeug, "flugzeug", String(inhalt.flugKurs))
             pin(inhalt.fahrer, "fahrer", inhalt.fahrerNummer)
-            karte.addAnnotations(punkte)
-            DispatchQueue.main.async { [weak self] in self?.blasenEntzerren() }
+            let neu = punkte
+            DispatchQueue.main.async { [weak self, weak karte] in
+                if !alt.isEmpty { karte?.removeAnnotations(alt) }
+                if !neu.isEmpty { karte?.addAnnotations(neu) }
+                self?.blasenEntzerren()
+            }
         }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {

@@ -254,7 +254,7 @@ const DEMO_FRAGEN = [
   { frage: KI_DEMO_FRAGE_AKKU, antwort: antwortAkku },
 ];
 
-export const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVorschlag = null, letzteFahrtId = null }) => {
+export const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVorschlag = null, letzteFahrtId = null, markierteFahrer = [] }) => {
   const trimmedPrompt = String(prompt || '').trim();
   if (!trimmedPrompt) return 'Bitte stelle eine Frage.';
 
@@ -268,6 +268,8 @@ export const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVo
         kontext: gespraechsKontext,
         offenerVorschlag,
         letzteFahrtId,
+        // Auf der Karte markierte Fahrer: "schick die alle in Feierabend" meint sie.
+        markierteFahrer,
       },
     });
     if (error) throw error;
@@ -298,4 +300,14 @@ export const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVo
     answerKey: 'assist.demoNotice',
     meta: { demo: true },
   };
+};
+
+// Dienststart oder Dienstende fuer markierte Fahrer senden (Vorschlag des Assistenten bestaetigt).
+export const dienstSenden = async ({ art, zeit, datum, start = null, ende = null, pausen = [], fahrerIds }) => {
+  const { data, error } = await supabase.functions.invoke('dispo-admin', {
+    body: { aktion: 'dienst_senden', art, zeit, datum, start, ende, pausen, fahrerIds },
+  });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error || 'Senden fehlgeschlagen');
+  return data;
 };

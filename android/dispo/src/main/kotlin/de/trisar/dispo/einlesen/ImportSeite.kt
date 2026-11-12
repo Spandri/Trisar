@@ -116,7 +116,7 @@ private const val ERKENNUNG_MS = 900L
 private const val MAX_BYTES = 8 * 1024 * 1024
 
 /** Hinweise, die eine Zeile nicht ausschliessen, aber angeschaut werden sollten. */
-private val WARNUNGEN = setOf("doppelt", "vergangen", "adresseUnbekannt", "mehrNamenAlsPersonen", "gleicheAdresse", "emailUngueltig")
+private val WARNUNGEN = setOf("doppelt", "vergangen", "adresseUnbekannt", "mehrNamenAlsPersonen", "gleicheAdresse", "emailUngueltig", "fahrerUnbekannt")
 
 /** Felder, die andere mit belegen (felderFuer in importKern.js). */
 private val BELEGT = mapOf("datumUhrzeit" to listOf("datum", "uhrzeit"), "vollname" to listOf("vorname", "nachname"))
@@ -431,7 +431,7 @@ fun ImportSeite(modus: ImportModus, zurueck: () -> Unit, zumZiel: () -> Unit) {
                     val a = analyse
                     val q = quelle
                     if (a != null && q != null && a.blaetter.size > 1) {
-                        a.blaetter.filter { it.index != a.blatt && it.fahrten > 0 }.forEach { b ->
+                        a.blaetter.filter { it.index != a.blatt && !it.mitEingelesen && it.fahrten > 0 }.forEach { b ->
                             Box(
                                 Modifier.padding(top = 10.dp).fillMaxWidth().height(48.dp).alpha(if (beschaeftigt) 0.4f else 1f).border(2.dp, LIME)
                                     .tippen {
@@ -544,7 +544,7 @@ private fun ZuordnungUndVorschau(
                         .tippen { if (!aktiv && !gesperrt) blattWechseln(b.index) }.padding(horizontal = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(b.name + (if (zahl != null && zahl > 0 && !aktiv) " · $zahl" else ""), maxLines = 1, softWrap = false,
+                    Text(b.name + (if (b.mitEingelesen) " · ${t("imp.blattMit")}" else if (zahl != null && zahl > 0 && !aktiv) " · $zahl" else ""), maxLines = 1, softWrap = false,
                         style = stil(12f, 500, farbe = if (aktiv) Color.Black else Color.White.copy(alpha = 0.7f)))
                 }
             }
@@ -789,7 +789,11 @@ private fun ImportKarte(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(namen, style = stil(groesse, 700, groesse * 1.3f, farbe = text), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (route.isNotEmpty()) Text(route, style = stil(12f, 500, 16f, 0.3f, text.copy(alpha = 0.8f)))
+                    val stopps = (d["zwischenstopps"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content }.orEmpty()
+                    if (fahrten && stopps.isNotEmpty()) Text(t("imp.ueber", mapOf("orte" to stopps.joinToString(" · "))), style = stil(12f, 500, 16f, 0.3f, text.copy(alpha = 0.8f)))
                     if (firma.isNotEmpty()) Text(firma, style = stil(13f, 700, farbe = text), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val fahrerText = wert(d, "fahrer").ifEmpty { wert(d, "fahrer_name").takeIf { it.isNotEmpty() }?.let { "$it ?" } ?: "" }
+                    if (fahrten && fahrerText.isNotEmpty()) Text(t("imp.fahrer", mapOf("name" to fahrerText)), style = stil(13f, 700, farbe = text))
                     if (extra.isNotEmpty()) Text(extra, style = stil(13f, 700, farbe = text))
                     if (rot) Text(t("imp.fehltFeld", mapOf("felder" to s.fehlt.joinToString(", ") { feldText(it) })), style = stil(12f, 700, farbe = Color.Black))
                     if (warnungen.isNotEmpty()) {
@@ -1029,6 +1033,14 @@ private val texte = mapOf(
     "imp.erkennt" to "Spalten werden erkannt …",
     "imp.fahrtenImportieren" to "{n} Fahrten importieren",
     "imp.fahrtenImportiert" to "{n} Fahrten importiert.",
+    "imp.feld.fahrer" to "Fahrer",
+    "imp.feld.ankunft" to "Ankunft am Ziel",
+    "imp.h.zwischenstopp" to "Sammelfahrt: Zeilen mit gleichem Fahrer und gleicher Ankunft zusammengefasst",
+    "imp.h.fahrerUnbekannt" to "Fahrer aus der Liste nicht gefunden, bitte nach dem Import zuteilen",
+    "imp.h.ausWeiteremBlatt" to "aus einem weiteren Blatt der Datei",
+    "imp.fahrer" to "Fahrer: {name}",
+    "imp.ueber" to "über {orte}",
+    "imp.blattMit" to "mit eingelesen",
     "imp.feld.abholort" to "Abholort",
     "imp.feld.anzahl" to "Anzahl Personen",
     "imp.feld.datum" to "Datum",

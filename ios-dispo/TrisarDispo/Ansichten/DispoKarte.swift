@@ -25,6 +25,8 @@ struct DispoKarte: UIViewRepresentable {
     var orte: [EigenerOrt] = []
     var gewaehlterOrt: UUID?
     var ortWaehlen: (UUID?) -> Void = { _ in }
+    /// Mehrfachauswahl an: diese Fahrer normal, alle anderen blass, markierte nie in Gruppen. Nil = aus.
+    var markiert: Set<String>? = nil
 
     static let stil = URL(string: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json")!
     private static let kameraSchluessel = "admin_karten_camera_v1"
@@ -76,6 +78,7 @@ struct DispoKarte: UIViewRepresentable {
         private var gruppen: [KartenGruppenPunkt] = []
         private var letzteListe: [KartenFahrer] = []
         private var letzteAuswahl: String?
+        private var letzteMarkierung: Set<String>?
         private var einpassenSignal = 0
 
         // Route: Teile (Anfahrt, Fahrt) je mit noch zu fahrender und schon gefahrener Linie.
@@ -102,9 +105,10 @@ struct DispoKarte: UIViewRepresentable {
                 alleEinpassen()
             }
             let auswahl = neu.gewaehlt?.id
-            if neu.fahrer != letzteListe || auswahl != letzteAuswahl {
+            if neu.fahrer != letzteListe || auswahl != letzteAuswahl || neu.markiert != letzteMarkierung {
                 letzteListe = neu.fahrer
                 letzteAuswahl = auswahl
+                letzteMarkierung = neu.markiert
                 fahrerAbgleichen()
             }
             if neu.orte != letzteOrte || neu.gewaehlterOrt != letzterOrt {
@@ -130,11 +134,23 @@ struct DispoKarte: UIViewRepresentable {
 
         // MARK: Eigene Orte
 
+        /// MapLibre bricht die App ab, wenn ein Punkt verschwindet, waehrend sie gerade die Pins zeichnet
+        /// (TestFlight-Absturz Dispo Build 19, MLNMapView updateAnnotationViews). Darum Punkte nie direkt
+        /// in einem Rueckruf aendern, sondern einen Moment spaeter auf der Hauptschleife, in fester Reihenfolge.
+        private func spaeter(weg: [MLNAnnotation] = [], dazu: [MLNAnnotation] = []) {
+            guard !weg.isEmpty || !dazu.isEmpty else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let karte = self?.karte else { return }
+                if !weg.isEmpty { karte.removeAnnotations(weg) }
+                if !dazu.isEmpty { karte.addAnnotations(dazu) }
+            }
+        }
+
         private func orteAbgleichen() {
-            guard let karte else { return }
+            guard karte != nil else { return }
             let ids = Set(letzteOrte.map(\.id))
             let weg = ortPunkte.filter { !ids.contains($0.key) }
-            if !weg.isEmpty { karte.removeAnnotations(Array(weg.values)) }
+            spaeter(weg: Array(weg.values))
             for id in weg.keys { ortPunkte[id] = nil; ortAnsichten[id] = nil }
             var dazu: [OrtKartenPunkt] = []
             for o in letzteOrte {
@@ -148,28 +164,64 @@ struct DispoKarte: UIViewRepresentable {
                 }
                 ortAnsichten[o.id]?.anwenden(o.symbol, aktiv: o.id == letzterOrt)
             }
-            if !dazu.isEmpty { karte.addAnnotations(dazu) }
-
-            if let s = ortSchild { karte.removeAnnotation(s) }
+            spaeter(weg: [ortSchild].compactMap { $0 }, dazu: dazu)
             ortSchild = nil
-            if let id = letzterOrt, let o = letzteOrte.first(where: { $0.id == id }) {
-                let s = OrtSchildPunkt(text: o.name, unter: o.radienText)
-                s.coordinate = o.punkt
-                ortSchild = s
-                karte.addAnnotation(s)
-            }
+            // Gewaehlter Ort: nur die Radien, kein Schild darueber (Figma 2826-12363).
             kreiseZeichnen()
         }
 
         /// Innen Reinfahr-Radius (gefuellt), aussen Rausfahr-Radius (gestrichelt), nur fuer den gewaehlten Ort.
+        private var kreisAnimation: Timer?
+        private var kreisOrt: UUID?
+
+        /// Beim Waehlen faehrt der kleine Ring des Zeichens (17,5 pt) zum Rausfahr-Kreis aus, der gefuellte
+        /// Kreis waechst vom Lime-Kreis (14,5 pt) zum Reinfahr-Kreis, in 0,5 s mit Abbremsen (Figma 2836-12484).
         private func kreiseZeichnen() {
-            guard stilGeladen, let stil = karte?.style else { return }
+            guard stilGeladen, let karte, let stil = karte.style else { return }
             let o = letzteOrte.first { $0.id == letzterOrt }
-            OrtKreise.setzen(stil, kennung: "dk-ort", mitte: o?.punkt, rein: o?.radius_rein_m ?? 0, raus: o?.radius_raus_m ?? 0)
+            // Abgewaehlt (nochmal getippt): Kreise fahren wieder auf das Zeichen ein und verschwinden.
+            guard let o else {
+                guard let alt = kreisOrt, let vorher = letzteOrte.first(where: { $0.id == alt }) else {
+                    if kreisOrt == nil && kreisAnimation?.isValid == true { return }  // faehrt gerade ein
+                    kreisAnimation?.invalidate()
+                    kreisOrt = nil
+                    OrtKreise.setzen(stil, kennung: "dk-ort", mitte: nil, rein: 0, raus: 0)
+                    return
+                }
+                kreisOrt = nil
+                kreiseAnimieren(stil, karte, vorher, einfahren: true)
+                return
+            }
+            if kreisOrt == o.id && kreisAnimation?.isValid != true {
+                OrtKreise.setzen(stil, kennung: "dk-ort", mitte: o.punkt, rein: o.radius_rein_m, raus: o.radius_raus_m)
+                return
+            }
+            if kreisOrt == o.id { return }
+            kreisOrt = o.id
+            kreiseAnimieren(stil, karte, o, einfahren: false)
+        }
+
+        private func kreiseAnimieren(_ stil: MLNStyle, _ karte: MLNMapView, _ o: EigenerOrt, einfahren: Bool) {
+            kreisAnimation?.invalidate()
+            let meterJePunkt = karte.metersPerPoint(atLatitude: o.lat)
+            let startRaus = 17.5 * meterJePunkt, startRein = 14.5 * meterJePunkt
+            let zielRaus = Double(o.radius_raus_m), zielRein = Double(o.radius_rein_m)
+            let beginn = Date()
+            kreisAnimation = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { timer in
+                let anteil = min(1, Date().timeIntervalSince(beginn) / 0.5)
+                let weich = einfahren ? 1 - pow(anteil, 3) : 1 - pow(1 - anteil, 3)
+                OrtKreise.setzen(stil, kennung: "dk-ort", mitte: o.punkt,
+                                 rein: max(1, Int(startRein + (zielRein - startRein) * weich)),
+                                 raus: max(2, Int(startRaus + (zielRaus - startRaus) * weich)))
+                if anteil >= 1 {
+                    timer.invalidate()
+                    if einfahren { OrtKreise.setzen(stil, kennung: "dk-ort", mitte: nil, rein: 0, raus: 0) }
+                }
+            }
         }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
-            gruppenBilden()
+            gruppenPlanen()
             let m = mapView.centerCoordinate
             UserDefaults.standard.set([m.latitude, m.longitude, mapView.zoomLevel], forKey: DispoKarte.kameraSchluessel)
         }
@@ -182,22 +234,20 @@ struct DispoKarte: UIViewRepresentable {
             let gewaehlt = stand?.gewaehlt?.id
             let istGewaehlt = gewaehlt == f.id
             let inKolonne = kolonne.contains(f.id)
+            // Mehrfachauswahl: alle blass ausser den markierten (gleiche Blaesse wie beim Fokus).
+            if let markiert = stand?.markiert {
+                let blass = !markiert.contains(f.id) && !istGewaehlt
+                return (blass, istGewaehlt ? 2000 : (blass ? 200 : 1500))
+            }
             // Fokus: ist ein Fahrer gewaehlt, treten alle anderen zurueck (ausser seiner Kolonne).
             let blass = gewaehlt != nil && !istGewaehlt && !inKolonne
             return (blass, istGewaehlt ? 2000 : (blass ? 200 : (inKolonne ? 1500 : 1000)))
         }
 
         private func fahrerAbgleichen() {
-            guard let karte else { return }
+            guard karte != nil else { return }
             let liste = letzteListe
-            let ids = Set(liste.map(\.id))
-            // Weggefallene Fahrer (z. B. im Filter ausgeblendet) entfernen.
-            for (id, p) in fahrerPunkte where !ids.contains(id) {
-                if imBild.contains(id) { karte.removeAnnotation(p) }
-                imBild.remove(id)
-                fahrerPunkte[id] = nil
-                fahrerAnsichten[id] = nil
-            }
+            // Weggefallene Fahrer (z. B. im Filter ausgeblendet) nimmt gruppenBilden von der Karte.
             for f in liste {
                 let p = fahrerPunkte[f.id] ?? KartenFahrerPunkt(id: f.id)
                 if p.coordinate.latitude != f.lat || p.coordinate.longitude != f.lng { p.coordinate = f.ort }
@@ -208,7 +258,19 @@ struct DispoKarte: UIViewRepresentable {
                     v.anwenden(f, abgeblendet: d.abgeblendet, hoehe: d.hoehe)
                 }
             }
-            gruppenBilden()
+            gruppenPlanen()
+        }
+
+        /// Gruppen und Fahrer-Pins gesammelt einmal je Durchlauf der Hauptschleife abgleichen,
+        /// nie mitten in einem Rueckruf der Karte (siehe spaeter).
+        private var gruppenGeplant = false
+        private func gruppenPlanen() {
+            guard !gruppenGeplant else { return }
+            gruppenGeplant = true
+            DispatchQueue.main.async { [weak self] in
+                self?.gruppenGeplant = false
+                self?.gruppenBilden()
+            }
         }
 
         /// updateDriverClusters: Gruppen erst ab fuenf Fahrern, deren Pins (35 pt) sich beruehren.
@@ -217,12 +279,12 @@ struct DispoKarte: UIViewRepresentable {
             guard let karte else { return }
             // Vor dem ersten Layout kennt die Karte keine Bildschirmpunkte: kurz danach nochmal.
             guard karte.bounds.width > 10 else {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in self?.gruppenBilden() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in self?.gruppenPlanen() }
                 return
             }
             let s = stand?.massstab ?? 1
-            let einzeln = kolonne.union([stand?.gewaehlt?.id].compactMap { $0 })
-            let fokus = stand?.gewaehlt != nil
+            let einzeln = kolonne.union([stand?.gewaehlt?.id].compactMap { $0 }).union(stand?.markiert ?? [])
+            let fokus = stand?.gewaehlt != nil || stand?.markiert != nil
             let kandidaten = letzteListe.filter { !einzeln.contains($0.id) }
                 .map { ($0, karte.convert($0.ort, toPointTo: karte)) }
             let radius = (35 + 1) * s
@@ -253,6 +315,21 @@ struct DispoKarte: UIViewRepresentable {
             weg.forEach { fahrerAnsichten[$0.id] = nil }
             if !dazu.isEmpty { karte.addAnnotations(dazu) }
             imBild = soll
+            // Nicht mehr gelistete Fahrer ganz vergessen (sind oben schon von der Karte).
+            let gelistet = Set(letzteListe.map(\.id))
+            for id in Array(fahrerPunkte.keys) where !gelistet.contains(id) {
+                fahrerPunkte[id] = nil
+                fahrerAnsichten[id] = nil
+            }
+            // Gruppen nur tauschen, wenn sie sich wirklich geaendert haben.
+            let gleich = gruppen.count == neueGruppen.count && zip(gruppen, neueGruppen).allSatisfy {
+                $0.anzahl == $1.anzahl && $0.abgeblendet == $1.abgeblendet
+                    && $0.coordinate.latitude == $1.coordinate.latitude && $0.coordinate.longitude == $1.coordinate.longitude
+            }
+            if gleich {
+                for (alt, neu) in zip(gruppen, neueGruppen) { alt.orte = neu.orte }
+                return
+            }
             if !gruppen.isEmpty { karte.removeAnnotations(gruppen) }
             gruppen = neueGruppen
             if !gruppen.isEmpty { karte.addAnnotations(gruppen) }
@@ -355,12 +432,12 @@ struct DispoKarte: UIViewRepresentable {
         // MARK: Route
 
         private func routeAbgleichen() {
-            guard let karte, stilGeladen else { return }
+            guard karte != nil, stilGeladen else { return }
             let route = stand?.route
             let schluessel = route?.schluessel ?? ""
             guard schluessel != routenSchluessel else { return }
             routenSchluessel = schluessel
-            if !routenPunkte.isEmpty { karte.removeAnnotations(routenPunkte) }
+            spaeter(weg: routenPunkte)
             routenPunkte = []
             teile = []
             fortschritt = (0, 0, false)
@@ -389,7 +466,7 @@ struct DispoKarte: UIViewRepresentable {
             _ = punkt(route.abholort, "abholort")
             _ = punkt(route.ziel, "ziel")
             linienSetzen()
-            karte.addAnnotations(routenPunkte)
+            spaeter(dazu: routenPunkte)
             if eingepasstFuer != schluessel {
                 eingepasstFuer = schluessel
                 routeEinpassen()
@@ -439,7 +516,7 @@ struct DispoKarte: UIViewRepresentable {
                 let weiter = naechster(folge, ab: 0)
                 if weiter.abstand < 40 {
                     gefahren[t.art] = t.pfad; rest[t.art] = []
-                    if let s = t.schild, let karte { karte.removeAnnotation(s) }
+                    if let s = t.schild { spaeter(weg: [s]) }
                     fortschritt.teil += 1
                     fortschritt.index = 0
                     t = folge
@@ -570,7 +647,18 @@ final class KartenFahrerPin: MLNAnnotationView {
     private let gruppe = UIView()
     private let bild = UIImageView()
     private let nummer = UILabel()
+    /// Kein Signal seit 5 Minuten (Figma 2823-12621): grauer Kreis 50 % auf dem dunklen Grund,
+    /// roter Punkt unten rechts mit Signalbalken darin.
+    private let grauKreis = UIImageView(image: UIImage(named: "Fahrer_Offline_Trisar_01"))
+    private let keinSignal = UIImageView(image: UIImage(named: "Fahrer_Offline_Punkt_Trisar_01"))
+    private let balken = UIImageView(image: UIImage(named: "Fahrer_Offline_Balken_Trisar_01"))
     private var bildName = ""
+    /// Flagge im runden Kopf oben rechts, am Rand des Kreises abgeschnitten (Figma 2900:41598, 14 x 18).
+    /// Eine schwarze Kopie knapp dahinter ergibt die duenne Umrandung. Bleibt beim Abblenden deckend.
+    private let flaggenKlammer = UIView(frame: CGRect(x: 0, y: 0, width: 35, height: 35))
+    private let flaggenRand = UIImageView()
+    private let flaggenFuellung = UIImageView()
+    private var flaggenName = ""
 
     init() {
         super.init(reuseIdentifier: nil)
@@ -584,18 +672,76 @@ final class KartenFahrerPin: MLNAnnotationView {
         nummer.textAlignment = .center
         nummer.textColor = UIColor(hex: 0x1A1A1A)
         nummer.font = WebText.schrift(15, .bold)
+        grauKreis.frame = CGRect(x: 0, y: 0, width: 35, height: 35)
+        grauKreis.alpha = 0.5
+        keinSignal.frame = CGRect(x: 22, y: 21, width: 14, height: 14)
+        balken.frame = CGRect(x: 25.3, y: 25, width: 8.15, height: 5.41667)
+        // Reihenfolge wie in Figma: Grund, grauer Kreis, Punkt, Nummer, Balken. Punkt und Balken
+        // liegen ausserhalb der Gruppe, damit sie beim Abblenden nicht blass werden.
         gruppe.addSubview(nummer)
+        gruppe.insertSubview(grauKreis, belowSubview: nummer)
+        addSubview(keinSignal)
+        addSubview(balken)
+        flaggenKlammer.layer.cornerRadius = 17.5
+        flaggenKlammer.clipsToBounds = true
+        flaggenKlammer.isUserInteractionEnabled = false
+        flaggenRand.contentMode = .scaleToFill
+        flaggenFuellung.contentMode = .scaleToFill
+        flaggenRand.tintColor = .black
+        // x 21, y -3.5, 12 x 15.4 wie am Web-Marker, Rand 0,8 pt rundum.
+        flaggenFuellung.frame = CGRect(x: 21, y: -3.5, width: 12, height: 15.4)
+        flaggenRand.frame = flaggenFuellung.frame.insetBy(dx: -0.8, dy: -0.8)
+        flaggenKlammer.addSubview(flaggenRand)
+        flaggenKlammer.addSubview(flaggenFuellung)
+        flaggenKlammer.isHidden = true
+        addSubview(flaggenKlammer)
+        for v in [grauKreis, keinSignal, balken] { v.isHidden = true }
         centerOffset = CGVector(dx: 0, dy: -41.1367 / 2)
         isUserInteractionEnabled = false
     }
     required init?(coder: NSCoder) { fatalError() }
 
     func anwenden(_ f: KartenFahrer, abgeblendet: Bool, hoehe: CGFloat) {
-        let name = f.zustand.pinBild(zuendungAus: f.zuendungAus)
+        // Ohne Signal: grauer Kreis halb durchsichtig mit weisser Nummer, Mitte auf dem Ort.
+        let name = f.offline ? "Fahrer_Offline_Grund_Trisar_01" : f.zustand.pinBild(zuendungAus: f.zuendungAus)
         if name != bildName { bildName = name; bild.image = UIImage(named: name) }
+        let hoeheBild: CGFloat = f.offline ? 35 : 41.1367
+        bild.frame = CGRect(x: 0, y: 0, width: 35, height: hoeheBild)
+        unterlage.frame = bild.frame
+        nummer.textColor = f.offline ? .white : UIColor(hex: 0x1A1A1A)
+        grauKreis.isHidden = !f.offline
+        // Stufen 1 bis 4: Punkt orange werdend mit 4 bis 1 Strichen am normalen Pin. Stufe 5: rot, 1 Strich.
+        let stufe = f.signalStufe
+        let mitPunkt = stufe >= 1
+        keinSignal.isHidden = !mitPunkt
+        balken.isHidden = !mitPunkt
+        if mitPunkt {
+            keinSignal.image = UIImage(named: stufe >= 5 ? "Fahrer_Offline_Punkt_Trisar_01" : "Fahrer_Signal_Punkt_\(stufe)_Trisar_01")
+            balken.image = UIImage(named: stufe >= 5 ? "Fahrer_Offline_Balken_Trisar_01" : "Fahrer_Signal_Balken_\(5 - stufe)_Trisar_01")
+        }
+        // Flagge des Fahrers: im Kopf oben rechts.
+        if let fl = Flaggen.nachID(f.flagge) {
+            if flaggenName != fl.voll {
+                flaggenName = fl.voll
+                flaggenFuellung.image = UIImage(named: fl.voll)
+                flaggenRand.image = UIImage(named: fl.voll)?.withRenderingMode(.alwaysTemplate)
+            }
+            flaggenKlammer.isHidden = false
+        } else {
+            flaggenName = ""
+            flaggenKlammer.isHidden = true
+        }
+        // Pin: Spitze unten auf dem Ort. Ohne Signal: Mitte des Kreises (17,5) auf dem Ort.
+        centerOffset = CGVector(dx: 0, dy: f.offline ? 41.1367 / 2 - 17.5 : -41.1367 / 2)
         nummer.text = f.nummer ?? "?"
+        // Nummer immer ganz vorn in der Gruppe, sonst verdecken Grund und grauer Kreis sie.
+        if nummer.superview !== gruppe { gruppe.addSubview(nummer) }
+        nummer.frame = CGRect(x: 0, y: 17.5 - 12, width: 35, height: 24)
+        nummer.isHidden = false
+        gruppe.bringSubviewToFront(nummer)
         abblenden(self, unterlage: unterlage, gruppe: gruppe, bild: name, an: abgeblendet)
         layer.zPosition = hoehe
+        bringSubviewToFront(flaggenKlammer)
     }
 }
 

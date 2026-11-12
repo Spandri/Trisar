@@ -45,6 +45,8 @@ struct KartenFahrtInfo: Equatable {
     var ankunft = "--:--"
     var fahrMinuten = 0
     var unterwegs = false
+    /// false: weder laufende noch naechste Fahrt, das Blatt zeigt dann "Keine Fahrt geplant".
+    var hatFahrt = false
     var von = KartenOrt(typ: "-", icon: nil, name: "Keine aktive Fahrt")
     var nach = KartenOrt(typ: "-", icon: nil, name: "-")
 }
@@ -76,6 +78,11 @@ struct KartenFahrer: Identifiable, Equatable {
     var name: String
     var bildURL: String
     var zuendungAus: Bool
+    /// captured_at des Standorts. Seit 5 Minuten nichts mehr: offline (Figma 2816-12309).
+    var letztesSignal: Date?
+    /// Minuten ohne Signal: 0 frisch, 1 bis 4 orange werdend, 5 ohne Signal (grauer Kreis).
+    var signalStufe: Int
+    var offline: Bool { signalStufe >= 5 }
     var nummer: String?
     var telefon: String
     var kennzeichen: String
@@ -85,9 +92,26 @@ struct KartenFahrer: Identifiable, Equatable {
     var zustand: FahrerZustand
     var info: KartenFahrtInfo
     var fahrt: KartenFahrt?
+    /// profiles.vehicle_id, fuer die Mehrfachauswahl (Fahrzeuge der markierten Fahrer).
+    var vehicleId = ""
+    /// profiles.flagge (flagge1 bis flagge3), nil = keine.
+    var flagge: String? = nil
 
     var ort: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lng) }
     var vorname: String { name.split(separator: " ").first.map(String.init) ?? "Fahrer" }
+
+    /// Farbe von Punkt und Uhrzeit je Stufe, von Hellorange zum Rot der Stufe 5.
+    static let signalFarben: [Int] = [0x868687, 0xFFB84D, 0xFFA04D, 0xFF8A55, 0xFF7A5C, 0xFF6F63]
+    var signalFarbe: Int { Self.signalFarben[min(5, max(0, signalStufe))] }
+
+    /// "Letztes Signal 14:32", an einem anderen Tag mit Datum.
+    var signalText: String {
+        guard let d = letztesSignal else { return "Noch kein Signal" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = Calendar.current.isDateInToday(d) ? "HH:mm" : "dd.MM. HH:mm"
+        return "Letztes Signal " + f.string(from: d)
+    }
 }
 
 /// Filter der Karte (kartenFilter in App.jsx). Geteilt, damit er wie im Web beim
@@ -144,10 +168,12 @@ final class KartenDaten: ObservableObject {
         let fahrten = kanal.postgresChange(AnyAction.self, schema: "public", table: "jobs")
         let kolonnen = kanal.postgresChange(AnyAction.self, schema: "public", table: "convoy_assignments")
         self.kanal = kanal
-        beobachter = [standorte, fahrten, kolonnen].map { strom in
+        beobachter = [fahrten, kolonnen].map { strom in
             Task { [weak self] in for await _ in strom { await self?.laden() } }
         } + [Task { [weak self] in
             for await aenderung in zuendung { await self?.zuendungGeaendert(aenderung) }
+        }, Task { [weak self] in
+            for await aenderung in standorte { await self?.standortGeaendert(aenderung) }
         }]
         try? await kanal.subscribeWithError()
         takt = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
@@ -168,6 +194,43 @@ final class KartenDaten: ObservableObject {
         beobachter = []
         if let kanal { await Backend.client.removeChannel(kanal) }
         kanal = nil
+    }
+
+    /// Standort-Meldung: Position sofort setzen (wie KartenView.jsx). Das komplette Neuladen
+    /// (Status, Fahrten) kommt hoechstens alle 10 s hinterher, nicht bei jeder Meldung.
+    private var nachladenGeplant = false
+    private func standortGeaendert(_ aenderung: AnyAction) async {
+        let satz: [String: AnyJSON]
+        switch aenderung {
+        case .insert(let a): satz = a.record
+        case .update(let a): satz = a.record
+        case .delete: await laden(); return
+        }
+        func zahl(_ w: AnyJSON?) -> Double? {
+            switch w {
+            case .double(let d): return d
+            case .integer(let i): return Double(i)
+            case .string(let t): return Double(t)
+            default: return nil
+            }
+        }
+        guard case .string(let id)? = satz["driver_id"], let lat = zahl(satz["lat"]), let lng = zahl(satz["lng"]),
+              let i = fahrer.firstIndex(where: { $0.id == id }) else { await laden(); return }
+        var f = fahrer[i]
+        f.lat = lat
+        f.lng = lng
+        if case .string(let t)? = satz["captured_at"], let d = Self.zeitpunkt(t) {
+            f.letztesSignal = d
+            f.signalStufe = min(5, max(0, Int(Date().timeIntervalSince(d) / 60)))
+        }
+        fahrer[i] = f
+        guard !nachladenGeplant else { return }
+        nachladenGeplant = true
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            self?.nachladenGeplant = false
+            await self?.laden()
+        }
     }
 
     /// Nur bei Wechsel der Zuendung neu laden, nicht bei jedem Datensatz.
@@ -212,6 +275,7 @@ final class KartenDaten: ObservableObject {
             let basis = "id, first_name, last_name, phone, role, is_dispo, vehicle_id, driver_number, vehicles:vehicle_id(license_plate, brand_model, trim)"
             let mitBild = "\(basis), avatar_url"
             let kandidaten = [
+                "\(mitBild), driver_activity_state, service_start_time, service_end_time, flagge",
                 "\(mitBild), driver_activity_state, service_start_time, service_end_time",
                 "\(mitBild), driver_activity_state",
                 "\(mitBild), service_start_time, service_end_time",
@@ -375,19 +439,31 @@ final class KartenDaten: ObservableObject {
                 fahrt?.kolonnenFahrerIDs = Array(kolonne)
             }
             let nummerText = Self.text(p?["driver_number"])
+            let signal = Self.zeitpunkt(zeile["captured_at"])
 
             return KartenFahrer(
                 id: id,
                 name: name.isEmpty ? "Fahrer \(id.prefix(8))" : name,
                 bildURL: Self.text(p?["avatar_url"]),
                 zuendungAus: zuendung[id] == false,
+                letztesSignal: signal,
+                signalStufe: signal.map { min(5, max(0, Int(jetzt.timeIntervalSince($0) / 60))) } ?? 0,
                 nummer: nummerText.isEmpty ? nil : nummerText,
                 telefon: Self.text(p?["phone"]),
                 kennzeichen: kennzeichen.isEmpty ? "-" : kennzeichen,
                 fahrzeug: fahrzeug.isEmpty ? "Fahrzeug" : fahrzeug,
-                lat: lat, lng: lng, zustand: zustand, info: info, fahrt: fahrt)
+                lat: lat, lng: lng, zustand: zustand, info: info, fahrt: fahrt,
+                vehicleId: Self.text(p?["vehicle_id"]),
+                flagge: Flaggen.id(Self.text(p?["flagge"])))
         }
         return (liste, sichtbar.count)
+    }
+
+    /// Zeitstempel aus Postgres (mit oder ohne Sekundenbruchteile).
+    nonisolated static func zeitpunkt(_ w: Any?) -> Date? {
+        let roh = text(w).replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
+        guard !roh.isEmpty else { return nil }
+        return ISO8601DateFormatter().date(from: roh.replacingOccurrences(of: " ", with: "T"))
     }
 
     nonisolated static func text(_ w: Any?) -> String {
@@ -580,6 +656,7 @@ enum KartenRegeln {
         info.dienstende = uhrText(endeBasis)
 
         guard let job = aktiv ?? naechster else { return info }
+        info.hatFahrt = true
         let geplanteAbfahrt = uhrText(job["etd"])
         info.abfahrt = abfahrt(job, jetzt) ?? geplanteAbfahrt
         info.ankunft = ankunft(job, dauer: routenDauer(job), jetzt) ?? "--:--"

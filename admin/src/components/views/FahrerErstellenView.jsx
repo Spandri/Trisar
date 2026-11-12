@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import TrisarFooter from '../ui/TrisarFooter';
 import BackCircleButton from '../ui/BackCircleButton';
 import { supabase, supabaseAdmin } from '../../services/supabase';
-import FahrerStunden from './FahrerStunden';
 import FahrerAutocomplete from '../ui/FahrerAutocomplete';
 import { useI18n } from '../../i18n';
 
@@ -54,7 +53,7 @@ const kontoAufruf = async (body) => {
   return { data: null, code: String(inhalt?.error || antwort.error.message || 'unknown') };
 };
 
-export default function FahrerErstellenView({ setView, initialDriver = null }) {
+export default function FahrerErstellenView({ setView, initialDriver = null, onOpenVehicle = null }) {
   const { t } = useI18n();
   const [scale, setScale] = useState(1);
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
@@ -76,6 +75,8 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
   const [language, setLanguage] = useState('Deutsch');
   const [vehicleId, setVehicleId] = useState('');
   const [driverNumber, setDriverNumber] = useState('');
+  // Stundenlohn in Euro (profiles.stundenlohn), fuer die Einsatzkosten auf der Startseite.
+  const [stundenlohn, setStundenlohn] = useState('');
   const [driverNumberWarning, setDriverNumberWarning] = useState('');
   const [originalEmail, setOriginalEmail] = useState('');
   // Konto: Benutzername + Passwort legt die Disposition selbst an (dispo-admin, konto_anlegen).
@@ -88,7 +89,6 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
   const [trackerImei, setTrackerImei] = useState('');
   const [trackerList, setTrackerList] = useState([]);
   const [showTrackerMenu, setShowTrackerMenu] = useState(false);
-  const [stundenOffen, setStundenOffen] = useState(false);
   const isEditMode = Boolean(initialDriver?.id);
 
   const firstNameRef = useRef(null);
@@ -270,6 +270,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
         setZip(String(data.zip || '').trim());
         setLanguage(String(data.language || 'Deutsch').trim() || 'Deutsch');
         setVehicleId(String(data.vehicle_id || '').trim());
+        setStundenlohn(data.stundenlohn != null ? String(data.stundenlohn).replace('.', ',') : '');
         setDriverNumber(data.driver_number != null ? String(data.driver_number) : (initialDriver?.driverNumber != null ? String(initialDriver.driverNumber) : ''));
         setTrackingMode(data.tracking_mode === 'obd' ? 'obd' : 'app');
         setUsername(String(data.username || ''));
@@ -380,6 +381,7 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
       vehicle_id: vehicleId || null,
       driver_number: parsedDriverNumber,
       tracking_mode: trackingMode,
+      stundenlohn: (() => { const n = Number.parseFloat(String(stundenlohn).replace(',', '.')); return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null; })(),
     };
     console.log('Profil-Payload:', profilePayload);
 
@@ -575,7 +577,8 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
   // Handler für Fahrernummer-Änderung
   // Platz fuer die Ortungs-Zeilen: Auswahl (68) plus bei OBD IMEI-Feld und Hinweiszeile (88).
   // Dazu die Konto-Zeile (Benutzername + Passwort, 68), die alles darunter nach unten schiebt.
-  const trackingRowsHeight = (trackingMode === 'obd' ? 156 : 68) + 68;
+  // Plus die Zeile Stundenlohn / Fahrzeug oeffnen (68, 12.11.).
+  const trackingRowsHeight = (trackingMode === 'obd' ? 156 : 68) + 68 + 68;
   // Im Bearbeiten unten zusaetzlich „Fahrer löschen“ (48 hoch).
   const contentHeight = BASE_HEIGHT + trackingRowsHeight + (isEditMode ? 60 : 0);
 
@@ -599,17 +602,6 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
       <div className="relative shrink-0" style={{ width: `${BASE_WIDTH * scale}px`, height: `${contentHeight * scale}px` }}>
         <div className="absolute left-0 top-0 w-[402px] origin-top-left" style={{ ...screenBg, transform: `scale(${scale})`, height: `${contentHeight}px` }}>
           <BackCircleButton onClick={() => setView('alleFahrer')} className="absolute left-5 top-[60px]" />
-          {/* Stunden des Fahrers: pruefen, Pausen planen, Excel */}
-          {isEditMode ? (
-            <button
-              type="button"
-              onClick={() => setStundenOffen(true)}
-              data-tutorial="fahrer-stunden"
-              className="absolute right-5 top-[66px] h-[38px] px-4 bg-[#E3F654] text-black text-[15px] font-bold z-10"
-            >
-              Stunden
-            </button>
-          ) : null}
 
           <div className="absolute left-0 top-[20px] w-[402px]">
             <h1 className="absolute left-5 top-[120px] text-[#e2f754] text-[42px] leading-[42px] tracking-[-0.5px] font-bold whitespace-nowrap">
@@ -950,6 +942,33 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
               </div>
             )}
 
+            {/* Stundenlohn, daneben (wenn ein Fahrzeug gewaehlt ist) direkt zum Fahrzeug. */}
+            <div
+              className="absolute left-5 h-14 border-2 border-[#e3f654]"
+              style={{ top: `${(driverNumberWarning ? 696 : 674) + trackingRowsHeight - 68}px`, width: vehicleId && onOpenVehicle ? '271px' : '362px' }}
+            >
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8a9728] text-[16px] font-medium pointer-events-none">Stundenlohn €</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={stundenlohn}
+                onChange={(e) => setStundenlohn(e.target.value.replace(/[^\d.,]/g, ''))}
+                placeholder="0,00"
+                aria-label="Stundenlohn in Euro"
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-[90px] bg-transparent border-none outline-none text-right text-[#e3f654] text-[16px] font-bold placeholder:text-[#8a9728] placeholder:opacity-60"
+              />
+            </div>
+            {vehicleId && onOpenVehicle ? (
+              <button
+                type="button"
+                onClick={() => onOpenVehicle(vehicleId)}
+                className="absolute left-[297px] w-[85px] h-14 bg-[#e3f654] text-black text-[14px] font-bold"
+                style={{ top: `${(driverNumberWarning ? 696 : 674) + trackingRowsHeight - 68}px` }}
+              >
+                Fahrzeug
+              </button>
+            ) : null}
+
             <button
               type="button"
               disabled={isSubmitting}
@@ -985,12 +1004,6 @@ export default function FahrerErstellenView({ setView, initialDriver = null }) {
     {/* Footer fest am unteren Rand — ausserhalb des skalierten Inhalts, weil
         position: fixed sich sonst am transform-Elternteil ausrichten wuerde. */}
     <TrisarFooter className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[min(402px,100vw)] h-10 bg-black z-[70]" />
-    {stundenOffen ? (
-      <FahrerStunden
-        fahrer={{ id: initialDriver.id, name: `${firstName} ${lastName}`.trim() || 'Fahrer' }}
-        schliessen={() => setStundenOffen(false)}
-      />
-    ) : null}
     </>
   );
 }

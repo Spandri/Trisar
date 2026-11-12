@@ -32,9 +32,88 @@ data class Ort(
     val punkt get() = GeoPunkt(lat, lng)
 }
 
-/** Die sechs Ort-Icons: grau in Listen und bei der Fahrt, Lime fuer aktiv/ausgewaehlt. */
+/**
+ * Ort-Icons: die sechs alten und die neuen aus werkzeuge/icons-neu. grau in Listen und bei der Fahrt,
+ * Lime fuer ausgewaehlt, schwarz auf dem Lime-Kreis der Karte (Figma 2826-12363).
+ */
 object OrtIcons {
-    val SCHLUESSEL = listOf("pin", "haus", "flughafen_abflug", "flughafen_landung", "fahrzeug", "stern")
+    /** Dateiname und Beschriftung der neuen Icons. */
+    private val NEU = linkedMapOf(
+        "hotel" to ("Hotel_Trisar_Icons_01" to "Hotel"),
+        "bett" to ("Bett_Trisar_Icons_01" to "Bett"),
+        "flughafen_tower" to ("Flughafen_Tower_Trisar_Icons_01" to "Flughafen Tower"),
+        "bahnhof_zug" to ("Bahnhof_Zug_Trisar_Icons_01" to "Bahnhof Zug"),
+        "u_bahn" to ("U_Bahn_Trisar_Icons_01" to "U-Bahn"),
+        "bus" to ("Bus_Trisar_Icons_01" to "Bus"),
+        "taxi" to ("Taxi_Trisar_Icons_01" to "Taxi"),
+        "auto" to ("Auto_Trisar_Icons_01" to "Auto"),
+        "shuttle_van" to ("Shuttle_Van_Trisar_Icons_01" to "Shuttle Van"),
+        "messe_halle" to ("Messe_Halle_Trisar_Icons_01" to "Messe Halle"),
+        "restaurant" to ("Restaurant_Trisar_Icons_01" to "Restaurant"),
+        "bar" to ("Bar_Trisar_Icons_01" to "Bar"),
+        "kaffee" to ("Kaffee_Trisar_Icons_01" to "Kaffee"),
+        "buero" to ("Buero_Trisar_Icons_01" to "Büro"),
+        "zuhause" to ("Zuhause_Trisar_Icons_01" to "Zuhause"),
+        "krankenhaus" to ("Krankenhaus_Trisar_Icons_01" to "Krankenhaus"),
+        "parkplatz" to ("Parkplatz_Trisar_Icons_01" to "Parkplatz"),
+        "tankstelle" to ("Tankstelle_Trisar_Icons_01" to "Tankstelle"),
+        "einkaufen" to ("Einkaufen_Trisar_Icons_01" to "Einkaufen"),
+        "berge" to ("Berge_Trisar_Icons_01" to "Berge"),
+        "hafen_schiff" to ("Hafen_Schiff_Trisar_Icons_01" to "Hafen Schiff"),
+        "flughafen_terminal" to ("Flughafen_Terminal_Trisar_Icons_01" to "Flughafen Terminal"),
+        "bahnhof_gebaeude" to ("Bahnhof_Gebaeude_Trisar_Icons_01" to "Bahnhof Gebäude"),
+        "kongress" to ("Kongress_Trisar_Icons_01" to "Kongress"),
+        "stadion" to ("Stadion_Trisar_Icons_01" to "Stadion"),
+        "museum_bank" to ("Museum_Bank_Trisar_Icons_01" to "Museum Bank"),
+        "rathaus" to ("Rathaus_Trisar_Icons_01" to "Rathaus"),
+        "kirche" to ("Kirche_Trisar_Icons_01" to "Kirche"),
+        "burg_schloss" to ("Burg_Schloss_Trisar_Icons_01" to "Burg Schloss"),
+        "universitaet" to ("Universitaet_Trisar_Icons_01" to "Universität"),
+        "fabrik" to ("Fabrik_Trisar_Icons_01" to "Fabrik"),
+        "lager" to ("Lager_Trisar_Icons_01" to "Lager"),
+        "garage_werkstatt" to ("Garage_Werkstatt_Trisar_Icons_01" to "Garage Werkstatt"),
+        "stadt_hochhaeuser" to ("Stadt_Hochhaeuser_Trisar_Icons_01" to "Stadt Hochhäuser"),
+        "hochhaus" to ("Hochhaus_Trisar_Icons_01" to "Hochhaus"),
+        "parkhaus" to ("Parkhaus_Trisar_Icons_01" to "Parkhaus"),
+        "ladestation" to ("Ladestation_Trisar_Icons_01" to "Ladestation"),
+        "geschaeft" to ("Geschaeft_Trisar_Icons_01" to "Geschäft"),
+        "apotheke" to ("Apotheke_Trisar_Icons_01" to "Apotheke"),
+        "sicherheit_polizei" to ("Sicherheit_Polizei_Trisar_Icons_01" to "Sicherheit Polizei"),
+        "botschaft" to ("Botschaft_Trisar_Icons_01" to "Botschaft"),
+        "festzelt" to ("Festzelt_Trisar_Icons_01" to "Festzelt"),
+        "fernsehturm" to ("Fernsehturm_Trisar_Icons_01" to "Fernsehturm"),
+        "bruecke" to ("Bruecke_Trisar_Icons_01" to "Brücke"),
+        "fitness" to ("Fitness_Trisar_Icons_01" to "Fitness"),
+        "kino" to ("Kino_Trisar_Icons_01" to "Kino"),
+        "biergarten" to ("Biergarten_Trisar_Icons_01" to "Biergarten"),
+        "uhr" to ("Uhr_Trisar_Icons_01" to "Uhr"),
+        "kalender" to ("Kalender_Trisar_Icons_01" to "Kalender"),
+        "tag_sonne" to ("Tag_Sonne_Trisar_Icons_01" to "Tag Sonne"),
+        "nacht_mond" to ("Nacht_Mond_Trisar_Icons_01" to "Nacht Mond"),
+        "regen_schirm" to ("Regen_Schirm_Trisar_Icons_01" to "Regen Schirm"),
+        "ziel_flagge" to ("Ziel_Flagge_Trisar_Icons_01" to "Ziel Flagge"),
+        "route" to ("Route_Trisar_Icons_01" to "Route"),
+        "navigation" to ("Navigation_Trisar_Icons_01" to "Navigation"),
+        "lenkrad_fahrer" to ("Lenkrad_Fahrer_Trisar_Icons_01" to "Lenkrad Fahrer"),
+        "schluessel" to ("Schluessel_Trisar_Icons_01" to "Schlüssel"),
+        "fahrrad" to ("Fahrrad_Trisar_Icons_01" to "Fahrrad"),
+        "rollkoffer" to ("Rollkoffer_Trisar_Icons_01" to "Rollkoffer"),
+        "ticket" to ("Ticket_Trisar_Icons_01" to "Ticket"),
+        "vip_krone" to ("Vip_Krone_Trisar_Icons_01" to "VIP Krone"),
+        "musik_band" to ("Musik_Band_Trisar_Icons_01" to "Musik Band"),
+        "mikrofon_kongress" to ("Mikrofon_Kongress_Trisar_Icons_01" to "Mikrofon Kongress"),
+        "international" to ("International_Trisar_Icons_01" to "International"),
+        "kreditkarte" to ("Kreditkarte_Trisar_Icons_01" to "Kreditkarte"),
+        "dokument" to ("Dokument_Trisar_Icons_01" to "Dokument"),
+        "glocke" to ("Glocke_Trisar_Icons_01" to "Glocke"),
+        "schloss" to ("Schloss_Trisar_Icons_01" to "Schloss"),
+        "info" to ("Info_Trisar_Icons_01" to "Info"),
+        "warnung" to ("Warnung_Trisar_Icons_01" to "Warnung"),
+        "check" to ("Check_Trisar_Icons_01" to "Check"),
+        "schliessen" to ("Schliessen_Trisar_Icons_01" to "Schließen"),
+        "plus" to ("Plus_Trisar_Icons_01" to "Plus"),
+    )
+    val SCHLUESSEL = listOf("pin", "haus", "flughafen_abflug", "flughafen_landung", "fahrzeug", "stern") + NEU.keys
 
     private fun basis(k: String): String = when (k) {
         "haus" -> "House_Nav_Trisar_01"
@@ -42,11 +121,17 @@ object OrtIcons {
         "flughafen_landung" -> "Plain_Landen_Trisar_Icons_01"
         "fahrzeug" -> "Vehicle_Nav_Trisar_01"
         "stern" -> "Stern_Trisar_Icon_01"
-        else -> "Pin_Nav_Trisar_Icons_01"
+        else -> NEU[k]?.first ?: "Pin_Nav_Trisar_Icons_01"
     }
 
     fun grau(k: String) = basis(k) + "_grau"
     fun lime(k: String) = basis(k) + "_Lime"
+    fun schwarz(k: String) = when (k) {
+        "fahrzeug" -> "vehicle-car-small"
+        "stern" -> "Stern_Trisar_Icon_01_schwarz"
+        else -> basis(k)
+    }
+    fun titel(k: String) = NEU[k]?.second ?: k
 }
 
 /**

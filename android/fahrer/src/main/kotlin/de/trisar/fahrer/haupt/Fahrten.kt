@@ -9,6 +9,7 @@ import de.trisar.kern.EigeneOrte
 import de.trisar.kern.FahrzeugZeile
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Count
 import io.github.jan.supabase.postgrest.query.Order
@@ -85,9 +86,19 @@ data class DienstAnfrage(
     val service_start_time: String? = null,
     val service_end_time: String? = null,
     val status: String? = null,
+    /** Geplante Pausen (dienst_pausen) und der zuletzt angenommene Stand (dienst_aenderung).
+     *  Ohne vorher ist es ein ganz neuer Dienst, sonst zeigt die Anfrage nur das Geaenderte. */
+    val pausen: List<DienstPausenZeit> = emptyList(),
+    val vorher: DienstVorher? = null,
 ) {
     val angenommen get() = status.orEmpty().lowercase() == "accepted"
 }
+
+@Serializable data class DienstPausenZeit(val von: String? = null, val bis: String? = null)
+/** Zuletzt angenommener Stand eines geaenderten Dienstes (dienst_aenderung.vorher). */
+@Serializable data class DienstVorher(val start: String? = null, val ende: String? = null, val pausen: List<DienstPausenZeit> = emptyList())
+@Serializable private data class PausenZeile(val dienst_id: String, val pausen: List<DienstPausenZeit>? = null)
+@Serializable private data class AenderungZeile(val dienst_id: String, val vorher: DienstVorher? = null)
 
 @Serializable private data class ProfilFahrzeug(val vehicle_id: String? = null)
 @Serializable private data class KolonnenLink(val job_id: String? = null, val response_status: String? = null)
@@ -221,6 +232,62 @@ object KolonnenUngelesen {
  * Laedt Fahrten, Fahrzeug und Dienstanfragen des Fahrers, haelt sie per Realtime aktuell.
  * Gleiche Abfragen wie loadData() in FahrerApp.jsx (FahrtenSpeicher in iOS).
  */
+/**
+ * Annehmen / Ablehnen in der Datenbank (handleJobAction der Web-App). Gemeinsam fuer die
+ * Fahrtenliste und die Knoepfe in der Mitteilung (FahrtAntwortEmpfaenger), damit beide gleich wirken.
+ */
+object FahrtAntwort {
+    suspend fun senden(fahrer: String, fahrtID: String, istKolonne: Boolean, annehmen: Boolean, grund: String? = null) {
+        val jetzt = Datum.iso()
+        val ablehnGrund = if (annehmen) null else grund?.trim()?.ifEmpty { null } ?: "Fahrer hat die Fahrt abgelehnt."
+        if (istKolonne) {
+            Backend.client.from("convoy_assignments").upsert(buildJsonObject {
+                put("job_id", fahrtID); put("driver_id", fahrer)
+                put("response_status", if (annehmen) "accepted" else "refused")
+                put("responded_at", jetzt)
+                put("refusal_reason", ablehnGrund?.let { JsonPrimitive(it) } ?: JsonNull)
+            }) { onConflict = "job_id,driver_id" }
+        } else {
+            val ergebnis = Backend.client.from("jobs").update(buildJsonObject {
+                put("status", if (annehmen) "assigned" else "refused")
+                put("refused_by_driver_id", if (annehmen) JsonNull else JsonPrimitive(fahrer))
+                put("refusal_reason", ablehnGrund?.let { JsonPrimitive(it) } ?: JsonNull)
+                put("driver_response_status", if (annehmen) "accepted" else "refused")
+                put("driver_responded_at", jetzt)
+            }) {
+                select(Columns.raw("id"))
+                filter { eq("id", fahrtID); eq("driver_id", fahrer) }
+            }.liste<IDZeile>()
+            if (ergebnis.isEmpty()) throw IllegalStateException("Status konnte nicht gespeichert werden (keine Berechtigung).")
+        }
+        if (annehmen) {
+            // Route und Anfahrt berechnen lassen, wie die Web-App nach dem Annehmen.
+            runCatching {
+                Backend.client.functions.invoke("external-sync", body = buildJsonObject {
+                    put("reason", "live_view")
+                    put("job_ids", buildJsonArray { add(JsonPrimitive(fahrtID)) })
+                    put("requested_by", fahrer)
+                })
+            }
+        }
+    }
+
+    /** Kolonnenfahrt wie in laden(): convoy_id gesetzt oder Zuordnungen in convoy_assignments. */
+    suspend fun istKolonne(fahrtID: String): Boolean {
+        val zeile = Backend.client.from("jobs").select(Columns.raw("id,convoy_id")) {
+            filter { eq("id", fahrtID) }; limit(1)
+        }.liste<KolonnenFahrt>().firstOrNull()
+        if (zeile?.convoy_id != null) return true
+        return runCatching {
+            Backend.client.from("convoy_assignments").select(Columns.raw("job_id")) {
+                filter { eq("job_id", fahrtID) }; limit(1)
+            }.liste<KolonnenLink>().isNotEmpty()
+        }.getOrDefault(false)
+    }
+}
+
+@Serializable private data class KolonnenFahrt(val id: String, val convoy_id: String? = null)
+
 class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
     val fahrten = MutableStateFlow<List<Fahrt>>(emptyList())
     val fahrzeug = MutableStateFlow<FahrzeugZeile?>(null)
@@ -339,7 +406,17 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
                         zwischenstopps = z.zwischenstopps.orEmpty(),
                     )
                 }
-                dienstAnfragen.value = dienste
+                // Pausen und gemerkte Aenderung je Dienst dazu (fuer die Zeilen der Anfrage).
+                val dienstIDs = dienste.map { it.id }
+                val pausenJe = if (dienstIDs.isEmpty()) emptyMap() else runCatching {
+                    Backend.client.from("dienst_pausen").select(Columns.raw("dienst_id,pausen")) { filter { isIn("dienst_id", dienstIDs) } }
+                        .liste<PausenZeile>().associate { it.dienst_id to it.pausen.orEmpty() }
+                }.getOrDefault(emptyMap())
+                val vorherJe = if (dienstIDs.isEmpty()) emptyMap() else runCatching {
+                    Backend.client.from("dienst_aenderung").select(Columns.raw("dienst_id,vorher")) { filter { isIn("dienst_id", dienstIDs) } }
+                        .liste<AenderungZeile>().mapNotNull { z -> z.vorher?.let { z.dienst_id to it } }.toMap()
+                }.getOrDefault(emptyMap())
+                dienstAnfragen.value = dienste.map { it.copy(pausen = pausenJe[it.id].orEmpty(), vorher = vorherJe[it.id]) }
                 // Eigene Orte einmal laden (Icon je Ort), nur lesen.
                 if (sichtbar.any { it.pickup_ort_id != null || it.dropoff_ort_id != null }) EigeneOrte.einmalLaden()
 
@@ -382,39 +459,8 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
             if (f.id != fahrt.id) f else if (f.istKolonne) f.copy(meineAntwort = "accepted") else f.copy(status = "assigned")
         } else vorher.filter { it.id != fahrt.id }
         arbeitet.value = true
-        val jetzt = Datum.iso()
-        val ablehnGrund = if (annehmen) null else grund?.trim()?.ifEmpty { null } ?: "Fahrer hat die Fahrt abgelehnt."
         try {
-            if (fahrt.istKolonne) {
-                Backend.client.from("convoy_assignments").upsert(buildJsonObject {
-                    put("job_id", fahrt.id); put("driver_id", fahrer)
-                    put("response_status", if (annehmen) "accepted" else "refused")
-                    put("responded_at", jetzt)
-                    put("refusal_reason", ablehnGrund?.let { JsonPrimitive(it) } ?: JsonNull)
-                }) { onConflict = "job_id,driver_id" }
-            } else {
-                val ergebnis = Backend.client.from("jobs").update(buildJsonObject {
-                    put("status", if (annehmen) "assigned" else "refused")
-                    put("refused_by_driver_id", if (annehmen) JsonNull else JsonPrimitive(fahrer))
-                    put("refusal_reason", ablehnGrund?.let { JsonPrimitive(it) } ?: JsonNull)
-                    put("driver_response_status", if (annehmen) "accepted" else "refused")
-                    put("driver_responded_at", jetzt)
-                }) {
-                    select(Columns.raw("id"))
-                    filter { eq("id", fahrt.id); eq("driver_id", fahrer) }
-                }.liste<IDZeile>()
-                if (ergebnis.isEmpty()) throw IllegalStateException("Status konnte nicht gespeichert werden (keine Berechtigung).")
-            }
-            if (annehmen) {
-                // Route und Anfahrt berechnen lassen, wie die Web-App nach dem Annehmen.
-                runCatching {
-                    Backend.client.functions.invoke("external-sync", body = buildJsonObject {
-                        put("reason", "live_view")
-                        put("job_ids", buildJsonArray { add(JsonPrimitive(fahrt.id)) })
-                        put("requested_by", fahrer)
-                    })
-                }
-            }
+            FahrtAntwort.senden(fahrer, fahrt.id, fahrt.istKolonne, annehmen, grund)
             arbeitet.value = false
             return true
         } catch (e: Exception) {
@@ -433,11 +479,11 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             dienstArbeitetID.value = anfrage.id
             try {
-                Backend.client.from("driver_service_requests").update(buildJsonObject {
-                    put("status", if (annehmen) "accepted" else "refused")
-                    put("responded_at", Datum.iso())
-                    put("refusal_reason", if (annehmen) JsonNull else JsonPrimitive("Fahrer hat den Dienstplan abgelehnt."))
-                }) { filter { eq("id", anfrage.id); eq("driver_id", fahrer) } }
+                // Datenbank-Funktion dienst_antworten: lehnt der Fahrer nur eine Aenderung ab, gilt wieder
+                // der alte Stand (Zeiten und Pausen) und der Dienst bleibt angenommen.
+                val ergebnis = Backend.client.postgrest.rpc("dienst_antworten", buildJsonObject {
+                    put("p_id", anfrage.id); put("p_annehmen", annehmen)
+                }).data.trim().trim('"')
                 if (annehmen) {
                     Backend.client.from("profiles").update(buildJsonObject {
                         put("service_start_time", anfrage.service_start_time?.let { JsonPrimitive(it) } ?: JsonNull)
@@ -447,7 +493,12 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
                     }) { filter { eq("id", fahrer) } }
                 }
                 dienstAnfragen.value = dienstAnfragen.value.mapNotNull { e ->
-                    if (e.id != anfrage.id) e else if (annehmen) e.copy(status = "accepted") else null
+                    if (e.id != anfrage.id) e else when (ergebnis) {
+                        "accepted" -> e.copy(status = "accepted", vorher = null)
+                        "zurueckgesetzt" -> e.copy(status = "accepted", service_start_time = e.vorher?.start,
+                            service_end_time = e.vorher?.ende, pausen = e.vorher?.pausen.orEmpty(), vorher = null)
+                        else -> null
+                    }
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e

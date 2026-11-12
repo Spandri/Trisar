@@ -11,6 +11,7 @@ import TrisarFooter from '../../components/ui/TrisarFooter';
 import FahrtenScreen01View from './views/FahrtenScreen01View';
 import ProfilFahrerView from './views/ProfilFahrerView';
 import Verlauf from './views/Verlauf';
+import { zuZeitpunkt } from './views/Stunden';
 import SettingsFahrer from './views/SettingsFahrer';
 import AnsprechpartnerView from './views/AnsprechpartnerView';
 import VehicleView from './views/VehicleView';
@@ -62,6 +63,7 @@ import {
 import { MAP_FAHRER_STANDORT_URL, MAP_FLAG_PIN_URL, MAP_PERSON_PIN_URL } from '../../shared/ui/icons';
 import { routeTeilen, istAmEnde } from '../../shared/karte/routenFortschritt';
 import { gaesteText } from '../../shared/gaesteAnzeige';
+import { standbyEnde, useFahrerStandbys } from '../../shared/standby';
 
 // Verhindert doppeltes Einloesen, wenn der Effekt zweimal laeuft.
 let nfcLaeuft = false;
@@ -1610,6 +1612,8 @@ const FahrerApp = () => {
 
   const [jobs, setJobs] = useState([]);
   const [serviceRequests, setServiceRequests] = useState([]);
+  // Standby am Event-Ort: eigene Anfragen und angenommene Standbys mit Zustand (live).
+  const { liste: standbyListe, antworten: standbyAntworten, melden: standbyMelden } = useFahrerStandbys(session?.user?.id);
   const [serviceRequestActionBusyId, setServiceRequestActionBusyId] = useState(null);
   const [newJob, setNewJob] = useState({
     tripType: 'airport',
@@ -2624,7 +2628,19 @@ const FahrerApp = () => {
         const nextJobs = (formattedJobs || []).filter(Boolean);
         setJobs(nextJobs);
         jobsRef.current = nextJobs;
-        setServiceRequests(Array.isArray(serviceRequestsResult?.data) ? serviceRequestsResult.data : []);
+        // Pausen und gemerkte Aenderung (dienst_aenderung) je Dienst dazu: daraus baut die Liste die
+        // Zeilen der Anfrage (nur was sich geaendert hat) und die Pausen-Zeilen zwischen den Fahrten.
+        const anfragenRoh = Array.isArray(serviceRequestsResult?.data) ? serviceRequestsResult.data : [];
+        const anfrageIds = anfragenRoh.map((r) => r.id).filter(Boolean);
+        const [{ data: pausenZeilen }, { data: aenderungen }] = anfrageIds.length && !DEMO_MODE
+          ? await Promise.all([
+            supabase.from('dienst_pausen').select('dienst_id,pausen').in('dienst_id', anfrageIds).then((r) => (r.error ? { data: [] } : r)),
+            supabase.from('dienst_aenderung').select('dienst_id,vorher').in('dienst_id', anfrageIds).then((r) => (r.error ? { data: [] } : r)),
+          ])
+          : [{ data: [] }, { data: [] }];
+        const pausenJe = new Map((pausenZeilen || []).map((z) => [z.dienst_id, z.pausen || []]));
+        const vorherJe = new Map((aenderungen || []).map((z) => [z.dienst_id, z.vorher]));
+        setServiceRequests(anfragenRoh.map((r) => ({ ...r, pausen: pausenJe.get(r.id) || [], vorher: vorherJe.get(r.id) || null })));
         setSelectedJob((prev) => {
           if (!prev?.id) return prev;
           const refreshed = nextJobs.find((job) => job.id === prev.id);
@@ -3275,6 +3291,37 @@ const FahrerApp = () => {
 
     setServiceRequestActionBusyId(normalizedRequestId);
     try {
+      // Live: Datenbank-Funktion dienst_antworten. Lehnt der Fahrer nur eine Aenderung ab, gilt wieder
+      // der alte Stand (Zeiten und Pausen), dann frisch laden.
+      if (!DEMO_MODE) {
+        const { data: ergebnis, error: rpcError } = await supabase.rpc('dienst_antworten', {
+          p_id: normalizedRequestId, p_annehmen: normalizedAction === 'accept',
+        });
+        if (!rpcError) {
+          if (normalizedAction === 'accept') {
+            await supabase.from('profiles').update({
+              service_start_time: request.service_start_time || null,
+              service_end_time: request.service_end_time || null,
+              service_start_date: request.service_date || null,
+              service_end_date: request.service_date || null,
+            }).eq('id', ownDriverId);
+          }
+          if (ergebnis === 'zurueckgesetzt') {
+            // Alter Stand gilt wieder: Zeiten und Pausen aus vorher, Dienst angenommen.
+            const v = request.vorher || {};
+            setServiceRequests((prev) => (Array.isArray(prev) ? prev : []).map((entry) => (String(entry?.id || '').trim() === normalizedRequestId
+              ? { ...entry, status: 'accepted', service_start_time: v.start || null, service_end_time: v.ende || null, pausen: v.pausen || [], vorher: null }
+              : entry)));
+          } else {
+            const status = ergebnis === 'accepted' ? 'accepted' : 'refused';
+            setServiceRequests((prev) => (Array.isArray(prev) ? prev : [])
+              .map((entry) => (String(entry?.id || '').trim() === normalizedRequestId ? { ...entry, status, vorher: null } : entry))
+              .filter((entry) => String(entry?.status || '').toLowerCase() !== 'refused'));
+          }
+          return true;
+        }
+        if (!/dienst_antworten/.test(String(rpcError.message || ''))) throw rpcError;
+      }
       const nextStatus = normalizedAction === 'accept' ? 'accepted' : 'refused';
       const requestPayload = {
         status: nextStatus,
@@ -3449,6 +3496,20 @@ await supabase.auth.signOut({ scope: 'local' });
   // Live: Profil (und Fahrzeug) auch ohne Fahrten erreichbar, die Demo bleibt wie bisher.
   const noTripsProfileHandler = DEMO_MODE ? undefined : () => setView('profilFahrer');
   const noTripsVehicleHandler = DEMO_MODE ? undefined : () => setView('vehicle');
+  // Offene Dienstanfrage oder angenommener Dienst ab heute: Liste statt "Keine Fahrt"
+  // (sonst sah der Fahrer nach der Push nichts, wenn er an dem Tag keine Fahrten hat, 12.11.).
+  const heuteBerlin = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+  const dienstSichtbar = standbyListe.some((st) => st.status === 'pending' || standbyEnde(st).getTime() > Date.now())
+    || (Array.isArray(serviceRequests) ? serviceRequests : []).some((r) => {
+    const status = String(r?.status || 'pending').toLowerCase();
+    const tag = String(r?.serviceDate || r?.service_date || '').slice(0, 10);
+    if (status === 'pending') return true;
+    if (status !== 'accepted') return false;
+    // Angenommen: bis Dienstende (Nachtdienst: Folgetag).
+    const start = zuZeitpunkt(tag, String(r?.serviceStartTime || r?.service_start_time || '').slice(0, 5));
+    const ende = zuZeitpunkt(tag, String(r?.serviceEndTime || r?.service_end_time || '').slice(0, 5), start);
+    return ende ? new Date(ende).getTime() > Date.now() : tag >= heuteBerlin;
+  });
   const noTripsScreen = currentVehicle
     ? <KeineFahrtTrisar currentVehicle={currentVehicle} onLogout={handleLogout} onOpenProfile={noTripsProfileHandler} onOpenVehicle={noTripsVehicleHandler} />
     : <KeinAuto onLogout={handleLogout} onOpenProfile={noTripsProfileHandler} nfcHinweis={DEMO_MODE ? null : t('app.noVehicleNfc')} />;
@@ -3673,9 +3734,9 @@ await supabase.auth.signOut({ scope: 'local' });
       case 'keineFahrt':
         return noTripsScreen;
       case 'list':
-        return jobs && jobs.length === 0
+        return jobs && jobs.length === 0 && !dienstSichtbar
           ? noTripsScreen
-          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} />;
+          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} standbys={standbyListe} onStandbyAntworten={standbyAntworten} onStandbyMelden={standbyMelden} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} />;
       case 'vehicle':
         return <VehicleView setView={setView} vehicle={currentVehicle} damages={vehicleDamages} onAddDamage={addVehicleDamage} standort={fahrzeugStandort} driverId={session?.user?.id || null} />;
       case 'details':
@@ -3699,9 +3760,9 @@ await supabase.auth.signOut({ scope: 'local' });
       case 'kolonnenChat':
         return <KolonnenChat setView={setView} selectedJob={selectedJob} messages={messages} setMessages={setMessages} currentUserId={session?.user?.id} />;
       default:
-        return jobs && jobs.length === 0
+        return jobs && jobs.length === 0 && !dienstSichtbar
           ? noTripsScreen
-          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} />;
+          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} standbys={standbyListe} onStandbyAntworten={standbyAntworten} onStandbyMelden={standbyMelden} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} />;
     }
   };
 

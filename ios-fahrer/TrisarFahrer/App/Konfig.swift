@@ -13,6 +13,11 @@ enum Konfig {
     static let verlaufIntervall: TimeInterval = 15
     /// Ortungsart und aktive Fahrt neu laden.
     static let profilIntervall: TimeInterval = 60
+    /// Steht das Handy still, kommen keine neuen Punkte (distanceFilter 10 m). Dann den letzten
+    /// Standort spaetestens nach dieser Zeit mit aktueller Uhrzeit nochmal senden. Die Dispo-Karte
+    /// faerbt das Signal ab 1 min orange und zeigt ab 5 min "kein Signal", "Fahrt ohne Start"
+    /// nimmt Standorte bis 15 min. 30 s halten die Anzeige frisch.
+    static let stillstandIntervall: TimeInterval = 30
 
     /// Kennung in `source`, damit man in der Datenbank sieht, woher der Punkt kommt.
     static let quelle = "ios_app"

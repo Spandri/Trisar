@@ -18,9 +18,49 @@ final class Push: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     private var token: String?
     private var angemeldet = false
 
+    /// Nur Fahrer-App: fuehrt Annehmen/Ablehnen aus einer Mitteilung aus (job_id, annehmen).
+    /// Die Dispo-App setzt nichts, dort bleiben die Knoepfe ohne Wirkung.
+    var fahrtAntwort: (@MainActor (String, Bool) async -> Bool)?
+
+    /// Kategorien wie in push-dienst.js (aps.category). Auf der Apple Watch erscheinen die Knoepfe
+    /// in der gespiegelten Mitteilung, ausgefuehrt werden sie hier auf dem iPhone.
+    static let kategorieFahrt = "TRISAR_FAHRT_ANTWORT"
+    static let kategorieWarnung = "TRISAR_DISPO_WARNUNG"
+
     func einrichten(app: String) {
         self.app = app
-        UNUserNotificationCenter.current().delegate = self
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        let annehmen = UNNotificationAction(identifier: "ANNEHMEN", title: "Annehmen", options: [])
+        let ablehnen = UNNotificationAction(identifier: "ABLEHNEN", title: "Ablehnen", options: [.destructive])
+        let oeffnen = UNNotificationAction(identifier: "OEFFNEN", title: "Öffnen", options: [.foreground])
+        center.setNotificationCategories([
+            UNNotificationCategory(identifier: Self.kategorieFahrt, actions: [annehmen, ablehnen], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: Self.kategorieWarnung, actions: [oeffnen], intentIdentifiers: [], options: []),
+        ])
+    }
+
+    /// Annehmen/Ablehnen ohne die App zu oeffnen. iOS gibt der App im Hintergrund nur kurz Zeit,
+    /// deshalb mit beginBackgroundTask. Klappt es nicht, kommt eine lokale Mitteilung.
+    fileprivate func antwortAusfuehren(jobID: String, annehmen: Bool) async {
+        guard app == "fahrer", let fahrtAntwort else { return }
+        var hintergrund = UIBackgroundTaskIdentifier.invalid
+        hintergrund = UIApplication.shared.beginBackgroundTask(withName: "push-antwort") {
+            UIApplication.shared.endBackgroundTask(hintergrund)
+            hintergrund = .invalid
+        }
+        let ok = await fahrtAntwort(jobID, annehmen)
+        if !ok {
+            let inhalt = UNMutableNotificationContent()
+            inhalt.title = "TRISAR"
+            inhalt.body = annehmen ? "Fahrt konnte nicht angenommen werden. Bitte in der App versuchen."
+                                   : "Fahrt konnte nicht abgelehnt werden. Bitte in der App versuchen."
+            inhalt.sound = .default
+            inhalt.userInfo = ["ziel": "fahrt", "job_id": jobID]
+            try? await UNUserNotificationCenter.current().add(
+                UNNotificationRequest(identifier: "antwort-\(jobID)", content: inhalt, trigger: nil))
+        }
+        if hintergrund != .invalid { UIApplication.shared.endBackgroundTask(hintergrund) }
     }
 
     /// Nach erfolgreicher Anmeldung: Erlaubnis holen und Geraet registrieren.
@@ -70,6 +110,14 @@ final class Push: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
         for (k, v) in antwort.notification.request.content.userInfo {
             if let k = k as? String, let v = v as? String { werte[k] = v }
         }
+        let aktion = antwort.actionIdentifier
+        if aktion == "ANNEHMEN" || aktion == "ABLEHNEN", let job = werte["job_id"] {
+            Task { @MainActor in
+                await Push.shared.antwortAusfuehren(jobID: job, annehmen: aktion == "ANNEHMEN")
+                fertig()
+            }
+            return
+        }
         Task { @MainActor in Push.shared.ziel = werte }
         fertig()
     }
@@ -111,6 +159,9 @@ enum PushArten {
                arten: ["dispo_dienst_angenommen", "dispo_dienst_abgelehnt"]),
         Gruppe(id: "chat", titel: "Kolonnen-Chat", arten: ["chat"]),
         Gruppe(id: "schaden", titel: "Schadensmeldungen", arten: ["dispo_schaden"]),
+        Gruppe(id: "ohne_signal", titel: "Fahrer seit 5 Minuten ohne Signal", arten: ["dispo_ohne_signal"]),
+        Gruppe(id: "ohne_fahrer", titel: "Fahrt beginnt bald und hat keinen Fahrer", arten: ["dispo_ohne_fahrer"]),
+        Gruppe(id: "verspaetet", titel: "Fahrer kommt zu spät zur Abholung", arten: ["dispo_verspaetet"]),
     ]
 }
 

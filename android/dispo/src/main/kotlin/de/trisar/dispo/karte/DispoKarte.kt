@@ -1,5 +1,9 @@
 package de.trisar.dispo.karte
 
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import de.trisar.dispo.Flaggen
 import android.content.Context
 import android.view.Gravity
 import androidx.compose.foundation.background
@@ -75,6 +79,8 @@ internal data class KartenStand(
     /** Eigene Orte als Icon-Marker, der gewaehlte zeigt seine beiden Kreise. */
     val orte: List<Ort> = emptyList(),
     val ortGewaehlt: String? = null,
+    /** Mehrfachauswahl an: markierte Fahrer normal, alle anderen blass. null = aus. */
+    val markiert: Set<String>? = null,
 )
 
 /**
@@ -150,14 +156,17 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
     for (o in stand.orte) {
         val (x, y) = bild(KartenPunkt(o.lat, o.lng))
         val an = o.id == stand.ortGewaehlt
-        OrtMarke(o.icon, an, Modifier.ankern(x, y, 0.5f, 0.5f).zIndex(if (an) 190f else 100f).tippen { ortTippen(o.id) })
-        if (an) OrtSchild(o, Modifier.ankern(x, y - 22f, 0.5f, 1f).zIndex(195f))
+        OrtMarke(o.icon, an, Modifier.ankern(x, y, 0.5f, 0.5f).zIndex(if (an) 2600f else 2500f).tippen { ortTippen(o.id) })
+        // Gespeicherte Orte liegen ueber allen Fahrern (die gehen bis 2000).
+        // Gewaehlter Ort: nur die Radien, kein Schild darueber (Figma 2826-12363).
     }
 
     val gewaehltID = stand.gewaehlt?.id
     val kolonne = stand.gewaehlt?.fahrt?.kolonnenFahrerIDs?.toSet() ?: emptySet()
-    val einzeln = kolonne + listOfNotNull(gewaehltID)
-    val fokus = stand.gewaehlt != null
+    val markiert = stand.markiert
+    // Bei der Mehrfachauswahl bleiben die markierten Fahrer einzeln antippbar.
+    val einzeln = kolonne + listOfNotNull(gewaehltID) + (markiert ?: emptySet())
+    val fokus = stand.gewaehlt != null || markiert != null
 
     // updateDriverClusters: Gruppen erst ab fuenf Fahrern, deren Pins (35) sich beruehren.
     // Der gewaehlte Fahrer und seine Kolonne bleiben immer einzeln.
@@ -200,10 +209,28 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
         val istGewaehlt = gewaehltID == f.id
         val inKolonne = f.id in kolonne
         // Fokus: ist ein Fahrer gewaehlt, treten alle anderen zurueck (ausser seiner Kolonne).
-        val blass = gewaehltID != null && !istGewaehlt && !inKolonne
-        val hoehe = if (istGewaehlt) 2000f else if (blass) 200f else if (inKolonne) 1500f else 1000f
+        val blass = if (markiert != null) f.id !in markiert else gewaehltID != null && !istGewaehlt && !inKolonne
+        val hoehe = if (istGewaehlt) 2000f else if (blass) 200f else if (inKolonne || markiert != null) 1500f else 1000f
         val (x, y) = bild(f.ort)
         val name = f.zustand.pinBild(f.zuendungAus)
+        if (f.offline) {
+            // Kein Signal seit 5 Minuten (Figma 2823-12621): dunkler Grund, grauer Kreis 50 %, roter Punkt
+            // unten rechts, Nummer weiss, Signalbalken im Punkt. Mitte auf dem letzten Ort.
+            Box(Modifier.ankern(x, y, 0.5f, 0.5f).zIndex(hoehe).size(36.dp, 35.dp).tippen { waehlen(f.id) }) {
+                if (blass) Icon("Fahrer_Offline_Grund_Trisar_01", Modifier.size(35.dp), farbe = ColorFilter.tint(hex(0x0E0E0E)))
+                Box(Modifier.fillMaxSize().alpha(if (blass) 0.3f else 1f)) {
+                    Icon("Fahrer_Offline_Grund_Trisar_01", Modifier.size(35.dp))
+                    Icon("Fahrer_Offline_Trisar_01", Modifier.size(35.dp).alpha(0.5f))
+                    Box(Modifier.padding(top = 5.5.dp).size(35.dp, 24.dp), contentAlignment = Alignment.Center) {
+                        Text(f.nummer ?: "?", style = grotesk(15f, 700, farbe = androidx.compose.ui.graphics.Color.White), textAlign = TextAlign.Center, maxLines = 1)
+                    }
+                }
+                // Punkt und Balken bleiben immer voll, auch wenn ein anderer Fahrer gewaehlt ist.
+                Icon("Fahrer_Offline_Punkt_Trisar_01", Modifier.padding(start = 22.dp, top = 21.dp).size(14.dp))
+                Icon("Fahrer_Offline_Balken_Trisar_01", Modifier.padding(start = 25.3.dp, top = 25.dp).size(8.15.dp, 5.41667.dp))
+            }
+            continue
+        }
         // Fahrer-Pin 35 x 41,14, Spitze auf dem Ort, Nummer (15 fett, #1A1A1A) mittig im Kopf.
         Box(Modifier.ankern(x, y, 0.5f, 1f).zIndex(hoehe).size(35.dp, 41.1367.dp).tippen { waehlen(f.id) }) {
             if (blass) Icon(name, Modifier.fillMaxSize(), farbe = ColorFilter.tint(hex(0x0E0E0E)))
@@ -212,6 +239,19 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
                 Box(Modifier.padding(top = 5.5.dp).size(35.dp, 24.dp), contentAlignment = Alignment.Center) {
                     Text(f.nummer ?: "?", style = grotesk(15f, 700, farbe = hex(0x1A1A1A)), textAlign = TextAlign.Center, maxLines = 1)
                 }
+            }
+            // Flagge im runden Kopf oben rechts, am Rand des Kreises abgeschnitten (Figma 2900:41598).
+            // Eine schwarze Kopie knapp dahinter ergibt die duenne Umrandung, bleibt immer voll.
+            Flaggen.nachID(f.flagge)?.let { fl ->
+                Box(Modifier.size(35.dp).clip(CircleShape)) {
+                    Icon(fl.voll, Modifier.offset(20.2.dp, (-4.3).dp).size(13.6.dp, 17.dp), farbe = ColorFilter.tint(Color.Black))
+                    Icon(fl.voll, Modifier.offset(21.dp, (-3.5).dp).size(12.dp, 15.4.dp))
+                }
+            }
+            // Stufen 1 bis 4 ohne Signal: Punkt orange werdend mit 4 bis 1 Strichen, immer voll.
+            if (f.signalStufe in 1..4) {
+                Icon("Fahrer_Signal_Punkt_${f.signalStufe}_Trisar_01", Modifier.padding(start = 22.dp, top = 21.dp).size(14.dp))
+                Icon("Fahrer_Signal_Balken_${5 - f.signalStufe}_Trisar_01", Modifier.padding(start = 25.3.dp, top = 25.dp).size(8.15.dp, 5.41667.dp))
             }
         }
     }
@@ -356,9 +396,46 @@ internal class KartenSteuerung {
         val o = stand.orte.firstOrNull { it.id == stand.ortGewaehlt }
         val k = o?.let { "${it.id}|${it.lat}|${it.lng}|${it.radius_rein_m}|${it.radius_raus_m}" } ?: ""
         if (k == ortKreisSchluessel) return
+        val altId = ortKreisSchluessel.substringBefore('|')
+        val neuGewaehlt = o != null && o.id != altId
         ortKreisSchluessel = k
-        OrtKreise.setzen(stil, "dk-ort", o?.lat, o?.lng, o?.radius_rein_m ?: 0, o?.radius_raus_m ?: 0)
+        kreisAnimation?.cancel()
+        // Abgewaehlt (nochmal getippt): Kreise fahren wieder auf das Zeichen ein und verschwinden.
+        val vorher = if (o == null && altId.isNotEmpty()) stand.orte.firstOrNull { it.id == altId } else null
+        if (vorher == null && (o == null || !neuGewaehlt)) {
+            OrtKreise.setzen(stil, "dk-ort", o?.lat, o?.lng, o?.radius_rein_m ?: 0, o?.radius_raus_m ?: 0)
+            return
+        }
+        val einfahren = o == null
+        val ziel = o ?: vorher!!
+        // Beim Waehlen faehrt der kleine Ring des Zeichens (17,5 dp) zum Rausfahr-Kreis aus, der gefuellte
+        // Kreis waechst vom Lime-Kreis (14,5 dp) zum Reinfahr-Kreis, in 0,5 s mit Abbremsen (Figma 2836-12484).
+        val dichte = ansicht?.resources?.displayMetrics?.density ?: 1f
+        val meterJeDp = (karte?.projection?.getMetersPerPixelAtLatitude(ziel.lat) ?: 1.0) * dichte
+        val startRaus = 17.5 * meterJeDp
+        val startRein = 14.5 * meterJeDp
+        kreisAnimation = android.animation.ValueAnimator.ofFloat(if (einfahren) 1f else 0f, if (einfahren) 0f else 1f).apply {
+            duration = 500
+            interpolator = if (einfahren) android.view.animation.AccelerateInterpolator(1.5f) else android.view.animation.DecelerateInterpolator(1.5f)
+            if (einfahren) addListener(object : android.animation.AnimatorListenerAdapter() {
+                private var abgebrochen = false
+                override fun onAnimationCancel(animation: android.animation.Animator) { abgebrochen = true }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (!abgebrochen) OrtKreise.setzen(stil, "dk-ort", null, null, 0, 0)
+                }
+            })
+            addUpdateListener { a ->
+                val w = (a.animatedValue as Float).toDouble()
+                OrtKreise.setzen(
+                    stil, "dk-ort", ziel.lat, ziel.lng,
+                    maxOf(1, (startRein + (ziel.radius_rein_m - startRein) * w).toInt()),
+                    maxOf(2, (startRaus + (ziel.radius_raus_m - startRaus) * w).toInt()),
+                )
+            }
+            start()
+        }
     }
+    private var kreisAnimation: android.animation.ValueAnimator? = null
 
     // MARK: Einpassen (fitBounds, Polsterung im Raster)
 

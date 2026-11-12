@@ -37,7 +37,7 @@ object ImportDienst {
 
     // MARK: Datenmodell der Antworten
 
-    class Blatt(val index: Int, val name: String, val fahrten: Int = 1, val fahrtenZahl: Int? = null)
+    class Blatt(val index: Int, val name: String, val fahrten: Int = 1, val fahrtenZahl: Int? = null, val mitEingelesen: Boolean = false)
 
     class Spalte(
         val index: Int,
@@ -194,7 +194,8 @@ object ImportDienst {
             blaetter = (a["blaetter"] as? JsonArray).orEmpty().mapNotNull { b ->
                 val o = b as? JsonObject ?: return@mapNotNull null
                 Blatt(zahl(o["index"]), str(o["name"]), if (o["fahrten"] == null) 1 else zahl(o["fahrten"]),
-                    if (o["fahrten"] == null || o["fahrten"] is JsonNull) null else zahl(o["fahrten"]))
+                    if (o["fahrten"] == null || o["fahrten"] is JsonNull) null else zahl(o["fahrten"]),
+                    (o["mitEingelesen"] as? JsonPrimitive)?.content == "true")
             },
             blatt = zahl(a["blatt"]),
             signatur = str(a["signatur"]),
@@ -275,7 +276,7 @@ object ImportDienst {
         val an = text(d["dropoff_address"])
         if (ab.isEmpty()) fehlt.add("abholort")
         if (an.isEmpty()) fehlt.add("zielort")
-        val behalten = satz.hinweise.filter { it in listOf("mehrereZeilen", "datumUebernommen", "llama", "doppelt", "adresseUnbekannt", "datumAusDatei", "zielAusDatei") }.toMutableList()
+        val behalten = satz.hinweise.filter { it in listOf("mehrereZeilen", "datumUebernommen", "llama", "doppelt", "adresseUnbekannt", "datumAusDatei", "zielAusDatei", "zwischenstopp", "fahrerUnbekannt", "ausWeiteremBlatt") }.toMutableList()
         val datum = str(d["ride_date"])
         if (datum.isNotEmpty() && datum < LocalDate.now(ZoneOffset.UTC).toString()) behalten.add("vergangen")
         val anzahl = (d["anzahl"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() } ?: 0.0

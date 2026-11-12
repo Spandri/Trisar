@@ -44,6 +44,7 @@ final class Ortung: NSObject, ObservableObject {
     /// Verlaufspunkte, die noch nicht angekommen sind (Funkloch, Tiefgarage). Werden nachgeschickt.
     private var verlaufPuffer: [VerlaufZeile] = []
     private var profilTimer: Timer?
+    private var stillstandTimer: Timer?
 
     override init() {
         eingeschaltet = UserDefaults.standard.object(forKey: Self.schalterSchluessel) as? Bool ?? true
@@ -107,6 +108,8 @@ final class Ortung: NSObject, ObservableObject {
             laeuft = false
             profilTimer?.invalidate()
             profilTimer = nil
+            stillstandTimer?.invalidate()
+            stillstandTimer = nil
         }
         // Hintergrund nur, wenn das Handy wirklich ortet. Bei OBD (oder solange das Profil noch
         // nicht da ist) nur im Vordergrund fuer die eigene Karte, sonst laeuft GPS staendig mit.
@@ -129,6 +132,27 @@ final class Ortung: NSObject, ObservableObject {
         profilTimer = Timer.scheduledTimer(withTimeInterval: Konfig.profilIntervall, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.profilUndFahrtLaden() }
         }
+        stillstandTimer?.invalidate()
+        stillstandTimer = Timer.scheduledTimer(withTimeInterval: Konfig.stillstandIntervall, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.stillstandSenden() }
+        }
+    }
+
+    /// Im Stillstand den letzten Standort mit aktueller Zeit nochmal senden (siehe Konfig.stillstandIntervall).
+    private func stillstandSenden() {
+        guard laeuft, fahrerID != nil, profilGeladen, !nutztOBD, let ort = letztePosition,
+              ort.horizontalAccuracy >= 0, ort.horizontalAccuracy <= 100,
+              Date().timeIntervalSince(letzteLiveSendung) >= Konfig.stillstandIntervall - 2 else { return }
+        naechsteLivePosition = CLLocation(
+            coordinate: ort.coordinate,
+            altitude: ort.altitude,
+            horizontalAccuracy: ort.horizontalAccuracy,
+            verticalAccuracy: ort.verticalAccuracy,
+            course: ort.course,
+            speed: 0,
+            timestamp: Date()
+        )
+        nachschicken()
     }
 
     private func berechtigungUebernehmen(_ status: CLAuthorizationStatus) {

@@ -24,6 +24,12 @@ struct TrisarDispoApp: App {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-naviTest") {
                     NaviTestAnsicht()
+                } else if ProcessInfo.processInfo.arguments.contains("-fahrerTest") {
+                    FahrerKartenTest()
+                } else if ProcessInfo.processInfo.arguments.contains("-kiTest") {
+                    // Verlauf des KI-Assistenten ohne Anmeldung ansehen (Fragen von der Apple Watch).
+                    KiAssistentAnsicht(zeigen: { _ in })
+                        .onAppear { DispoUhrBruecke.shared.einrichten() }
                 } else {
                     hauptInhalt
                 }
@@ -34,6 +40,9 @@ struct TrisarDispoApp: App {
             .environmentObject(anmeldung)
             .onChange(of: anmeldung.fahrerID, initial: true) { _, id in
                 if id != nil { Task { await Push.shared.nachAnmeldung() } }
+                // Apple Watch (TrisarDispoUhr): Uebersicht nur fuer angemeldete Dispo-Konten.
+                DispoUhrBruecke.shared.einrichten()
+                DispoUhrBruecke.shared.setzeAngemeldet(id != nil)
             }
             // Ganze App auf die Breite des iPhones skalieren (Raster 402 wie im Web).
             .webMassstab()
@@ -57,6 +66,26 @@ struct NaviTestAnsicht: View {
     var body: some View {
         DispoPlatzhalter(titel: "\(ziel)", zeigen: { ziel = $0 }, aktiv: ziel)
             .id(ziel)
+    }
+}
+
+/// Nur zum Pruefen von Scrollen und Wischen der Fahrerkarten ohne Anmeldung: Start mit -fahrerTest.
+struct FahrerKartenTest: View {
+    @State private var markiert: Set<String> = []
+    private let fahrer: [DispoFahrer] = (1...40).map { i in
+        DispoFahrer(id: "t\(i)", name: "Testfahrer Nummer \(i)", firstName: "Test", lastName: "\(i)", email: "", vehicle: "M-T \(100 + i)",
+                    role: nil, driverNumber: i, driverActivityState: nil, serviceStartTime: i % 3 == 0 ? "" : "08:00",
+                    serviceEndTime: "17:00", serviceStartDate: "", planRequestStatus: "accepted")
+    }
+    var body: some View {
+        Leinwand(inhaltHoehe: CGFloat(fahrer.count) * 96 + 120) { _ in
+            ForEach(Array(fahrer.enumerated()), id: \.element.id) { i, f in
+                FahrerKarte(fahrer: f, imDienst: i % 2 == 0, markiert: markiert.contains(f.id),
+                            antippen: {}, markieren: { if markiert.contains(f.id) { markiert.remove(f.id) } else { markiert.insert(f.id) } },
+                            bearbeiten: {})
+                    .platz(20, 60 + CGFloat(i) * 96, 362, 84)
+            }
+        }
     }
 }
 #endif

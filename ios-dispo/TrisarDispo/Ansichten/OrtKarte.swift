@@ -25,23 +25,22 @@ final class OrtSchildPunkt: MLNPointAnnotation {
     required init?(coder: NSCoder) { fatalError() }
 }
 
-/// Icon-Marker wie die Ort-Kacheln im Blatt (#242525, abgerundet), 34 x 34 mittig auf dem Ort.
-/// Gewaehlt: Lime-Rand und Lime-Icon.
+/// Ort auf der Karte nach Figma 2832-12397: 35 wie die Fahrer, gestrichelter Ring aussen,
+/// Lime-Kreis 29 bei 3/3, schwarzes Symbol 15 bei 10/10, Mitte auf dem Ort.
 final class OrtMarkerAnsicht: MLNAnnotationView {
-    static let groesse: CGFloat = 34
+    static let groesse: CGFloat = 35
+    private let ring = UIImageView(image: UIImage(named: "Ort_Ring_Trisar_01"))
+    private let kreis = UIImageView(image: UIImage(named: "Ort_Kreis_Trisar_01"))
     private let bild = UIImageView()
 
     init() {
         super.init(reuseIdentifier: nil)
         frame = CGRect(x: 0, y: 0, width: Self.groesse, height: Self.groesse)
-        backgroundColor = UIColor(hex: 0x242525)
-        layer.cornerRadius = 9
-        layer.borderColor = UIColor(hex: 0xE3F654).cgColor
-        layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.45
-        layer.shadowRadius = 5
-        layer.shadowOffset = CGSize(width: 0, height: 3)
-        bild.frame = bounds.insetBy(dx: 7, dy: 7)
+        ring.frame = bounds
+        addSubview(ring)
+        kreis.frame = CGRect(x: 3, y: 3, width: 29, height: 29)
+        addSubview(kreis)
+        bild.frame = CGRect(x: 10, y: 10, width: 15, height: 15)
         bild.contentMode = .scaleAspectFit
         addSubview(bild)
         isUserInteractionEnabled = false
@@ -49,9 +48,11 @@ final class OrtMarkerAnsicht: MLNAnnotationView {
     required init?(coder: NSCoder) { fatalError() }
 
     func anwenden(_ symbol: OrtSymbol, aktiv: Bool) {
-        bild.image = UIImage(named: aktiv ? symbol.lime : symbol.grau)
-        layer.borderWidth = aktiv ? 2 : 0
-        layer.zPosition = aktiv ? 330 : 150
+        bild.image = UIImage(named: symbol.schwarz)
+        // Gewaehlt: der kleine Ring ist zum Rausfahr-Kreis ausgefahren (Figma 2836-12484).
+        ring.isHidden = aktiv
+        // Gespeicherte Orte liegen ueber allen Fahrern (die gehen bis 2000).
+        layer.zPosition = aktiv ? 2600 : 2500
     }
 }
 
@@ -119,21 +120,21 @@ enum OrtKreise {
         quelle(stil, "\(kennung)-rein", innen) { q in
             let e = MLNFillStyleLayer(identifier: "\(kennung)-rein", source: q)
             e.fillColor = NSExpression(forConstantValue: lime)
-            e.fillOpacity = NSExpression(forConstantValue: 0.18)
+            e.fillOpacity = NSExpression(forConstantValue: 0.2)
             return e
         }
         quelle(stil, "\(kennung)-rein-rand", innenRand) { q in
             let e = MLNLineStyleLayer(identifier: "\(kennung)-rein-rand", source: q)
             e.lineColor = NSExpression(forConstantValue: lime)
-            e.lineWidth = NSExpression(forConstantValue: 1.5)
-            e.lineOpacity = NSExpression(forConstantValue: 0.8)
+            e.lineWidth = NSExpression(forConstantValue: 1)
+            e.lineOpacity = NSExpression(forConstantValue: 1)
             return e
         }
         quelle(stil, "\(kennung)-raus", aussen) { q in
             let e = MLNLineStyleLayer(identifier: "\(kennung)-raus", source: q)
             e.lineColor = NSExpression(forConstantValue: lime)
-            e.lineWidth = NSExpression(forConstantValue: 2)
-            e.lineDashPattern = NSExpression(forConstantValue: [2, 2])
+            e.lineWidth = NSExpression(forConstantValue: 1)
+            e.lineDashPattern = NSExpression(forConstantValue: [6, 4])
             return e
         }
     }
@@ -247,7 +248,8 @@ struct OrtKarte: UIViewRepresentable {
         private func pinAbgleichen() {
             guard let karte else { return }
             guard let ort = aktuell else {
-                if let pin { karte.removeAnnotation(pin) }
+                // Nie mitten im Zeichnen der Karte aendern (MapLibre-Absturz Dispo Build 19), daher spaeter.
+                if let pin { DispatchQueue.main.async { [weak karte] in karte?.removeAnnotation(pin) } }
                 pin = nil
                 pinAnsicht = nil
                 return
@@ -258,7 +260,7 @@ struct OrtKarte: UIViewRepresentable {
                 let p = MLNPointAnnotation()
                 p.coordinate = ort
                 pin = p
-                karte.addAnnotation(p)
+                DispatchQueue.main.async { [weak karte] in karte?.addAnnotation(p) }
             }
         }
 

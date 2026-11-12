@@ -70,6 +70,7 @@ struct FahrtenListeDispo: View {
     let oeffneFahrt: (UUID) -> Void
 
     @State private var suche = ""
+    @ObservedObject private var markierung = FahrerMarkierung.geteilt
 
     private var archiv: Bool { seite.istArchiv }
     private var abfahrten: Bool { seite.istAbfahrten }
@@ -102,6 +103,11 @@ struct FahrtenListeDispo: View {
 
                 filterZeile.padding(.top, 12)
                 suchFeld.padding(.top, 12)
+
+                // Auf der Karte markierte Fahrer: nur ihre Fahrten.
+                if markierung.wirkt {
+                    MarkierungsVermerk().frame(width: 362).padding(.top, 12)
+                }
 
                 if !speicher.ladeFehler.isEmpty {
                     Text("Fahrten konnten nicht geladen werden: \(speicher.ladeFehler)")
@@ -339,7 +345,9 @@ struct FahrtenListeDispo: View {
         let heute = Datum.tagWert(Date())
         let jetzt = jetztMinuten()
 
+        let markierteIDs: Set<String>? = markierung.wirkt ? Set(markierung.ids) : nil
         let gefiltert = basis.filter { f in
+            if let m = markierteIDs, !f.fahrerIds.contains(where: m.contains) { return false }
             let ohneFahrer = f.fahrer.lowercased() == "fahrer fehlt" || f.ohneFahrerVariante
             let teile = f.route.components(separatedBy: " - ")
             let start = (teile.first ?? "").trimmingCharacters(in: .whitespaces)

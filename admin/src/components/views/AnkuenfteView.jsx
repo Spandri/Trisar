@@ -5,7 +5,11 @@ import { KLASSE_TEXT, NAH_STUNDEN, liveLage, naheLage, risikoFahrt, useRisikoDat
 import { KLASSE_FARBE } from './risikoFarben';
 import { DEMO_MODE } from '../../datenquelle';
 import { useI18n } from '../../i18n';
+import { useFahrerMarkierung } from '../../shared/fahrerMarkierung';
+import MarkierungsVermerk from '../ui/MarkierungsVermerk';
 import { anonymeGaesteText, gaesteTeile } from '../../shared/gaesteAnzeige';
+import StandbyKacheln from '../ui/StandbyKacheln';
+import StandbyFahrten from '../ui/StandbyFahrten';
 
 // Fahrten mit hohem Risiko tragen "NEU", bis die Disposition sie einmal geoeffnet hat.
 const GESEHEN_SCHLUESSEL = 'trisar-demo-risiko-gesehen';
@@ -48,7 +52,7 @@ function RisikoZeile({ risiko, marker }) {
 
 // Trennzeile zwischen den Tagen wie in der Fahrer-App (FahrtenScreen01View):
 // kurze Striche aussen, Wochentag und Datum mittig, z. B. "Dienstag 03.11."
-function TagTrenner({ iso, locale, erster }) {
+export function TagTrenner({ iso, locale, erster }) {
   const datum = new Date(`${iso}T12:00:00`);
   const wochentag = datum.toLocaleDateString(locale, { weekday: 'long' });
   const tagMonat = datum.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' });
@@ -87,7 +91,7 @@ const shortenName = (fullName) => {
   return `${firstInitial}. ${lastName}`;
 };
 
-const getRideDriverEntries = (ride = {}) => {
+export const getRideDriverEntries = (ride = {}) => {
   const fromArray = Array.isArray(ride?.fahrerNamen)
     ? ride.fahrerNamen.map((entry) => String(entry || '').trim()).filter(Boolean)
     : [];
@@ -157,7 +161,7 @@ const SwipeActionButton = ({ icon, alt, side, position, marker, onPress = () => 
   </button>
 );
 
-const RideCard = ({
+export const RideCard = ({
   id,
   name,
   allGuestNames = [],
@@ -496,6 +500,7 @@ export default function AnkuenfteView({
   onCoordinatorLocationChange = () => {},
   hasCoordinatorLocation = false,
   showArchiveOnly = false,
+  onOpenStandby = null,
   onRideDone = () => {},
   onRideArchive = () => {},
   onRideDuplicate = () => {},
@@ -546,6 +551,11 @@ export default function AnkuenfteView({
     withSpecial = false,
     includePast = false,
   } = rideFilters;
+  // Auf der Karte markierte Fahrer: nur ihre Fahrten zeigen.
+  const markierung = useFahrerMarkierung();
+  const markierteFahrerIds = markierung.aktiv && markierung.fahrer.length
+    ? new Set(markierung.fahrer.map((f) => f.id))
+    : null;
   const normalizedStartQuery = String(startQuery || '').trim().toLowerCase();
   const normalizedZielQuery = String(zielQuery || '').trim().toLowerCase();
   const selectedDate = String(date || '').trim();
@@ -696,6 +706,7 @@ export default function AnkuenfteView({
     const isArchivedRide = normalizedJobStatus === 'archived' || normalizedJobStatus === 'cancelled';
     if (showArchiveOnly && !isArchivedRide) return false;
     if (!showArchiveOnly && isArchivedRide) return false;
+    if (markierteFahrerIds && !(ride.fahrerIds || []).some((id) => markierteFahrerIds.has(id))) return false;
 
     const driverValue = String(ride.driver || '').trim().toLowerCase();
     const isWithoutDriverRide = driverValue === 'fahrer fehlt' || ride.variant === 'variant2';
@@ -964,6 +975,8 @@ export default function AnkuenfteView({
           </button>
         </div>
 
+        <MarkierungsVermerk className="mt-3" />
+
         {ridesError ? (
           <div className="mt-4 border border-[#3a3a3a] bg-[#171717] p-3 text-[#ff8e8e] text-[12px] leading-[1.35] font-medium font-['Space_Grotesk']">
             {t('board.ridesLoadError', { error: ridesError })}
@@ -1026,6 +1039,11 @@ export default function AnkuenfteView({
             ) : null}
           </div>
         ) : null}
+
+        {/* Standby am Event-Ort: je Standby eine Kachel mit Ort, Zeit und Zustaenden der Fahrer. */}
+        {!showArchiveOnly && onOpenStandby ? <StandbyKacheln onOpen={onOpenStandby} /> : null}
+        {/* Faehrt ein Fahrer vom Event los: Standby-Fahrt mit Unterwegs bzw. Rueckweg und Ankunft am Event. */}
+        {!showArchiveOnly && onOpenStandby ? <StandbyFahrten onOpen={onOpenStandby} /> : null}
 
         <div className="mt-6 space-y-3">
           {sortedFilteredRides.map((ride, index) => {

@@ -43,14 +43,103 @@ object Stunden {
     class Zettel(
         val id: String, val status: String, val beginn: String, val ende: String, val pauseMin: Int, val arbeitsMin: Int,
         val angepasst: Boolean, val begruendung: String, val dispoNotiz: String, val vorschlag: Vorschlag?,
+        val pausen: List<Pause> = emptyList(),
     )
 
-    class Dienst(val id: String, val datum: String, val beginn: String, val ende: String)
+    /** pausen: geplante Pausen des Dienstes (dienst_pausen, HH:MM von/bis), fuer den Ablauf der Dispo. */
+    class Dienst(val id: String, val datum: String, val beginn: String, val ende: String,
+                 val pausen: List<Pair<String, String>> = emptyList())
 
     class Eintrag(val dienst: Dienst, val vorschlag: Vorschlag, val zettel: Zettel?, val vorbei: Boolean) {
         /** Noch zu erfassen: vorbei und ohne Zettel oder zurueckgegeben. */
-        val offen: Boolean get() = vorbei && (zettel == null || zettel.status == "zurueckgewiesen")
+        val offen: Boolean get() = vorbei && fahrerDran(zettel)
     }
+
+    // MARK: Heute
+
+    /**
+     * Heute (wie heuteStand in Stunden.jsx): Start, begonnene Pausen, Ende erst nach dem Dienst und die
+     * Arbeitszeit bis jetzt. Geplante Pausen ab 3 Stunden halten die Zeit an, kuerzere sind Arbeitszeit.
+     */
+    class HeutePause(val von: Instant, val bis: Instant?, val laeuft: Boolean)
+    class Heute(val start: Instant, val ende: Instant?, val fertig: Boolean, val pausen: List<HeutePause>, val arbeitsMin: Int)
+
+    private fun zeit(iso: String): Instant? = if (iso.isEmpty()) null else runCatching { OffsetDateTime.parse(iso).toInstant() }.getOrNull()
+
+    /** Fahrt laeuft gerade (gestartet, noch nicht erledigt). Solange endet der Tag nicht. */
+    private val LAEUFT = setOf("at_pickup", "pickup", "beim_pickup", "in_progress", "unterwegs", "started", "on_trip", "ongoing", "active")
+
+    /** Geplante Pausen ab 3 Stunden halten die Zeit an (auch waehrend sie laufen), kuerzere sind Arbeitszeit. */
+    fun pausenMin(pausen: List<Pair<Instant, Instant?>>, bis: Instant): Double = pausen.sumOf { (von, pb) ->
+        if (pb == null || java.time.Duration.between(von, pb).toMinutes() < PAUSE_MINDEST) 0.0
+        else maxOf(0.0, java.time.Duration.between(von, minOf(pb, bis)).seconds / 60.0)
+    }
+    /** Fahrer ist dran: nicht erfasst, zurueckgegeben (alt) oder von der Dispo geaendert (12.11.). */
+    fun fahrerDran(z: Zettel?): Boolean = z == null || z.status == "zurueckgewiesen" || z.status == "dispo_geaendert"
+
+    /** Aenderung der Dispo annehmen: Stunden sind dann fertig (stunden_fahrer_zustimmen). */
+    suspend fun dispoAenderungAnnehmen(zettelID: String) {
+        Backend.client.postgrest.rpc("stunden_fahrer_zustimmen", buildJsonObject { put("p_zettel", zettelID) })
+    }
+
+    fun halbeAuf(min: Double): Int = (Math.ceil(maxOf(0.0, min) / 30.0) * 30).toInt()
+
+    /**
+     * Heute (wie heuteStand in Stunden.jsx). Fertig: Dienstende erreicht und keine Fahrt mehr unterwegs.
+     * Danach zeigt die Karte, was eingereicht wird bzw. wurde (Zettel), Arbeitszeit auf halbe Stunden auf.
+     */
+    fun heute(e: Eintrag, jetzt: Instant = Instant.now()): Heute? {
+        val roh = e.vorschlag.roh as? JsonObject
+        val fertig = e.vorbei && e.vorschlag.fahrten.none { it.status.lowercase() in LAEUFT }
+        val z = e.zettel
+        val zb = z?.let { zeit(it.beginn) }
+        val ze = z?.let { zeit(it.ende) }
+        val zettelGilt = fertig && zb != null && ze != null && ze.isAfter(zb)
+        val start = (if (zettelGilt) zb else zeit(s(roh?.get("beginn_genau")).ifEmpty { e.vorschlag.beginn })) ?: return null
+        if (start.isAfter(jetzt)) return null
+        val ende = if (!fertig) null else if (zettelGilt) ze else zeit(s(roh?.get("ende_genau")).ifEmpty { e.vorschlag.ende })
+        val bis = ende ?: jetzt
+        val quelle = if (zettelGilt) z!!.pausen else e.vorschlag.pausen
+        val pausen = quelle.mapNotNull { p ->
+            val von = zeit(p.von) ?: return@mapNotNull null
+            if (von.isAfter(bis)) null else von to zeit(p.bis)
+        }.sortedBy { it.first }
+        val genau = maxOf(0.0, java.time.Duration.between(start, bis).seconds / 60.0 - pausenMin(pausen, bis))
+        val arbeits = if (!fertig) genau.toInt() else if (zettelGilt) z!!.arbeitsMin else halbeAuf(genau)
+        return Heute(start, ende, fertig, pausen.map { (von, pb) -> HeutePause(von, pb, pb == null || pb.isAfter(bis)) }, arbeits)
+    }
+
+    /** Speichert die Zeiten von heute (Bestaetigen so wie gezeigt, Bearbeiten mit Notiz), wie heuteSpeichern im Web. */
+    suspend fun heuteSpeichern(
+        fahrerID: String, e: Eintrag, beginn: Instant, ende: Instant, pausen: List<Pair<Instant, Instant>>,
+        angepasst: Boolean, begruendung: String?,
+    ) {
+        val jetzt = Instant.now().toString()
+        val pause = Math.round(pausenMin(pausen.map { it.first to it.second }, ende)).toInt()
+        val arbeits = halbeAuf(java.time.Duration.between(beginn, ende).seconds / 60.0 - pause)
+        val zeile = buildJsonObject {
+            put("driver_id", fahrerID)
+            put("dienst_id", e.dienst.id)
+            put("datum", e.dienst.datum)
+            put("beginn", beginn.toString())
+            put("ende", ende.toString())
+            put("pausen", JsonArray(pausen.map { (v, b) -> buildJsonObject { put("von", v.toString()); put("bis", b.toString()) } }))
+            put("pause_min", pause)
+            put("arbeits_min", arbeits)
+            put("vorschlag", e.vorschlag.roh)
+            put("angepasst", angepasst)
+            put("begruendung", if (angepasst && begruendung != null) JsonPrimitive(begruendung) else JsonNull)
+            put("status", "eingereicht")
+            put("eingereicht_am", jetzt)
+            put("aktualisiert", jetzt)
+        }
+        val z = e.zettel
+        if (z != null) Backend.client.from("stundenzettel").update(zeile) { filter { eq("id", z.id) } }
+        else Backend.client.from("stundenzettel").insert(zeile)
+    }
+
+    fun heuteDatum(): String = LocalDate.now(BERLIN).toString()
+    fun uhrZeit(t: Instant?): String = t?.atZone(BERLIN)?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"
 
     // MARK: Laden
 
@@ -89,7 +178,10 @@ object Stunden {
         val d = e["dienst"] as? JsonObject
         val z = e["zettel"] as? JsonObject
         return Eintrag(
-            dienst = Dienst(s(d?.get("id")), s(d?.get("datum")), s(d?.get("beginn")), s(d?.get("ende"))),
+            dienst = Dienst(s(d?.get("id")), s(d?.get("datum")), s(d?.get("beginn")), s(d?.get("ende")),
+                ((d?.get("pausen") as? kotlinx.serialization.json.JsonArray) ?: emptyList()).mapNotNull { p ->
+                    (p as? JsonObject)?.let { s(it["von"]) to s(it["bis"]) }
+                }),
             vorschlag = vorschlagLesen(e["vorschlag"] as? JsonObject),
             zettel = z?.let {
                 Zettel(
@@ -97,6 +189,9 @@ object Stunden {
                     pauseMin = n(it["pause_min"]), arbeitsMin = n(it["arbeits_min"]), angepasst = b(it["angepasst"]),
                     begruendung = s(it["begruendung"]), dispoNotiz = s(it["dispo_notiz"]),
                     vorschlag = (it["vorschlag"] as? JsonObject)?.let { v -> vorschlagLesen(v) },
+                    pausen = (it["pausen"] as? JsonArray).orEmpty().mapNotNull { p ->
+                        (p as? JsonObject)?.let { q -> Pause(s(q["von"]), s(q["bis"]), s(q["art"])) }
+                    },
                 )
             },
             vorbei = b(e["vorbei"]),

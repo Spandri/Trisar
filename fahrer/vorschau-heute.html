@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vorschau Heute</title></head>
+<body style="margin:0;background:#000">
+<div id="w"></div>
+<script type="module">
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import './src/index.css';
+import { HeuteStunden, Tageszeile, heuteBerlin } from './src/features/fahrer/views/Stunden.jsx';
+const jetzt = Date.now();
+const iso = (minVorher) => new Date(jetzt - minVorher * 60000).toISOString();
+const nurStart = { dienst: { id: 'y', datum: '2026-11-10' }, vorbei: false, vorschlag: { beginn_genau: iso(125.9), pausen: [] } };
+const zweiPausen = { dienst: { id: 'x', datum: '2026-11-10' }, vorbei: true, vorschlag: { beginn_genau: '2026-11-10T06:00:00Z', ende_genau: '2026-11-10T14:45:00Z', pausen: [{ von: '2026-11-10T09:00:00Z', bis: '2026-11-10T10:00:00Z' }, { von: '2026-11-10T13:00:00Z', bis: '2026-11-10T13:45:00Z' }] } };
+const e = React.createElement;
+const t = (text) => e('div', { style: { color: '#fff8', font: '500 13px Space Grotesk', marginTop: 8 } }, text);
+createRoot(document.getElementById('w')).render(e('div', {
+  style: { width: 402, margin: '0 auto', padding: '40px 20px', boxSizing: 'border-box', minHeight: '100vh', backgroundImage: 'radial-gradient(141.42% 102.21% at 0% 0%, #313701 0%, #000000 46%)', display: 'flex', flexDirection: 'column', gap: 24 },
+}, e('h1', { style: { color: '#E3F654', font: '700 42px Space Grotesk', margin: 0 } }, 'Verlauf'),
+  e(Tageszeile, { datum: heuteBerlin() }), t('Nur Start, Zeit läuft:'), e(HeuteStunden, { eintrag: nurStart }),
+  t('Mit zwei Pausen und Ende:'), e(HeuteStunden, { eintrag: zweiPausen, vollbild: true })));
+</script>
+</body></html>

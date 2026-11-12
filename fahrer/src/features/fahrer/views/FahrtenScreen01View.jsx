@@ -1,4 +1,4 @@
-import { StundenKarte, stundenKartenHoehe, stundenMitKnoepfen, useStundenAktionen, useStundenKarten } from './Stunden';
+import { HeuteStunden, heuteKartenHoehe, useStundenKarten, zuZeitpunkt } from './Stunden';
 import { DEMO_MODE } from '../../../datenquelle';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import TrisarFooter from '../../../components/ui/TrisarFooter';
@@ -16,6 +16,9 @@ import {
 } from '../../../shared/ui/icons';
 import { FahrzeugKarte } from '../../../shared/FahrzeugKarte';
 import { ortIconFuer } from '../../../shared/orte';
+import { anfrageKartenHoehe, anfrageZeilen, pausenZeilen, zeilenFarbe, zeilenGroesse, zeilenText, zuMinuten, GRAU } from '../../../shared/dienstAnfrage';
+import StandbyKarte from './StandbyKarte';
+import { standbyBlockHoehe } from '../../../shared/standby';
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 874;
@@ -163,12 +166,23 @@ const FIXED_FOOTER_CLEARANCE = 64;
 // Dienstplan-Anfrage: 19 Luft + 38 Dienststart + 20 Abstand + 24 Dienstende
 // + 19 Luft = 120 px Inhalt, plus 2 px Rand oben und unten. Links 12 px Luft.
 const SERVICE_REQUEST_CARD_HEIGHT = 124;
-const SERVICE_REQUEST_BLOCK_HEIGHT = SERVICE_REQUEST_CARD_HEIGHT + ACTION_GAP + ACTION_HEIGHT;
 const SERVICE_REQUEST_CARD_GAP = 12;
 // Luft zwischen Dienstplan-Anfrage und der ersten Auftragskarte desselben Tages.
 const SERVICE_REQUEST_LIST_GAP = 48;
 // Angenommene Anfragen zeigen keine Knoepfe mehr und sind entsprechend flacher.
-const serviceBlockHeight = (request) => (request.angenommen ? SERVICE_REQUEST_CARD_HEIGHT : SERVICE_REQUEST_BLOCK_HEIGHT);
+// Offene Anfrage: Hoehe haengt an der Zahl der Zeilen (Dienststart, Pausen, Dienstende, einzeln oder zusammen).
+const anfrageHoehe = (request) => (request.zeilen?.length ? anfrageKartenHoehe(request.zeilen) : SERVICE_REQUEST_CARD_HEIGHT);
+const serviceBlockHeight = (request) => (request.angenommen ? anfrageHoehe(request) : anfrageHoehe(request) + ACTION_GAP + ACTION_HEIGHT);
+// Angenommener Dienst (12.11.): wie im Verlauf eine Zeile "Dienststart" ueber den Fahrten des Tages und
+// eine Zeile "Dienstende" darunter. Ist die Uhrzeit vorbei, verschwindet die Zeile (steht dann im Verlauf).
+const DIENST_ZEILE_HOEHE = 48;
+const dienstZeitpunkte = (request) => {
+  const tag = String(request?.date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tag)) return { start: null, ende: null };
+  const start = zuZeitpunkt(tag, String(request.startTime || '').slice(0, 5));
+  const ende = zuZeitpunkt(tag, String(request.endTime || '').slice(0, 5), start); // Nachtdienst: Folgetag
+  return { start: start ? new Date(start).getTime() : null, ende: ende ? new Date(ende).getTime() : null };
+};
 
 const PENDING_JOB_STATUSES = new Set(['pending', 'new', 'offered', 'requested', 'assigned_pending']);
 const PENDING_CONVOY_RESPONSES = new Set(['pending', 'new', 'offered', 'requested']);
@@ -215,7 +229,14 @@ const tagSchluessel = (job) => {
 // fuer den sie gilt, statt pauschal ganz oben zu stehen.
 // Stundenkarten stehen am Ende ihres Diensttages (nach dessen Fahrten). Tage ohne
 // Fahrten (z. B. ein vergangener Dienst) bekommen ihre eigene Tageszeile, chronologisch.
-const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEIGHT, stundenKarten = []) => {
+const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEIGHT, stundenKarten = [], standbys = []) => {
+  const standbyProTag = new Map();
+  (standbys || []).forEach((st) => {
+    const tag = String(st?.datum || '').slice(0, 10);
+    if (!tag) return;
+    if (!standbyProTag.has(tag)) standbyProTag.set(tag, []);
+    standbyProTag.get(tag).push(st);
+  });
   const anfragenProTag = new Map();
   (anfragen || []).forEach((request) => {
     const tag = String(request?.date || '').slice(0, 10);
@@ -235,27 +256,56 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
   const dienste = [];
   const fahrten = [];
   const stunden = [];
-  const offeneTage = new Set([...anfragenProTag.keys(), ...stundenProTag.keys()]);
+  const standbyPlaetze = [];
+  const offeneTage = new Set([...anfragenProTag.keys(), ...stundenProTag.keys(), ...standbyProTag.keys()]);
   let cursorTop = VEHICLE_CARD_TOP + fahrzeugKarteHoehe + DAY_DIVIDER_GAP_BOTTOM;
+  let pausenWarte = [];
 
   const tagBeginnen = (tag) => {
     if (zeilen.length) cursorTop += DAY_DIVIDER_GAP_TOP;
     zeilen.push({ top: cursorTop, datum: tag });
     cursorTop += DAY_DIVIDER_HEIGHT + DAY_DIVIDER_GAP_BOTTOM;
     const tagesAnfragen = anfragenProTag.get(tag) || [];
-    tagesAnfragen.forEach((request, i) => {
-      dienste.push({ request, top: cursorTop });
+    const karten = tagesAnfragen.filter((r) => !r.angenommen);
+    karten.forEach((request, i) => {
+      dienste.push({ request, top: cursorTop, art: 'karte' });
       cursorTop += serviceBlockHeight(request);
-      if (i < tagesAnfragen.length - 1) cursorTop += SERVICE_REQUEST_CARD_GAP;
+      if (i < karten.length - 1) cursorTop += SERVICE_REQUEST_CARD_GAP;
     });
-    if (tagesAnfragen.length) cursorTop += SERVICE_REQUEST_LIST_GAP;
+    if (karten.length) cursorTop += SERVICE_REQUEST_LIST_GAP;
+    // Standby am Event-Ort: Karte mit Knoepfen, unter den Dienstanfragen des Tages.
+    (standbyProTag.get(tag) || []).forEach((standby) => {
+      standbyPlaetze.push({ standby, top: cursorTop });
+      cursorTop += standbyBlockHoehe(standby) + SERVICE_REQUEST_LIST_GAP;
+    });
+    tagesAnfragen.filter((r) => r.angenommen && r.zeigeStart).forEach((request) => {
+      dienste.push({ request, top: cursorTop, art: 'start' });
+      cursorTop += DIENST_ZEILE_HOEHE + CARD_GAP;
+    });
+    // Pausen des angenommenen Dienstes warten, bis ihre Uhrzeit zwischen den Fahrten dran ist.
+    pausenWarte = tagesAnfragen.filter((r) => r.angenommen)
+      .flatMap((request) => (request.pausenZeilen || []).map((zeile) => ({ request, zeile })))
+      .sort((a, b) => a.zeile.m - b.zeile.m);
     offeneTage.delete(tag);
   };
+  // Pausen-Zeilen bis zur Minute m (Infinity = alle restlichen) setzen.
+  const pausenBis = (m) => {
+    while (pausenWarte.length && pausenWarte[0].zeile.m <= m) {
+      const { request, zeile } = pausenWarte.shift();
+      dienste.push({ request, top: cursorTop, art: 'pause', zeile });
+      cursorTop += DIENST_ZEILE_HOEHE + CARD_GAP;
+    }
+  };
   const tagBeenden = (tag, mitFahrten) => {
+    pausenBis(Number.POSITIVE_INFINITY);
+    (anfragenProTag.get(tag) || []).filter((r) => r.angenommen && r.zeigeEnde).forEach((request) => {
+      dienste.push({ request, top: cursorTop, art: 'ende' });
+      cursorTop += DIENST_ZEILE_HOEHE + CARD_GAP;
+    });
     (stundenProTag.get(tag) || []).forEach((eintrag) => {
       if (mitFahrten) cursorTop += CARD_GAP;
       stunden.push({ eintrag, top: cursorTop });
-      cursorTop += stundenKartenHoehe(eintrag) + (stundenMitKnoepfen(eintrag) ? AFTER_ACTION_GAP : CARD_GAP);
+      cursorTop += heuteKartenHoehe(eintrag) + CARD_GAP;
     });
   };
   // Tage ohne Fahrten, die vor einem Tag liegen, kommen vorher dran.
@@ -275,6 +325,9 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
       tagBeginnen(tag);
       letzterTag = tag;
     }
+    // Pausen, die vor dieser Fahrt liegen, kommen davor.
+    const fahrtMinute = zuMinuten(job?.etd);
+    if (fahrtMinute !== null) pausenBis(fahrtMinute);
     const cardTop = cursorTop;
     const withAction = canRespond(job);
     const cardHeight = kartenHoehe(job);
@@ -289,7 +342,7 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
   // Uebrige Tage ohne Fahrten haengen chronologisch hinten an.
   leereTageBis(null);
 
-  return { zeilen, dienste, fahrten, stunden, unterkante: cursorTop };
+  return { zeilen, dienste, fahrten, stunden, standbyPlaetze, unterkante: cursorTop };
 };
 
 const RideCard = ({ job, layout, topOffset = 0, onOpen, onAction, onSheetOpen, actionBusy, tutorialId, ungelesen = 0 }) => {
@@ -474,6 +527,9 @@ const FahrtenScreen01View = ({
   onOpenProfile,
   handleRefreshAll,
   serviceRequests = [],
+  standbys = [],
+  onStandbyAntworten = () => {},
+  onStandbyMelden = () => {},
   onServiceRequestAction,
   serviceActionBusyId = null,
   unreadByChat = {},
@@ -574,6 +630,12 @@ const FahrtenScreen01View = ({
 
     return [...priorityJobs, ...otherJobs];
   }, [localJobs, newTopJobIds]);
+  // Minutentakt, damit Dienststart/-ende verschwinden, sobald die Uhrzeit vorbei ist.
+  const [jetztMinute, setJetztMinute] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setJetztMinute(Date.now()), 30000);
+    return () => window.clearInterval(id);
+  }, []);
   const activeServiceRequests = useMemo(
     () =>
       (Array.isArray(serviceRequests) ? serviceRequests : [])
@@ -585,9 +647,24 @@ const FahrtenScreen01View = ({
           date: String(entry?.serviceDate || entry?.service_date || '').trim(),
           startTime: String(entry?.serviceStartTime || entry?.service_start_time || '').trim(),
           endTime: String(entry?.serviceEndTime || entry?.service_end_time || '').trim(),
+          pausen: Array.isArray(entry?.pausen) ? entry.pausen : [],
+          vorher: entry?.vorher || null,
         }))
-        .filter((entry) => entry.id),
-    [serviceRequests],
+        .map((entry) => {
+          // Offen: Zeilen der Anfrage (ganz neu alles, sonst nur das Geaenderte).
+          if (!entry.angenommen) return { ...entry, zeilen: anfrageZeilen(entry) };
+          const { start, ende } = dienstZeitpunkte(entry);
+          // Angenommen: Pausenstart/-ende als Zeilen zwischen den Fahrten, bis ihre Uhrzeit vorbei ist.
+          const tag = String(entry.date || '').slice(0, 10);
+          const pausen = /^\d{4}-\d{2}-\d{2}$/.test(tag) ? pausenZeilen(entry.pausen, entry.startTime).filter((z) => {
+            const t = zuZeitpunkt(tag, z.zeit);
+            return !t || new Date(t).getTime() + (z.m >= 1440 ? 86400000 : 0) > jetztMinute;
+          }) : [];
+          return { ...entry, pausenZeilen: pausen, zeigeStart: Boolean(entry.startTime) && (start === null || start > jetztMinute), zeigeEnde: Boolean(entry.endTime) && (ende === null || ende > jetztMinute) };
+        })
+        // Angenommen und alles vorbei: nur noch im Verlauf.
+        .filter((entry) => entry.id && (!entry.angenommen || entry.zeigeStart || entry.zeigeEnde || entry.pausenZeilen.length)),
+    [serviceRequests, jetztMinute],
   );
 
   const frameHeight = useMemo(() => {
@@ -607,11 +684,10 @@ const FahrtenScreen01View = ({
   // Stunden am Ende des Diensttages (nur live).
   const { karten: stundenKarten, laden: stundenLaden } = useStundenKarten();
   const sichtbareStunden = DEMO_MODE ? [] : stundenKarten;
-  const stundenAktionen = useStundenAktionen(stundenLaden);
   const listenLayout = useMemo(
-    () => buildListenLayout(visibleJobs, activeServiceRequests, fahrzeugKartenHoehe, sichtbareStunden),
+    () => buildListenLayout(visibleJobs, activeServiceRequests, fahrzeugKartenHoehe, sichtbareStunden, standbys),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visibleJobs, activeServiceRequests, schriftGeladen, fahrzeugKartenHoehe, sichtbareStunden],
+    [visibleJobs, activeServiceRequests, schriftGeladen, fahrzeugKartenHoehe, sichtbareStunden, standbys, jetztMinute],
   );
   const rideLayouts = listenLayout.fahrten;
   const ridesBottom = listenLayout.unterkante;
@@ -760,7 +836,22 @@ const FahrtenScreen01View = ({
                   </div>
                 ))}
 
-                {listenLayout.dienste.map(({ request, top }, index) => {
+                {listenLayout.dienste.map(({ request, top, art, zeile }, index) => {
+                  if (art !== 'karte') {
+                    const farbe = art === 'start' ? '#E3F654' : art === 'ende' ? '#FF6F63' : GRAU;
+                    const zeit = (art === 'start' ? request.startTime : request.endTime).slice(0, 5);
+                    return (
+                      <div
+                        key={`${request.id}-${art}-${zeile?.key || ''}`}
+                        className="absolute left-5 w-[362px] outline outline-1 outline-offset-[-1px] flex items-center px-4"
+                        style={{ top: `${top}px`, height: `${DIENST_ZEILE_HOEHE}px`, outlineColor: farbe }}
+                      >
+                        <span className="text-2xl font-bold leading-6 tracking-wide" style={{ color: farbe, fontFamily: 'Space Grotesk' }}>
+                          {art === 'pause' ? zeilenText(zeile, t) : t(art === 'start' ? 'misc.shiftStart' : 'misc.shiftEnd', { time: zeit })}
+                        </span>
+                      </div>
+                    );
+                  }
                   const isBusy = serviceActionBusyId === request.id;
                   return (
                     <div key={request.id}>
@@ -768,19 +859,20 @@ const FahrtenScreen01View = ({
                         // Rand immer 2 px breit, damit der graue Bereich und der Inhalt beim
                         // Annehmen nicht um die Randbreite springen — nur die Farbe wechselt.
                         className={`absolute left-5 w-[362px] bg-[#1a1a1a] border-2 px-[12px] pt-[19px] pb-[19px] transition-colors duration-300 ${request.angenommen ? 'border-[#e3f754]' : 'border-transparent'}`}
-                        style={{ top: `${top}px`, height: `${SERVICE_REQUEST_CARD_HEIGHT}px` }}
+                        style={{ top: `${top}px`, height: `${anfrageHoehe(request)}px` }}
                         data-tutorial={index === 0 ? 'dienstanfrage' : undefined}
                       >
-                        {request.startTime ? (
-                          <div className="text-[#E3F654] text-[38px] leading-none font-bold font-['Space_Grotesk']">
-                            {t('screens.serviceStart', { time: request.startTime.slice(0, 5) })}
+                        {/* Zeilen der Anfrage: Dienststart (Lime), Pausen (Grau), Dienstende (Rot), einzeln oder
+                            zusammen. Erste Zeile gross, weitere kleiner. */}
+                        {(request.zeilen || []).map((z, i) => (
+                          <div
+                            key={`${z.art}-${z.zeit}-${i}`}
+                            className="leading-none font-bold font-['Space_Grotesk'] whitespace-nowrap"
+                            style={{ color: zeilenFarbe(z), fontSize: `${zeilenGroesse(z, i === 0)}px`, marginTop: i === 0 ? 0 : 20 }}
+                          >
+                            {zeilenText(z, t)}
                           </div>
-                        ) : null}
-                        {request.endTime ? (
-                          <div className="mt-[20px] text-[#FF6F63] text-[24px] leading-none font-bold font-['Space_Grotesk']">
-                            {t('screens.serviceEnd', { time: request.endTime.slice(0, 5) })}
-                          </div>
-                        ) : null}
+                        ))}
                       </div>
                       {!request.angenommen && (
                       <>
@@ -790,7 +882,7 @@ const FahrtenScreen01View = ({
                         disabled={isBusy}
                         data-tutorial={index === 0 ? 'dienstanfrage-ablehnen' : undefined}
                         className="absolute w-[178px] h-[51px] border-2 border-[#ff6f63] flex items-center justify-center disabled:opacity-60"
-                        style={{ left: '20px', top: `${top + SERVICE_REQUEST_CARD_HEIGHT + ACTION_GAP}px` }}
+                        style={{ left: '20px', top: `${top + anfrageHoehe(request) + ACTION_GAP}px` }}
                       >
                         <span className="text-[#ff6f63] text-[24px] font-bold tracking-[-0.5px] leading-none" style={{ fontFamily: 'Space Grotesk' }}>
                           {t('screens.refuse')}
@@ -802,7 +894,7 @@ const FahrtenScreen01View = ({
                         disabled={isBusy}
                         data-tutorial={index === 0 ? 'dienstanfrage-annehmen' : undefined}
                         className="absolute w-[178px] h-[51px] bg-[#e3f754] flex items-center justify-center disabled:opacity-60"
-                        style={{ left: '204px', top: `${top + SERVICE_REQUEST_CARD_HEIGHT + ACTION_GAP}px` }}
+                        style={{ left: '204px', top: `${top + anfrageHoehe(request) + ACTION_GAP}px` }}
                       >
                         <span className="text-black text-[24px] font-bold tracking-[-0.5px] leading-none" style={{ fontFamily: 'Space Grotesk' }}>
                           {t('screens.accept')}
@@ -814,15 +906,16 @@ const FahrtenScreen01View = ({
                   );
                 })}
 
+                {listenLayout.standbyPlaetze.map(({ standby, top }) => (
+                  <div key={`standby-${standby.id}`} className="absolute left-5" style={{ top }}>
+                    <StandbyKarte standby={standby} onAntworten={onStandbyAntworten} onMelden={onStandbyMelden} />
+                  </div>
+                ))}
+
                 {listenLayout.stunden.map(({ eintrag, top }) => (
                   <div key={`stunden-${eintrag.dienst.id}`} className="absolute left-5" style={{ top }}>
-                    <StundenKarte
-                      eintrag={eintrag}
-                      busy={stundenAktionen.busyId === eintrag.dienst.id}
-                      annehmen={() => stundenAktionen.annehmen(eintrag)}
-                      bearbeiten={() => stundenAktionen.bearbeiten(eintrag)}
-                      ablehnen={() => stundenAktionen.ablehnen(eintrag)}
-                    />
+                    {/* Stundenerfassung wie im Verlauf (Figma 2823-12431), Bearbeiten als Vollbild. */}
+                    <HeuteStunden eintrag={eintrag} nachher={stundenLaden} vollbild />
                   </div>
                 ))}
 
@@ -853,7 +946,6 @@ const FahrtenScreen01View = ({
         </div>
       </div>
       
-      {stundenAktionen.ebene}
 
       {/* Cancel Ride Sheet */}
       {showCancelSheet && (

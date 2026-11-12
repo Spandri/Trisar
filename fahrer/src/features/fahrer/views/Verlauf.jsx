@@ -5,7 +5,7 @@ import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
 import { DEMO_MODE } from '../../../datenquelle';
 import { supabase } from '../../../shared/supabase/client';
 import { gaesteZeilen } from '../../../shared/gaesteAnzeige';
-import { StundenKarte, Tageszeile, useStundenAktionen, useStundenVerlauf, uhr, zuZeitpunkt } from './Stunden';
+import { HeuteStunden, Tageszeile, heuteBerlin, heuteStand, useStundenVerlauf, uhr, zuZeitpunkt } from './Stunden';
 
 const BASE_WIDTH = 402;
 const CONTENT_SHIFT = 43;
@@ -151,8 +151,17 @@ const FahrtKarte = ({ f, t }) => {
 function FahrtenVerlauf({ t }) {
   const fahrten = useVerlaufFahrten(60);
   const { eintraege: dienste, laden } = useStundenVerlauf(60);
-  const aktionen = useStundenAktionen(laden);
   const tage = useMemo(() => verlaufTage(fahrten, dienste), [fahrten, dienste]);
+  const heute = heuteBerlin();
+  // Erster Dienst von heute, der schon begonnen hat (bei mehreren der laufende bzw. letzte).
+  const heuteEintrag = (dienste || []).find((e) => e.dienst.datum === heute && heuteStand(e));
+  // Solange heute ein Dienst ansteht oder laeuft jede Minute neu laden (Start, Pausen, Ende kommen dazu).
+  const heuteOffen = (dienste || []).some((e) => e.dienst.datum === heute && !e.vorbei);
+  useEffect(() => {
+    if (!heuteOffen) return undefined;
+    const id = setInterval(laden, 60000);
+    return () => clearInterval(id);
+  }, [heuteOffen, laden]);
   if (fahrten === null || dienste === null) return null;
   if (!tage.length) {
     return <p className="text-white/70 text-[16px] font-medium leading-6 tracking-[0.5px]">{t('misc.historyEmpty')}</p>;
@@ -162,6 +171,7 @@ function FahrtenVerlauf({ t }) {
       {tage.map((tag) => (
         <div key={tag.datum} className="flex flex-col gap-[24px]">
           <Tageszeile datum={tag.datum} />
+          {tag.datum === heute && heuteEintrag ? <HeuteStunden eintrag={heuteEintrag} nachher={laden} /> : null}
           <div className="flex flex-col gap-[6px]">
             {tag.eintraege.map((e) => (e.art === 'fahrt' ? <FahrtKarte key={e.fahrt.id} f={e.fahrt} t={t} /> : (
               <div key={e.eintrag.dienst.id} className="flex flex-col gap-[6px]">
@@ -170,15 +180,8 @@ function FahrtenVerlauf({ t }) {
                 {e.eintrag.vorbei ? (
                   <>
                     <div className="mt-[9px]"><StatusRow label={t('misc.shiftEnd', { time: e.eintrag.dienst.ende || uhr(e.ende) })} color="#ff6f63" /></div>
-                    <div className="mt-[18px]">
-                      <StundenKarte
-                        eintrag={e.eintrag}
-                        busy={aktionen.busyId === e.eintrag.dienst.id}
-                        annehmen={() => aktionen.annehmen(e.eintrag)}
-                        bearbeiten={() => aktionen.bearbeiten(e.eintrag)}
-                        ablehnen={() => aktionen.ablehnen(e.eintrag)}
-                      />
-                    </div>
+                    {/* Stundenerfassung im neuen Look (Figma 2823-12622) an jedem vergangenen Dienst. */}
+                    {e.eintrag === heuteEintrag ? null : <div className="mt-[18px]"><HeuteStunden eintrag={e.eintrag} nachher={laden} /></div>}
                   </>
                 ) : (
                   <div className="mt-[9px] text-[16px] font-medium text-white/50">{t('misc.shiftRunning')}</div>
@@ -188,7 +191,6 @@ function FahrtenVerlauf({ t }) {
           </div>
         </div>
       ))}
-      {aktionen.ebene}
     </div>
   );
 }

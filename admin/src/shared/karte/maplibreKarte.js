@@ -374,6 +374,55 @@ const markerElementBauen = (icon) => {
       ? { width: `${bildBreite}px`, height: `${bildHoehe}px`, display: 'block', maxWidth: 'none' }
       : { width: '100%', height: '100%', objectFit: 'contain', display: 'block' });
     huelle.appendChild(bild);
+    // ebenen: weitere Bilder auf dem Zeichen, je mit Lage, Groesse und Deckkraft
+    // (etwa "kein Signal", Figma 2823-12621). oben: ueber der Beschriftung.
+    (icon.ebenen || []).forEach((ebene) => {
+      if (!ebene?.url) return;
+      // kreis: Ebene sitzt im runden Kopf des Zeichens und wird an dessen Rand abgeschnitten
+      // (etwa die Flagge am Fahrerpunkt, Aussenbogen oben rechts).
+      if (ebene.kreis) {
+        const durchmesser = zahl(ebene.kreis) ?? bildBreite;
+        const klammer = document.createElement('div');
+        klammer.dataset.ebene = ebene.oben ? 'oben-klammer' : 'unten-klammer';
+        if (ebene.immerVoll) klammer.dataset.voll = '1';
+        Object.assign(klammer.style, {
+          position: 'absolute', left: '0px', top: '0px', width: `${durchmesser}px`, height: `${durchmesser}px`,
+          borderRadius: '50%', overflow: 'hidden', pointerEvents: 'none',
+        });
+        const inhalt = document.createElement('img');
+        inhalt.src = ebene.url;
+        inhalt.alt = '';
+        Object.assign(inhalt.style, {
+          position: 'absolute', left: `${zahl(ebene.x) ?? 0}px`, top: `${zahl(ebene.y) ?? 0}px`,
+          width: `${zahl(ebene.breite) ?? 14}px`, height: `${zahl(ebene.hoehe) ?? 14}px`,
+          filter: ebene.filter || '', display: 'block', maxWidth: 'none', pointerEvents: 'none',
+        });
+        klammer.appendChild(inhalt);
+        huelle.appendChild(klammer);
+        return;
+      }
+      const teil = document.createElement('img');
+      teil.src = ebene.url;
+      teil.alt = '';
+      teil.dataset.ebene = ebene.oben ? 'oben' : 'unten';
+      // immerVoll: bleibt deckend, auch wenn das Zeichen abgeblendet ist.
+      if (ebene.immerVoll) teil.dataset.voll = '1';
+      Object.assign(teil.style, {
+        position: 'absolute',
+        left: `${zahl(ebene.x) ?? 0}px`,
+        top: `${zahl(ebene.y) ?? 0}px`,
+        width: `${zahl(ebene.breite) ?? 14}px`,
+        height: `${zahl(ebene.hoehe) ?? 14}px`,
+        opacity: String(zahl(ebene.deckkraft) ?? 1),
+        filter: ebene.filter || '',
+        transform: zahl(ebene.drehung) === null ? '' : `rotate(${zahl(ebene.drehung)}deg)`,
+        transformOrigin: '50% 100%',
+        display: 'block',
+        maxWidth: 'none',
+        pointerEvents: 'none',
+      });
+      huelle.appendChild(teil);
+    });
     // Google verankert das Bild an einem Punkt darin, MapLibre an seiner Mitte.
     const ankerX = zahl(icon.anchor?.x);
     const ankerY = zahl(icon.anchor?.y);
@@ -463,7 +512,11 @@ class Marker {
         pointerEvents: 'none',
       });
       feld.textContent = String(beschriftung.text);
-      huelle.appendChild(feld);
+      if (zahl(beschriftung.deckkraft) !== null) feld.style.opacity = String(beschriftung.deckkraft);
+      // Ebenen mit oben: true liegen ueber der Beschriftung.
+      const obenauf = huelle.querySelector('img[data-ebene="oben"]');
+      if (obenauf) huelle.insertBefore(feld, obenauf);
+      else huelle.appendChild(feld);
     }
     this.abblendenAnwenden(huelle);
     this.marker.setOffset(versatz);
@@ -494,9 +547,11 @@ class Marker {
     // Zeichen. Einzeln abgeblendet verschwaende die Nummer fast ganz.
     const gruppe = document.createElement('div');
     Object.assign(gruppe.style, { position: 'absolute', inset: '0', opacity: String(wert), pointerEvents: 'none' });
-    [...huelle.childNodes].forEach((kind) => gruppe.appendChild(kind));
+    const voll = [...huelle.querySelectorAll('[data-voll="1"]')];
+    [...huelle.childNodes].forEach((kind) => { if (!voll.includes(kind)) gruppe.appendChild(kind); });
     huelle.appendChild(unterlage);
     huelle.appendChild(gruppe);
+    voll.forEach((kind) => huelle.appendChild(kind));
   }
 
   setAbblenden(wert) {

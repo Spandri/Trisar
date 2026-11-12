@@ -28,17 +28,17 @@ const ebenenAnlegen = (map, kennung) => {
   if (!map.getSource(rein)) map.addSource(rein, { type: 'geojson', data: leer });
   if (!map.getSource(raus)) map.addSource(raus, { type: 'geojson', data: leer });
   if (!map.getLayer(`${rein}-flaeche`)) {
-    map.addLayer({ id: `${rein}-flaeche`, type: 'fill', source: rein, paint: { 'fill-color': LIME, 'fill-opacity': 0.18 } });
+    map.addLayer({ id: `${rein}-flaeche`, type: 'fill', source: rein, paint: { 'fill-color': LIME, 'fill-opacity': 0.2 } });
   }
   if (!map.getLayer(`${rein}-rand`)) {
-    map.addLayer({ id: `${rein}-rand`, type: 'line', source: rein, paint: { 'line-color': LIME, 'line-width': 1.5, 'line-opacity': 0.9 } });
+    map.addLayer({ id: `${rein}-rand`, type: 'line', source: rein, paint: { 'line-color': LIME, 'line-width': 1, 'line-opacity': 1 } });
   }
   if (!map.getLayer(`${raus}-rand`)) {
     map.addLayer({
       id: `${raus}-rand`,
       type: 'line',
       source: raus,
-      paint: { 'line-color': LIME, 'line-width': 2, 'line-opacity': 0.9, 'line-dasharray': [3, 2] },
+      paint: { 'line-color': LIME, 'line-width': 1, 'line-opacity': 1, 'line-dasharray': [6, 4] },
     });
   }
 };

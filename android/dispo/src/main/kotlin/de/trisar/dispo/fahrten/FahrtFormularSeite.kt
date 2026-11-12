@@ -134,7 +134,12 @@ private fun FormularInhalt(
 
     var werte by remember { mutableStateOf(vorlage?.werte ?: geladen?.werte ?: FahrtFormularWerte()) }
     var notiz by remember { mutableStateOf(vorlage?.notiz ?: geladen?.notiz ?: "") }
-    var fahrerNamen by remember { mutableStateOf((vorlage?.fahrerNamen ?: geladen?.fahrerNamen ?: emptyList()).ifEmpty { listOf("") }) }
+    // Ohne Vorlage: auf der Karte markierte Fahrer sind schon eingetragen (fahrerMarkierung im Web).
+    var fahrerNamen by remember {
+        val markierte = if (vorlage == null && geladen == null && de.trisar.dispo.FahrerMarkierung.wirkt)
+            de.trisar.dispo.FahrerMarkierung.fahrer.map { it.name }.filter { it.isNotEmpty() } else emptyList()
+        mutableStateOf((vorlage?.fahrerNamen ?: geladen?.fahrerNamen ?: markierte).ifEmpty { listOf("") })
+    }
     var gaesteNamen by remember { mutableStateOf(FahrtText.gaesteTeilen(vorlage?.fahrgaeste ?: geladen?.fahrgaeste) + "") }
     var zwischenstopps by remember { mutableStateOf(stoppZeilen(geladen?.zwischenstopps ?: emptyList())) }
     var adressHinweis by remember { mutableStateOf<String?>(null) }
@@ -459,7 +464,8 @@ private fun FormularInhalt(
         }
         if (!bearbeiten) {
             // handleCreateRide aus FahrtAdd.jsx.
-            if (FahrtText.getrimmt(werte.start).isEmpty() || FahrtText.getrimmt(werte.ziel).isEmpty()) { meldung = t("fahrt.fillStartZiel"); return }
+            // Start leer = Standort des Fahrers (DB-Trigger trg_jobs_a_start_fahrerstandort).
+            if (FahrtText.getrimmt(werte.ziel).isEmpty()) { meldung = t("fahrt.fillStartZiel"); return }
             speichert = true
             val w = werte.copy(anonymeGaeste = werte.anonymeGaeste.ifEmpty { "0" })
             scope.launch {

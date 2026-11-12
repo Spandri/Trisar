@@ -187,15 +187,15 @@ internal object OrtKreise {
         val aussen = if (da) "{\"type\":\"Feature\",\"properties\":{},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[${ring(lat!!, lng!!, raus)}]}}" else LEER
         val lime = LIME.toArgb()
         quelle(stil, "$praefix-rein", innen) { id ->
-            stil.addLayer(FillLayer(id, id).withProperties(PropertyFactory.fillColor(lime), PropertyFactory.fillOpacity(0.18f)))
+            stil.addLayer(FillLayer(id, id).withProperties(PropertyFactory.fillColor(lime), PropertyFactory.fillOpacity(0.2f)))
             stil.addLayer(LineLayer("$id-rand", id).withProperties(
-                PropertyFactory.lineColor(lime), PropertyFactory.lineWidth(1.5f * faktor), PropertyFactory.lineOpacity(0.9f),
+                PropertyFactory.lineColor(lime), PropertyFactory.lineWidth(1f * faktor), PropertyFactory.lineOpacity(1f),
             ))
         }
         quelle(stil, "$praefix-raus", aussen) { id ->
             stil.addLayer(LineLayer(id, id).withProperties(
-                PropertyFactory.lineColor(lime), PropertyFactory.lineWidth(2f * faktor), PropertyFactory.lineOpacity(0.9f),
-                PropertyFactory.lineDasharray(arrayOf(2f, 2f)),
+                PropertyFactory.lineColor(lime), PropertyFactory.lineWidth(1f * faktor), PropertyFactory.lineOpacity(1f),
+                PropertyFactory.lineDasharray(arrayOf(6f, 4f)),
             ))
         }
     }
@@ -215,15 +215,21 @@ internal object OrtKreise {
     }
 }
 
-/** Ort-Marke: Icon im dunklen Kreis, ausgewaehlt Lime mit Lime-Rand. */
+/**
+ * Ort-Marke nach Figma 2832-12397: 35 wie die Fahrer, gestrichelter Ring aussen (PNG aus Figma),
+ * Lime-Kreis 29 bei 3/3, schwarzes Symbol 15 bei 10/10.
+ */
 @Composable
 internal fun OrtMarke(icon: String, aktiv: Boolean, modifier: Modifier = Modifier) {
-    Box(
-        modifier.size(34.dp).background(Color.Black.copy(alpha = 0.85f), CircleShape)
-            .border(2.dp, if (aktiv) LIME else hex(0x5A5A5A), CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(if (aktiv) OrtIcons.lime(icon) else OrtIcons.grau(icon), Modifier.size(18.dp))
+    Box(modifier.size(35.dp)) {
+        // Gewaehlt: der kleine Ring ist zum Rausfahr-Kreis ausgefahren (Figma 2836-12484).
+        if (!aktiv) coil3.compose.AsyncImage(
+            model = "file:///android_asset/icon/Ort_Ring_Trisar_01.png",
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Icon("Ort_Kreis_Trisar_01", Modifier.padding(start = 3.dp, top = 3.dp).size(29.dp))
+        Icon(OrtIcons.schwarz(icon), Modifier.padding(start = 10.dp, top = 10.dp).size(15.dp))
     }
 }
 
@@ -394,7 +400,9 @@ internal fun OrtBearbeitenSeite(ort: Ort?, zurueck: () -> Unit) {
     val kartenHoehe = 280f
     val radienTop = kartenTop + kartenHoehe + 40f
     val iconTop = radienTop + 136f
-    val knopfTop = iconTop + 32f + 52f + 32f
+    // Raster mit 6 Icons je Reihe, 62 dp Abstand.
+    val iconReihen = (OrtIcons.SCHLUESSEL.size + 5) / 6
+    val knopfTop = iconTop + 32f + iconReihen * 62f - 10f + 32f
     val inhaltHoehe = knopfTop + (if (ort != null) 68f else 0f) + 56f + 140f
 
     Box(Modifier.fillMaxSize().background(Color.Black).blockieren()) {
@@ -425,7 +433,7 @@ internal fun OrtBearbeitenSeite(ort: Ort?, zurueck: () -> Unit) {
             OrtIcons.SCHLUESSEL.forEachIndexed { i, k ->
                 val an = k == icon
                 Box(
-                    Modifier.platz(20f + i * 62f, iconTop + 32f, 52f, 52f)
+                    Modifier.platz(20f + (i % 6) * 62f, iconTop + 32f + (i / 6) * 62f, 52f, 52f)
                         .background(hex(0x242525), RoundedCornerShape(12.dp))
                         .border(2.dp, if (an) LIME else Color.Transparent, RoundedCornerShape(12.dp))
                         .tippen { icon = k },

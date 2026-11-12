@@ -155,6 +155,10 @@ const FAHRT_FELDER = [
   { key: 'rollstuhl', kopf: ['rollstuhl', 'barrierefrei', 'wheelchair', 'rollstuhlgerecht', 'accessibility'], werte: ['janein'] },
   { key: 'gepaeck', kopf: ['gepäck', 'gepaeck', 'koffer', 'luggage', 'baggage', 'sondergepäck', 'bags'], werte: ['janein', 'anzahl'] },
   { key: 'notiz', kopf: ['notiz', 'notizen', 'bemerkung', 'bemerkungen', 'hinweis', 'hinweise', 'kommentar', 'note', 'notes', 'remarks', 'comment', 'comments', 'info', 'details', 'special requests', 'besonderheiten'], werte: ['freitext'] },
+  // Fahrer laut Liste: wird beim Einlesen einem Fahrer der Dispo zugeordnet (driver_id).
+  { key: 'fahrer', kopf: ['fahrer', 'fahrerin', 'chauffeur', 'chauffeurin', 'chauffeure', 'driver', 'fahrer name', 'driver name', 'chauffeur name'], werte: ['name'] },
+  // Ankunft am Ziel: trennt Sammelfahrten (gleicher Fahrer, gleiche Ankunft = eine Fahrt mit Zwischenstopps).
+  { key: 'ankunft', kopf: ['ankunft', 'ankunft ziel', 'ankunft kongress', 'arrival at destination', 'eta ziel'], werte: ['uhrzeit'] },
   // Kein eigenes Feld in jobs: beides kommt in die Notiz der Fahrt.
   { key: 'firma', kopf: ['firma', 'unternehmen', 'company', 'organisation', 'organization', 'kunde firma', 'auftraggeber'], werte: [] },
   { key: 'telefon', kopf: ['telefon', 'tel', 'phone', 'mobil', 'handy', 'mobile', 'telefonnummer', 'kontakt telefon'], werte: ['telefon'] },
@@ -568,7 +572,10 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
 
     const kombi = wert(zeile, 'datumUhrzeit');
     let datum = datumLesen(kombi) || datumLesen(wert(zeile, 'datum'));
-    const uhrzeit = (kombi ? uhrzeitLesen(ohneDatum(kombi)) : '') || uhrzeitLesen(wert(zeile, 'uhrzeit'));
+    const ankunft = uhrzeitLesen(wert(zeile, 'ankunft'));
+    // Nur eine Ankunftsspalte (z. B. Flugankunft): die gilt als Abholzeit.
+    const uhrzeit = (kombi ? uhrzeitLesen(ohneDatum(kombi)) : '') || uhrzeitLesen(wert(zeile, 'uhrzeit')) || (spalteVon('uhrzeit') == null ? ankunft : '');
+    const fahrerName = wert(zeile, 'fahrer');
     // Kurzname, der woanders in der Datei mit Anschrift steht, bekommt die Anschrift.
     const ergaenzt = (ort) => (ort && !ort.includes(',') && kontext?.orte?.[schluessel(ort)]) || ort;
     const abholort = ergaenzt(wert(zeile, 'abholort'));
@@ -640,12 +647,16 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
       needs_accessibility: flag('rollstuhl'),
       needs_luggage: flag('gepaeck'),
       note: notiz || null,
+      fahrer_name: fahrerName || null,
+      ankunft: ankunft && ankunft !== uhrzeit ? ankunft : null,
+      zwischenstopps: [],
     };
 
     // Gleiche Fahrt in mehreren Zeilen (ein Gast je Zeile): zusammenfassen.
     const sch = fahrtSchluessel(daten);
     // Nur bei Namen (ein Gast je Zeile). Gleiche Fahrt ohne Namen in zwei Zeilen sind zwei Fahrzeuge.
-    const gleiche = datum && uhrzeit && (abholort || zielort) && gaeste.length ? nachSchluessel.get(sch) : null;
+    const gleiche = datum && uhrzeit && (abholort || zielort) && gaeste.length && nachSchluessel.get(sch)?.daten.fahrer_name === daten.fahrer_name
+      ? nachSchluessel.get(sch) : null;
     if (gleiche) {
       gleiche.daten.passengers.push(...gaeste.filter((g) => !gleiche.daten.passengers.includes(g)));
       if (daten.anzahl && (!gleiche.daten.anzahl || gleiche.daten.anzahl < daten.anzahl)) gleiche.daten.anzahl = daten.anzahl;
@@ -663,8 +674,49 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
     letzte = satz;
   });
 
-  datensaetze.forEach(fahrtPruefen);
-  return { datensaetze };
+  const ergebnis = zwischenstoppsBilden(datensaetze);
+  ergebnis.forEach(fahrtPruefen);
+  return { datensaetze: ergebnis };
+};
+
+// Sammelfahrt: derselbe Fahrer holt am selben Tag mehrere Gaeste nacheinander ab und kommt mit allen
+// zur selben Zeit am selben Ziel an ("Doessinger 17:10, danach Sander 17:34, Ankunft 17:50").
+// Daraus wird eine Fahrt mit Zwischenstopps statt zwei Fahrten. Nur mit Fahrer und Ankunft, sonst
+// koennten zwei getrennte Fahrten zusammenfallen.
+export const zwischenstoppsBilden = (datensaetze) => {
+  const gruppen = new Map();
+  datensaetze.forEach((satz) => {
+    const d = satz.daten;
+    if (!d.fahrer_name || !d.ankunft || !d.ride_date || !d.etd || !d.dropoff_address) return;
+    const k = [d.ride_date, schluessel(d.fahrer_name), d.ankunft, adresseVergleich(d.dropoff_address)].join('#');
+    if (!gruppen.has(k)) gruppen.set(k, []);
+    gruppen.get(k).push(satz);
+  });
+  const weg = new Set();
+  gruppen.forEach((liste) => {
+    if (liste.length < 2) return;
+    liste.sort((a, b) => String(a.daten.etd).localeCompare(String(b.daten.etd)));
+    const [erste, ...weitere] = liste;
+    const d = erste.daten;
+    weitere.forEach((satz) => {
+      const w = satz.daten;
+      if (w.pickup_address && adresseVergleich(w.pickup_address) !== adresseVergleich(d.pickup_address)) {
+        d.zwischenstopps.push(w.pickup_address);
+      }
+      // Personen zusammenzaehlen, bevor die Namen zusammengelegt werden.
+      const bisher = Number(d.anzahl) || (d.passengers || []).length;
+      const dazu = Number(w.anzahl) || (w.passengers || []).length;
+      d.passengers.push(...(w.passengers || []).filter((g) => !d.passengers.includes(g)));
+      if (bisher + dazu) d.anzahl = bisher + dazu;
+      ['is_vip', 'needs_child_seat', 'needs_accessibility', 'needs_luggage'].forEach((k) => { d[k] = d[k] || w[k]; });
+      const halt = `Zwischenstopp ${String(w.etd).slice(0, 5)} ${w.pickup_address || ''}${w.passengers?.length ? ` (${w.passengers.join(', ')})` : ''}`.trim();
+      d.note = [d.note, halt, w.note].filter(Boolean).join(' · ');
+      erste.zeilen.push(...satz.zeilen);
+      weg.add(satz);
+    });
+    if (!erste.hinweise.includes('zwischenstopp')) erste.hinweise.push('zwischenstopp');
+  });
+  return datensaetze.filter((satz) => !weg.has(satz));
 };
 
 // Pflichtangaben und Auffaelligkeiten einer Fahrt (auch nach Bearbeitung in der Vorschau).
@@ -675,7 +727,7 @@ export const fahrtPruefen = (satz) => {
   if (!d.etd) satz.fehlt.push('uhrzeit');
   if (!text(d.pickup_address)) satz.fehlt.push('abholort');
   if (!text(d.dropoff_address)) satz.fehlt.push('zielort');
-  const behalten = (satz.hinweise || []).filter((h) => ['mehrereZeilen', 'datumUebernommen', 'datumAusDatei', 'zielAusDatei', 'llama', 'doppelt', 'adresseUnbekannt'].includes(h));
+  const behalten = (satz.hinweise || []).filter((h) => ['mehrereZeilen', 'datumUebernommen', 'datumAusDatei', 'zielAusDatei', 'llama', 'doppelt', 'adresseUnbekannt', 'zwischenstopp', 'fahrerUnbekannt', 'ausWeiteremBlatt'].includes(h));
   if (d.ride_date && d.ride_date < heuteIso()) behalten.push('vergangen');
   if (d.anzahl && d.passengers.length > d.anzahl) behalten.push('mehrNamenAlsPersonen');
   if (d.pickup_address && d.dropoff_address && adresseVergleich(d.pickup_address) === adresseVergleich(d.dropoff_address)) behalten.push('gleicheAdresse');
@@ -700,6 +752,9 @@ export const fahrtZeile = (daten) => {
     flight_origin: text(d.flight_origin) || null,
     train_number: text(d.train_number) || null,
     passengers: gaeste,
+    zwischenstopps: (d.zwischenstopps || []).map(text).filter(Boolean),
+    // Fahrer aus der Liste (beim Einlesen zugeordnet). Die Fahrt bleibt offen, bis er annimmt.
+    driver_id: /^[0-9a-f-]{36}$/i.test(String(d.driver_id || '')) ? String(d.driver_id).toLowerCase() : null,
     // jobs kennt keine Gesamtzahl: wer ueber die Namen hinaus mitfaehrt, zaehlt als anonymer Gast.
     anonymous_guests: Math.max(0, anzahl - gaeste.length),
     trip_type: d.flight_number || FLUGHAFEN.test(d.pickup_address || '') || FLUGHAFEN.test(d.dropoff_address || '') ? 'airport' : 'normal',

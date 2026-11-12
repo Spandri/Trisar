@@ -24,7 +24,9 @@ struct FahrzeugBereichAnsicht: View {
             case .erstellen:
                 FahrzeugFormularSeite(fahrzeug: nil, zurListe: { seite = .liste })
             case let .bearbeiten(f):
-                FahrzeugFormularSeite(fahrzeug: f, zurListe: { seite = .liste })
+                // Fahrer antippen: Fahrer-Bereich mit der Fahrer-Ansicht dieses Fahrers (openDriverById im Web).
+                FahrzeugFormularSeite(fahrzeug: f, zurListe: { seite = .liste },
+                                      oeffneFahrer: { id in FahrerSprung.id = id; zeigen(.fahrer) })
             }
         }
         .id(seite)
@@ -44,11 +46,21 @@ struct FahrzeugListeSeite: View {
     let bearbeiten: (StammFahrzeug) -> Void
     @StateObject private var dienst = FahrzeugeDienst()
     @FocusState private var suchFokus: Bool
+    @ObservedObject private var markierung = FahrerMarkierung.geteilt
+
+    /// Fahrzeuge der auf der Karte markierten Fahrer (profiles.vehicle_id). Nil = Auswahl wirkt nicht.
+    private var markierteFahrzeuge: Set<String>? {
+        markierung.wirkt ? Set(markierung.fahrer.map(\.vehicleId).filter { !$0.isEmpty }) : nil
+    }
 
     var body: some View {
-        let liste = filter.anwenden(dienst.fahrzeuge)
+        let gefiltert = filter.anwenden(dienst.fahrzeuge)
+        let markiert = markierteFahrzeuge
+        // Markierte Fahrzeuge zuerst und hervorgehoben, die uebrigen blass.
+        let liste = markiert.map { m in gefiltert.filter { m.contains($0.id) } + gefiltert.filter { !m.contains($0.id) } } ?? gefiltert
+        let listeOben: CGFloat = markiert == nil ? 354 : 354 + 44
         ZStack(alignment: .topLeading) {
-            Leinwand(basisHoehe: 874, inhaltHoehe: 354 + listenHoehe(liste.count) + 157, mitHintergrund: false) { rahmen in
+            Leinwand(basisHoehe: 874, inhaltHoehe: listeOben + listenHoehe(liste.count) + 157, mitHintergrund: false) { rahmen in
                 ZStack(alignment: .topLeading) {
                     DispoHintergrund().frame(width: 402, height: rahmen)
                     ZurueckKnopf { zeigen(.start) }.platz(20, 60, 50, 50)
@@ -72,6 +84,10 @@ struct FahrzeugListeSeite: View {
 
                     suchfeld.platz(20, 274, 362, 56)
 
+                    if markiert != nil {
+                        MarkierungsVermerk().platz(20, 342, 362, 44)
+                    }
+
                     VStack(alignment: .leading, spacing: 12) {
                         if dienst.laedt {
                             Text("Fahrzeuge werden geladen ...").font(.grotesk(16, .medium)).foregroundStyle(Color(hex: 0xE3F654))
@@ -88,11 +104,19 @@ struct FahrzeugListeSeite: View {
                             Text("Keine Fahrzeuge gefunden.").font(.grotesk(16, .medium)).foregroundStyle(Color(hex: 0xE3F654))
                         }
                         ForEach(liste) { f in
-                            Button { bearbeiten(f) } label: { FahrzeugListenKarte(fahrzeug: f) }
+                            Button { bearbeiten(f) } label: {
+                                FahrzeugListenKarte(fahrzeug: f)
+                                    .overlay {
+                                        if markiert?.contains(f.id) == true {
+                                            Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 3)
+                                        }
+                                    }
+                                    .opacity(markiert.map { $0.contains(f.id) ? 1 : 0.3 } ?? 1)
+                            }
                                 .buttonStyle(.web)
                         }
                     }
-                    .platz(20, 354, 362, nil)
+                    .platz(20, listeOben, 362, nil)
                 }
             }
             Navileiste(aktiv: .fahrzeuge, waehlen: zeigen)
@@ -101,6 +125,7 @@ struct FahrzeugListeSeite: View {
             await dienst.laden()
             await dienst.beobachten()
         }
+        .task(id: markierung.ids) { await markierung.fahrzeugeNachladen() }
         .onDisappear { Task { await dienst.beenden() } }
     }
 
@@ -244,6 +269,7 @@ struct FahrzeugFilterSeite: View {
 struct FahrzeugFormularSeite: View {
     let fahrzeug: StammFahrzeug?
     let zurListe: () -> Void
+    var oeffneFahrer: ((String) -> Void)? = nil
 
     @State private var markeModell = ""
     @State private var variante = ""
@@ -265,6 +291,23 @@ struct FahrzeugFormularSeite: View {
     @FocusState private var fokus: Feld?
     /// Hoehe des Schadensberichts (nur beim Bearbeiten), die Seite waechst mit.
     @State private var schadenHoehe: CGFloat = 0
+    /// Fahrer dieses Fahrzeugs (profiles.vehicle_id): zuweisen und mit einem Tipp zum Fahrer (12.11.).
+    @State private var fahrerListe: [FahrerWahl] = []
+    @State private var fahrerStand = 0
+
+    private struct FahrerWahl: Decodable, Identifiable {
+        let id: String
+        let first_name: String?
+        let last_name: String?
+        let vehicle_id: String?
+        let role: String?
+        let is_dispo: Bool?
+        var name: String {
+            let n = [first_name, last_name].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
+                .trimmingCharacters(in: .whitespaces)
+            return n.isEmpty ? "Ohne Name" : n
+        }
+    }
 
     private enum Feld: Hashable { case markeModell, variante, vin, kennzeichen, farbe, sitze }
 
@@ -273,9 +316,17 @@ struct FahrzeugFormularSeite: View {
 
     private var bearbeiten: Bool { !(fahrzeug?.id ?? "").isEmpty }
     private var trackerVersatz: CGFloat { bearbeiten && !tracker.isEmpty ? 136 : 0 }
+    /// Zeile „Fahrer“ (nur beim Bearbeiten) unter den Tracker-Zeilen, schiebt alles darunter um 68.
+    private var fahrerVersatz: CGFloat { bearbeiten ? 68 : 0 }
+    private var versatz: CGFloat { trackerVersatz + fahrerVersatz }
+
+    private var zugewiesen: FahrerWahl? {
+        guard let id = fahrzeug?.id.lowercased() else { return nil }
+        return fahrerListe.first { $0.vehicle_id?.lowercased() == id }
+    }
 
     var body: some View {
-        Leinwand(basisHoehe: 874, inhaltHoehe: bearbeiten ? max(913 + trackerVersatz, 898 + trackerVersatz + schadenHoehe + 70) : 913, mitHintergrund: false) { rahmen in
+        Leinwand(basisHoehe: 874, inhaltHoehe: bearbeiten ? max(913 + versatz, 898 + versatz + schadenHoehe + 70) : 913, mitHintergrund: false) { rahmen in
             ZStack(alignment: .topLeading) {
                 DispoHintergrund().frame(width: 402, height: max(rahmen, 913))
                 ZurueckKnopf(aktion: zurListe).platz(20, 60, 50, 50)
@@ -307,6 +358,19 @@ struct FahrzeugFormularSeite: View {
                     nfcKnopf("Tag beschreiben", aktion: tagBeschreiben).platz(20, 750, 175, 56)
                     nfcKnopf("Tag auslesen", aktion: tagAuslesen).platz(207, 750, 175, 56)
                 }
+                if bearbeiten {
+                    let mitKnopf = zugewiesen != nil && oeffneFahrer != nil
+                    fahrerAuswahl.platz(20, 682 + trackerVersatz, mitKnopf ? 271 : 362, 56)
+                    if mitKnopf, let f = zugewiesen, let oeffneFahrer {
+                        Button { fokus = nil; oeffneFahrer(f.id) } label: {
+                            Text("Fahrer").font(.grotesk(14, .bold)).foregroundStyle(.black)
+                                .frame(width: 85, height: 56)
+                                .background(Color(hex: 0xE3F654))
+                        }
+                        .buttonStyle(.web)
+                        .platz(297, 682 + trackerVersatz, 85, 56)
+                    }
+                }
 
                 Button(action: speichern) {
                     Text(speichert ? "Speichern ..." : (bearbeiten ? "Fahrzeug speichern" : "Fahrzeug erstellen"))
@@ -318,7 +382,7 @@ struct FahrzeugFormularSeite: View {
                 }
                 .buttonStyle(.web)
                 .disabled(speichert)
-                .platz(20, 694 + trackerVersatz, 362, 56)
+                .platz(20, 694 + versatz, 362, 56)
 
                 WebText(text: rueckmeldung.isEmpty
                         ? (bearbeiten ? "Fahrzeugdaten ändern und speichern." : "Fahrzeugdaten eintragen und speichern.")
@@ -328,7 +392,7 @@ struct FahrzeugFormularSeite: View {
                     .frame(width: 362, alignment: .topLeading)
                     .frame(minHeight: 56, alignment: .topLeading)
                     .overlay(Rectangle().strokeBorder(Color(hex: 0x7F8A2B), lineWidth: 1))
-                    .platz(20, 762 + trackerVersatz, 362, nil)
+                    .platz(20, 762 + versatz, 362, nil)
 
                 if bearbeiten, let id = fahrzeug?.id {
                     Button { loeschFrage = true } label: {
@@ -339,11 +403,11 @@ struct FahrzeugFormularSeite: View {
                     }
                     .buttonStyle(.web)
                     .disabled(speichert)
-                    .platz(20, 830 + trackerVersatz, 362, 48)
+                    .platz(20, 830 + versatz, 362, 48)
 
                     SchadensBerichtDispo(fahrzeugID: id)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { schadenHoehe = $0 }
-                        .platz(20, 898 + trackerVersatz, 362, nil)
+                        .platz(20, 898 + versatz, 362, nil)
                 }
             }
         }
@@ -354,6 +418,7 @@ struct FahrzeugFormularSeite: View {
             trackerStart = tracker.first { $0.vehicle_id?.lowercased() == id.lowercased() }?.imei ?? ""
             trackerWahl = trackerStart
         }
+        .task(id: "\(fahrzeug?.id ?? "")-\(fahrerStand)") { await fahrerLaden() }
         .photosPicker(isPresented: $bildWaehlen, selection: $bildAuswahl, matching: .images)
         .onChange(of: bildAuswahl) { _, neu in Task { await bildUebernehmen(neu) } }
         .onAppear(perform: uebernehmen)
@@ -415,6 +480,66 @@ struct FahrzeugFormularSeite: View {
                 rueckmeldung = error.localizedDescription
             }
         }
+    }
+
+    /// Alle Fahrer ohne Dispo-Rollen (wie die Auswahl im Web).
+    private func fahrerLaden() async {
+        guard bearbeiten else { fahrerListe = []; return }
+        let dispoRollen: Set<String> = ["dispo", "dispatcher", "admin", "koordinator", "coordinator", "pruefung"]
+        guard let liste: [FahrerWahl] = try? await Backend.client.from("profiles")
+            .select("id, first_name, last_name, vehicle_id, role, is_dispo")
+            .order("first_name", ascending: true)
+            .execute().value else { return }
+        fahrerListe = liste.filter { $0.is_dispo != true && !dispoRollen.contains(($0.role ?? "").lowercased()) }
+    }
+
+    /// Speichert sofort: erst alle bisherigen Fahrer dieses Fahrzeugs loesen, dann den neuen setzen.
+    private func fahrerZuweisen(_ neuID: String) {
+        guard let vid = fahrzeug?.id, !vid.isEmpty else { return }
+        struct Fahrzeug: Encodable { let vehicle_id: String? }
+        Task {
+            do {
+                try await Backend.client.from("profiles").update(Fahrzeug(vehicle_id: nil), returning: .minimal)
+                    .eq("vehicle_id", value: vid)
+                    .neq("id", value: neuID.isEmpty ? "00000000-0000-0000-0000-000000000000" : neuID)
+                    .execute()
+                if !neuID.isEmpty {
+                    try await Backend.client.from("profiles").update(Fahrzeug(vehicle_id: vid), returning: .minimal)
+                        .eq("id", value: neuID)
+                        .execute()
+                }
+                rueckmeldung = neuID.isEmpty ? "Fahrer entfernt." : "Fahrer zugewiesen."
+            } catch {
+                rueckmeldung = "Fahrer nicht gespeichert: \(dbMeldung(error))"
+            }
+            fahrerStand += 1
+        }
+    }
+
+    private var fahrerAuswahl: some View {
+        Menu {
+            Button("Kein Fahrer") { fahrerZuweisen("") }
+            ForEach(fahrerListe) { p in
+                let woanders = p.vehicle_id != nil && p.vehicle_id?.isEmpty == false
+                    && p.vehicle_id?.lowercased() != fahrzeug?.id.lowercased()
+                Button(p.name + (woanders ? " (anderes Fahrzeug)" : "")) { fahrerZuweisen(p.id) }
+            }
+        } label: {
+            ZStack(alignment: .leading) {
+                Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2)
+                Text(zugewiesen?.name ?? "Kein Fahrer")
+                    .font(.grotesk(16, .medium)).tracking(0.5)
+                    .foregroundStyle(Color(hex: 0x8A9728))
+                    .lineLimit(1)
+                    .padding(.leading, 16).padding(.trailing, 34)
+                Image("Arrow-kurz_Trisar_Icons_01_Lime").resizable().frame(width: 10, height: 13)
+                    .rotationEffect(.degrees(90))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 12)
+            }
+            .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Fahrer")
     }
 
     private func trackerText(_ imei: String) -> String {

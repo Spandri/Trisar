@@ -76,6 +76,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import de.trisar.dispo.DispoZiel
+import de.trisar.dispo.FahrerMarkierung
+import de.trisar.dispo.MarkierungsVermerk
 import de.trisar.dispo.Navileiste
 import de.trisar.kern.Backend
 import de.trisar.kern.DispoHintergrund
@@ -130,7 +132,29 @@ import kotlinx.serialization.json.encodeToJsonElement
 
 /** Fragt dispo-admin (aktion ki_frage), wie das Web. Das Modell laeuft auf dem Server-Weg im Tailnet. */
 internal object KiAssistentDienst {
-    class Antwort(val text: String, val buchungsVorschlag: KiBuchungsVorschlag? = null)
+    class Antwort(val text: String, val buchungsVorschlag: KiBuchungsVorschlag? = null, val dienstVorschlag: KiDienstVorschlag? = null)
+
+    /** Dienststart oder Dienstende fuer markierte Fahrer senden (Vorschlag des Assistenten bestaetigt). Liefert die Anzahl. */
+    suspend fun dienstSenden(v: KiDienstVorschlag): Int {
+        val koerper = buildJsonObject {
+            put("aktion", "dienst_senden")
+            put("art", v.art)
+            put("zeit", v.zeit)
+            put("datum", v.datum)
+            put("start", v.startWirksam?.let { JsonPrimitive(it) } ?: JsonNull)
+            put("ende", v.endeWirksam?.let { JsonPrimitive(it) } ?: JsonNull)
+            putJsonArray("pausen") { v.pausen.forEach { p -> addJsonObject { put("von", p.von); put("bis", p.bis) } } }
+            putJsonArray("fahrerIds") { v.fahrer.forEach { add(JsonPrimitive(it.id)) } }
+        }
+        val text = Backend.client.functions.invoke("dispo-admin") {
+            contentType(ContentType.Application.Json)
+            setBody(koerper.toString())
+        }.bodyAsText()
+        val antwort = Backend.json.parseToJsonElement(text).jsonObject
+        val ok = (antwort["ok"] as? JsonPrimitive)?.content == "true"
+        if (!ok) throw IllegalStateException((antwort["error"] as? JsonPrimitive)?.content?.ifEmpty { null } ?: "Senden fehlgeschlagen")
+        return (antwort["anzahl"] as? JsonPrimitive)?.content?.toIntOrNull() ?: v.fahrer.size
+    }
 
     /** cachedSnapshotAt im Web. Live wird der Snapshot nie geladen, der Cache bleibt aber wie dort. */
     private var snapshotZeit: Long? = null
@@ -168,6 +192,8 @@ internal object KiAssistentDienst {
     suspend fun fragen(
         prompt: String, verlauf: List<Pair<String, String>>,
         offenerVorschlag: KiBuchungsVorschlag? = null, letzteFahrtId: String? = null,
+        /** Auf der Karte markierte Fahrer: "schick die alle in Feierabend" meint sie. */
+        markierteFahrer: List<FahrerMarkierung.Eintrag> = emptyList(),
     ): Antwort {
         val frage = prompt.trim()
         if (frage.isEmpty()) return Antwort("Bitte stelle eine Frage.")
@@ -180,6 +206,7 @@ internal object KiAssistentDienst {
             kontext?.let { put("kontext", it) }
             offenerVorschlag?.let { put("offenerVorschlag", Backend.json.encodeToJsonElement(KiBuchungsVorschlag.serializer(), it)) }
             letzteFahrtId?.let { put("letzteFahrtId", it) }
+            putJsonArray("markierteFahrer") { markierteFahrer.forEach { f -> addJsonObject { put("id", f.id); put("name", f.name) } } }
         }
         // Eigene Zeitgrenze: das Modell braucht bis zu 52 s, Standard im Client sind 10 s.
         val text = Backend.client.functions.invoke("dispo-admin") {
@@ -193,9 +220,43 @@ internal object KiAssistentDienst {
         val vorschlag = if ((aktion?.get("type") as? JsonPrimitive)?.content == "booking_proposal") {
             aktion["proposal"]?.let { Backend.json.decodeFromJsonElement(KiBuchungsVorschlag.serializer(), it) }
         } else null
-        return Antwort((antwort["answer"] as? JsonPrimitive)?.content.orEmpty(), vorschlag)
+        val dienst = if ((aktion?.get("type") as? JsonPrimitive)?.content == "dienst_vorschlag") {
+            aktion["vorschlag"]?.let { runCatching { Backend.json.decodeFromJsonElement(KiDienstVorschlag.serializer(), it) }.getOrNull() }
+        } else null
+        return Antwort((antwort["answer"] as? JsonPrimitive)?.content.orEmpty(), vorschlag, dienst)
     }
 }
+
+/** Dienststart/Dienstende fuer markierte Fahrer (action dienst_vorschlag von dispo-admin). */
+@Serializable
+internal data class KiDienstVorschlag(
+    /** start, ende oder dienst */
+    val art: String = "ende", val zeit: String = "", val datum: String = "",
+    val start: String? = null, val ende: String? = null,
+    val pausen: List<KiDienstPause> = emptyList(),
+    val fahrer: List<KiDienstFahrer> = emptyList(),
+) {
+    /** Ohne start/ende vom Server: aus art und zeit (aeltere Antworten). */
+    val startWirksam: String? get() = start?.ifEmpty { null } ?: zeit.takeIf { art == "start" && it.isNotEmpty() }
+    val endeWirksam: String? get() = ende?.ifEmpty { null } ?: zeit.takeIf { art == "ende" && it.isNotEmpty() }
+
+    /** dienstKnopfText im Web. */
+    val knopfText: String get() {
+        val s = startWirksam; val e = endeWirksam; val p = pausen.isNotEmpty()
+        return when {
+            e != null && s == null && !p -> "Dienstende senden"
+            s != null && e == null && !p -> "Dienststart senden"
+            s == null && e == null && p -> "Pause senden"
+            else -> "Dienst senden"
+        }
+    }
+}
+
+@Serializable
+internal data class KiDienstPause(val von: String = "", val bis: String = "")
+
+@Serializable
+internal data class KiDienstFahrer(val id: String = "", val name: String = "")
 
 /** Buchungs-Vorschau (toCreateRidePayload in KiAssistentView.jsx). */
 @Serializable
@@ -244,6 +305,11 @@ internal data class KiNachricht(
     val bookingStatus: String? = null,
     val bookingRideId: String? = null,
     val stoerungTag: String? = null,
+    val dienstVorschlag: KiDienstVorschlag? = null,
+    /** offen, sendet, gesendet, verworfen */
+    val dienstStatus: String? = null,
+    val dienstAnzahl: Int? = null,
+    val dienstFehler: String? = null,
 ) {
     companion object {
         fun uhrzeit(): String = LocalTime.now().let { zwei(it.hour) + ":" + zwei(it.minute) }
@@ -264,6 +330,7 @@ internal object KiVerlaufSpeicher {
         if (liste.isNullOrEmpty()) return standard
         val bereinigt = liste.filter { it.pending != true && !it.text.contains("Online-Demo deaktiviert", ignoreCase = true) }
             .map { if (it.bookingStatus == "saving") it.copy(bookingStatus = "pending") else it }
+            .map { if (it.dienstStatus == "sendet") it.copy(dienstStatus = "offen") else it }
         if (bereinigt.isEmpty() || (bereinigt.size == 1 && bereinigt[0].id == "init")) return standard
         return bereinigt
     }
@@ -377,7 +444,8 @@ internal fun KiAssistentAnsicht(
         sendet = true
         scope.launch {
             val beginn = System.currentTimeMillis()
-            val ergebnis = runCatching { KiAssistentDienst.fragen(text, verlauf, offen, letzteFahrtID) }
+            val markierte = if (FahrerMarkierung.wirkt) FahrerMarkierung.fahrer else emptyList()
+            val ergebnis = runCatching { KiAssistentDienst.fragen(text, verlauf, offen, letzteFahrtID, markierte) }
             // DENKZEIT_MS: so lange denkt der Assistent mindestens nach.
             val rest = 3000 - (System.currentTimeMillis() - beginn)
             if (rest > 0) delay(rest)
@@ -392,6 +460,7 @@ internal fun KiAssistentAnsicht(
                         n.copy(
                             text = a.text.ifEmpty { "Ich konnte dazu keine Antwort erzeugen." },
                             bookingProposal = a.buchungsVorschlag, bookingStatus = if (a.buchungsVorschlag == null) null else "pending",
+                            dienstVorschlag = a.dienstVorschlag, dienstStatus = if (a.dienstVorschlag == null) null else "offen",
                         )
                     },
                     onFailure = { f -> n.copy(text = "Fehler: ${f.message?.ifEmpty { null } ?: "Unbekannter KI-Fehler"}") },
@@ -407,6 +476,20 @@ internal fun KiAssistentAnsicht(
         ablage.setText(AnnotatedString(wert))
         kopierteID = n.id
         scope.launch { delay(1200); if (kopierteID == n.id) kopierteID = null }
+    }
+
+    // Dienststart/Dienstende fuer markierte Fahrer: erst der Knopf schickt ab.
+    fun dienstSenden(id: String, v: KiDienstVorschlag) {
+        aendern(id) { it.copy(dienstStatus = "sendet", dienstFehler = null) }
+        scope.launch {
+            try {
+                val anzahl = KiAssistentDienst.dienstSenden(v)
+                aendern(id) { it.copy(dienstStatus = "gesendet", dienstAnzahl = anzahl) }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                aendern(id) { it.copy(dienstStatus = "offen", dienstFehler = e.message?.ifEmpty { null } ?: "Senden fehlgeschlagen") }
+            }
+        }
     }
 
     fun formularGebucht(id: String, fahrtID: String?, aenderung: Boolean) {
@@ -474,6 +557,7 @@ internal fun KiAssistentAnsicht(
                                                 contentAlignment = Alignment.Center,
                                             ) { PText("Neuplanung im Planer ansehen", 20f, 700, Color.Black, -0.5f) }
                                         }
+                                        n.dienstVorschlag?.let { v -> DienstVorschlagKnoepfe(n, v, { dienstSenden(n.id, v) }) { aendern(n.id) { it.copy(dienstStatus = "verworfen") } } }
                                         n.bookingProposal?.let { v -> Buchung(n, v, { formular = n.id to v }, { buchen(n.id, v) }, { aendern(n.id) { it.copy(bookingStatus = "cancelled") } }, oeffneFahrt) }
                                     }
                                 }
@@ -482,6 +566,11 @@ internal fun KiAssistentAnsicht(
                         item { Spacer(Modifier.height(1.dp)) }
                     }
                     Spacer(Modifier.height(12.dp)) // COMPOSER_GAP
+                    // Vermerk "3 Fahrer markiert" sitzt ueber der Eingabe, der Verlauf endet darueber.
+                    if (FahrerMarkierung.wirkt) {
+                        MarkierungsVermerk(Modifier.width(362.dp).align(Alignment.CenterHorizontally))
+                        Spacer(Modifier.height(8.dp))
+                    }
                     Row(
                         Modifier.width(362.dp).align(Alignment.CenterHorizontally).background(Color.Black.copy(alpha = 0.6f)),
                         verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -594,6 +683,31 @@ private fun AssistentBlase(n: KiNachricht, kopiert: Boolean, kopieren: () -> Uni
             Box(Modifier.height(16.dp), contentAlignment = Alignment.Center) { PText(n.time, 10f, 400, Color.White.copy(alpha = 0.4f)) }
             Spacer(Modifier.weight(1f))
             SymbolKnopf(kopiert, Color.White.copy(alpha = 0.9f), kopieren) { if (kopiert) SymbolHaken(kiLime) else SymbolKopieren(it) }
+        }
+    }
+}
+
+/** Knopfpaar unter einem Dienst-Vorschlag: gruen senden, rot umrandet "Nein", danach Rueckmeldung. */
+@Composable
+private fun DienstVorschlagKnoepfe(n: KiNachricht, v: KiDienstVorschlag, senden: () -> Unit, verwerfen: () -> Unit) {
+    val knopf = v.knopfText
+    Column(Modifier.padding(top = 12.dp).width(362.dp)) {
+        when (n.dienstStatus) {
+            "offen" -> {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.weight(1f).height(51.dp).background(hex(0x59BE80)).tippen(senden), contentAlignment = Alignment.Center) {
+                        PText(knopf, 20f, 700, hex(0x202020), -0.5f)
+                    }
+                    Box(Modifier.width(110.dp).height(51.dp).border(2.dp, hex(0xFF6F63), RectangleShape).tippen(verwerfen), contentAlignment = Alignment.Center) {
+                        PText("Nein", 20f, 700, hex(0xFF6F63), -0.5f)
+                    }
+                }
+                n.dienstFehler?.let { Text(it, style = grotesk(11f, 500, farbe = hex(0xFF8E8E)), modifier = Modifier.padding(top = 8.dp)) }
+            }
+            "sendet" -> PText("Wird gesendet …", 11f, 500, kiLime)
+            "gesendet" -> PText("${knopf.removeSuffix(" senden")} an ${n.dienstAnzahl ?: v.fahrer.size} Fahrer gesendet.", 11f, 500, hex(0x59BE80))
+            "verworfen" -> PText("Nicht gesendet.", 11f, 500, Color.White.copy(alpha = 0.7f))
+            else -> {}
         }
     }
 }

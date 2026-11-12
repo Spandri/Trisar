@@ -1,3 +1,4 @@
+import Supabase
 import SwiftUI
 
 /// Seitenwechsel der Dispo-App wie setView in admin/src/App.jsx.
@@ -62,7 +63,7 @@ struct DispoHaupt: View {
         case .start:
             DispoStartseite(zeigen: zeigen)
         case .fahrer:
-            FahrerBereichAnsicht(zeigen: zeigen)
+            FahrerBereichAnsicht(zeigen: zeigen, oeffneFahrt: { bearbeiteteFahrt = $0 })
         case .fahrzeuge:
             FahrzeugBereichAnsicht(zeigen: zeigen)
         case .kunden:
@@ -137,10 +138,29 @@ struct DispoHintergrund: View {
 }
 
 /// HomeScreen.jsx: Profil-Knopf, Logo, Begruessung, vier Knoepfe ab 442, Leiste unten.
-/// Kennzahlen-Kacheln gibt es nur in der Demo, live nicht.
+/// Kacheln live (12.11.): Einsatzkosten und Arbeitsstunden seit Einsatzbeginn aus der DB-Funktion
+/// einsatzkosten(), beim Erscheinen und jede Minute neu. Vor der ersten Antwort keine Kacheln (wie im Web).
 struct DispoStartseite: View {
     let zeigen: (DispoZiel) -> Void
     @EnvironmentObject private var anmeldung: Anmeldung
+    @State private var kosten: Einsatzkosten?
+
+    /// Antwort von einsatzkosten(): {kosten, stunden, dienste_ohne_lohn}.
+    struct Einsatzkosten: Decodable {
+        let kosten: Double?
+        let stunden: Double?
+        let dienste_ohne_lohn: Int?
+    }
+
+    /// Wie Math.round(n).toLocaleString('de-DE'): ganze Zahl mit Tausenderpunkt.
+    private static func ganzzahl(_ n: Double?) -> String {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.numberStyle = .decimal
+        f.maximumFractionDigits = 0
+        f.roundingMode = .halfUp
+        return f.string(from: NSNumber(value: (n ?? 0).rounded())) ?? "0"
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -152,6 +172,12 @@ struct DispoStartseite: View {
                     WebText(text: "Willkommen zurück \(anmeldung.profil?.firstName ?? "")", groesse: 34, gewicht: .medium,
                             zeilenHoehe: 34 * 1.276, abstand: -0.5)
                         .platz(20, 180, 362, nil)
+                    if let kosten {
+                        StartKachel(titel: "Seit Einsatzbeginn", zahl: "\(Self.ganzzahl(kosten.kosten)) €", unten: "Einsatzkosten")
+                            .platz(20, 302, 178, 112)
+                        StartKachel(titel: "Seit Einsatzbeginn", zahl: "\(Self.ganzzahl(kosten.stunden)) h", unten: "Arbeitsstunden")
+                            .platz(20 + 178 + 6, 302, 178, 112)
+                    }
                     VStack(spacing: 12) {
                         PlanungsKnopf { zeigen(.planung) }
                         StartKnopf(text: "Fahrer Liste") { zeigen(.fahrer) }
@@ -163,6 +189,39 @@ struct DispoStartseite: View {
             }
             Navileiste(aktiv: .start, waehlen: zeigen)
         }
+        .task {
+            while !Task.isCancelled {
+                await kostenLaden()
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
+    }
+
+    private func kostenLaden() async {
+        // Fehler (z. B. kein Zugriff): alten Stand behalten.
+        if let wert: Einsatzkosten = try? await Backend.client.rpc("einsatzkosten").execute().value {
+            kosten = wert
+        }
+    }
+}
+
+/// StatCard aus HomeScreen.jsx: 178 x 112, Lime-Rand 2, drei Zeilen (24 hoch) bei 15, 47 und 77.
+struct StartKachel: View {
+    let titel: String
+    let zahl: String
+    let unten: String
+    private let lime = Color(hex: 0xE3F654)
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Rectangle().strokeBorder(lime, lineWidth: 2).frame(width: 178, height: 112)
+            Text(titel).font(.grotesk(14, .medium)).tracking(0.3).foregroundStyle(lime).opacity(0.5)
+                .lineLimit(1).fixedSize().frame(height: 24).platz(18, 15)
+            Text(zahl).font(.grotesk(30, .medium)).tracking(0.5).foregroundStyle(lime)
+                .lineLimit(1).fixedSize().frame(height: 24).platz(18, 47)
+            Text(unten).font(.grotesk(14, .medium)).tracking(0.3).foregroundStyle(lime).opacity(0.5)
+                .lineLimit(1).fixedSize().frame(height: 24).platz(18, 77)
+        }
+        .frame(width: 178, height: 112, alignment: .topLeading)
     }
 }
 

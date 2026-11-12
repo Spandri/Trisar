@@ -5,6 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { importAktion } from './import.ts';
 import { kiFrage } from './ki.ts';
+import { dienstSenden } from './dienst.ts';
 import { stundenExport } from './stunden.ts';
 
 const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator']);
@@ -69,7 +70,13 @@ Deno.serve(async (req) => {
 
     // KI-Assistent (siehe ki.ts).
     if (body?.aktion === 'ki_frage') {
-      const { status, daten } = await kiFrage(admin, body);
+      const { status, daten } = await kiFrage(admin, body, aufrufer.user.id);
+      return jsonResponse(status, daten);
+    }
+
+    // Dienststart oder Dienstende fuer markierte Fahrer (siehe dienst.ts).
+    if (body?.aktion === 'dienst_senden') {
+      const { status, daten } = await dienstSenden(admin, body);
       return jsonResponse(status, daten);
     }
 

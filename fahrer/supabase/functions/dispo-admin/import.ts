@@ -225,6 +225,77 @@ const vergleich = (a: unknown) => K.schluessel(a).replace(/\b(str|strasse|straß
 // noch Ort oder Vermerke an ("..., Augsburg, nach Abstimmung").
 const ort1 = (a: unknown) => vergleich(K.text(a).split(',')[0]);
 
+// Fahrer aus der Liste ("Conrad S.", "Gregor", "Konrad Liermann", "Fahrer 3") den Fahrern der Dispo zuordnen.
+// Voller Name, Fahrernummer, eindeutiger Vorname (bei mehreren mit Anfangsbuchstabe des Nachnamens),
+// eindeutiger Nachname. Unklar bleibt ohne Fahrer, mit Hinweis.
+const fahrerNormal = (t: unknown) => K.text(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/ß/g, 'ss').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator', 'pruefung']);
+const fahrerZuordnen = async (admin: Admin, datensaetze: any[]) => {
+  if (!datensaetze.some((s) => s.daten?.fahrer_name)) return;
+  const { data } = await admin.from('profiles').select('id, first_name, last_name, driver_number, role');
+  type F = { id: string; vor: string; nach: string; nr: string; name: string };
+  const fahrer: F[] = (data || [])
+    .filter((p: any) => !DISPO_ROLLEN.has(String(p?.role || '').toLowerCase()))
+    .map((p: any) => ({ id: String(p.id), vor: fahrerNormal(p.first_name), nach: fahrerNormal(p.last_name), nr: p.driver_number == null ? '' : String(p.driver_number),
+      name: [K.text(p.first_name), K.text(p.last_name)].filter(Boolean).join(' ') }));
+  const finden = (roh: string) => {
+    const n = fahrerNormal(roh);
+    if (!n) return null;
+    const voll = fahrer.filter((f) => `${f.vor} ${f.nach}`.trim() === n);
+    if (voll.length === 1) return voll[0];
+    const nr = n.match(/^(?:fahrer|nr|nummer|driver)?\s*(\d{1,4})$/);
+    if (nr) return fahrer.find((f) => f.nr === nr[1]) || null;
+    const [erst, zweit] = n.split(' ');
+    const mitVorname = fahrer.filter((f) => f.vor === erst);
+    if (mitVorname.length === 1) return mitVorname[0];
+    if (mitVorname.length > 1 && zweit) {
+      const passend = mitVorname.filter((f) => f.nach.startsWith(zweit[0]));
+      if (passend.length === 1) return passend[0];
+    }
+    const mitNachname = fahrer.filter((f) => f.nach && f.nach === n);
+    return mitNachname.length === 1 ? mitNachname[0] : null;
+  };
+  datensaetze.forEach((s) => {
+    const d = s.daten;
+    if (!d?.fahrer_name) return;
+    const f = finden(d.fahrer_name);
+    d.driver_id = f?.id || null;
+    d.fahrer = f?.name || null;
+    s.hinweise = (s.hinweise || []).filter((h: string) => h !== 'fahrerUnbekannt');
+    if (!f) s.hinweise.push('fahrerUnbekannt');
+  });
+};
+
+// Weitere Blaetter mit eigenen Fahrten (z. B. "Band Alphaville" neben "Gaeste und Abholzeiten") gleich
+// mit einlesen. Ein Blatt, dessen Fahrten zum groessten Teil schon da sind, ist nur eine andere Ansicht
+// derselben Fahrten (z. B. "Shuttleplan") und bleibt weg.
+const fahrtKennung = (d: any) => [d.ride_date, String(d.etd || '').slice(0, 5), vergleich(K.text(d.pickup_address).split(',')[0])].join('#');
+const weitereBlaetter = (blaetter: any[], hauptBlatt: number, modus: string, vorhanden: any[]) => {
+  const kennungen = new Set(vorhanden.map((s) => fahrtKennung(s.daten)));
+  const dazu: any[] = [];
+  const genutzt: number[] = [];
+  blaetter.forEach((b: any, i: number) => {
+    if (i === hauptBlatt || Math.floor(K.blattBewerten(blaetter, i, modus) / 10) <= 0) return;
+    const erkennung = K.spaltenErkennen(b.zeilen, modus);
+    if (!erkennung.spalten.length || !erkennung.datenzeilen.length) return;
+    const zuordnung = K.zuordnungAus(erkennung.spalten);
+    const { datensaetze } = K.bauen(modus, erkennung.datenzeilen, zuordnung, K.kontextAus(blaetter, i, erkennung.kopfzeile));
+    const vollstaendig = datensaetze.filter((s: any) => !s.fehlt.length);
+    if (!vollstaendig.length) return;
+    const neu = vollstaendig.filter((s: any) => !kennungen.has(fahrtKennung(s.daten)));
+    if (neu.length < vollstaendig.length / 2) return;
+    neu.forEach((s: any) => {
+      s.blatt = b.name;
+      s.hinweise = [...(s.hinweise || []), 'ausWeiteremBlatt'];
+      kennungen.add(fahrtKennung(s.daten));
+    });
+    dazu.push(...neu);
+    genutzt.push(i);
+  });
+  return { dazu, genutzt };
+};
+
 const dublettenMarkieren = async (admin: Admin, modus: string, datensaetze: any[]) => {
   if (modus === 'guests') {
     const mails = datensaetze.map((s) => K.text(s.daten.email).toLowerCase()).filter(Boolean);
@@ -285,6 +356,15 @@ const analysieren = async (admin: Admin, body: any) => {
   let zuordnung: Record<string, string> = body?.zuordnung && typeof body.zuordnung === 'object'
     ? Object.fromEntries(Object.entries(body.zuordnung).filter(([, f]) => typeof f === 'string' && K.feldNamen(modus).includes(f as string))) as Record<string, string>
     : K.zuordnungAus(erkennung.spalten);
+  // Aeltere Vorlagen kennen Fahrer und Ankunft noch nicht: freie Spalten mit diesen Vorschlaegen ergaenzen.
+  if (vorlage && !body?.zuordnung) {
+    const vergeben = new Set(Object.values(zuordnung));
+    for (const sp of vorab.spalten) {
+      if (zuordnung[sp.index] || !['fahrer', 'ankunft'].includes(sp.vorschlag) || vergeben.has(sp.vorschlag)) continue;
+      zuordnung[sp.index] = sp.vorschlag;
+      vergeben.add(sp.vorschlag);
+    }
+  }
 
   const kontext = K.kontextAus(blaetter, blatt, erkennung.kopfzeile);
   let { datensaetze } = K.bauen(modus, erkennung.datenzeilen, zuordnung, kontext);
@@ -308,6 +388,13 @@ const analysieren = async (admin: Admin, body: any) => {
       datensaetze.forEach((d: any) => { d.hinweise = d.hinweise.filter((x: string) => x !== h); });
     }
   }
+  let mitBlaettern: number[] = [];
+  if (modus === 'rides' && body?.weitereBlaetter !== false) {
+    const { dazu, genutzt } = weitereBlaetter(blaetter, blatt, modus, datensaetze);
+    datensaetze = [...datensaetze, ...dazu];
+    mitBlaettern = genutzt;
+  }
+  if (modus === 'rides') await fahrerZuordnen(admin, datensaetze);
   await dublettenMarkieren(admin, modus, datensaetze);
   datensaetze.forEach((s: any) => K.pruefen(modus, s));
 
@@ -315,7 +402,8 @@ const analysieren = async (admin: Admin, body: any) => {
     modus,
     dateiname,
     // fahrten: vollstaendige Datensaetze, die das Blatt ergibt (0 = nur Text, z. B. "Uebersicht").
-    blaetter: blaetter.map((b: any, i: number) => ({ index: i, name: b.name, zeilen: b.zeilen.length, fahrten: Math.floor(K.blattBewerten(blaetter, i, modus) / 10) })),
+    // mitEingelesen: Fahrten dieses Blatts stehen schon in datensaetze (weitere Blaetter, siehe weitereBlaetter).
+    blaetter: blaetter.map((b: any, i: number) => ({ index: i, name: b.name, zeilen: b.zeilen.length, fahrten: Math.floor(K.blattBewerten(blaetter, i, modus) / 10), mitEingelesen: mitBlaettern.includes(i) })),
     blatt,
     kopfzeile: erkennung.kopfzeile,
     signatur: erkennung.signatur,
@@ -513,7 +601,14 @@ const ausfuehren = async (admin: Admin, body: any, userId: string) => {
 
   try {
     if (modus === 'rides') {
-      const zeilen = gueltig.map((s: any) => ({ ...K.fahrtZeile(s.daten), import_id: stapel.id }));
+      // Nur Fahrer, die es gibt und die keine Dispo-Rolle haben.
+      const ids = [...new Set(gueltig.map((s: any) => K.fahrtZeile(s.daten).driver_id).filter(Boolean))];
+      const { data: profile } = ids.length ? await admin.from('profiles').select('id, role').in('id', ids) : { data: [] };
+      const erlaubt = new Set((profile || []).filter((p: any) => !DISPO_ROLLEN.has(String(p?.role || '').toLowerCase())).map((p: any) => String(p.id)));
+      const zeilen = gueltig.map((s: any) => {
+        const z = K.fahrtZeile(s.daten);
+        return { ...z, driver_id: z.driver_id && erlaubt.has(z.driver_id) ? z.driver_id : null, import_id: stapel.id };
+      });
       const { data, error } = await admin.from('jobs').insert(zeilen).select('id');
       if (error) throw error;
       // Notizen gehoeren in job_notes, nicht in jobs.

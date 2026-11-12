@@ -176,7 +176,7 @@ object FahrerOrtung {
         } else if (!soll && laeuft.value) {
             app.stopService(dienst)
             laeuft.value = false
-            profilTakt?.cancel(); profilTakt = null
+            profilTakt?.cancel(); profilTakt = null; stillstandTakt?.cancel(); stillstandTakt = null
         }
     }
 
@@ -204,6 +204,10 @@ object FahrerOrtung {
         profilTakt?.cancel()
         profilTakt = bereich.launch {
             while (isActive) { delay(Konfig.PROFIL_INTERVALL_MS); profilUndFahrtLaden() }
+        }
+        stillstandTakt?.cancel()
+        stillstandTakt = bereich.launch {
+            while (isActive) { delay(Konfig.STILLSTAND_INTERVALL_MS); stillstandSenden() }
         }
     }
 
@@ -250,6 +254,7 @@ object FahrerOrtung {
         // Grobe oder veraltete Punkte nicht senden (z.B. erster Punkt aus dem Funkzellen-Cache).
         if (!ort.hasAccuracy() || ort.accuracy > 100) return
         if (kotlin.math.abs(System.currentTimeMillis() - ort.time) > 60_000) return
+        letzteGutePosition = ort
 
         if (ort.time - letzterVerlaufPunkt >= Konfig.VERLAUF_INTERVALL_MS) {
             letzterVerlaufPunkt = ort.time
@@ -261,6 +266,22 @@ object FahrerOrtung {
             naechsteLivePosition = ort
             nachschicken()
         }
+    }
+
+    /** Letzter brauchbarer Punkt, fuer das Senden im Stillstand. */
+    private var letzteGutePosition: Location? = null
+    private var stillstandTakt: kotlinx.coroutines.Job? = null
+
+    /** Im Stillstand den letzten Standort mit aktueller Zeit nochmal senden (Konfig.STILLSTAND_INTERVALL_MS). */
+    private fun stillstandSenden() {
+        if (fahrerID == null || !profilGeladen.value || nutztOBD.value || !laeuft.value) return
+        val ort = letzteGutePosition ?: return
+        if (System.currentTimeMillis() - letzteLiveSendung < Konfig.STILLSTAND_INTERVALL_MS - 2_000) return
+        naechsteLivePosition = Location(ort).apply {
+            time = System.currentTimeMillis()
+            speed = 0f
+        }
+        nachschicken()
     }
 
     private fun nachschicken() {

@@ -40,6 +40,14 @@
             android:name=".haupt.OrtungsDienst"
             android:exported="false"
             android:foregroundServiceType="location" />
+        <!-- Knoepfe Annehmen/Ablehnen in der Mitteilung (Push.kt), antwortet ohne die App zu oeffnen. -->
+        <receiver
+            android:name=".FahrtAntwortEmpfaenger"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="de.trisar.FAHRT_ANTWORT" />
+            </intent-filter>
+        </receiver>
         <!-- Kamera-Fotos fuer „Schaden melden“. -->
         <provider
             android:name="androidx.core.content.FileProvider"

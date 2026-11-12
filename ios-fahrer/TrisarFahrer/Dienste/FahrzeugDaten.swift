@@ -261,7 +261,12 @@ final class FahrzeugDaten: ObservableObject {
         let tank = zahl(live["fuel_level_pct"])
         if let v = tank { z.append(.init(id: "fuel", titel: "Tank", wert: "\(Int(v.rounded())) %", warnung: v < 15)) }
         if tank == nil, let v = zahl(live["oem_fuel_l"]) { z.append(.init(id: "fuel", titel: "Tank", wert: "\(dezimal(v)) l", warnung: false)) }
-        if let v = zahl(live["oem_remaining_distance_km"]) { z.append(.init(id: "range", titel: "Reichweite", wert: "\(ganz(v)) km", warnung: v < 50)) }
+        // Echte Restreichweite des Autos, sonst selbst geschaetzt aus Tank (l) und gelerntem Verbrauch.
+        let reichweiteAuto = zahl(live["oem_remaining_distance_km"])
+        if let v = reichweiteAuto ?? zahl(live["geschaetzte_reichweite_km"]) {
+            z.append(.init(id: "range", titel: "Reichweite", wert: "\(reichweiteAuto == nil ? "ca. " : "")\(ganz(v)) km", warnung: v < 50))
+        }
+        if let v = zahl(live["verbrauch_l_100km"]) { z.append(.init(id: "consumption", titel: "Verbrauch", wert: "\(dezimal(v)) l/100 km", warnung: false)) }
         if let v = zahl(live["coolant_c"]) { z.append(.init(id: "coolant", titel: "Kühlmittel", wert: "\(Int(v.rounded())) °C", warnung: v > 110)) }
         if let v = zahl(live["ext_voltage_v"]) { z.append(.init(id: "voltage", titel: "Bordspannung", wert: "\(dezimal(v)) V", warnung: v > 0 && v < 11.8)) }
         if let v = zahl(live["oem_mileage_km"]) ?? zahl(live["total_odometer_km"]) { z.append(.init(id: "odometer", titel: "Kilometerstand", wert: "\(ganz(v)) km", warnung: false)) }

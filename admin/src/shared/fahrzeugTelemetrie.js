@@ -82,8 +82,15 @@ export const telemetrieZeilen = (live, t) => {
   if (fuel !== null) zeilen.push({ key: 'fuel', label: t('telemetrie.fuel'), value: `${Math.round(fuel)} %`, warn: fuel < 15 });
   const oemFuel = num(live.oem_fuel_l);
   if (fuel === null && oemFuel !== null) zeilen.push({ key: 'fuel', label: t('telemetrie.fuel'), value: `${dezimal(oemFuel)} l` });
-  const reichweite = num(live.oem_remaining_distance_km);
-  if (reichweite !== null) zeilen.push({ key: 'range', label: t('telemetrie.range'), value: `${Math.round(reichweite).toLocaleString('de-DE')} km`, warn: reichweite < 50 });
+  // Echte Restreichweite des Autos, sonst selbst geschaetzt aus Tank (l) und gelerntem Verbrauch.
+  const reichweiteAuto = num(live.oem_remaining_distance_km);
+  const reichweite = reichweiteAuto ?? num(live.geschaetzte_reichweite_km);
+  if (reichweite !== null) {
+    const text = `${Math.round(reichweite).toLocaleString('de-DE')} km`;
+    zeilen.push({ key: 'range', label: t('telemetrie.range'), value: reichweiteAuto === null ? `${t('telemetrie.ca')} ${text}` : text, warn: reichweite < 50 });
+  }
+  const verbrauch = num(live.verbrauch_l_100km);
+  if (verbrauch !== null) zeilen.push({ key: 'consumption', label: t('telemetrie.consumption'), value: `${dezimal(verbrauch)} l/100 km` });
   const coolant = num(live.coolant_c);
   if (coolant !== null) zeilen.push({ key: 'coolant', label: t('telemetrie.coolant'), value: `${Math.round(coolant)} °C`, warn: coolant > 110 });
   const volt = num(live.ext_voltage_v);

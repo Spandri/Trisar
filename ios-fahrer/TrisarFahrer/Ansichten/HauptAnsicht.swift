@@ -11,11 +11,24 @@ struct HauptAnsicht: View {
     @State private var fahrzeugOffen = false
     @ObservedObject private var stunden = StundenSpeicher.shared
 
+    /// Offene Dienstanfrage oder angenommener Dienst ab heute: Liste statt "Keine Fahrt"
+    /// (sonst sah der Fahrer nach der Push nichts, wenn er an dem Tag keine Fahrten hat, 12.11.).
+    private var dienstSichtbar: Bool {
+        speicher.dienstAnfragen.contains { a in
+            guard a.angenommen else { return true }
+            // Angenommen: bis Dienstende (Nachtdienst: Folgetag).
+            let tag = String((a.service_date ?? "").prefix(10))
+            let start = Stunden.zeitpunkt(tag, String((a.service_start_time ?? "").prefix(5)))
+            guard let ende = Stunden.zeitpunkt(tag, String((a.service_end_time ?? "").prefix(5)), nach: start) else { return tag >= Stunden.heuteDatum }
+            return ende > Date()
+        }
+    }
+
     var body: some View {
         Group {
             if !speicher.geladen {
                 TrisarHintergrund()
-            } else if speicher.fahrten.isEmpty && stunden.karten.isEmpty {
+            } else if speicher.fahrten.isEmpty && stunden.karten.isEmpty && !dienstSichtbar {
                 KeineFahrtAnsicht(
                     fahrzeug: speicher.fahrzeug,
                     oeffneProfil: { profilOffen = true },

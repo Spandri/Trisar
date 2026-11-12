@@ -6,19 +6,21 @@ import SwiftUI
 /// Ortung: Handy-App oder OBD-Tracker mit IMEI (profiles.tracking_mode, imei_driver_map).
 struct FahrerErstellenAnsicht: View {
     let zurueck: () -> Void
+    /// „Fahrzeug bearbeiten“ fuer das gewaehlte Fahrzeug oeffnen (openVehicleById im Web).
+    let oeffneFahrzeug: ((String) -> Void)?
     @StateObject private var m: FahrerEditorModell
     @FocusState private var fokus: Feld?
     @State private var menue: Menue?
     @State private var passwortSichtbar = false
-    @State private var stundenOffen = false
     @State private var loeschFrage = false
     private let fahrer: DispoFahrer?
 
-    enum Feld: Hashable { case vorname, nachname, email, benutzername, passwort, vorwahl, telefon, strasse, hausnummer, ort, plz, nummer, imei }
+    enum Feld: Hashable { case vorname, nachname, email, benutzername, passwort, vorwahl, telefon, strasse, hausnummer, ort, plz, nummer, imei, stundenlohn }
     enum Menue { case sprache, fahrzeug, tracker }
 
-    init(fahrer: DispoFahrer?, zurueck: @escaping () -> Void) {
+    init(fahrer: DispoFahrer?, oeffneFahrzeug: ((String) -> Void)? = nil, zurueck: @escaping () -> Void) {
         self.zurueck = zurueck
+        self.oeffneFahrzeug = oeffneFahrzeug
         self.fahrer = fahrer
         _m = StateObject(wrappedValue: FahrerEditorModell(fahrer: fahrer))
     }
@@ -26,6 +28,8 @@ struct FahrerErstellenAnsicht: View {
     private let o: CGFloat = 20                 // Container `top-[20px]`
     /// Zeile fuer Benutzername und Passwort unter der E-Mail, alles darunter rutscht um sie nach unten.
     private let zugangsZeile: CGFloat = 68
+    /// Zeile Stundenlohn (daneben ggf. „Fahrzeug“) ueber dem Speichern-Knopf (12.11.).
+    private let lohnZeile: CGFloat = 68
     private let lime = Color(hex: 0xE3F654)
     private let schrift = Color(hex: 0x8A9728)
 
@@ -34,20 +38,11 @@ struct FahrerErstellenAnsicht: View {
         let ortungsHoehe: CGFloat = m.ortung == "obd" ? 156 : 68
         let warnung = !m.nummerWarnung.isEmpty
 
-        // Im Bearbeiten unten zusaetzlich „Fahrer löschen“ (48 hoch).
-        Leinwand(basisHoehe: 913, inhaltHoehe: 913 + zugangsZeile + ortungsHoehe + (fahrer != nil ? 60 : 0)) { _ in
+        // Im Bearbeiten unten zusaetzlich „Fahrer löschen“ (48 hoch), darunter 100 Luft fuer die Fusszeile.
+        Leinwand(basisHoehe: 913, inhaltHoehe: 913 + zugangsZeile + lohnZeile + ortungsHoehe + (fahrer != nil ? 60 + 100 : 0)) { _ in
             ZStack(alignment: .topLeading) {
                 ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
 
-                // Stunden des Fahrers: pruefen, Pausen planen, Excel
-                if fahrer != nil {
-                    Button { stundenOffen = true } label: {
-                        Text("Stunden").font(.grotesk(15, .bold)).foregroundStyle(.black)
-                            .padding(.horizontal, 16).frame(height: 38).background(lime)
-                    }
-                    .buttonStyle(.web)
-                    .platz(402 - 20 - 104, 66, 104, 38)
-                }
 
                 Text(m.bearbeiten ? "Fahrer bearbeiten" : "Fahrer erstellen").grotesk(42, .bold, abstand: -0.5)
                     .foregroundStyle(Color(hex: 0xE2F754))
@@ -60,7 +55,7 @@ struct FahrerErstellenAnsicht: View {
                 // E-Mail: Brief-Icon links. Optional, wenn ein Benutzername gesetzt ist.
                 kasten(x: 20, y: 254, w: 362)
                 Image("Mail_Trisar_Icons_01_Lime").resizable().frame(width: 10, height: 13).scaleEffect(1.2)
-                    .platz(12, o + 254 + 21.5, 10, 13)
+                    .platz(20 + 12, o + 254 + 21.5, 10, 13)
                 feld(.email, "E-Mail", $m.email, x: 20 + 40, y: 254, w: 362 - 80)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
@@ -136,6 +131,42 @@ struct FahrerErstellenAnsicht: View {
                         .background(Color(hex: 0x2D1E00))
                         .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color(hex: 0xFF9500), lineWidth: 1))
                         .platz(20, o + 730 + ortungsHoehe, 362, nil)
+                }
+
+                // Stundenlohn, daneben (wenn ein Fahrzeug gewaehlt ist) direkt zum Fahrzeug.
+                // Liegt wie im Web 68 ueber dem Speichern-Knopf.
+                let mitFahrzeug = !m.fahrzeugID.isEmpty && oeffneFahrzeug != nil
+                let lohnBreite: CGFloat = mitFahrzeug ? 271 : 362
+                kasten(x: 20, y: (warnung ? 764 : 742) + ortungsHoehe, w: lohnBreite)
+                Text("Stundenlohn €").grotesk(16, .medium).foregroundStyle(schrift)
+                    .lineLimit(1).fixedSize()
+                    .frame(height: 56)
+                    .allowsHitTesting(false)
+                    .platz(20 + 16, o + (warnung ? 764 : 742) + ortungsHoehe, nil, 56, .leading)
+                TextField("", text: Binding(get: { m.stundenlohn },
+                                            set: { m.stundenlohn = $0.filter { $0.isNumber || $0 == "," || $0 == "." } }),
+                          prompt: Text("0,00").foregroundColor(schrift.opacity(0.6)))
+                    .focused($fokus, equals: .stundenlohn)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .font(.grotesk(16, .bold))
+                    .foregroundStyle(lime)
+                    .tint(lime)
+                    .autocorrectionDisabled()
+                    .accessibilityLabel("Stundenlohn in Euro")
+                    .platz(20 + lohnBreite - 16 - 90, o + (warnung ? 764 : 742) + ortungsHoehe, 90, 56, .trailing)
+                if mitFahrzeug, let oeffneFahrzeug {
+                    Button {
+                        fokus = nil
+                        menue = nil
+                        oeffneFahrzeug(m.fahrzeugID)
+                    } label: {
+                        Text("Fahrzeug").grotesk(14, .bold).foregroundStyle(.black)
+                            .frame(width: 85, height: 56)
+                            .background(lime)
+                    }
+                    .buttonStyle(.web)
+                    .platz(297, o + (warnung ? 764 : 742) + ortungsHoehe, 85, 56)
                 }
 
                 // Speichern: loest erst der Knopf aus (createDriver).
@@ -220,9 +251,6 @@ struct FahrerErstellenAnsicht: View {
             Button("Abbrechen", role: .cancel) {}
         } message: {
             Text("Konto, Standorte, Stunden und Tracker-Zuordnung werden gelöscht. Offene Fahrten werden wieder frei. Das lässt sich nicht rückgängig machen.")
-        }
-        .webVollbild(isPresented: $stundenOffen) {
-            if let fahrer { DispoStundenAnsicht(fahrer: fahrer) { stundenOffen = false } }
         }
         // Wie onFocus am IMEI-Feld: Tracker-Liste zu.
         .onChange(of: fokus) { _, neu in if neu == .imei, menue == .tracker { menue = nil } }

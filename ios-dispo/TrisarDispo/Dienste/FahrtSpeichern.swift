@@ -368,7 +368,8 @@ enum FahrtSpeichern {
 
     private static func vorbereiten(_ e: FahrtEingabe) async -> Result<Vorbereitet, TrisarFehler> {
         let start = FahrtText.getrimmt(e.werte.start), ziel = FahrtText.getrimmt(e.werte.ziel)
-        if start.isEmpty || ziel.isEmpty { return .failure(.text(FahrtText.tr("app.startZielFehlt"))) }
+        // Start leer = Standort des Fahrers (DB-Trigger trg_jobs_a_start_fahrerstandort).
+        if ziel.isEmpty { return .failure(.text(FahrtText.tr("app.startZielFehlt"))) }
         let tag = FahrtText.fahrtDatum(e.werte.datum)
         if tag.isEmpty { return .failure(.text(FahrtText.tr("app.datumUngueltig"))) }
         var startZeit = FahrtText.uhrzeit(e.werte.startZeit, "")

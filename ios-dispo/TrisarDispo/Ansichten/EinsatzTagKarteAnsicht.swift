@@ -596,11 +596,15 @@ private struct EinsatzKarteFlaeche: UIViewRepresentable {
                 punkt.zustand = s.zustand
                 punkt.blass = auswahl != nil && auswahl != p.id
                 punkt.oben = auswahl == p.id ? 2000 : (s.zustand == "aktiv" ? 1200 : 1000)
-                if karte.annotations?.contains(where: { $0 === punkt }) != true { karte.addAnnotation(punkt) }
+                // Punkte erst einen Moment spaeter hinzufuegen oder entfernen, nie mitten im Zeichnen der
+                // Karte (MapLibre bricht sonst ab, TestFlight-Absturz Dispo Build 19). Doppelt hinzufuegen schadet nicht.
+                if karte.annotations?.contains(where: { $0 === punkt }) != true {
+                    DispatchQueue.main.async { [weak karte] in karte?.addAnnotation(punkt) }
+                }
                 (karte.view(for: punkt) as? EinsatzPinAnsicht)?.anwenden(punkt)
             }
             for (id, punkt) in punkte where !gesehen.contains(id) {
-                karte.removeAnnotation(punkt)
+                DispatchQueue.main.async { [weak karte] in karte?.removeAnnotation(punkt) }
                 punkte[id] = nil
             }
             linie(modell.auswahlStrecke)

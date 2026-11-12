@@ -1,5 +1,6 @@
 package de.trisar.dispo.stamm
 
+import de.trisar.dispo.Flaggen
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -44,6 +45,10 @@ internal data class DispoFahrer(
     val serviceEndTime: String,
     val serviceStartDate: String,
     val planRequestStatus: String,
+    /** profiles.vehicle_id, fuer den Sprung zum Fahrzeug (12.11.). */
+    val vehicleId: String = "",
+    /** profiles.flagge (flagge1 bis flagge3), null = keine. */
+    val flagge: String? = null,
 ) {
     /** isDriverIncomplete: ohne Fahrzeug, Nummer oder vollstaendige Dienstzeit. */
     val unfertig get() = vehicle.isBlank() || driverNumber == null ||
@@ -221,10 +226,12 @@ internal class FahrerListeDienst {
     companion object {
         // Gleiche Rueckfall-Reihe wie im Web, falls Spalten fehlen.
         private val auswahlListe = listOf(
-            "id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate)",
-            "id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate)",
-            "id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate)",
-            "id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate)",
+            // Mit Flagge zuerst. Fehlt die Spalte noch, greifen die alten Abfragen.
+            "id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, flagge, vehicles:vehicle_id(license_plate,brand_model)",
+            "id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate,brand_model)",
+            "id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate,brand_model)",
+            "id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate,brand_model)",
+            "id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate,brand_model)",
         )
     }
 
@@ -273,7 +280,11 @@ internal class FahrerListeDienst {
                 name = name.ifEmpty { "Ohne Name" },
                 firstName = vor, lastName = nach,
                 email = z.text("email"),
-                vehicle = (z["vehicles"] as? JsonObject)?.text("license_plate") ?: "",
+                // Kennzeichen, sonst Modell, sonst "Fahrzeug": zugeordnet ohne Kennzeichen zaehlt trotzdem (12.11.).
+                vehicle = (z["vehicles"] as? JsonObject).let { f ->
+                    f?.text("license_plate")?.trim()?.ifEmpty { null } ?: f?.text("brand_model")?.trim()?.ifEmpty { null }
+                        ?: if (z.text("vehicle_id").isNotEmpty()) "Fahrzeug" else ""
+                },
                 role = z.text("role").ifEmpty { null },
                 driverNumber = z.ganz("driver_number"),
                 driverActivityState = z.text("driver_activity_state").ifEmpty { null },
@@ -281,6 +292,8 @@ internal class FahrerListeDienst {
                 serviceEndTime = Dienstzeit.normal(z.text("service_end_time")),
                 serviceStartDate = z.text("service_start_date"),
                 planRequestStatus = "",
+                vehicleId = z.text("vehicle_id"),
+                flagge = Flaggen.id(z.text("flagge")),
             )
         }
 
@@ -392,6 +405,8 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
     var fahrzeugID by mutableStateOf("")
     var nummer by mutableStateOf("")
     var nummerWarnung by mutableStateOf("")
+    /** Euro pro Stunde (profiles.stundenlohn), Komma oder Punkt, leer = null. Fuer die Einsatzkosten der Startseite. */
+    var stundenlohn by mutableStateOf("")
     /** 'app' = Handy-Standort aus der Fahrer-App, 'obd' = Tracker (IMEI) im Auto. */
     var ortung by mutableStateOf("app")
     var imei by mutableStateOf("")
@@ -509,6 +524,7 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
             plz = d.text("zip")
             sprache = d.text("language").ifEmpty { "Deutsch" }
             fahrzeugID = d.text("vehicle_id")
+            stundenlohn = d.text("stundenlohn").replace('.', ',')
             nummer = d.ganz("driver_number")?.toString() ?: (f.driverNumber?.toString() ?: "")
             ortung = if (d.text("tracking_mode") == "obd") "obd" else "app"
 
@@ -558,7 +574,7 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
         benutzername = ""; passwort = ""; urspruenglicherName = ""
         landesvorwahl = "+49"; telefon = ""
         strasse = ""; hausnummer = ""; ort = ""; plz = ""
-        sprache = "Deutsch"; fahrzeugID = ""; nummer = ""
+        sprache = "Deutsch"; fahrzeugID = ""; nummer = ""; stundenlohn = ""
         urspruenglicheEmail = ""
         ortung = "app"; imei = ""
     }
@@ -621,6 +637,7 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
                 "vehicle_id" to if (fahrzeugID.isEmpty()) JsonNull else JsonPrimitive(fahrzeugID),
                 "driver_number" to JsonPrimitive(fahrerNummer),
                 "tracking_mode" to JsonPrimitive(ortung),
+                "stundenlohn" to lohnWert(),
             )
 
             val f = ursprung
@@ -677,6 +694,13 @@ internal class FahrerEditorModell(val ursprung: DispoFahrer?) {
         } finally {
             speichert = false
         }
+    }
+
+    /** Stundenlohn wie im Web: Komma als Punkt, auf 2 Stellen gerundet, leer oder ungueltig = null. */
+    private fun lohnWert(): JsonElement {
+        val n = stundenlohn.trim().replace(',', '.').toDoubleOrNull() ?: return JsonNull
+        if (n.isNaN() || n.isInfinite() || n < 0) return JsonNull
+        return JsonPrimitive(Math.round(n * 100) / 100.0)
     }
 
     /** updateProfile: bei fehlender email-Spalte einmal ohne email. */

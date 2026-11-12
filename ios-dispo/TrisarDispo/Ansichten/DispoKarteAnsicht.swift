@@ -8,6 +8,11 @@ struct DispoKarteAnsicht: View {
     let zeigen: (DispoZiel) -> Void
 
     @StateObject private var daten = KartenDaten()
+    @State private var flaggenFehler = ""
+    /// Auswahlmodus der Karte: beginnt bei jedem Oeffnen aus, auch wenn noch Fahrer markiert sind.
+    @State private var kartenAuswahl = false
+    /// Flagge als Filter (nur Fahrer mit dieser Flagge), ausserhalb der Auswahl.
+    @State private var flaggenFilter: Set<String> = Set(FahrerMarkierung.geteilt.flaggen)
     @ObservedObject private var filter = KartenFilter.geteilt
     @State private var gewaehltID: String?
     @State private var schnellFilter: [FahrerZustand] = FahrerZustand.allCases
@@ -24,12 +29,18 @@ struct DispoKarteAnsicht: View {
     @State private var letzteNeuberechnung = Date.distantPast
     @ObservedObject private var orte = OrteSpeicher.geteilt
     @State private var gewaehlterOrt: UUID?
+    /// Mehrfachauswahl (Kaestchen oben rechts) und ihr Erklaertext beim Einschalten.
+    @ObservedObject private var markierung = FahrerMarkierung.geteilt
+    @State private var erklaerungSichtbar = false
 
     // Masse im Web-Raster (NAV_BLOCK_OFFSET_PX, SHEET_MAX_TOP_GAP_PX, SHEET_PEEK_PX).
     static let blattUnten: CGFloat = 120
     /// Oberkante der Navileiste ueber dem unteren Rand: 79 (Abstand + Fussleiste) + 131 - 32.
     static let leisteOben: CGFloat = 178
     static let blattMin: CGFloat = max(34, (leisteOben - blattUnten) + 34)
+    /// Blatt gerade so weit offen, dass der Name zu sehen ist (Telefon bleibt verdeckt):
+    /// Rest-Griff 8 + Abstand im Namensblock 18 + Name 30, minus 2 gegen den Telefon-Streifen.
+    static let blattName: CGFloat = blattMin + 8 + 18 + 30 - 2
 
     // MARK: Filterkette wie im Web
 
@@ -50,12 +61,20 @@ struct DispoKarteAnsicht: View {
         }
     }
 
-    private var gefiltert: [KartenFahrer] { passendeFahrer.filter { schnellFilter.contains($0.zustand) } }
+    private var gefiltert: [KartenFahrer] {
+        passendeFahrer.filter { schnellFilter.contains($0.zustand) }
+            .filter { kartenAuswahl || flaggenFilter.isEmpty || flaggenFilter.contains($0.flagge ?? "") }
+    }
+
+    /// Flaggen, die mindestens ein Fahrer traegt.
+    private var benutzteFlaggen: [String] {
+        Flaggen.alle.map(\.id).filter { id in daten.fahrer.contains { $0.flagge == id } }
+    }
 
     private var gewaehlt: KartenFahrer? { gefiltert.first { $0.id == gewaehltID } }
 
     private var zaehler: [FahrerZustand: Int] {
-        Dictionary(grouping: passendeFahrer, by: \.zustand).mapValues(\.count)
+        Dictionary(grouping: passendeFahrer.filter { kartenAuswahl || flaggenFilter.isEmpty || flaggenFilter.contains($0.flagge ?? "") }, by: \.zustand).mapValues(\.count)
     }
 
     /// selectedDriverForSheet: fehlt die Ankunft, aus Abfahrt + Fahrdauer der Route.
@@ -85,7 +104,8 @@ struct DispoKarteAnsicht: View {
                     blattHoehe: gewaehlt == nil ? 0 : min(max(blatt, Self.blattMin), blattMax),
                     rasterHoehe: rasterHoehe, massstab: s, einpassenSignal: einpassen,
                     waehlen: fahrerTippen, leerTippen: auswahlAufheben, abseits: abseitsGemeldet,
-                    orte: orte.orte, gewaehlterOrt: gewaehlterOrt, ortWaehlen: { gewaehlterOrt = $0 }
+                    orte: orte.orte, gewaehlterOrt: gewaehlterOrt, ortWaehlen: { gewaehlterOrt = $0 },
+                    markiert: kartenAuswahl && markierung.aktiv ? Set(markierung.ids) : nil
                 )
                 .frame(width: geo.size.width, height: geo.size.height)
 
@@ -127,6 +147,17 @@ struct DispoKarteAnsicht: View {
             if let id = gewaehltID, !ids.contains(id) { gewaehltID = nil }
         }
         .onChange(of: gewaehltID) { _, _ in profilOffen = false }
+        // Flaggenfilter gilt in der ganzen Dispo wie eine Markierung (Flagge statt Namen), waehrend der manuellen Auswahl ruht das.
+        .onChange(of: flaggenFilter, initial: true) { _, _ in flaggenAlsMarkierung() }
+        .onChange(of: daten.fahrer) { _, _ in flaggenAlsMarkierung() }
+        .onChange(of: kartenAuswahl) { _, _ in flaggenAlsMarkierung() }
+        .onChange(of: benutzteFlaggen) { _, liste in
+            flaggenFilter = flaggenFilter.intersection(liste)
+        }
+        // Namen und Fahrzeuge der markierten Fahrer aktuell halten (fuer Fahrt anlegen, Fahrzeuge, KI).
+        .onChange(of: daten.fahrer, initial: true) { _, liste in
+            markierung.ergaenzen(liste.map { FahrerMarkierung.Eintrag(id: $0.id, name: $0.name, vehicleId: $0.vehicleId) })
+        }
     }
 
     // MARK: Oberflaeche ueber der Karte (Web-Raster 402 breit)
@@ -154,6 +185,7 @@ struct DispoKarteAnsicht: View {
             .accessibilityLabel("Zurück")
             .zurueckPerWischen { zeigen(.start) }
             .platz(20, 60, 50, 50)
+            .zIndex(31)
 
             Button { filterOffen = true } label: {
                 Image("karten-layer-button").resizable().frame(width: 50, height: 50)
@@ -161,11 +193,49 @@ struct DispoKarteAnsicht: View {
             .buttonStyle(.web)
             .accessibilityLabel("Filter")
             .platz(402 - 20 - 50, 60, 50, 50)
+            .zIndex(31)
 
-            SchnellFilterLeiste(zaehler: zaehler, gewaehlt: schnellFilter, umschalten: schnellFilterUmschalten) {
-                zeigeFenster.toggle()
+            auswahlKnopf
+                .platz(402 - 80 - 50, 60, 50, 50)
+                .zIndex(31)
+
+            if erklaerungSichtbar {
+                AuswahlErklaerung { erklaerungSichtbar = false }
+                    .platz(0, 0, 402, rasterHoehe)
+                    .zIndex(30)
             }
-            .mittig(201, 142, 362, 44)
+
+            // Im Auswahlmodus ohne Statusleiste, wie im Figma (2832:12528): dort stehen die Flaggen.
+            if !kartenAuswahl {
+                SchnellFilterLeiste(zaehler: zaehler, gewaehlt: schnellFilter, umschalten: schnellFilterUmschalten) {
+                    zeigeFenster.toggle()
+                }
+                .mittig(201, 142, 362, 44)
+            }
+
+            // Flaggen (Figma 2832:12528): unter den Knoepfen, nur im Auswahlmodus.
+            if kartenAuswahl {
+                FlaggenKnoepfe(ids: markierung.ids,
+                               flaggeVon: { id in daten.fahrer.first { $0.id == id }?.flagge },
+                               wahl: flaggeWaehlen)
+                    .platz(402 - 28 - 35, 134, 35, 111)
+                    .zIndex(31)
+            } else if !benutzteFlaggen.isEmpty {
+                // Ausserhalb der Auswahl bleiben die benutzten Flaggen rechts unter der Statusleiste und filtern die Karte.
+                FlaggenKnoepfe(ids: [], flaggeVon: { _ in nil }, wahl: { id in if let id { if flaggenFilter.contains(id) { flaggenFilter.remove(id) } else { flaggenFilter.insert(id) } } },
+                               nur: benutzteFlaggen, aktiv: flaggenFilter, filtern: true)
+                    .platz(402 - 28 - 35, 196, 35, CGFloat(benutzteFlaggen.count) * 38 - 3)
+                    .zIndex(31)
+            }
+            if !flaggenFehler.isEmpty {
+                WebText(text: flaggenFehler, groesse: 12, gewicht: .medium, zeilenHoehe: 12 * 1.35, farbe: UIColor(hex: 0xFF8E8E))
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .frame(width: 362, alignment: .leading)
+                    .background(Color(hex: 0x171717))
+                    .overlay(Rectangle().stroke(Color(hex: 0xFF8E8E), lineWidth: 1))
+                    .platz(20, 120, 362, nil)
+                    .zIndex(32)
+            }
 
             if zeigeFenster {
                 InaktivFenster(stunden: $fensterStunden) { zeigeFenster = false }
@@ -188,13 +258,78 @@ struct DispoKarteAnsicht: View {
         }
     }
 
+    /// Mehrfachauswahl (Figma Koordinator_Screen_Map): Lime-Kreis, leeres Kaestchen = aus, mit Haken = an,
+    /// unten rechts die Zahl der Markierten.
+    private var auswahlKnopf: some View {
+        Button(action: auswahlUmschalten) {
+            ZStack {
+                Circle().fill(Color(hex: 0xE3F654))
+                Circle().strokeBorder(.black, lineWidth: 2)
+                if kartenAuswahl {
+                    Image("Auswahl_Haken").resizable().frame(width: 20, height: 23).padding(.bottom, 3)
+                } else {
+                    Image("Auswahl_Leer").resizable().frame(width: 20, height: 20)
+                }
+            }
+            .frame(width: 50, height: 50)
+            .overlay(alignment: .bottomTrailing) {
+                if kartenAuswahl && markierung.aktiv && !markierung.fahrer.isEmpty {
+                    Text("\(markierung.fahrer.count)").font(.grotesk(11, .bold)).foregroundStyle(Color(hex: 0xE3F654))
+                        .padding(.horizontal, 5)
+                        .frame(minWidth: 20, minHeight: 20)
+                        .background(Capsule().fill(.black))
+                        .offset(x: 4, y: 4)
+                }
+            }
+        }
+        .buttonStyle(.web)
+        .accessibilityLabel(kartenAuswahl ? "Mehrfachauswahl ausschalten" : "Mehrfachauswahl einschalten")
+    }
+
+    private func flaggenAlsMarkierung() {
+        guard !kartenAuswahl else { return }
+        let ids = Flaggen.alle.map(\.id).filter { flaggenFilter.contains($0) }
+        let mit = daten.fahrer.filter { ids.contains($0.flagge ?? "") }
+            .map { FahrerMarkierung.Eintrag(id: $0.id, name: $0.name, vehicleId: $0.vehicleId) }
+        markierung.flaggenSetzen(ids, fahrer: mit)
+    }
+
+    /// Flagge bei allen markierten Fahrern setzen (nil = entfernen), danach die Karte neu laden.
+    private func flaggeWaehlen(_ flagge: String?) {
+        let ids = markierung.ids
+        guard !ids.isEmpty else { return }
+        flaggenFehler = ""
+        Task {
+            if let fehler = await Flaggen.setzen(ids: ids, flagge: flagge) {
+                flaggenFehler = fehler
+            } else {
+                await daten.laden()
+            }
+        }
+    }
+
     // MARK: Aktionen
 
+    /// Einschalten zeigt den Erklaertext und schliesst ein offenes Fahrerblatt, Ausschalten leert die Auswahl.
+    private func auswahlUmschalten() {
+        let an = !kartenAuswahl
+        kartenAuswahl = an
+        markierung.modusSetzen(an)
+        erklaerungSichtbar = an
+        if an { auswahlAufheben() }
+    }
+
     /// Zweiter Tipp auf denselben Fahrer hebt den Fokus wieder auf.
+    /// Bei der Mehrfachauswahl markiert ein Tipp den Fahrer statt sein Blatt zu oeffnen.
     private func fahrerTippen(_ id: String) {
+        if kartenAuswahl {
+            let f = daten.fahrer.first { $0.id == id }
+            markierung.umschalten(FahrerMarkierung.Eintrag(id: id, name: f?.name ?? "", vehicleId: f?.vehicleId ?? ""))
+            return
+        }
         gewaehltID = gewaehltID == id ? nil : id
         fahrtMinuten = nil
-        blatt = Self.blattMin
+        blatt = Self.blattName
     }
 
     private func auswahlAufheben() {
@@ -347,8 +482,8 @@ private struct FahrerBlatt: View {
     @State private var startHoehe: CGFloat = 0
     @State private var bewegt = false
 
-    /// Unterkante des Namensblocks: Griff 42 + Markieren 56 + 12 + Kennzeichen 70 + 12 + Name 96.
-    private var nameRast: CGFloat { min(max(288, minimum), maximum) }
+    /// Rast, an der der Name (oberster Block) ganz zu sehen ist.
+    private var nameRast: CGFloat { min(max(DispoKarteAnsicht.blattName, minimum), maximum) }
 
     private static let lime = Color(hex: 0xE3F654)
     private static let grau = Color(hex: 0x868687)
@@ -393,24 +528,6 @@ private struct FahrerBlatt: View {
     private var inhalt: some View {
         let info = fahrer.info
         return VStack(alignment: .leading, spacing: 0) {
-            // Markieren ist im Web noch ohne Funktion.
-            HStack(spacing: 10) {
-                Text("Markieren").grotesk(32, .bold, abstand: -0.5).foregroundStyle(Self.lime)
-                Image("Stern_Trisar_Icon_01_schwarz").resizable().frame(width: 17, height: 18)
-            }
-            .frame(width: 362, height: 56)
-            .overlay(Rectangle().strokeBorder(Self.lime, lineWidth: 2))
-
-            VStack(spacing: 4) {
-                Text(fahrer.kennzeichen).grotesk(30, .bold, abstand: -0.8).foregroundStyle(Color(hex: 0x1D1C1D)).frame(height: 30)
-                Text(fahrer.fahrzeug).grotesk(16, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1D1C1D).opacity(0.35)).frame(height: 16)
-            }
-            .lineLimit(1)
-            .padding(.vertical, 10)
-            .frame(width: 362)
-            .background(Color.white)
-            .padding(.top, 12)
-
             VStack(alignment: .leading, spacing: 5) {
                 Button(action: profilOeffnen) {
                     Text(fahrer.name).grotesk(30, .bold, abstand: -0.8).foregroundStyle(Color(hex: 0x1D1C1D))
@@ -427,32 +544,63 @@ private struct FahrerBlatt: View {
             .frame(width: 362, height: 96, alignment: .leading)
             .background(Self.lime)
             .clipped()
+
+            VStack(spacing: 4) {
+                Text(fahrer.kennzeichen).grotesk(30, .bold, abstand: -0.8).foregroundStyle(Color(hex: 0x1D1C1D)).frame(height: 30)
+                Text(fahrer.fahrzeug).grotesk(16, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1D1C1D).opacity(0.35)).frame(height: 16)
+            }
+            .lineLimit(1)
+            .padding(.vertical, 10)
+            .frame(width: 362)
+            .background(Color.white)
             .padding(.top, 12)
 
-            Text("Nächste Fahrt").grotesk(22, .bold, abstand: -1).foregroundStyle(Self.lime).frame(height: 21)
-                .padding(.top, 36)
-
-            zeitPaar(links: ("ETD", info.abfahrt), rechts: ("ETA", info.ankunft), unterRechts: fahrText(info))
+            // Uhrzeit des letzten Signals, rot sobald seit 5 Minuten nichts mehr kam.
+            Text(fahrer.signalText).grotesk(16, .bold, abstand: -0.3)
+                .foregroundStyle(Color(hex: UInt32(fahrer.signalFarbe)))
+                .frame(maxWidth: .infinity, alignment: .leading).frame(height: 18)
                 .padding(.top, 12)
 
-            HStack(spacing: 16) {
-                ortKachel(info.von.icon)
-                Image("Arrow_Trisar_Icons_01_Lime").resizable().scaledToFit().frame(width: 59, height: 38).frame(maxWidth: .infinity)
-                ortKachel(info.nach.icon)
-            }
-            .frame(width: 362)
-            .padding(.top, 24)
+            Text("Nächste Fahrt").grotesk(22, .bold, abstand: -1).foregroundStyle(Self.lime).frame(height: 21)
+                .padding(.top, 6)
 
-            HStack(alignment: .top, spacing: 24) {
-                ortText(info.von, rechts: false)
-                ortText(info.nach, rechts: true)
+            if info.hatFahrt {
+                zeitPaar(links: ("ETD", info.abfahrt), rechts: ("ETA", info.ankunft), unterRechts: fahrText(info))
+                    .padding(.top, 12)
+
+                HStack(spacing: 16) {
+                    ortKachel(info.von.icon)
+                    Image("Arrow_Trisar_Icons_01_Lime").resizable().scaledToFit().frame(width: 59, height: 38).frame(maxWidth: .infinity)
+                    ortKachel(info.nach.icon)
+                }
+                .frame(width: 362)
+                .padding(.top, 24)
+
+                HStack(alignment: .top, spacing: 24) {
+                    ortText(info.von, rechts: false)
+                    ortText(info.nach, rechts: true)
+                }
+                .padding(.top, 12)
+            } else {
+                keineFahrt.padding(.top, 12)
             }
-            .padding(.top, 12)
 
             zeitPaar(links: ("Dienststart", info.dienststart), rechts: ("Dienstende", info.dienstende), unterRechts: nil)
                 .padding(.top, 24)
                 .padding(.bottom, 30)
         }
+    }
+
+    /// Ohne laufende oder naechste Fahrt: Hinweis statt leerer Zeiten und Orte.
+    private var keineFahrt: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Keine Fahrt geplant").grotesk(22, .bold, abstand: -0.8).foregroundStyle(Color(hex: 0xF4F5F4))
+            Text("Gerade steht keine weitere Fahrt für diesen Fahrer an.").grotesk(14, .bold, abstand: -0.3)
+                .foregroundStyle(Self.grau).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .frame(width: 362, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color(hex: 0x242525)))
     }
 
     private func fahrText(_ info: KartenFahrtInfo) -> String {

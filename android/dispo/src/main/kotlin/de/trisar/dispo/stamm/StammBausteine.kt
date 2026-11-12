@@ -121,13 +121,15 @@ internal fun jsonText(s: String): JsonElement {
 internal fun Leinwand(
     basisHoehe: Float = 874f,
     inhaltHoehe: Float = 0f,
+    /** Von aussen, damit die Scrollposition einen Seitenwechsel uebersteht (Alle Fahrer, 12.11.). */
+    scroll: androidx.compose.foundation.ScrollState? = null,
     inhalt: @Composable BoxScope.(rahmen: Float) -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize().imePadding()) {
         val sichtbar = maxHeight.value
         val rahmen = max(basisHoehe, sichtbar)
         val hoehe = max(rahmen, inhaltHoehe)
-        Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState(), enabled = hoehe > sichtbar + 0.5f)) {
+        Box(Modifier.fillMaxSize().verticalScroll(scroll ?: rememberScrollState(), enabled = hoehe > sichtbar + 0.5f)) {
             Box(Modifier.width(402.dp).height(hoehe.dp)) { inhalt(rahmen) }
         }
     }

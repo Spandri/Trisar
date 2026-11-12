@@ -3,10 +3,15 @@ import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
 import AiDienstplanView from './KiPlanerDemoView';
 import DienstePlanenBlatt from './DienstePlanenBlatt';
+import { pausenText } from '../../shared/dienstBestand';
 import { DEFAULT_PLANNER_SETTINGS } from './KiPlanerSettingsView';
 import { computeDemandCurve, pickBusiestDayRides } from '../../demo/planungsKurven';
 import { DEMO_MODE, hasSupabaseAdminConfig, hasSupabaseConfig, supabase, supabaseAdmin } from '../../services/supabase';
 import { useI18n } from '../../i18n';
+import { fahrerMarkierung } from '../../shared/fahrerMarkierung';
+import FlaggenKnoepfe from '../ui/FlaggenKnoepfe';
+import { FLAGGE_UMRISS, flaggeId, flaggeNachId, flaggeSetzen } from '../../shared/flaggen';
+import { ExportKnopf, StundenExportFenster } from './StundenExport';
 
 const DRIVERS_RELOAD_EVENT = 'trisar:admin:drivers:reload';
 const ADMIN_FALLBACK_ERROR_RE = /invalid jwt|signature is invalid|not allowed|unauthorized|permission denied|row-level security|42501/i;
@@ -285,9 +290,9 @@ const PLAN_TEMPLATES = [
   { key: 'spaet', labelKey: 'fahrer.shiftLate', start: '14:00', end: '22:00' },
   { key: 'nacht', labelKey: 'fahrer.shiftNight', start: '22:00', end: '06:00' },
 ];
-// Dienste von Hand eintragen ("Dienste planen") ist vorerst ausgeblendet:
-// Dienste entstehen in der Demo nur ueber den KI-Planer. Wieder einschalten: true.
-const DIENSTE_VON_HAND = false;
+// Dienste von Hand schicken ("Dienste planen": Dienststart, Dienstende, Pausen) nur live.
+// In der Demo entstehen Dienste weiter nur ueber den KI-Planer.
+const DIENSTE_VON_HAND = !DEMO_MODE;
 const PLANNER_SETTINGS_KEY = 'trisar_planner_settings_v1';
 const SELECTED_DRIVERS_STORAGE_KEY = 'trisar:admin:allefahrer:selected-driver-ids';
 
@@ -323,7 +328,7 @@ const SwipeActionButton = ({ icon, alt, side, onPress, onReset, iconLeft, marker
   </button>
 );
 
-function DriverCard({ driver, top, onClick, isSelected, onToggleSelect }) {
+function DriverCard({ driver, top, onClick, onEdit, isSelected, onToggleSelect }) {
   const { t } = useI18n();
   const plate = String(driver.vehicle || '').trim();
   const vehicleText = plate || t('fahrer.noVehicleAssigned');
@@ -357,7 +362,7 @@ function DriverCard({ driver, top, onClick, isSelected, onToggleSelect }) {
     setOffsetX(0);
   };
   const runRightAction = () => {
-    onClick?.(driver);
+    (onEdit || onClick)?.(driver);
     setOffsetX(0);
   };
 
@@ -508,6 +513,18 @@ function DriverCard({ driver, top, onClick, isSelected, onToggleSelect }) {
         >
           #{driverNumberLabel}
         </div>
+
+        {/* Flagge: haengt oben links an der Kante der Karte, buendig, wie eine Lasche. */}
+        {flaggeNachId(driver.flagge) ? (
+          <img
+            src={flaggeNachId(driver.flagge).voll}
+            alt={flaggeNachId(driver.flagge).name}
+            data-flagge-karte={driver.flagge}
+            className="absolute left-[6px] top-[-2px] w-[14px] h-[18px] max-w-none pointer-events-none"
+            style={{ filter: FLAGGE_UMRISS }}
+          />
+        ) : null}
+
 
         <div className="absolute right-[14px] bottom-[10px] text-right leading-[1]">
           <div className="text-[15px] font-semibold font-['Space_Grotesk'] tracking-[0.2px]" style={{ color: serviceTimeColor }}>
@@ -882,7 +899,7 @@ function PlanningOverviewChart({
   );
 }
 
-export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNavigateToMapWithDrivers, planerDirekt = false }) {
+export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOpenDriver, onNavigateToMapWithDrivers, planerDirekt = false }) {
   const { t } = useI18n();
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -894,6 +911,8 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
   const [endTimeFilter, setEndTimeFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState(() => getTodayIsoDate());
   const [selectedDriverIds, setSelectedDriverIds] = useState(() => {
+    // Auf der Karte markierte Fahrer sind hier schon ausgewaehlt.
+    if (fahrerMarkierung.wirkt()) return fahrerMarkierung.ids();
     try {
       const raw = sessionStorage.getItem(SELECTED_DRIVERS_STORAGE_KEY);
       const parsed = raw ? JSON.parse(raw) : [];
@@ -903,9 +922,10 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
       return [];
     }
   });
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(() => fahrerMarkierung.wirkt());
   const [isBulkPlannerOpen, setIsBulkPlannerOpen] = useState(false);
   const [isAiPlannerOpen, setIsAiPlannerOpen] = useState(planerDirekt);
+  const [exportOffen, setExportOffen] = useState(false);
   // Planungseinstellungen des KI Planers (Sitzungsdauer, wie der übrige Demo-Zustand)
   // Planungsregeln bleiben dauerhaft erhalten (localStorage) — sie sind eine
   // bewusste Einstellung des Koordinators und duerfen nicht bei jedem Oeffnen
@@ -932,7 +952,12 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
   }, [plannerSettings]);
   const [bulkStartTime, setBulkStartTime] = useState('');
   const [bulkEndTime, setBulkEndTime] = useState('');
+  const [bulkPausen, setBulkPausen] = useState([]); // [{ von: 'HH:MM', bis: 'HH:MM' }]
+  // Vorhandener Dienst (ein Fahrer, ein Tag), im Planer vorausgefuellt. Gesendet wird nur, was sich aendert.
+  const [bulkBestand, setBulkBestand] = useState(null);
   const [bulkServiceDate, setBulkServiceDate] = useState(getTodayIsoDate());
+  // Dienste planen: beliebig viele Tage aus dem Kalender, je Tag eine Anfrage pro Fahrer.
+  const [bulkServiceDates, setBulkServiceDates] = useState(() => [getTodayIsoDate()]);
   const [isApplyingBulkPlan, setIsApplyingBulkPlan] = useState(false);
   const [bulkPlanError, setBulkPlanError] = useState('');
   const [bulkPlanSuccess, setBulkPlanSuccess] = useState('');
@@ -982,7 +1007,10 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
     const mapRowsToDrivers = (rows = []) =>
       rows.map((row) => {
         const name = [row?.first_name, row?.last_name].filter(Boolean).join(' ').trim() || t('fahrer.noName');
-        const vehiclePlate = row?.vehicles?.license_plate || '';
+        // Kennzeichen, sonst Modell, sonst "Fahrzeug": zugeordnet ohne Kennzeichen zaehlt trotzdem (12.11.).
+        const vehiclePlate = String(row?.vehicles?.license_plate || '').trim()
+          || String(row?.vehicles?.brand_model || '').trim()
+          || (row?.vehicle_id ? 'Fahrzeug' : '');
         const authRelationEmail =
           row?.auth_user?.email
           || row?.auth_users?.email
@@ -997,9 +1025,11 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
           lastName: String(row?.last_name || '').trim(),
           email: String(row?.email || authRelationEmail || '').trim(),
           vehicle: vehiclePlate,
+          vehicleId: String(row?.vehicle_id || '').trim(),
           role: row?.role ?? null,
           is_dispo: row?.is_dispo ?? null,
           driverNumber: row?.driver_number ?? null,
+          flagge: flaggeId(row?.flagge),
           driverActivityState: row?.driver_activity_state ?? null,
           serviceStartTime: normalizeClockValue(row?.service_start_time),
           serviceEndTime: normalizeClockValue(row?.service_end_time),
@@ -1022,14 +1052,17 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
       }
 
       const selectWithOptionalAndEmail =
-        'id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate)';
+        'id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate,brand_model)';
       const selectWithOptionalWithoutEmail =
-        'id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate)';
+        'id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, driver_activity_state, service_start_time, service_end_time, vehicles:vehicle_id(license_plate,brand_model)';
       const selectBasicWithEmail =
-        'id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate)';
+        'id, first_name, last_name, email, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate,brand_model)';
       const selectBasicWithoutEmail =
-        'id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate)';
+        'id, first_name, last_name, created_at, vehicle_id, role, is_dispo, driver_number, vehicles:vehicle_id(license_plate,brand_model)';
+      // Mit Flagge zuerst. Fehlt die Spalte noch (Migration nicht eingespielt), greifen die alten Abfragen.
+      const selectMitFlagge = `${selectWithOptionalAndEmail.replace(', vehicles:vehicle_id', ', flagge, vehicles:vehicle_id')}`;
       const candidatesBase = [
+        selectMitFlagge,
         selectWithOptionalAndEmail,
         selectWithOptionalWithoutEmail,
         selectBasicWithEmail,
@@ -1587,6 +1620,22 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
     }
   }, [selectedDriverIds]);
 
+  // Ist die Mehrfachauswahl der Karte an, gilt eine Aenderung hier auch dort
+  // (und damit fuer Fahrzeuge, Fahrten, Fahrt anlegen und KI-Assistent).
+  useEffect(() => {
+    if (!fahrerMarkierung.lesen().aktiv) return;
+    const nachId = new Map(drivers.map((d) => [String(d.id), d]));
+    const neu = selectedDriverIds.map((id) => {
+      const d = nachId.get(String(id));
+      const alt = fahrerMarkierung.lesen().fahrer.find((f) => f.id === String(id));
+      return { id, name: d?.name || alt?.name || '', vehicleId: d?.vehicleId || alt?.vehicleId || '' };
+    });
+    const vorher = fahrerMarkierung.ids().join('|');
+    if (vorher !== neu.map((f) => f.id).join('|') || neu.some((f, i) => f.name !== fahrerMarkierung.lesen().fahrer[i]?.name)) {
+      fahrerMarkierung.ersetzen(neu);
+    }
+  }, [selectedDriverIds, drivers]);
+
   const handleNavigateToMap = () => {
     const normalizedSelectedIds = Array.from(
       new Set((selectedDriverIds || []).map((id) => String(id || '').trim()).filter(Boolean)),
@@ -1620,10 +1669,22 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
 
     const nextStart = normalizeClockValue(bulkStartTime);
     const nextEnd = normalizeClockValue(bulkEndTime);
-    const nextDate = String(bulkServiceDate || '').trim();
-    const hasStart = Boolean(nextStart);
-    const hasEnd = Boolean(nextEnd);
-    const isResetRequest = !hasStart && !hasEnd;
+    const gewaehlteTage = Array.from(new Set((bulkServiceDates || []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))).sort();
+    const nextDate = String(gewaehlteTage[0] || bulkServiceDate || '').trim();
+    // Vorausgefuellter Dienst: nur geaenderte Felder senden (fehlende uebernimmt der Trigger).
+    const bestand = bulkBestand && selectedDriverIds.length === 1 && gewaehlteTage.length <= 1 ? bulkBestand : null;
+    const hasStart = Boolean(nextStart) && (!bestand || nextStart !== bestand.start);
+    const hasEnd = Boolean(nextEnd) && (!bestand || nextEnd !== bestand.ende);
+    const pausenGeaendert = !bestand || pausenText(bulkPausen) !== pausenText(bestand.pausen);
+    // Nur Pause: Dienst des Tages bleibt (der Trigger uebernimmt Start und Ende), nur die Pause geht raus.
+    const hasPausen = pausenGeaendert && (bulkPausen || []).some((p) => normalizeClockValue(p.von) && normalizeClockValue(p.bis));
+    // Alle Pausen eines vorhandenen Dienstes entfernt: direkt am Dienst loeschen (Fahrer bestaetigt das).
+    const pausenWeg = Boolean(bestand) && pausenGeaendert && !hasPausen && (bestand.pausen || []).length > 0;
+    if (bestand && !hasStart && !hasEnd && !hasPausen && !pausenWeg) {
+      setBulkPlanError('Keine Änderung zum Senden.');
+      return;
+    }
+    const isResetRequest = !bestand && !hasStart && !hasEnd && !hasPausen;
     console.log('🧪 applyBulkPlanning debug:', {
       selectedDriverIds,
       bulkStartTime,
@@ -1652,20 +1713,24 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
         .map((driverId) => String(driverId || '').trim())
         .filter(Boolean);
 
-      if (!isResetRequest) {
-        const requestRows = targetDriverIds
+      if (pausenWeg && !hasStart && !hasEnd) {
+        const { error: wegFehler } = await writeClient.from('dienst_pausen').delete().eq('dienst_id', bestand.id);
+        if (wegFehler) { setBulkPlanError(`Pausen nicht entfernt: ${wegFehler.message}`); return; }
+      } else if (!isResetRequest) {
+        const requestRows = (gewaehlteTage.length ? gewaehlteTage : [effectiveDate]).flatMap((tag) => targetDriverIds
           .map((driverId) => ({
             driver_id: driverId,
-            service_date: effectiveDate,
+            service_date: tag,
             service_start_time: hasStart ? nextStart : null,
             service_end_time: hasEnd ? nextEnd : null,
             status: 'pending',
             requested_by: 'admin-app',
-          }));
+          })));
 
-        const { error } = await writeClient
+        const { data: neueDienste, error } = await writeClient
           .from('driver_service_requests')
-          .insert(requestRows);
+          .insert(requestRows)
+          .select('id');
 
         if (error) {
           const schemaMaybeMissing = /service_start_time|service_end_time|service_date|driver_service_requests/i.test(error.message || '');
@@ -1675,6 +1740,24 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
               : error.message || t('fahrer.requestsSaveFailed'),
           );
           return;
+        }
+        // Feste Pausen je Dienst (dienst_pausen), fliessen in die Stundenerfassung des Fahrers.
+        const pausen = (bulkPausen || [])
+          .map((p) => ({ art: 'fest', von: normalizeClockValue(p.von), bis: normalizeClockValue(p.bis) }))
+          .filter((p) => p.von && p.bis && p.von !== p.bis);
+        if (pausenWeg && (neueDienste || []).length) {
+          // Neue Zeile hat die alten Pausen uebernommen, sie sollen aber weg.
+          await writeClient.from('dienst_pausen').delete().in('dienst_id', neueDienste.map((d) => d.id));
+        }
+        if (pausen.length && (neueDienste || []).length) {
+          const jetzt = new Date().toISOString();
+          const { error: pausenFehler } = await writeClient
+            .from('dienst_pausen')
+            .upsert(neueDienste.map((d) => ({ dienst_id: d.id, pausen, aktualisiert: jetzt })));
+          if (pausenFehler) {
+            setBulkPlanError(`Dienste gesendet, Pausen nicht gespeichert: ${pausenFehler.message}`);
+            return;
+          }
         }
       }
 
@@ -1690,10 +1773,10 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
             ...(hasStart ? { service_start_time: nextStart, service_start_date: effectiveDate } : {}),
             ...(hasEnd ? { service_end_time: nextEnd, service_end_date: effectiveDate } : {}),
           };
-      const profileUpdateWithDates = await writeClient
-        .from('profiles')
-        .update(profileUpdatePayload)
-        .in('id', targetDriverIds);
+      // Nur Pause: am Profil aendert sich nichts.
+      const profileUpdateWithDates = Object.keys(profileUpdatePayload).length
+        ? await writeClient.from('profiles').update(profileUpdatePayload).in('id', targetDriverIds)
+        : { error: null };
       if (profileUpdateWithDates.error) {
         const fallbackWithoutDatesPayload = isResetRequest
           ? {
@@ -1753,6 +1836,8 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
           }),
         );
         setBulkPlanSuccess(t('fahrer.planResetSuccess', { n: selectedDriverIds.length }));
+      } else if (!hasStart && !hasEnd) {
+        setBulkPlanSuccess('Pause gesendet.');
       } else if (hasStart && hasEnd) {
         targetDriverIds.forEach((driverId) => forcedResetDriverIdsRef.current.delete(driverId));
         setBulkPlanSuccess(t('fahrer.planRequestsSent', { n: selectedDriverIds.length }));
@@ -1988,6 +2073,10 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
           <div className="absolute left-[20px] top-[60px]">
             <BackCircleButton onClick={() => setView('list')} marker="fahrer-zurueck" />
           </div>
+          {/* Stunden aller oder ausgewaehlter Fahrer als Excel, Zeitraum frei waehlbar. */}
+          <div className="absolute right-[20px] top-[60px]">
+            <ExportKnopf onClick={() => setExportOffen(true)} />
+          </div>
 
           <div data-tutorial="fahrer-liste" className="absolute text-[#E3F654] text-[42px] leading-[42px] font-bold font-['Space_Grotesk']" style={{ left: `${LAYOUT_GRID.contentLeft}px`, top: `${LAYOUT_GRID.titleTop}px` }}>
             {t('fahrer.title')}
@@ -2125,8 +2214,10 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
                       toggleDriverSelection(driverRow.id);
                       return;
                     }
-                    onEditDriver?.(driverRow);
+                    // Klick oeffnet die Fahrer-Ansicht (Ablauf, Dienste, Stunden), Wischen weiter "Bearbeiten".
+                    (onOpenDriver || onEditDriver)?.(driverRow);
                   }}
+                  onEdit={onEditDriver}
                   isSelected={selectedDriverIdsSet.has(driver.id)}
                   onToggleSelect={toggleDriverSelection}
                 />
@@ -2143,20 +2234,20 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
 
       {selectedDriversCount > 0 && !isBulkPlannerOpen ? (
         <div className="absolute right-[24px] bottom-[160px] z-[160] flex items-center gap-[10px]">
-          <button
-            type="button"
-            onClick={() => {
-              clearSelection();
-              setIsSelectionMode(false);
-              setBulkPlanError('');
-              setBulkPlanSuccess('');
+          <FlaggenKnoepfe
+            waagerecht
+            ids={selectedDriverIds}
+            flaggeVon={(id) => drivers.find((d) => String(d.id) === String(id))?.flagge || null}
+            onWahl={async (flagge) => {
+              const { ok, fehler } = await flaggeSetzen(selectedDriverIds, flagge);
+              if (!ok) {
+                setBulkPlanError(fehler);
+                return;
+              }
+              const gesetzt = new Set(selectedDriverIds.map(String));
+              setDrivers((prev) => prev.map((d) => (gesetzt.has(String(d.id)) ? { ...d, flagge } : d)));
             }}
-            aria-label={t('fahrer.clearSelection')}
-            data-tutorial="auswahl-aufheben"
-            className="w-[54px] h-[54px] rounded-full bg-[#E3F654] text-[#1D1C1D] text-[26px] font-bold leading-none flex items-center justify-center"
-          >
-            X
-          </button>
+          />
           {DIENSTE_VON_HAND ? (
           <button
             type="button"
@@ -2171,6 +2262,21 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
             {t('fahrer.plan')}
           </button>
           ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              clearSelection();
+              setIsSelectionMode(false);
+              setBulkPlanError('');
+              setBulkPlanSuccess('');
+            }}
+            aria-label={t('fahrer.clearSelection')}
+            data-tutorial="auswahl-aufheben"
+            // Ganz rechts, rot mit dem TRISAR-Schliessen-Icon (Rand schwarz wie der Auswahlknopf der Karte).
+            className="w-[54px] h-[54px] rounded-full bg-[#FF6F63] border-2 border-black flex items-center justify-center shrink-0"
+          >
+            <img src="/icon/_Icon_Schwarz/Schliessen_Trisar_Icons_01.svg" alt="" className="w-[22px] h-[22px]" />
+          </button>
         </div>
       ) : null}
 
@@ -2195,11 +2301,18 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
               };
             })}
             datum={bulkServiceDate}
+            daten={bulkServiceDates}
+            onDaten={(liste) => { setBulkServiceDates(liste); setBulkPlanError(''); setBulkPlanSuccess(''); }}
             onDatum={setBulkServiceDate}
             start={bulkStartTime}
             onStart={(wert) => { setBulkStartTime(wert); setBulkPlanError(''); setBulkPlanSuccess(''); }}
             ende={bulkEndTime}
             onEnde={(wert) => { setBulkEndTime(wert); setBulkPlanError(''); setBulkPlanSuccess(''); }}
+            pausen={bulkPausen}
+            onPausen={(liste) => { setBulkPausen(liste); setBulkPlanError(''); setBulkPlanSuccess(''); }}
+            fahrerIds={selectedDriverIds}
+            bestand={bulkBestand}
+            onBestand={setBulkBestand}
             vorlagen={PLAN_TEMPLATES}
             fehler={bulkPlanError}
             speichert={isApplyingBulkPlan}
@@ -2261,6 +2374,7 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onNa
           onApplySuggestions={applyAiPlannerSuggestions}
         />
       ) : null}
+      {exportOffen ? <StundenExportFenster schliessen={() => setExportOffen(false)} /> : null}
     </div>
   );
 }

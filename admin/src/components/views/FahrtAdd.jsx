@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
+import ArtUmschalter from '../ui/ArtUmschalter';
 import FahrerAutocomplete from '../ui/FahrerAutocomplete';
 import FahrgastAutocomplete from '../ui/FahrgastAutocomplete';
 import { useI18n } from '../../i18n';
@@ -9,6 +10,7 @@ import ZwischenstoppVorschlaege from '../ui/ZwischenstoppVorschlaege';
 import { adressWarnung, fahrerFuersSpeichern, gleicheZeilen, useZwischenstopps, zeilenMitFreier } from '../../shared/fahrtZeilen';
 import { orteZurEingabe, useOrte } from '../../shared/orte';
 import { demoAlert, demoConfirm, tutorialLaeuft } from '../ui/demoDialoge';
+import { fahrerMarkierung } from '../../shared/fahrerMarkierung';
 
 const GREEN = '#E3F654';
 // Erstes Feld 24 px unter dem Titel (140 + 42 + 24 = 206), Reihen alle 68 px.
@@ -42,7 +44,7 @@ const normalizeGuestRows = (values = []) => {
   return [...filled, ''];
 };
 
-function FormRow({
+export function FormRow({
   top,
   label,
   value,
@@ -240,7 +242,15 @@ export default function FahrtAdd({
   const { t } = useI18n();
   const { orte } = useOrte();
   const [notes, setNotes] = useState(vorlage?.notes || '');
-  const [fahrerNamen, setFahrerNamen] = useState(vorlage?.fahrerNamen?.length ? vorlage.fahrerNamen : ['']);
+  // Ohne Vorlage: auf der Karte markierte Fahrer sind schon eingetragen.
+  const [fahrerNamen, setFahrerNamen] = useState(() => {
+    if (vorlage?.fahrerNamen?.length) return vorlage.fahrerNamen;
+    if (!vorlage && fahrerMarkierung.wirkt()) {
+      const namen = fahrerMarkierung.lesen().fahrer.map((f) => f.name).filter(Boolean);
+      if (namen.length) return namen;
+    }
+    return [''];
+  });
   const [fahrgaesteNamen, setFahrgaesteNamen] = useState(
     [...String(vorlage?.fahrgaeste || '').split(/[,;\n]/).map((name) => name.trim()).filter(Boolean), ''],
   );
@@ -646,14 +656,15 @@ export default function FahrtAdd({
 
     const start = String(formValues.start || '').trim();
     const ziel = String(formValues.ziel || '').trim();
-    if (!start || !ziel) {
+    // Start leer = Standort des Fahrers (DB-Trigger trg_jobs_a_start_fahrerstandort).
+    if (!ziel) {
       demoAlert(t('fahrt.fillStartZiel'));
       return;
     }
 
     const zwischenstopps = stopps.gefuellt;
     setIsSaving(true);
-    const warnung = await adressWarnung([formValues.startAdresse || start, ...zwischenstopps, formValues.zielAdresse || ziel], t);
+    const warnung = await adressWarnung([formValues.startAdresse || start, ...zwischenstopps, formValues.zielAdresse || ziel].filter(Boolean), t);
     setIsSaving(false);
     if (warnung && !demoConfirm(warnung)) return;
 
@@ -697,6 +708,8 @@ export default function FahrtAdd({
           }}
         >
           <BackCircleButton onClick={handleBack} className="absolute left-[20px] top-[60px]" marker="anlegen-zurueck" />
+          {/* Fahrt oder Standby am Event-Ort (nicht beim Vorschlag des KI-Assistenten). */}
+          {!vorlage ? <ArtUmschalter standby={false} onFahrt={() => {}} onStandby={() => setView('standbyAdd')} /> : null}
 
           {/* Sammel-Import aus Excel/CSV statt Einzelanlage */}
           {!vorlage && (

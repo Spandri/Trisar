@@ -198,7 +198,9 @@ struct OrtBearbeitenAnsicht: View {
     var body: some View {
         let radienTop = kartenTop + kartenHoehe + 46
         let iconTop = radienTop + 68 + 56 + 36
-        let speichernTop = iconTop + 32 + 52 + 32
+        // Raster mit 6 Icons je Reihe, 62 pt Abstand.
+        let iconReihen = CGFloat((OrtSymbol.allCases.count + 5) / 6)
+        let speichernTop = iconTop + 32 + iconReihen * 62 - 10 + 32
         let loeschenTop = speichernTop + 68
         let inhaltHoehe = (ort == nil ? speichernTop : loeschenTop) + 56 + 30 + 40
 
@@ -249,7 +251,7 @@ struct OrtBearbeitenAnsicht: View {
 
                     Text("Icon").grotesk(16, .medium, abstand: 0.5).foregroundStyle(Self.lime.opacity(0.6))
                         .platz(20, iconTop, 362, 24)
-                    HStack(spacing: 10) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(52), spacing: 10), count: 6), alignment: .leading, spacing: 10) {
                         ForEach(OrtSymbol.allCases) { s in
                             Button { symbol = s } label: {
                                 Image(s == symbol ? s.lime : s.grau).resizable().scaledToFit().frame(width: 26, height: 26)
@@ -262,7 +264,7 @@ struct OrtBearbeitenAnsicht: View {
                             .accessibilityLabel(s.titel)
                         }
                     }
-                    .platz(20, iconTop + 32, 362, 52)
+                    .platz(20, iconTop + 32, 362, iconReihen * 62 - 10)
 
                     FormularSpeichernKnopf(text: speichert ? "Wird gespeichert..." : "Ort speichern", gesperrt: speichert || sucht) {
                         Task { await speichern() }

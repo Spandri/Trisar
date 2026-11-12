@@ -3,7 +3,9 @@ import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import BackCircleButton from '../ui/BackCircleButton';
 import FahrtAdd from './FahrtAdd';
 import FahrtBearbeitenView, { buildInitialFormValues } from './FahrtBearbeitenView';
-import { askDatabaseAssistant, invalidateDatabaseAssistantCache } from '../../services/kiAssistant';
+import { askDatabaseAssistant, dienstSenden, invalidateDatabaseAssistantCache } from '../../services/kiAssistant';
+import { fahrerMarkierung, useFahrerMarkierung } from '../../shared/fahrerMarkierung';
+import MarkierungsVermerk from '../ui/MarkierungsVermerk';
 import { supabase } from '../../services/supabase';
 import { demoStore } from '../../demo/demoClient';
 import { DEMO_MODE } from '../../datenquelle';
@@ -330,8 +332,9 @@ export default function KiAssistentView({
     const nachdenken = new Promise((resolve) => { window.setTimeout(resolve, DENKZEIT_MS); });
     const offenerVorschlag = [...sourceMessages].reverse().find((msg) => msg.bookingStatus === 'pending')?.bookingProposal || null;
     const letzteFahrtId = [...sourceMessages].reverse().find((msg) => msg.bookingRideId)?.bookingRideId || null;
+    const markierteFahrer = fahrerMarkierung.wirkt() ? fahrerMarkierung.lesen().fahrer.map(({ id, name }) => ({ id, name })) : [];
     Promise.allSettled([askDatabaseAssistant({
-      prompt: text, chatHistory: historyForModel, offenerVorschlag, letzteFahrtId,
+      prompt: text, chatHistory: historyForModel, offenerVorschlag, letzteFahrtId, markierteFahrer,
     }), nachdenken])
       .then(([antwort]) => (antwort.status === 'fulfilled' ? antwort.value : Promise.reject(antwort.reason)))
       .then((result) => {
@@ -341,6 +344,7 @@ export default function KiAssistentView({
           ? result
           : (result?.answerKey ? t(result.answerKey, result.answerVars) : result?.answer);
         const bookingProposal = result?.action?.type === 'booking_proposal' ? result?.action?.proposal : null;
+        const dienstVorschlag = result?.action?.type === 'dienst_vorschlag' ? result?.action?.vorschlag : null;
         setMessages((prev) => prev.map((msg) => (
           // Ein neuer Vorschlag loest den alten ab, damit nur einer bestaetigt werden kann.
           bookingProposal && msg.id !== pendingAssistantId && msg.bookingStatus === 'pending'
@@ -354,6 +358,8 @@ export default function KiAssistentView({
                 pending: false,
                 bookingProposal,
                 bookingStatus: bookingProposal ? 'pending' : undefined,
+                dienstVorschlag,
+                dienstStatus: dienstVorschlag ? 'offen' : undefined,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               }
             : msg
@@ -374,6 +380,36 @@ export default function KiAssistentView({
       .finally(() => {
         setIsSending(false);
       });
+  };
+
+  // Knopf je nach Inhalt: nur Ende, nur Start, nur Pause oder ganzer Dienst.
+  const dienstKnopfText = (v) => {
+    const start = v?.start ?? (v?.art === 'start' ? v?.zeit : null);
+    const ende = v?.ende ?? (v?.art === 'ende' ? v?.zeit : null);
+    const pausen = v?.pausen || [];
+    if (ende && !start && !pausen.length) return 'Dienstende senden';
+    if (start && !ende && !pausen.length) return 'Dienststart senden';
+    if (!start && !ende && pausen.length) return 'Pause senden';
+    return 'Dienst senden';
+  };
+
+  // Dienststart/Dienstende fuer markierte Fahrer: erst der Knopf schickt ab.
+  const handleDienstSenden = async (messageId, vorschlag) => {
+    setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, dienstStatus: 'sendet' } : msg)));
+    try {
+      const ergebnis = await dienstSenden({
+        art: vorschlag.art,
+        zeit: vorschlag.zeit,
+        datum: vorschlag.datum,
+        start: vorschlag.start ?? (vorschlag.art === 'start' ? vorschlag.zeit : null),
+        ende: vorschlag.ende ?? (vorschlag.art === 'ende' ? vorschlag.zeit : null),
+        pausen: vorschlag.pausen || [],
+        fahrerIds: (vorschlag.fahrer || []).map((f) => f.id),
+      });
+      setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, dienstStatus: 'gesendet', dienstAnzahl: ergebnis.anzahl } : msg)));
+    } catch (fehler) {
+      setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, dienstStatus: 'offen', dienstFehler: String(fehler?.message || fehler) } : msg)));
+    }
   };
 
   const handleCopyMessage = async (messageId, text) => {
@@ -627,7 +663,11 @@ export default function KiAssistentView({
   const composerBottom = isMobileKeyboardMode
     ? (keyboardInset + 8)
     : defaultComposerBottom;
-  const chatBottom = composerBottom + composerHeight + COMPOSER_GAP;
+  // Vermerk "3 Fahrer markiert" sitzt ueber der Eingabe, der Verlauf endet darueber.
+  const VERMERK_HOEHE = 44;
+  const markierung = useFahrerMarkierung();
+  const mitVermerk = markierung.aktiv && markierung.fahrer.length > 0;
+  const chatBottom = composerBottom + composerHeight + COMPOSER_GAP + (mitVermerk ? VERMERK_HOEHE + 8 : 0);
 
   // Tutorial-Marker nur an der juengsten Buchungs-Vorschau, damit aeltere
   // Vorschlaege im Verlauf den Cursor nicht auf sich ziehen.
@@ -810,6 +850,45 @@ export default function KiAssistentView({
                   </div>
                 ) : null}
 
+                {message.dienstVorschlag ? (
+                  <div className="mt-3 w-full max-w-[362px]">
+                    {message.dienstStatus === 'offen' ? (
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleDienstSenden(message.id, message.dienstVorschlag)}
+                          className="flex-1 h-[51px] bg-[#59BE80] flex items-center justify-center"
+                        >
+                          <span className="text-[#202020] text-[20px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">
+                            {dienstKnopfText(message.dienstVorschlag)}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMessages((prev) => prev.map((msg) => (msg.id === message.id ? { ...msg, dienstStatus: 'verworfen' } : msg)))}
+                          className="w-[110px] h-[51px] border-2 border-[#ff6f63] flex items-center justify-center"
+                        >
+                          <span className="text-[#ff6f63] text-[20px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">Nein</span>
+                        </button>
+                      </div>
+                    ) : null}
+                    {message.dienstFehler && message.dienstStatus === 'offen' ? (
+                      <div className="mt-2 text-[#ff8e8e] text-[11px] font-medium font-['Space_Grotesk']">{message.dienstFehler}</div>
+                    ) : null}
+                    {message.dienstStatus === 'sendet' ? (
+                      <div className="text-[#E3F654] text-[11px] font-medium font-['Space_Grotesk']">Wird gesendet …</div>
+                    ) : null}
+                    {message.dienstStatus === 'gesendet' ? (
+                      <div className="text-[#59BE80] text-[11px] font-medium font-['Space_Grotesk']">
+                        {`${dienstKnopfText(message.dienstVorschlag).replace(/ senden$/, '')} an ${message.dienstAnzahl ?? message.dienstVorschlag.fahrer.length} Fahrer gesendet.`}
+                      </div>
+                    ) : null}
+                    {message.dienstStatus === 'verworfen' ? (
+                      <div className="text-white/70 text-[11px] font-medium font-['Space_Grotesk']">Nicht gesendet.</div>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {message.bookingProposal ? (
                   <div className="mt-3 flex flex-col items-center">
                     <div data-tutorial={tutorialMarker('ki-vorschlag')} className="w-full max-w-[362px]">
@@ -874,6 +953,12 @@ export default function KiAssistentView({
           );
         })}
       </div>
+
+      {mitVermerk ? (
+        <div className="absolute left-1/2 -translate-x-1/2 w-[362px] z-50" style={{ bottom: `${composerBottom + composerHeight + 8}px` }}>
+          <MarkierungsVermerk />
+        </div>
+      ) : null}
 
       <div
         className="absolute left-1/2 -translate-x-1/2 w-[362px] bg-black/60 inline-flex justify-start items-end gap-3 z-50"

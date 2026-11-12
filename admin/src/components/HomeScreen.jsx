@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import NaviFooterKomponente from './navigation/NaviFooterKomponente';
 import { useI18n } from '../i18n';
 import { einsatzKennzahlen } from '../demo/einsatzKennzahlen';
 import { DEMO_MODE } from '../datenquelle';
+import { supabase } from '../services/supabase';
 
 const profileButtonSrc = '/icon/_Icon_Grau/Person_Trisar_Icons_01_grau.svg';
 const actionArrowSrc = '/icon/_Icon_Schwarz/Arrow_Trisar_Icons_01.svg';
@@ -82,7 +83,24 @@ function PlanungsKnopf({ label, onClick, className, marker }) {
 }
 
 // Main Home Screen Component
+// Live: Einsatzkosten = gearbeitete Minuten x Stundenlohn aller Fahrer (DB einsatzkosten(), 12.11.).
+// Zaehlt ab Dienstbeginn mit, mit Stundenzettel gilt dessen Zeit. Jede Minute neu.
+const euro = (n) => `${Math.round(Number(n) || 0).toLocaleString('de-DE')} €`;
+function useEinsatzkosten() {
+  const [wert, setWert] = useState(null);
+  useEffect(() => {
+    if (DEMO_MODE) return undefined;
+    let aktiv = true;
+    const laden = () => supabase.rpc('einsatzkosten').then(({ data, error }) => { if (aktiv && !error && data) setWert(data); });
+    laden();
+    const id = window.setInterval(laden, 60000);
+    return () => { aktiv = false; window.clearInterval(id); };
+  }, []);
+  return wert;
+}
+
 export default function HomeScreen({ setView, coordinatorName = 'Martin', avatarUrl = '' }) {
+  const liveKosten = useEinsatzkosten();
   const { t } = useI18n();
   const gradientStyle = useMemo(
     () => ({
@@ -130,6 +148,12 @@ export default function HomeScreen({ setView, coordinatorName = 'Martin', avatar
 
           {/* Statistics Cards — Werte sind Demo-Zahlen, live gibt es noch keine
               echte Auswertung. Die Knoepfe bleiben unten an der Leiste stehen. */}
+          {!DEMO_MODE && liveKosten ? (
+            <div className="absolute left-[20px] top-[302px] flex gap-[6px]">
+              <StatCard title={t('home.sinceStart')} number={euro(liveKosten.kosten)} subtitle={t('home.costs')} />
+              <StatCard title={t('home.sinceStart')} number={`${Math.round(Number(liveKosten.stunden) || 0)} h`} subtitle="Arbeitsstunden" />
+            </div>
+          ) : null}
           {DEMO_MODE && (
           <div data-tutorial="kennzahlen" className="absolute left-[20px] top-[302px] flex gap-[6px]">
             <StatCard

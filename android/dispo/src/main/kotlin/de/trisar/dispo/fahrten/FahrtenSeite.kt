@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import de.trisar.dispo.DispoZiel
+import de.trisar.dispo.FahrerMarkierung
+import de.trisar.dispo.MarkierungsVermerk
 import de.trisar.dispo.Navileiste
 import de.trisar.kern.DispoHintergrund
 import de.trisar.kern.Icon
@@ -129,7 +131,10 @@ private fun Liste(teil: Teil, wechseln: (Teil) -> Unit, zeigen: (DispoZiel) -> U
     val archiv = teil.istArchiv
     val abfahrten = teil.istAbfahrten
     val mitStandort = W.ortNormal(speicher.standort).isNotEmpty()
-    val liste = sichtbareFahrten(speicher.fahrten, speicher.filter, speicher.standort, suche, archiv, abfahrten, mitStandort)
+    // Mehrfachauswahl der Karte: nur Fahrten, bei denen ein markierter Fahrer dabei ist.
+    val markierteIDs = if (FahrerMarkierung.wirkt) FahrerMarkierung.ids.toSet() else null
+    val basis = if (markierteIDs == null) speicher.fahrten else speicher.fahrten.filter { f -> f.fahrerIDs.any { it in markierteIDs } }
+    val liste = sichtbareFahrten(basis, speicher.filter, speicher.standort, suche, archiv, abfahrten, mitStandort)
 
     fun zurueck() = when (teil) {
         Teil.ARCHIV_ANKUENFTE -> wechseln(Teil.ANKUENFTE)
@@ -207,6 +212,7 @@ private fun Liste(teil: Teil, wechseln: (Teil) -> Unit, zeigen: (DispoZiel) -> U
                 LimeEingabe(suche, { suche = it }, Modifier.weight(1f), platzhalter = "Kunden/Fahrer Suchen", platzhalterFarbe = LIME.copy(alpha = 0.7f))
                 Icon(if (hatSuche) "clear-x-green-24" else "vehicle-search", Modifier.size(24.dp).tippen { if (hatSuche) suche = "" })
             }
+            if (markierteIDs != null) MarkierungsVermerk(Modifier.padding(top = 12.dp).width(362.dp))
 
             if (speicher.ladeFehler.isNotEmpty()) {
                 Text(
@@ -375,7 +381,7 @@ private fun sichtbareFahrten(
 // MARK: - Fahrtkarte (RideCard)
 
 @Composable
-private fun FahrtKarte(
+internal fun FahrtKarte(
     fahrt: DispoFahrt,
     zeiten: FahrtZeiten,
     /** Ankuenfte: Datum statt Minuten in Schwarz statt Gruen. */
@@ -535,7 +541,7 @@ private fun AktionsKnopf(icon: String, modifier: Modifier, aktion: () -> Unit) {
 
 /** Trennzeile zwischen den Tagen (nur Ankuenfte): Strich — „Mittwoch 04.11.“ — Strich. */
 @Composable
-private fun TagTrenner(datum: String, erster: Boolean) {
+internal fun TagTrenner(datum: String, erster: Boolean) {
     Row(Modifier.width(362.dp).padding(top = if (erster) 0.dp else 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(44.dp, 2.dp).background(hex(0xE3F754)))
         Spacer(Modifier.weight(1f))

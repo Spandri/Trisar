@@ -132,7 +132,11 @@ private struct FahrtFormularInhalt: View {
         self.zeigen = zeigen
         _werte = State(initialValue: vorlage?.werte ?? geladen?.werte ?? FahrtFormularWerte())
         _notiz = State(initialValue: vorlage?.notiz ?? geladen?.notiz ?? "")
-        let fahrer = vorlage?.fahrerNamen ?? geladen?.fahrerNamen ?? []
+        var fahrer = vorlage?.fahrerNamen ?? geladen?.fahrerNamen ?? []
+        // Neue Fahrt ohne Vorlage: auf der Karte markierte Fahrer sind schon eingetragen.
+        if vorlage == nil && geladen == nil && FahrerMarkierung.geteilt.wirkt {
+            fahrer = FahrerMarkierung.geteilt.namen
+        }
         _fahrerNamen = State(initialValue: fahrer.isEmpty ? [""] : fahrer)
         _zwischenstopps = State(initialValue: Self.stoppZeilen(geladen?.zwischenstopps ?? []))
         _gaesteNamen = State(initialValue: FahrtText.gaesteTeilen(vorlage?.fahrgaeste ?? geladen?.fahrgaeste) + [""])
@@ -915,7 +919,8 @@ private struct FahrtFormularInhalt: View {
 
     /// handleCreateRide aus FahrtAdd.jsx.
     private func anlegen() async {
-        if FahrtText.getrimmt(werte.start).isEmpty || FahrtText.getrimmt(werte.ziel).isEmpty {
+        // Start leer = Standort des Fahrers (DB-Trigger trg_jobs_a_start_fahrerstandort).
+        if FahrtText.getrimmt(werte.ziel).isEmpty {
             meldung = t("fahrt.fillStartZiel")
             return
         }

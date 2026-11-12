@@ -10,6 +10,7 @@ import FahrzeugeView from './components/views/FahrzeugeView';
 import FahrzeugFilterView, { DEFAULT_FAHRZEUG_FILTERS } from './components/views/FahrzeugFilterView';
 import ImportView from './components/views/ImportView';
 import FahrerErstellenView from './components/views/FahrerErstellenView';
+import FahrerAnsichtView from './components/views/FahrerAnsichtView';
 import FahrgastErstellenView from './components/views/FahrgastErstellenView';
 import FahrzeugErstellenView from './components/views/FahrzeugErstellenView';
 import AnsprechpartnerView from './components/views/AnsprechpartnerView';
@@ -31,6 +32,8 @@ import DispoLogin from './demo/DispoLogin';
 const loginGewuenscht = () => typeof window !== 'undefined'
   && new URLSearchParams(window.location.search).get('login') === '1';
 import { demoAlert, tutorialLaeuft } from './components/ui/demoDialoge';
+import StandbyAdd from './components/views/StandbyAdd';
+import StandbyView from './components/views/StandbyView';
 
 const buildTodayIsoDate = () => {
   const now = new Date();
@@ -923,7 +926,14 @@ export default function App() {
   const dispoLoginSchliessen = useCallback(() => setDispoLoginOffen(false), []);
   const [view, setView] = useState(() => window.history.state?.view || 'list');
   const [rideEditorData, setRideEditorData] = useState(null);
+  // Standby am Event-Ort: welcher Standby gerade offen ist (Ansicht 'standby').
+  const [standbyOffenId, setStandbyOffenId] = useState(null);
   const [driverEditorData, setDriverEditorData] = useState(null);
+  // Fahrer-Ansicht (Klick auf einen Fahrer): Ablauf, Dienste, Stunden.
+  // In sessionStorage gemerkt, damit die Ansicht ein Neuladen uebersteht (die Ansicht selbst steht in history.state).
+  const [driverAnsichtData, setDriverAnsichtData] = useState(() => {
+    try { return JSON.parse(window.sessionStorage.getItem('trisar.fahrerAnsicht.v1') || 'null'); } catch { return null; }
+  });
   const [guestEditorData, setGuestEditorData] = useState(null);
   const [vehicleEditorData, setVehicleEditorData] = useState(null);
   const [driverDirectory, setDriverDirectory] = useState([]);
@@ -1366,147 +1376,172 @@ export default function App() {
           return { data: merged, error: null };
         };
 
-        console.log('🧩 Lade Konvoi-Zuordnungen...');
-        const convoyAssignmentsResult = await runInBatches({
-          ids: jobIds,
-          queryChunk: async (batch) => {
-            let result = await supabase
-              .from('convoy_assignments')
-              .select('job_id, driver_id, response_status')
-              .in('job_id', batch);
-            if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
-              result = await supabaseAdmin
-                .from('convoy_assignments')
-                .select('job_id, driver_id, response_status')
-                .in('job_id', batch);
-            }
-            return result;
-          },
-          tolerateError: (error) => MISSING_CONVOY_ASSIGNMENTS_TABLE_RE.test(error?.message || ''),
-        });
-        if (convoyAssignmentsResult.error) throw convoyAssignmentsResult.error;
-        console.log('✅ Konvoi-Zuordnungen geladen:', convoyAssignmentsResult.data?.length || 0);
+        // Die Nebentabellen gleichzeitig holen statt nacheinander. Nur Profile haengen an den
+        // Zuordnungen und Gaeste an job_guests, die laufen jeweils als Kette.
+        const [
+          { convoyAssignmentsResult, profilesResult },
+          { jobGuestsResult, guestsResult },
+          jobNotesResult,
+          archivedJobIdsFromDb,
+          convoysResult,
+        ] = await Promise.all([
+          (async () => {
+                console.log('🧩 Lade Konvoi-Zuordnungen...');
+                const convoyAssignmentsResult = await runInBatches({
+                  ids: jobIds,
+                  queryChunk: async (batch) => {
+                    let result = await supabase
+                      .from('convoy_assignments')
+                      .select('job_id, driver_id, response_status')
+                      .in('job_id', batch);
+                    if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
+                      result = await supabaseAdmin
+                        .from('convoy_assignments')
+                        .select('job_id, driver_id, response_status')
+                        .in('job_id', batch);
+                    }
+                    return result;
+                  },
+                  tolerateError: (error) => MISSING_CONVOY_ASSIGNMENTS_TABLE_RE.test(error?.message || ''),
+                });
+                if (convoyAssignmentsResult.error) throw convoyAssignmentsResult.error;
+                console.log('✅ Konvoi-Zuordnungen geladen:', convoyAssignmentsResult.data?.length || 0);
 
-        const convoyAssignmentDriverIds = Array.from(
-          new Set(
-            (convoyAssignmentsResult.data || [])
-              .map((row) => String(row?.driver_id || '').trim())
-              .filter(Boolean),
-          ),
-        );
-        const driverIds = Array.from(new Set([...jobDriverIds, ...convoyAssignmentDriverIds]));
+                const convoyAssignmentDriverIds = Array.from(
+                  new Set(
+                    (convoyAssignmentsResult.data || [])
+                      .map((row) => String(row?.driver_id || '').trim())
+                      .filter(Boolean),
+                  ),
+                );
+                const driverIds = Array.from(new Set([...jobDriverIds, ...convoyAssignmentDriverIds]));
 
-        console.log('👤 Lade Profile...');
-        const profilesResult = await runInBatches({
-          ids: driverIds,
-          queryChunk: async (batch) => {
-            let result = await supabase.from('profiles').select('id, first_name, last_name, driver_number').in('id', batch);
-            if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
-              result = await supabaseAdmin.from('profiles').select('id, first_name, last_name, driver_number').in('id', batch);
-            }
-            return result;
-          },
-        });
-        if (profilesResult.error) throw profilesResult.error;
-        console.log('✅ Profile geladen:', profilesResult.data?.length || 0);
+                console.log('👤 Lade Profile...');
+                const profilesResult = await runInBatches({
+                  ids: driverIds,
+                  queryChunk: async (batch) => {
+                    let result = await supabase.from('profiles').select('id, first_name, last_name, driver_number').in('id', batch);
+                    if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
+                      result = await supabaseAdmin.from('profiles').select('id, first_name, last_name, driver_number').in('id', batch);
+                    }
+                    return result;
+                  },
+                });
+                if (profilesResult.error) throw profilesResult.error;
+                console.log('✅ Profile geladen:', profilesResult.data?.length || 0);
 
-        console.log('👥 Lade Job-Gäste...');
-        const jobGuestsResult = await runInBatches({
-          ids: jobIds,
-          queryChunk: async (batch) => {
-            let result = await supabase.from('job_guests').select('job_id, guest_id, is_main_contact').in('job_id', batch);
-            if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
-              result = await supabaseAdmin.from('job_guests').select('job_id, guest_id, is_main_contact').in('job_id', batch);
-            }
-            return result;
-          },
-        });
-        if (jobGuestsResult.error) throw jobGuestsResult.error;
-        console.log('✅ Job-Gäste geladen:', jobGuestsResult.data?.length || 0);
+            return { convoyAssignmentsResult, profilesResult };
+          })(),
+          (async () => {
+                console.log('👥 Lade Job-Gäste...');
+                const jobGuestsResult = await runInBatches({
+                  ids: jobIds,
+                  queryChunk: async (batch) => {
+                    let result = await supabase.from('job_guests').select('job_id, guest_id, is_main_contact').in('job_id', batch);
+                    if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
+                      result = await supabaseAdmin.from('job_guests').select('job_id, guest_id, is_main_contact').in('job_id', batch);
+                    }
+                    return result;
+                  },
+                });
+                if (jobGuestsResult.error) throw jobGuestsResult.error;
+                console.log('✅ Job-Gäste geladen:', jobGuestsResult.data?.length || 0);
 
-        console.log('📝 Lade Job-Notizen...');
-        const jobNotesResult = await runInBatches({
-          ids: jobIds,
-          queryChunk: async (batch) => {
-            let result = await supabase
-              .from('job_notes')
-              .select('job_id, note_text, created_at, author_name')
-              .in('job_id', batch)
-              .order('created_at', { ascending: false });
-            if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
-              result = await supabaseAdmin
-                .from('job_notes')
-                .select('job_id, note_text, created_at, author_name')
-                .in('job_id', batch)
-                .order('created_at', { ascending: false });
-            }
-            return result;
-          },
-          tolerateError: (error) => MISSING_JOB_NOTES_TABLE_RE.test(error?.message || ''),
-        });
-        if (jobNotesResult.error) throw jobNotesResult.error;
-        console.log('✅ Job-Notizen geladen:', jobNotesResult.data?.length || 0);
-        let archivedJobIdsFromDb = [];
-        if (jobIds.length > 0) {
-          const archivedResult = await runInBatches({
-            ids: jobIds,
-            queryChunk: async (batch) => {
-              let result = await supabase
-                .from('jobs_archive')
-                .select('job_id')
-                .in('job_id', batch);
-              if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
-                result = await supabaseAdmin
-                  .from('jobs_archive')
-                  .select('job_id')
-                  .in('job_id', batch);
-              }
-              return result;
-            },
-            tolerateError: (error) =>
-              MISSING_JOBS_ARCHIVE_TABLE_RE.test(error?.message || '')
-              || /status code:\s*401|permission denied|not authorized/i.test(error?.message || ''),
-          });
-          if (!archivedResult.error) {
-            archivedJobIdsFromDb = (archivedResult.data || [])
-              .map((row) => String(row?.job_id || '').trim())
-              .filter(Boolean);
-          }
-        }
+                const guestIds = Array.from(new Set((jobGuestsResult.data || []).map((row) => String(row?.guest_id || '').trim()).filter(Boolean)));
+                console.log('🆔 Gast-IDs extrahiert:', guestIds.length);
+                const guestsResult = await runInBatches({
+                  ids: guestIds,
+                  queryChunk: async (batch) => {
+                    let result = await supabase.from('guests').select('id, first_name, last_name').in('id', batch);
+                    if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
+                      result = await supabaseAdmin.from('guests').select('id, first_name, last_name').in('id', batch);
+                    }
+                    return result;
+                  },
+                });
+                if (guestsResult.error) throw guestsResult.error;
+                console.log('✅ Gäste geladen:', guestsResult.data?.length || 0);
+
+            return { jobGuestsResult, guestsResult };
+          })(),
+          (async () => {
+                console.log('📝 Lade Job-Notizen...');
+                const jobNotesResult = await runInBatches({
+                  ids: jobIds,
+                  queryChunk: async (batch) => {
+                    let result = await supabase
+                      .from('job_notes')
+                      .select('job_id, note_text, created_at, author_name')
+                      .in('job_id', batch)
+                      .order('created_at', { ascending: false });
+                    if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
+                      result = await supabaseAdmin
+                        .from('job_notes')
+                        .select('job_id, note_text, created_at, author_name')
+                        .in('job_id', batch)
+                        .order('created_at', { ascending: false });
+                    }
+                    return result;
+                  },
+                  tolerateError: (error) => MISSING_JOB_NOTES_TABLE_RE.test(error?.message || ''),
+                });
+                if (jobNotesResult.error) throw jobNotesResult.error;
+                console.log('✅ Job-Notizen geladen:', jobNotesResult.data?.length || 0);
+            return jobNotesResult;
+          })(),
+          (async () => {
+                let archivedJobIdsFromDb = [];
+                if (jobIds.length > 0) {
+                  const archivedResult = await runInBatches({
+                    ids: jobIds,
+                    queryChunk: async (batch) => {
+                      let result = await supabase
+                        .from('jobs_archive')
+                        .select('job_id')
+                        .in('job_id', batch);
+                      if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
+                        result = await supabaseAdmin
+                          .from('jobs_archive')
+                          .select('job_id')
+                          .in('job_id', batch);
+                      }
+                      return result;
+                    },
+                    tolerateError: (error) =>
+                      MISSING_JOBS_ARCHIVE_TABLE_RE.test(error?.message || '')
+                      || /status code:\s*401|permission denied|not authorized/i.test(error?.message || ''),
+                  });
+                  if (!archivedResult.error) {
+                    archivedJobIdsFromDb = (archivedResult.data || [])
+                      .map((row) => String(row?.job_id || '').trim())
+                      .filter(Boolean);
+                  }
+                }
+            return archivedJobIdsFromDb;
+          })(),
+          (async () => {
+                console.log('🚐 Lade Konvois...');
+                const convoysResult = await runInBatches({
+                  ids: convoyIds,
+                  queryChunk: async (batch) => {
+                    let result = await supabase.from('convoys').select('id, name').in('id', batch);
+                    if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
+                      result = await supabaseAdmin.from('convoys').select('id, name').in('id', batch);
+                    }
+                    return result;
+                  },
+                });
+                if (convoysResult.error) throw convoysResult.error;
+                console.log('✅ Konvois geladen:', convoysResult.data?.length || 0);
+
+            return convoysResult;
+          })(),
+        ]);
         const archivedJobIdSet = new Set([
           ...Array.from(locallyArchivedJobIdsRef.current || []),
           ...archivedJobIdsFromDb,
         ]);
         console.log('✅ Archiv-IDs aktiv:', archivedJobIdSet.size);
-        const guestIds = Array.from(new Set((jobGuestsResult.data || []).map((row) => String(row?.guest_id || '').trim()).filter(Boolean)));
-        console.log('🆔 Gast-IDs extrahiert:', guestIds.length);
-        const guestsResult = await runInBatches({
-          ids: guestIds,
-          queryChunk: async (batch) => {
-            let result = await supabase.from('guests').select('id, first_name, last_name').in('id', batch);
-            if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
-              result = await supabaseAdmin.from('guests').select('id, first_name, last_name').in('id', batch);
-            }
-            return result;
-          },
-        });
-        if (guestsResult.error) throw guestsResult.error;
-        console.log('✅ Gäste geladen:', guestsResult.data?.length || 0);
-
-        console.log('🚐 Lade Konvois...');
-        const convoysResult = await runInBatches({
-          ids: convoyIds,
-          queryChunk: async (batch) => {
-            let result = await supabase.from('convoys').select('id, name').in('id', batch);
-            if (result.error && ADMIN_FALLBACK_ERROR_RE.test(result.error.message || '')) {
-              result = await supabaseAdmin.from('convoys').select('id, name').in('id', batch);
-            }
-            return result;
-          },
-        });
-        if (convoysResult.error) throw convoysResult.error;
-        console.log('✅ Konvois geladen:', convoysResult.data?.length || 0);
-
         console.log('🗺️  Erstelle Maps für Lookup...');
 
         const profileById = new Map((profilesResult.data || []).map((row) => [String(row.id || ''), row]));
@@ -1755,6 +1790,8 @@ export default function App() {
             startZeit: effectiveEtd || originalEtd || '--:--',
             zwischenstopps: Array.isArray(job.zwischenstopps) ? job.zwischenstopps : [],
             fahrerNamen,
+            // Fuer die Mehrfachauswahl der Karte (Fahrten nur der markierten Fahrer).
+            fahrerIds: mergedDriverEntries.map((entry) => String(entry?.id || '').trim()).filter(Boolean),
             fahrerAntworten: hasDrivers ? mergedDriverResponses : [],
             fahrerNummern: mergedDriverNumbers,
             anonymeGaeste: String(totalAnonymousCount),
@@ -2490,6 +2527,15 @@ export default function App() {
     },
     [navigateTo],
   );
+  const openDriverAnsicht = useCallback(
+    (driverData) => {
+      if (!driverData?.id) return;
+      setDriverAnsichtData(driverData);
+      try { window.sessionStorage.setItem('trisar.fahrerAnsicht.v1', JSON.stringify(driverData)); } catch { /* voll oder gesperrt */ }
+      navigateTo('fahrerAnsicht');
+    },
+    [navigateTo],
+  );
   const openGuestCreate = useCallback(() => {
     setGuestEditorData(null);
     navigateTo('fahrgastErstellen');
@@ -2502,6 +2548,38 @@ export default function App() {
     },
     [navigateTo],
   );
+  // Sprung Fahrer -> Fahrzeug und Fahrzeug -> Fahrer (12.11.): Datensatz frisch laden und oeffnen.
+  const openVehicleById = useCallback(async (vehicleId) => {
+    const id = String(vehicleId || '').trim();
+    if (!id) return;
+    const { data } = await supabase.from('vehicles').select('*').eq('id', id).maybeSingle();
+    if (!data?.id) return;
+    setVehicleEditorData(data);
+    navigateTo('fahrzeugBearbeiten');
+  }, [navigateTo]);
+  const openDriverById = useCallback(async (driverId) => {
+    const id = String(driverId || '').trim();
+    if (!id) return;
+    const { data } = await supabase.from('profiles')
+      .select('id, first_name, last_name, email, vehicle_id, role, driver_number, service_start_time, service_end_time, vehicles:vehicle_id(license_plate,brand_model)')
+      .eq('id', id).maybeSingle();
+    if (!data?.id) return;
+    const fahrer = {
+      id: data.id,
+      name: [data.first_name, data.last_name].filter(Boolean).join(' ').trim(),
+      firstName: data.first_name || '',
+      lastName: data.last_name || '',
+      email: data.email || '',
+      vehicle: String(data.vehicles?.license_plate || '').trim() || String(data.vehicles?.brand_model || '').trim() || (data.vehicle_id ? 'Fahrzeug' : ''),
+      vehicleId: data.vehicle_id || '',
+      driverNumber: data.driver_number ?? null,
+      serviceStartTime: String(data.service_start_time || '').slice(0, 5),
+      serviceEndTime: String(data.service_end_time || '').slice(0, 5),
+    };
+    setDriverAnsichtData(fahrer);
+    try { window.sessionStorage.setItem('trisar.fahrerAnsicht.v1', JSON.stringify(fahrer)); } catch { /* voll oder gesperrt */ }
+    navigateTo('fahrerAnsicht');
+  }, [navigateTo]);
   const openVehicleEditor = useCallback(
     (vehicleData) => {
       if (!vehicleData?.id) return;
@@ -2523,7 +2601,8 @@ export default function App() {
 
     const start = String(payload?.start || '').trim();
     const ziel = String(payload?.ziel || '').trim();
-    if (!start || !ziel) {
+    // Start leer = Standort des Fahrers (DB-Trigger trg_jobs_a_start_fahrerstandort).
+    if (!ziel) {
       return { ok: false, error: t('app.startZielFehlt') };
     }
     const { startOrtId, zielOrtId, startAdresse, zielAdresse } = ortFelderAusPayload(payload, start, ziel);
@@ -2979,7 +3058,8 @@ export default function App() {
     }
     const start = String(payload?.start || '').trim();
     const ziel = String(payload?.ziel || '').trim();
-    if (!start || !ziel) {
+    // Start leer = Standort des Fahrers (DB-Trigger trg_jobs_a_start_fahrerstandort).
+    if (!ziel) {
       return { ok: false, error: t('app.startZielFehlt') };
     }
     const { startOrtId, zielOrtId, startAdresse, zielAdresse } = ortFelderAusPayload(payload, start, ziel);
@@ -3566,6 +3646,7 @@ export default function App() {
           setView={navigateTo}
           onCreateDriver={openDriverCreate}
           onEditDriver={openDriverEditor}
+          onOpenDriver={openDriverAnsicht}
           onNavigateToMapWithDrivers={navigateToMapWithSelectedDrivers}
         />
       );
@@ -3582,6 +3663,7 @@ export default function App() {
           setView={navigateTo}
           onCreateDriver={openDriverCreate}
           onEditDriver={openDriverEditor}
+          onOpenDriver={openDriverAnsicht}
           onNavigateToMapWithDrivers={navigateToMapWithSelectedDrivers}
           planerDirekt
         />
@@ -3615,13 +3697,29 @@ export default function App() {
       return <FahrzeugErstellenView setView={navigateTo} initialVehicle={null} />;
     }
     if (view === 'fahrzeugBearbeiten') {
-      return <FahrzeugErstellenView setView={navigateTo} initialVehicle={vehicleEditorData} />;
+      return <FahrzeugErstellenView setView={navigateTo} initialVehicle={vehicleEditorData} onOpenDriver={openDriverById} />;
     }
     if (view === 'fahrerErstellen') {
       return <FahrerErstellenView setView={navigateTo} initialDriver={null} />;
     }
+    // Ohne gemerkten Fahrer (z. B. neuer Tab) zurueck zur Fahrerliste statt einer leeren Seite.
+    if (view === 'fahrerAnsicht' && !driverAnsichtData?.id) {
+      return <AlleFahrer key="alleFahrer" setView={navigateTo} onCreateDriver={openDriverCreate} onEditDriver={openDriverEditor} onOpenDriver={openDriverAnsicht} onNavigateToMapWithDrivers={navigateToMapWithSelectedDrivers} />;
+    }
+    if (view === 'fahrerAnsicht') {
+      return (
+        <FahrerAnsichtView
+          driver={driverAnsichtData}
+          rides={activeRides}
+          onBack={() => navigateTo('alleFahrer')}
+          onEditDriver={openDriverEditor}
+          onRideSelect={openRideEditor}
+          onOpenVehicle={openVehicleById}
+        />
+      );
+    }
     if (view === 'fahrerBearbeiten') {
-      return <FahrerErstellenView setView={navigateTo} initialDriver={driverEditorData} />;
+      return <FahrerErstellenView setView={navigateTo} initialDriver={driverEditorData} onOpenVehicle={openVehicleById} />;
     }
     if (view === 'fahrgastErstellen') {
       return <FahrgastErstellenView setView={navigateTo} initialGuest={null} />;
@@ -3651,6 +3749,7 @@ export default function App() {
     if (view === 'ankuenfte') {
       return (
         <AnkuenfteView 
+          onOpenStandby={(id) => { setStandbyOffenId(id); navigateTo('standby'); }}
           onBack={() => navigateTo('list')}
           onSwitchToAbfahrten={() => navigateTo('abfahrten')}
           onNavigateHome={() => navigateTo('list')}
@@ -3797,6 +3896,18 @@ export default function App() {
         />
       );
     }
+    if (view === 'standbyAdd') {
+      return (
+        <StandbyAdd
+          setView={navigateTo}
+          onFetchPlaceSuggestions={handleFetchPlaceSuggestions}
+          onGesendet={(id) => { setStandbyOffenId(id); navigateTo('standby'); }}
+        />
+      );
+    }
+    if (view === 'standby') {
+      return <StandbyView standbyId={standbyOffenId} onBack={() => navigateTo('ankuenfte')} setView={navigateTo} />;
+    }
     if (view === 'fahrtBearbeiten') {
       return (
         <FahrtBearbeitenView
@@ -3823,7 +3934,7 @@ export default function App() {
       return <FahrtenFilter setView={navigateTo} filters={fahrtenFilter} onChangeFilters={setFahrtenFilter} />;
     }
     return <HomeScreen setView={navigateTo} coordinatorName={coordinatorFirstName} avatarUrl={profileData.avatarUrl} />;
-  }, [profileData, view, coordinatorName, coordinatorFirstName, navigateTo, openRideEditor, openRideEditorById, rideEditorData, driverEditorData, guestEditorData, vehicleEditorData, openDriverCreate, openDriverEditor, openGuestCreate, openGuestEditor, openVehicleEditor, navigateToMapWithSelectedDrivers, ankuenfteRides, abfahrtenRides, archivedAnkuenfteRides, archivedAbfahrtenRides, handleSaveRideEdit, handleCreateRide, handleDeleteRide, handleMarkRideDone, handleArchiveRide, handleDuplicateRide, fahrtenFilter, kartenFilter, fahrzeugFilter, coordinatorLocation, hasCoordinatorLocation, ridesError, loadRidesFromDb, handleFetchPlaceSuggestions, refreshAirportBoard, airportBoardState, validateFlightForDisplay, validateTrainForDisplay]);
+  }, [profileData, view, coordinatorName, coordinatorFirstName, navigateTo, openRideEditor, openRideEditorById, rideEditorData, driverEditorData, driverAnsichtData, activeRides, openDriverAnsicht, guestEditorData, vehicleEditorData, openDriverCreate, openDriverEditor, openGuestCreate, openGuestEditor, openVehicleEditor, openVehicleById, openDriverById, navigateToMapWithSelectedDrivers, ankuenfteRides, abfahrtenRides, archivedAnkuenfteRides, archivedAbfahrtenRides, handleSaveRideEdit, handleCreateRide, handleDeleteRide, handleMarkRideDone, handleArchiveRide, handleDuplicateRide, fahrtenFilter, kartenFilter, fahrzeugFilter, coordinatorLocation, hasCoordinatorLocation, ridesError, loadRidesFromDb, handleFetchPlaceSuggestions, refreshAirportBoard, airportBoardState, validateFlightForDisplay, validateTrainForDisplay]);
 
   return (
     <I18nProvider language={profileData.language}>

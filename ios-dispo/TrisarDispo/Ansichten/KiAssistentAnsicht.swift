@@ -24,6 +24,7 @@ struct KiAssistentAnsicht: View {
     @State private var formular: KiFormular?
     @FocusState private var fokussiert: Bool
     @State private var live = KiAssistentLive()
+    @ObservedObject private var markierung = FahrerMarkierung.geteilt
 
     /// DENKZEIT_MS: so lange denkt der Assistent mindestens nach.
     private static let denkzeit: TimeInterval = 3
@@ -39,6 +40,10 @@ struct KiAssistentAnsicht: View {
                 Color.clear.frame(height: 140)
                 verlauf
                 Color.clear.frame(height: 12) // COMPOSER_GAP
+                // Vermerk "3 Fahrer markiert" sitzt ueber der Eingabe, der Verlauf endet darueber.
+                if markierung.wirkt {
+                    MarkierungsVermerk().frame(width: 362).padding(.bottom, 8)
+                }
                 eingabeLeiste
                 // Ohne Tastatur 175 ueber dem Rand, mit Tastatur 8 darueber.
                 Color.clear.frame(height: fokussiert ? 8 : 175)
@@ -71,6 +76,11 @@ struct KiAssistentAnsicht: View {
         .task { await live.starten() }
         .onDisappear { Task { await live.beenden() } }
         .onChange(of: nachrichten) { _, neu in KiVerlaufSpeicher.sichern(neu) }
+        // Fragen von der Apple Watch landen im selben Verlauf (DispoUhrBruecke).
+        .onReceive(NotificationCenter.default.publisher(for: KiVerlaufSpeicher.geaendert)) { _ in
+            nachrichten = KiVerlaufSpeicher.zusammenfuehren(nachrichten, KiVerlaufSpeicher.laden())
+        }
+        .onAppear { nachrichten = KiVerlaufSpeicher.zusammenfuehren(nachrichten, KiVerlaufSpeicher.laden()) }
     }
 
     // MARK: Kopf
@@ -117,7 +127,7 @@ struct KiAssistentAnsicht: View {
 
     private var letzteSignatur: String {
         guard let l = nachrichten.last else { return "" }
-        return "\(nachrichten.count)|\(l.id)|\(l.pending == true)|\(l.text)|\(l.bookingStatus ?? "")"
+        return "\(nachrichten.count)|\(l.id)|\(l.pending == true)|\(l.text)|\(l.bookingStatus ?? "")|\(l.dienstStatus ?? "")"
     }
 
     @ViewBuilder private func zeile(_ n: KiNachricht) -> some View {
@@ -133,6 +143,7 @@ struct KiAssistentAnsicht: View {
                 assistentBlase(n)
                 if let tag = n.stoerungTag { neuplanungLink(tag) }
                 if let vorschlag = n.bookingProposal { buchung(n, vorschlag) }
+                if let d = n.dienstVorschlag { dienst(n, d) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -274,6 +285,59 @@ struct KiAssistentAnsicht: View {
         .padding(.top, 12)
     }
 
+    /// Dienststart/Dienstende fuer markierte Fahrer (KiAssistentView.jsx): gruen senden, rot Nein.
+    @ViewBuilder private func dienst(_ n: KiNachricht, _ d: DienstVorschlag) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if n.dienstStatus == "offen" {
+                HStack(spacing: 12) {
+                    Button { Task { await dienstSenden(n.id, d) } } label: {
+                        Text(d.knopfText).grotesk(20, .bold, abstand: -0.5)
+                            .foregroundStyle(Color(hex: 0x202020))
+                            .frame(maxWidth: .infinity).frame(height: 51).background(Color(hex: 0x59BE80))
+                    }
+                    .buttonStyle(.web)
+                    Button { dienstSetzen(n.id) { $0.dienstStatus = "verworfen" } } label: {
+                        Text("Nein").grotesk(20, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0xFF6F63))
+                            .frame(width: 110, height: 51)
+                            .overlay(Rectangle().strokeBorder(Color(hex: 0xFF6F63), lineWidth: 2))
+                    }
+                    .buttonStyle(.web)
+                }
+                if let f = n.dienstFehler {
+                    Text(f).font(.grotesk(11, .medium)).foregroundStyle(Color(hex: 0xFF8E8E))
+                        .fixedSize(horizontal: false, vertical: true).padding(.top, 8)
+                }
+            }
+            switch n.dienstStatus {
+            case "sendet":
+                Text("Wird gesendet …").font(.grotesk(11, .medium)).foregroundStyle(Color(hex: 0xE3F654))
+            case "gesendet":
+                Text("\(d.knopfText.replacingOccurrences(of: " senden", with: "")) an \(n.dienstAnzahl ?? d.fahrer.count) Fahrer gesendet.")
+                    .font(.grotesk(11, .medium)).foregroundStyle(Color(hex: 0x59BE80))
+            case "verworfen":
+                Text("Nicht gesendet.").font(.grotesk(11, .medium)).foregroundStyle(.white.opacity(0.7))
+            default:
+                EmptyView()
+            }
+        }
+        .frame(maxWidth: 362, alignment: .leading)
+        .padding(.top, 12)
+    }
+
+    private func dienstSetzen(_ id: String, _ aendern: (inout KiNachricht) -> Void) {
+        if let i = nachrichten.firstIndex(where: { $0.id == id }) { aendern(&nachrichten[i]) }
+    }
+
+    private func dienstSenden(_ id: String, _ d: DienstVorschlag) async {
+        dienstSetzen(id) { $0.dienstStatus = "sendet"; $0.dienstFehler = nil }
+        do {
+            let anzahl = try await DienstSenden.senden(d)
+            dienstSetzen(id) { $0.dienstStatus = "gesendet"; $0.dienstAnzahl = anzahl }
+        } catch {
+            dienstSetzen(id) { $0.dienstStatus = "offen"; $0.dienstFehler = error.localizedDescription }
+        }
+    }
+
     // MARK: Eingabe
 
     private var eingabeLeiste: some View {
@@ -356,6 +420,8 @@ struct KiAssistentAnsicht: View {
                 nachrichten[i].text = antwort.text.isEmpty ? "Ich konnte dazu keine Antwort erzeugen." : antwort.text
                 nachrichten[i].bookingProposal = antwort.buchungsVorschlag
                 nachrichten[i].bookingStatus = antwort.buchungsVorschlag == nil ? nil : "pending"
+                nachrichten[i].dienstVorschlag = antwort.dienstVorschlag
+                nachrichten[i].dienstStatus = antwort.dienstVorschlag == nil ? nil : "offen"
             case .failure(let fehler):
                 let meldung = fehler.localizedDescription.isEmpty ? "Unbekannter KI-Fehler" : fehler.localizedDescription
                 nachrichten[i].text = "Fehler: \(meldung)"
@@ -441,6 +507,11 @@ struct KiNachricht: Codable, Equatable, Identifiable {
     var bookingStatus: String?
     var bookingRideId: String?
     var stoerungTag: String?
+    /// Dienststart/Dienstende fuer markierte Fahrer: offen, sendet, gesendet, verworfen.
+    var dienstVorschlag: DienstVorschlag?
+    var dienstStatus: String?
+    var dienstAnzahl: Int?
+    var dienstFehler: String?
 
     static func uhrzeit(_ d: Date = Date()) -> String {
         let f = DateFormatter()
@@ -470,6 +541,7 @@ enum KiVerlaufSpeicher {
             .map { n -> KiNachricht in
                 var n = n
                 if n.bookingStatus == "saving" { n.bookingStatus = "pending" }
+                if n.dienstStatus == "sendet" { n.dienstStatus = "offen" }
                 return n
             }
         if bereinigt.isEmpty || (bereinigt.count == 1 && bereinigt[0].id == "init") { return standard }
@@ -480,6 +552,42 @@ enum KiVerlaufSpeicher {
         if let daten = try? JSONEncoder().encode(liste) {
             UserDefaults.standard.set(daten, forKey: schluessel)
         }
+    }
+
+    /// Die Apple Watch hat den Verlauf geaendert (DispoUhrBruecke). Die offene Ansicht laedt nach.
+    static let geaendert = Notification.Name("trisar.ki.verlauf.geaendert")
+
+    /// Nachricht von der Uhr anhaengen (ohne die Begruessung, wenn schon etwas im Verlauf steht).
+    @MainActor static func anhaengen(_ n: KiNachricht) {
+        var liste = laden()
+        liste.append(n)
+        sichern(liste)
+        NotificationCenter.default.post(name: geaendert, object: nil)
+    }
+
+    /// Status einer Nachricht aendern (Dienst gesendet, Buchung gespeichert, verworfen).
+    @MainActor static func aendern(_ id: String?, _ aendern: (inout KiNachricht) -> Void) {
+        guard let id else { return }
+        var liste = laden()
+        guard let i = liste.firstIndex(where: { $0.id == id }) else { return }
+        aendern(&liste[i])
+        sichern(liste)
+        NotificationCenter.default.post(name: geaendert, object: nil)
+    }
+
+    @MainActor static func alleAendern(_ aendern: (inout KiNachricht) -> Void) {
+        var liste = laden()
+        for i in liste.indices { aendern(&liste[i]) }
+        sichern(liste)
+    }
+
+    /// Stand der Ansicht mit dem Speicher zusammenfuehren: gespeicherte Nachrichten gewinnen,
+    /// was nur die Ansicht hat (gerade wartende Antwort), bleibt an seiner Stelle.
+    static func zusammenfuehren(_ ansicht: [KiNachricht], _ speicher: [KiNachricht]) -> [KiNachricht] {
+        let ids = Set(speicher.map(\.id))
+        var ergebnis = speicher
+        for n in ansicht where !ids.contains(n.id) { ergebnis.append(n) }
+        return ergebnis
     }
 }
 

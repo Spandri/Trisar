@@ -361,6 +361,13 @@ const IO_TEXT_FIELDS = [
   [256, 'vin'],
   [281, 'fault_codes'],
 ];
+// Werte, die nur ueber die OBD-Buchse kommen (nicht Geraet/GPS wie 16, 199, 12).
+const OBD_IO_IDS = [30, 31, 32, 36, 37, 41, 42, 43, 48, 51, 53, 58, 60, 389, 390, 755];
+const OBD_TEXT_IDS = [256, 281];
+const OBD_FELDER = [
+  ...IO_FIELDS.filter(([id]) => OBD_IO_IDS.includes(id)).map(([, field]) => field),
+  ...IO_TEXT_FIELDS.filter(([id]) => OBD_TEXT_IDS.includes(id)).map(([, field]) => field),
+];
 const extractTelemetry = (record) => {
   const out = {};
   let any = false;
@@ -1040,6 +1047,16 @@ const writeTelemetry = async (imei, driverId, activeJobId, records, latest) => {
     if (fields) Object.assign(merged, fields);
   }
   const rawIo = latest?.io ? Object.fromEntries(Array.from(latest.io.entries()).map(([k, v]) => [String(k), v])) : null;
+
+  // Zuendung an, aber kein einziger OBD-Wert im Paket: das Auto spricht kein OBD (z. B. Elektroauto
+  // wie Mini Aceman) oder der Tracker steckt in einem anderen Auto. Alte Werte (Tank, km, VIN eines
+  // frueheren Autos) duerfen dann nicht stehen bleiben.
+  const zuendungAn = sorted.some((record) => record.io?.get(239) === 1);
+  const hatObd = sorted.some((record) =>
+    OBD_IO_IDS.some((id) => record.io?.has(id)) || OBD_TEXT_IDS.some((id) => record.ioText?.get(id)));
+  if (zuendungAn && !hatObd) {
+    for (const feld of OBD_FELDER) merged[feld] = null;
+  }
 
   const events = [];
   for (const record of sorted) {

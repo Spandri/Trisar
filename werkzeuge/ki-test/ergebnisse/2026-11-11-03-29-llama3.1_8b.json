@@ -1,0 +1,230 @@
+[
+  {
+    "fall": "Dienst Start und Ende morgen",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Schick Tim morgen 7 bis 15 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 07:00, Dienstende 15:00 morgen für Tim Schedler. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-12",
+      "start": "07:00",
+      "ende": "15:00",
+      "pausen": "",
+      "fahrer": "Tim Schedler"
+    },
+    "ms": 5
+  },
+  {
+    "fall": "Dienst ab Uhrzeit heute",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Dienst für Marvin heute ab 14 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 14:00 heute für Marvin Keller. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-11",
+      "start": "14:00",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Marvin Keller"
+    },
+    "ms": 0
+  },
+  {
+    "fall": "Vorhandener Dienst, Uhrzeit nachts",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Schick Stefano heute 00:30",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Stefano Spandri hat heute schon Dienst (ab 08:00, angenommen). 00:30 als Dienstende? Ich ändere dann den vorhandenen Dienst.",
+    "felder": {
+      "datum": "2026-11-11",
+      "start": "",
+      "ende": "00:30",
+      "pausen": "",
+      "fahrer": "Stefano Spandri"
+    },
+    "ms": 2
+  },
+  {
+    "fall": "Pause im vorhandenen Dienst",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Stefano Pause von 12 bis 12:30",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Stefano Spandri hat heute schon Dienst (ab 08:00, angenommen). Pause 12:00–12:30? Ich ändere dann den vorhandenen Dienst.",
+    "felder": {
+      "datum": "2026-11-11",
+      "start": "",
+      "ende": "",
+      "pausen": "12:00-12:30",
+      "fahrer": "Stefano Spandri"
+    },
+    "ms": 0
+  },
+  {
+    "fall": "Feierabend mit Uhrzeit",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Anna Feierabend um 18 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienstende 18:00 heute für Anna Berger. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-11",
+      "start": "",
+      "ende": "18:00",
+      "pausen": "",
+      "fahrer": "Anna Berger"
+    },
+    "ms": 0
+  },
+  {
+    "fall": "Fahrer per Nummer",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Schick Fahrer 113 heute 16:00",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 16:00 heute für Tim Schedler. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-11",
+      "start": "16:00",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Tim Schedler"
+    },
+    "ms": 0
+  },
+  {
+    "fall": "Zwei Fahrer gleicher Dienst",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Tim und Marvin morgen 6 bis 14",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 06:00, Dienstende 14:00 morgen für Tim Schedler, Marvin Keller. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-12",
+      "start": "06:00",
+      "ende": "14:00",
+      "pausen": "",
+      "fahrer": "Tim Schedler, Marvin Keller"
+    },
+    "ms": 0
+  },
+  {
+    "fall": "Gleicher Start schon eingetragen",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Schick Stefano heute 8 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Stefano Spandri hat heute schon Dienst (ab 08:00, angenommen). Der Dienststart 08:00 ist schon eingetragen, ich ändere nichts.",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Umgangssprache: morgen früh",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "schick tim morgen früh 7",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 07:00 morgen für Tim Schedler. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-12",
+      "start": "07:00",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Tim Schedler"
+    },
+    "ms": 0
+  },
+  {
+    "fall": "Umgangssprache: Schluss machen",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Tim soll heute um 17 Uhr Schluss machen",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienstende 17:00 heute für Tim Schedler. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-11",
+      "start": "",
+      "ende": "17:00",
+      "pausen": "",
+      "fahrer": "Tim Schedler"
+    },
+    "ms": 0
+  },
+  {
+    "fall": "Pause mit Bindestrich",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Pause für Anna morgen 12-13",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Pause 12:00–13:00 morgen für Anna Berger. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-12",
+      "start": "",
+      "ende": "",
+      "pausen": "12:00-13:00",
+      "fahrer": "Anna Berger"
+    },
+    "ms": 1
+  },
+  {
+    "fall": "Umgangssprache: fängt an",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Marvin fängt morgen um 6 an",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 06:00 morgen für Marvin Keller. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-12",
+      "start": "06:00",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Marvin Keller"
+    },
+    "ms": 0
+  },
+  {
+    "fall": "Markierte Fahrer in Feierabend",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "schick die alle in Feierabend",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienstende 03:30 heute für die 2 markierten Fahrer (Tim Schedler, Marvin Keller). Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-11",
+      "start": "",
+      "ende": "03:30",
+      "pausen": "",
+      "fahrer": "Tim Schedler, Marvin Keller"
+    },
+    "ms": 0
+  }
+]

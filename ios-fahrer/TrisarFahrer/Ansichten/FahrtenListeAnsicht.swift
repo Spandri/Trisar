@@ -27,9 +27,13 @@ struct FahrtenListeAnsicht: View {
     private let tagOben: CGFloat = 44
     private let tagHoehe: CGFloat = 32
     private let tagUnten: CGFloat = 56
-    private let dienstHoehe: CGFloat = 124
     private let dienstAbstand: CGFloat = 12
     private let dienstListe: CGFloat = 48
+    /// Angenommener Dienst (12.11.): wie im Verlauf je eine Zeile Dienststart (vor den Fahrten) und
+    /// Dienstende (danach). Ist die Uhrzeit vorbei, verschwindet die Zeile (steht dann im Verlauf).
+    private let dienstZeile: CGFloat = 48
+    @State private var jetzt = Date()
+    private let takt = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
         let raster = rasterBerechnen()
@@ -52,19 +56,29 @@ struct FahrtenListeAnsicht: View {
                     Tageszeile(datum: zeile.datum).platz(20, versatz + zeile.oben, 362, tagHoehe)
                 }
 
-                ForEach(raster.dienste, id: \.anfrage.id) { eintrag in
+                ForEach(raster.dienste, id: \.schluessel) { eintrag in
+                    if eintrag.art == "start" {
+                        VerlaufRahmenZeile(text: "Dienststart \(String((eintrag.anfrage.service_start_time ?? "").prefix(5)))", farbe: Color(hex: 0xE3F654))
+                            .platz(20, versatz + eintrag.oben, 362, dienstZeile)
+                    } else if eintrag.art == "ende" {
+                        VerlaufRahmenZeile(text: "Dienstende \(String((eintrag.anfrage.service_end_time ?? "").prefix(5)))", farbe: Color(hex: 0xFF6F63))
+                            .platz(20, versatz + eintrag.oben, 362, dienstZeile)
+                    } else if let z = eintrag.zeile {
+                        // Pausenstart/-ende des angenommenen Dienstes, nach Uhrzeit zwischen den Fahrten.
+                        VerlaufRahmenZeile(text: z.text, farbe: z.farbe)
+                            .platz(20, versatz + eintrag.oben, 362, dienstZeile)
+                    } else {
                     DienstKarte(anfrage: eintrag.anfrage, beschaeftigt: speicher.dienstArbeitetID == eintrag.anfrage.id) { annehmen in
                         Task { await speicher.dienstAntworten(eintrag.anfrage, annehmen: annehmen) }
                     }
                     .platz(20, versatz + eintrag.oben, 362, nil)
+                    }
                 }
 
                 // Stunden am Ende des Diensttages
                 ForEach(raster.stunden, id: \.eintrag.id) { s in
-                    StundenKarte(eintrag: s.eintrag, beschaeftigt: stunden.arbeitetID == s.eintrag.id,
-                                 annehmen: { Task { await stunden.annehmen(s.eintrag) } },
-                                 bearbeiten: { stundenBearbeiten = s.eintrag },
-                                 ablehnen: { stundenAblehnen = s.eintrag })
+                    // Stundenerfassung wie im Verlauf (Figma 2823-12431), Bearbeiten als Vollbild.
+                    HeuteStundenKarte(eintrag: s.eintrag, nachher: { Task { await stunden.laden() } }, vollbild: true)
                     .platz(20, versatz + s.oben, 362, nil)
                 }
 
@@ -83,6 +97,7 @@ struct FahrtenListeAnsicht: View {
             }
         }
         .overlay { FussleisteUnten() }
+        .onReceive(takt) { jetzt = $0 }
         .modifier(StundenAktionen(bearbeiten: $stundenBearbeiten, ablehnen: $stundenAblehnen))
         .overlay(alignment: .top) { fehlerHinweis }
         .webVollbild(item: $ablehnenFahrt) { fahrt in
@@ -110,7 +125,7 @@ struct FahrtenListeAnsicht: View {
 
     private struct Raster {
         var zeilen: [(datum: String, oben: CGFloat)] = []
-        var dienste: [(anfrage: DienstAnfrage, oben: CGFloat)] = []
+        var dienste: [(anfrage: DienstAnfrage, oben: CGFloat, art: String, schluessel: String, zeile: AnfrageZeile?)] = []
         var fahrten: [(fahrt: Fahrt, oben: CGFloat, mitKnoepfen: Bool)] = []
         var stunden: [(eintrag: Stunden.Eintrag, oben: CGFloat)] = []
         var unterkante: CGFloat = 0
@@ -127,6 +142,8 @@ struct FahrtenListeAnsicht: View {
         for anfrage in speicher.dienstAnfragen {
             let tag = String((anfrage.service_date ?? "").prefix(10))
             guard !tag.isEmpty else { continue }
+            // Angenommen und Dienstende vorbei: nur noch im Verlauf.
+            if anfrage.angenommen && !zeigeStart(anfrage) && !zeigeEnde(anfrage) && offenePausen(anfrage).isEmpty { continue }
             anfragenProTag[tag, default: []].append(anfrage)
         }
         var fahrtenProTag: [String: [Fahrt]] = [:]
@@ -142,27 +159,74 @@ struct FahrtenListeAnsicht: View {
             if t > 0 { cursor += tagOben }
             r.zeilen.append((tag, cursor))
             cursor += tagHoehe + tagUnten
-            let anfragen = anfragenProTag[tag] ?? []
+            let alle = anfragenProTag[tag] ?? []
+            let anfragen = alle.filter { !$0.angenommen }
             for (i, anfrage) in anfragen.enumerated() {
-                r.dienste.append((anfrage, cursor))
-                cursor += anfrage.angenommen ? dienstHoehe : dienstHoehe + knopfAbstand + knopfHoehe
+                r.dienste.append((anfrage, cursor, "karte", anfrage.id.uuidString, nil))
+                cursor += AnfrageZeile.kartenHoehe(AnfrageZeile.zeilen(anfrage)) + knopfAbstand + knopfHoehe
                 if i < anfragen.count - 1 { cursor += dienstAbstand }
             }
             if !anfragen.isEmpty { cursor += dienstListe }
+            for anfrage in alle where anfrage.angenommen && zeigeStart(anfrage) {
+                r.dienste.append((anfrage, cursor, "start", anfrage.id.uuidString + "-start", nil))
+                cursor += dienstZeile + kartenAbstand
+            }
+            // Pausen des angenommenen Dienstes warten, bis ihre Uhrzeit zwischen den Fahrten dran ist.
+            var pausenWarte = alle.filter(\.angenommen)
+                .flatMap { a in offenePausen(a).map { (a, $0) } }
+                .sorted { $0.1.m < $1.1.m }
+            func pausenBis(_ m: Double) {
+                while let erste = pausenWarte.first, erste.1.m <= m {
+                    pausenWarte.removeFirst()
+                    r.dienste.append((erste.0, cursor, "pause", erste.0.id.uuidString + erste.1.schluessel, erste.1))
+                    cursor += dienstZeile + kartenAbstand
+                }
+            }
             for fahrt in fahrtenProTag[tag] ?? [] {
+                let fm = minuten(fahrt.etd)
+                if fm != Int.max { pausenBis(Double(fm)) }
                 let mitKnoepfen = fahrt.wartetAufAntwort
                 r.fahrten.append((fahrt, cursor, mitKnoepfen))
                 let h = AuftragsKarte.hoehe(fahrt)
                 cursor += mitKnoepfen ? h + knopfAbstand + knopfHoehe + nachKnopf : h + kartenAbstand
             }
+            pausenBis(.infinity)
+            for anfrage in alle where anfrage.angenommen && zeigeEnde(anfrage) {
+                r.dienste.append((anfrage, cursor, "ende", anfrage.id.uuidString + "-ende", nil))
+                cursor += dienstZeile + kartenAbstand
+            }
             for e in stundenProTag[tag] ?? [] {
                 if !(fahrtenProTag[tag] ?? []).isEmpty { cursor += kartenAbstand }
                 r.stunden.append((e, cursor))
-                cursor += StundenKarte.hoehe(e) + (StundenKarte.mitKnoepfen(e) ? nachKnopf : kartenAbstand)
+                cursor += HeuteStundenKarte.hoehe(e) + kartenAbstand
             }
         }
         r.unterkante = cursor
         return r
+    }
+
+    private func dienstZeiten(_ a: DienstAnfrage) -> (start: Date?, ende: Date?) {
+        let tag = String((a.service_date ?? "").prefix(10))
+        let start = Stunden.zeitpunkt(tag, String((a.service_start_time ?? "").prefix(5)))
+        let ende = Stunden.zeitpunkt(tag, String((a.service_end_time ?? "").prefix(5)), nach: start) // Nachtdienst
+        return (start, ende)
+    }
+    private func zeigeStart(_ a: DienstAnfrage) -> Bool {
+        guard !(a.service_start_time ?? "").isEmpty else { return false }
+        return (dienstZeiten(a).start ?? .distantFuture) > jetzt
+    }
+    private func zeigeEnde(_ a: DienstAnfrage) -> Bool {
+        guard !(a.service_end_time ?? "").isEmpty else { return false }
+        return (dienstZeiten(a).ende ?? .distantFuture) > jetzt
+    }
+
+    /// Pausen-Zeilen eines angenommenen Dienstes, deren Uhrzeit noch nicht vorbei ist.
+    private func offenePausen(_ a: DienstAnfrage) -> [AnfrageZeile] {
+        let tag = String((a.service_date ?? "").prefix(10))
+        return AnfrageZeile.pausenZeilen(a).filter { z in
+            guard let t = Stunden.zeitpunkt(tag, z.zeit) else { return true }
+            return t.addingTimeInterval(z.m >= 1440 ? 86_400 : 0) > jetzt
+        }
     }
 
     private func minuten(_ zeit: String) -> Int {
@@ -191,33 +255,134 @@ private struct Tageszeile: View {
     }
 }
 
-/// Dienstplan-Anfrage (Dienststart/Dienstende), darunter Ablehnen/Annehmen solange offen.
+/// Dienstplan-Anfrage: Dienststart (Lime), Pausen (Grau), Dienstende (Rot), einzeln oder zusammen.
+/// Erste Zeile gross, weitere kleiner. Darunter Ablehnen/Annehmen solange offen.
 private struct DienstKarte: View {
     let anfrage: DienstAnfrage
     let beschaeftigt: Bool
     let antworten: (Bool) -> Void
 
     var body: some View {
+        let zeilen = AnfrageZeile.zeilen(anfrage)
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 20) {
-                if let start = anfrage.service_start_time, !start.isEmpty {
-                    Text("Dienststart \(String(start.prefix(5)))")
-                        .grotesk(38, .bold).foregroundStyle(Color(hex: 0xE3F654))
-                }
-                if let ende = anfrage.service_end_time, !ende.isEmpty {
-                    Text("Dienstende \(String(ende.prefix(5)))")
-                        .grotesk(24, .bold).foregroundStyle(Color(hex: 0xFF6F63))
+                ForEach(Array(zeilen.enumerated()), id: \.offset) { i, z in
+                    Text(z.text).grotesk(z.groesse(erste: i == 0), .bold).foregroundStyle(z.farbe)
+                        .lineLimit(1).fixedSize()
                 }
             }
             .padding(.horizontal, 12)
             .padding(.top, 19)
-            .frame(width: 362, height: 124, alignment: .topLeading)
+            .frame(width: 362, height: AnfrageZeile.kartenHoehe(zeilen), alignment: .topLeading)
             .background(Color(hex: 0x1A1A1A))
             .overlay(Rectangle().strokeBorder(anfrage.angenommen ? Farbe.lime : .clear, lineWidth: 2))
 
             if !anfrage.angenommen {
                 AntwortKnoepfe(beschaeftigt: beschaeftigt, ablehnen: { antworten(false) }, annehmen: { antworten(true) })
             }
+        }
+    }
+}
+
+/// Eine Zeile der Dienstanfrage (wie shared/dienstAnfrage.js der Web-App).
+/// Ganz neuer Dienst: alles. Geaenderter Dienst (vorher gesetzt): nur was sich geaendert hat, Pausen der
+/// Reihe nach verglichen, weggefallene als "Pause 18:00–19:00 entfällt".
+struct AnfrageZeile {
+    enum Art { case start, ende, pauseStart, pauseEnde, pauseWeg }
+    let art: Art
+    let zeit: String
+    var bis: String = ""
+    /// Minuten ab Tagesbeginn (nach Mitternacht + 1440), fuer die Reihenfolge zwischen den Fahrten.
+    var m: Double = 0
+    var schluessel: String = ""
+
+    var text: String {
+        switch art {
+        case .start: "Dienststart \(zeit)"
+        case .ende: "Dienstende \(zeit)"
+        case .pauseStart: "Pausenstart \(zeit)"
+        case .pauseEnde: "Pausenende \(zeit)"
+        case .pauseWeg: "Pause \(zeit)–\(bis) entfällt"
+        }
+    }
+    var farbe: Color {
+        switch art {
+        case .start: Color(hex: 0xE3F654)
+        case .ende: Color(hex: 0xFF6F63)
+        default: Color(hex: 0x868687)
+        }
+    }
+    /// Erste Zeile gross (Dienst 38, Pause 33, Pause entfaellt 26), weitere 24.
+    func groesse(erste: Bool) -> CGFloat {
+        guard erste else { return 24 }
+        switch art {
+        case .start, .ende: return 38
+        case .pauseWeg: return 26
+        default: return 33
+        }
+    }
+
+    /// 2 Rand + 19 Luft + Zeilen (je 20 Abstand dazwischen) + 19 Luft + 2 Rand.
+    static func kartenHoehe(_ zeilen: [AnfrageZeile]) -> CGFloat {
+        guard !zeilen.isEmpty else { return 124 }
+        return 42 + zeilen.enumerated().reduce(0) { n, e in n + e.element.groesse(erste: e.offset == 0) + (e.offset > 0 ? 20 : 0) }
+    }
+
+    private static func hm(_ s: String?) -> String { String((s ?? "").prefix(5)) }
+    private static func minuten(_ s: String) -> Int? {
+        let t = s.split(separator: ":").compactMap { Int($0) }
+        return t.count >= 2 ? t[0] * 60 + t[1] : nil
+    }
+    private static func pausen(_ p: [Stunden.DienstPause]?) -> [(von: String, bis: String)] {
+        (p ?? []).map { (hm($0.von), hm($0.bis)) }.filter { !$0.von.isEmpty && !$0.bis.isEmpty }
+    }
+    private static func sortierWert(_ zeit: String, _ beginn: Int?) -> Double {
+        guard let m = minuten(zeit) else { return .infinity }
+        if let b = beginn, m < b { return Double(m + 1440) }
+        return Double(m)
+    }
+
+    static func zeilen(_ a: DienstAnfrage) -> [AnfrageZeile] {
+        let start = hm(a.service_start_time), ende = hm(a.service_end_time)
+        let jetzt = pausen(a.pausen)
+        func ganz() -> [AnfrageZeile] {
+            (start.isEmpty ? [] : [AnfrageZeile(art: .start, zeit: start)])
+            + jetzt.flatMap { [AnfrageZeile(art: .pauseStart, zeit: $0.von), AnfrageZeile(art: .pauseEnde, zeit: $0.bis)] }
+            + (ende.isEmpty ? [] : [AnfrageZeile(art: .ende, zeit: ende)])
+        }
+        var z: [AnfrageZeile]
+        if let v = a.vorher {
+            let alt = pausen(v.pausen)
+            z = []
+            if !start.isEmpty && start != hm(v.start) { z.append(AnfrageZeile(art: .start, zeit: start)) }
+            for (i, p) in jetzt.enumerated() {
+                let o = i < alt.count ? alt[i] : nil
+                if o == nil || o!.von != p.von { z.append(AnfrageZeile(art: .pauseStart, zeit: p.von)) }
+                if o == nil || o!.bis != p.bis { z.append(AnfrageZeile(art: .pauseEnde, zeit: p.bis)) }
+            }
+            for o in alt.dropFirst(jetzt.count) { z.append(AnfrageZeile(art: .pauseWeg, zeit: o.von, bis: o.bis)) }
+            if !ende.isEmpty && ende != hm(v.ende) { z.append(AnfrageZeile(art: .ende, zeit: ende)) }
+            if z.isEmpty { z = ganz() }
+        } else {
+            z = ganz()
+        }
+        let beginn = minuten(start.isEmpty ? hm(a.vorher?.start) : start)
+        func rang(_ x: AnfrageZeile) -> Int {
+            switch x.art { case .start: 0; case .pauseStart, .pauseWeg: 1; case .pauseEnde: 2; case .ende: 3 }
+        }
+        // Dienststart zuerst, Dienstende zuletzt, Pausen dazwischen nach Uhrzeit.
+        func wert(_ x: AnfrageZeile) -> Double {
+            switch x.art { case .start: -.infinity; case .ende: .infinity; default: sortierWert(x.zeit, beginn) }
+        }
+        return z.sorted { x, y in wert(x) != wert(y) ? wert(x) < wert(y) : rang(x) < rang(y) }
+    }
+
+    /// Angenommener Dienst: Pausenstart/-ende mit Minuten fuer die Reihenfolge zwischen den Fahrten.
+    static func pausenZeilen(_ a: DienstAnfrage) -> [AnfrageZeile] {
+        let beginn = minuten(hm(a.service_start_time))
+        return pausen(a.pausen).enumerated().flatMap { i, p in
+            [AnfrageZeile(art: .pauseStart, zeit: p.von, m: sortierWert(p.von, beginn), schluessel: "-ps\(i)"),
+             AnfrageZeile(art: .pauseEnde, zeit: p.bis, m: sortierWert(p.bis, beginn) + 0.5, schluessel: "-pe\(i)")]
         }
     }
 }

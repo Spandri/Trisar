@@ -16,7 +16,11 @@ struct TrisarFahrerApp: App {
         // Wie im Web: Seiten und Vollbilder erscheinen sofort, ohne Hochfahren oder Einblenden.
         UIView.setAnimationsEnabled(false)
         Push.shared.einrichten(app: "fahrer")
+        // Annehmen/Ablehnen aus der Mitteilung (iPhone und Apple Watch), ohne die App zu oeffnen.
+        Push.shared.fahrtAntwort = { id, annehmen in await PushAntwort.ausfuehren(jobID: id, annehmen: annehmen) }
         LiveFahrt.shared.beobachten(Geteilt.fahrten)
+        // Apple Watch (TrisarFahrerUhr): Stand schicken, Annehmen/Ablehnen von der Uhr ausfuehren.
+        UhrBruecke.shared.starten()
     }
 
     var body: some Scene {

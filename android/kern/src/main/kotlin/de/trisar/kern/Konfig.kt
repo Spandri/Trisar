@@ -11,6 +11,10 @@ object Konfig {
     const val LIVE_INTERVALL_MS = 5_000L
     const val VERLAUF_INTERVALL_MS = 15_000L
     const val PROFIL_INTERVALL_MS = 60_000L
+    /** Steht das Handy still (kein neuer Punkt, MinUpdateDistance 10 m), den letzten Standort
+     *  spaetestens nach dieser Zeit mit aktueller Uhrzeit nochmal senden. Die Dispo-Karte faerbt
+     *  das Signal ab 1 min orange, ab 5 min "kein Signal". 30 s halten die Anzeige frisch. */
+    const val STILLSTAND_INTERVALL_MS = 30_000L
 
     /** Kennung in `source`, damit man in der Datenbank sieht, woher der Punkt kommt. */
     const val QUELLE = "android_app"

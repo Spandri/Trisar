@@ -68,6 +68,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
     LaunchedEffect(nfcStand) { if (nfcStand > 0) speicher.laden() }
     val geladen by speicher.geladen.collectAsState()
     val fahrten by speicher.fahrten.collectAsState()
+    val anfragen by speicher.dienstAnfragen.collectAsState()
     val fahrzeug by speicher.fahrzeug.collectAsState()
     var seite by remember { mutableStateOf<Seite?>(null) }
     var profilSeite by remember { mutableStateOf(ProfilUnterseite.PROFIL) }
@@ -168,7 +169,15 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
         when {
             !geladen -> TrisarHintergrund()
             // Liste statt "Keine Fahrt", sobald Stundenkarten da sind.
-            fahrten.isEmpty() && stundenKarten.isEmpty() -> KeineFahrtSeite(
+            // Offene Dienstanfrage oder angenommener Dienst ab heute: auch Liste (12.11., sonst nach der Push nichts zu sehen).
+            fahrten.isEmpty() && stundenKarten.isEmpty() && anfragen.none { a ->
+                if (!a.angenommen) return@none true
+                // Angenommen: bis Dienstende (Nachtdienst: Folgetag).
+                val tag = a.service_date.orEmpty().take(10)
+                val start = de.trisar.kern.Stunden.zuZeitpunkt(tag, a.service_start_time.orEmpty().take(5))
+                val ende = de.trisar.kern.Stunden.zuZeitpunkt(tag, a.service_end_time.orEmpty().take(5), start)
+                if (ende == null) tag >= de.trisar.kern.Stunden.heuteDatum() else java.time.Instant.parse(ende).isAfter(java.time.Instant.now())
+            } -> KeineFahrtSeite(
                 fahrzeug = fahrzeug,
                 oeffneProfil = { profilSeite = ProfilUnterseite.PROFIL; seite = Seite.Profil },
                 oeffneFahrzeug = { seite = Seite.Fahrzeug },

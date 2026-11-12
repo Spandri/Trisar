@@ -5,6 +5,8 @@ import { KLASSE_TEXT, fahrerPasst, risikoFahrt, risikoGrund, useRisikoDaten } fr
 import { KLASSE_FARBE } from './risikoFarben';
 import { DEMO_MODE } from '../../datenquelle';
 import { useI18n } from '../../i18n';
+import { useFahrerMarkierung } from '../../shared/fahrerMarkierung';
+import MarkierungsVermerk from '../ui/MarkierungsVermerk';
 import { anonymeGaesteText, gaesteTeile } from '../../shared/gaesteAnzeige';
 
 // Fahrten mit hohem Risiko tragen "NEU", bis die Disposition sie einmal geoeffnet hat.
@@ -504,6 +506,11 @@ export default function AbfahrtenView({
     withSpecial = false,
     includePast = false,
   } = rideFilters;
+  // Auf der Karte markierte Fahrer: nur ihre Fahrten zeigen.
+  const markierung = useFahrerMarkierung();
+  const markierteFahrerIds = markierung.aktiv && markierung.fahrer.length
+    ? new Set(markierung.fahrer.map((f) => f.id))
+    : null;
   const normalizedStartQuery = String(startQuery || '').trim().toLowerCase();
   const normalizedZielQuery = String(zielQuery || '').trim().toLowerCase();
   const selectedDate = String(date || '').trim();
@@ -564,6 +571,7 @@ export default function AbfahrtenView({
     const isArchivedRide = normalizedJobStatus === 'archived' || normalizedJobStatus === 'cancelled';
     if (showArchiveOnly && !isArchivedRide) return false;
     if (!showArchiveOnly && isArchivedRide) return false;
+    if (markierteFahrerIds && !(ride.fahrerIds || []).some((id) => markierteFahrerIds.has(id))) return false;
 
     const driverValue = String(ride.driver || '').trim().toLowerCase();
     const isWithoutDriverRide = driverValue === 'fahrer fehlt' || ride.variant === 'variant2';
@@ -831,6 +839,8 @@ export default function AbfahrtenView({
             )}
           </button>
         </div>
+
+        <MarkierungsVermerk className="mt-3" />
 
         {ridesError ? (
           <div className="mt-4 border border-[#3a3a3a] bg-[#171717] p-3 text-[#ff8e8e] text-[12px] leading-[1.35] font-medium font-['Space_Grotesk']">

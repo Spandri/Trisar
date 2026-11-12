@@ -5,6 +5,8 @@ import { supabase, supabaseAdmin } from '../../services/supabase';
 import { ColorBadge, EnergyBadge, FuelBadge, SeatBadge, demoFillPercent } from '../../shared/vehicleBadges';
 import { DEMO_MODE } from '../../datenquelle';
 import { useI18n } from '../../i18n';
+import { useFahrerMarkierung } from '../../shared/fahrerMarkierung';
+import MarkierungsVermerk from '../ui/MarkierungsVermerk';
 
 const VEHICLES_RELOAD_EVENT = 'trisar:admin:vehicles:reload';
 
@@ -85,14 +87,17 @@ function VehicleCard({ plate, vin, color, imageUrl = '', seatCount = null, fuelT
   );
 }
 
+// Letzter Stand der Fahrzeugliste: beim Oeffnen sofort da, frisch geladen wird im Hintergrund.
+let fahrzeugZwischenspeicher = [];
+
 export default function FahrzeugeView({ setView, onEditVehicle = null, filters = {}, onChangeFilters = () => {} }) {
   const { t } = useI18n();
   // Suchtext lebt im geteilten Filter-State: er bleibt erhalten, bis er per
   // X-Button (oder "Filter Löschen") geleert wird.
   const searchTerm = String(filters?.search || '');
   const setSearchTerm = (value) => onChangeFilters((prev) => ({ ...(prev || {}), search: value }));
-  const [vehicles, setVehicles] = useState([]);
-  const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [vehicles, setVehicles] = useState(() => fahrzeugZwischenspeicher);
+  const [loadingVehicles, setLoadingVehicles] = useState(() => fahrzeugZwischenspeicher.length === 0);
   const [vehiclesError, setVehiclesError] = useState('');
   const gradientStyle = useMemo(
     () => ({
@@ -161,6 +166,18 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
     Boolean(filters?.sortDesc),
   );
 
+  // Auf der Karte markierte Fahrer: ihre Fahrzeuge oben und hervorgehoben, die uebrigen blass.
+  const markierung = useFahrerMarkierung();
+  const markierteFahrzeuge = useMemo(
+    () => (markierung.aktiv && markierung.fahrer.length
+      ? new Set(markierung.fahrer.map((f) => f.vehicleId).filter(Boolean))
+      : null),
+    [markierung],
+  );
+  const angezeigteFahrzeuge = markierteFahrzeuge
+    ? [...filteredVehicles.filter((v) => markierteFahrzeuge.has(v.id)), ...filteredVehicles.filter((v) => !markierteFahrzeuge.has(v.id))]
+    : filteredVehicles;
+
   useEffect(() => {
     let mounted = true;
 
@@ -186,7 +203,8 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
     });
 
     const loadVehicles = async () => {
-      setLoadingVehicles(true);
+      // Mit gemerktem Stand kein Ladekreis, die Liste wird nur ausgetauscht.
+      if (fahrzeugZwischenspeicher.length === 0) setLoadingVehicles(true);
       setVehiclesError('');
       try {
         let result = await supabase.from('vehicles').select('*').order('brand_model', { ascending: true });
@@ -198,10 +216,11 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
         }
         if (!mounted) return;
         if (result.error) throw result.error;
-        setVehicles((result.data || []).map(toVehicleCardRow));
+        fahrzeugZwischenspeicher = (result.data || []).map(toVehicleCardRow);
+        setVehicles(fahrzeugZwischenspeicher);
       } catch (error) {
         if (!mounted) return;
-        setVehicles([]);
+        if (fahrzeugZwischenspeicher.length === 0) setVehicles([]);
         setVehiclesError(String(error.message || error));
       } finally {
         if (mounted) setLoadingVehicles(false);
@@ -291,6 +310,8 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
             )}
           </div>
 
+          <MarkierungsVermerk className="mt-3" />
+
           <div className="mt-[24px] space-y-3">
             {loadingVehicles ? (
               <div className="text-[#E3F654] text-[16px] font-medium font-['Space_Grotesk']">{t('filter.vehiclesLoading')}</div>
@@ -303,7 +324,15 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
             {!loadingVehicles && !vehiclesError && filteredVehicles.length === 0 ? (
               <div className="text-[#E3F654] text-[16px] font-medium font-['Space_Grotesk']">{t('filter.noVehiclesFound')}</div>
             ) : null}
-            {filteredVehicles.map((vehicle) => (
+            {angezeigteFahrzeuge.map((vehicle) => (
+              <div
+                key={vehicle.id}
+                className="transition-opacity"
+                style={markierteFahrzeuge ? {
+                  opacity: markierteFahrzeuge.has(vehicle.id) ? 1 : 0.3,
+                  outline: markierteFahrzeuge.has(vehicle.id) ? '3px solid #E3F654' : 'none',
+                } : undefined}
+              >
               <VehicleCard
                 key={vehicle.id}
                 marker={`fahrzeug-${vehicle.id}`}
@@ -321,6 +350,7 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
                   if (typeof onEditVehicle === 'function') onEditVehicle(vehicle);
                 }}
               />
+              </div>
             ))}
           </div>
 

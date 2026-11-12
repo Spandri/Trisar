@@ -18,11 +18,19 @@ final class StundenSpeicher: ObservableObject {
     @Published var fehler: String?
 
     /// Karten fuer die Startseite: Dienst vorbei, noch nicht bestaetigt.
-    var karten: [Stunden.Eintrag] { eintraege.filter { $0.vorbei && $0.zettel?.status != "bestaetigt" } }
+    /// Dazu der laufende Dienst von heute (Figma 2823-12431).
+    var karten: [Stunden.Eintrag] {
+        eintraege.filter { ($0.vorbei && $0.zettel?.status != "bestaetigt")
+            || (!$0.vorbei && $0.dienst.datum == Stunden.heuteDatum && Stunden.heute($0) != nil) }
+    }
 
     func laden() async { eintraege = await Stunden.verlauf(tage: 14) }
 
     func annehmen(_ e: Stunden.Eintrag) async {
+        if let z = e.zettel, z.status == "dispo_geaendert" {
+            await ausfuehren(e) { try await Stunden.dispoAenderungAnnehmen(z) }
+            return
+        }
         guard let v = e.vorschlag, let b = Stunden.datum(v.beginn), let en = Stunden.datum(v.ende) else {
             fehler = "Kein Vorschlag, bitte bearbeiten."; return
         }
@@ -103,6 +111,7 @@ struct StundenKarte: View {
         switch z?.status {
         case "eingereicht": return lime
         case "zurueckgewiesen": return rot
+        case "dispo_geaendert": return orange
         default: return .clear
         }
     }
@@ -110,6 +119,7 @@ struct StundenKarte: View {
         switch z?.status {
         case "eingereicht": return ("Eingereicht", lime)
         case "zurueckgewiesen": return ("Zurückgegeben", rot)
+        case "dispo_geaendert": return ("Von Dispo geändert", orange)
         case "bestaetigt": return ("Bestätigt", Color(hex: 0x8DFFAF))
         default: return nil
         }
@@ -263,11 +273,286 @@ struct VerlaufRahmenZeile: View {
     }
 }
 
+/// Heute (Figma 2837-12573, wie HeuteStunden in Stunden.jsx): Karte 362 x 220 mit Start, begonnenen
+/// Pausen und nach dem Dienst Ende, immer mittig. Darunter die Arbeitszeit, die jede Minute hochrollt.
+/// Fertig (Dienstende, keine Fahrt mehr unterwegs, Figma 2838-12842): Bearbeiten und Bestaetigen.
+/// Bearbeiten macht die Zeiten antippbar, dazu Notiz wie beim Stornieren und „Anfrage senden“.
+/// Rand Lime bis bestaetigt bzw. gesendet, dann gruen, von der Dispo zurueckgegeben rot.
+struct HeuteStundenKarte: View {
+    let eintrag: Stunden.Eintrag
+    var nachher: () -> Void = {}
+    /// Fahrtenliste (festes Raster): Bearbeiten oeffnet sich als Vollbild statt unter der Karte.
+    var vollbild = false
+    /// Im Vollbild gleich im Bearbeiten-Modus starten, schliessen beendet das Vollbild.
+    var startetBearbeitet = false
+    var schliessen: (() -> Void)? = nil
+
+    /// Hoehe im Raster der Fahrtenliste: Karte 220, Statuszeile 10 + 20, Knoepfe 10 + 56.
+    static func hoehe(_ e: Stunden.Eintrag) -> CGFloat {
+        guard let s = Stunden.heute(e) else { return 0 }
+        let z = e.zettel
+        let offen = s.fertig && Stunden.fahrerDran(z)
+        return 220 + (s.fertig && z != nil ? 30 : 0) + (offen ? 66 : 0)
+    }
+
+    @State private var zeigeVollbild = false
+
+    private struct Werte { var start: Date; var ende: Date; var pausen: [(von: Date, bis: Date)] }
+    @State private var werte: Werte?
+    @State private var notiz = ""
+    @State private var busy = false
+    @State private var fehler: String?
+    @FocusState private var fokus: Bool
+
+    private let gruen = Color(hex: 0x59BE80)
+    private let rotKnopf = Color(hex: 0xFF6F63)
+    private let zahl = Color(hex: 0xE2F754)
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { kontext in
+            if let s0 = Stunden.heute(eintrag, jetzt: kontext.date) {
+                inhalt(s0)
+            }
+        }
+        .onAppear {
+            if startetBearbeitet, werte == nil, let s0 = Stunden.heute(eintrag) {
+                werte = Werte(start: s0.start, ende: s0.ende ?? s0.start, pausen: s0.pausen.map { ($0.von, $0.bis ?? s0.ende ?? $0.von) })
+            }
+        }
+        .fullScreenCover(isPresented: $zeigeVollbild) {
+            ZStack(alignment: .topLeading) {
+                ProfilHintergrund().ignoresSafeArea()
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 24) {
+                        Text("Stunden bearbeiten").font(.grotesk(42, .bold)).tracking(-0.5).foregroundStyle(lime)
+                        HeuteStundenKarte(eintrag: eintrag, nachher: { zeigeVollbild = false; nachher() },
+                                          startetBearbeitet: true, schliessen: { zeigeVollbild = false })
+                    }
+                    .padding(.horizontal, 20).padding(.top, 70).padding(.bottom, 120)
+                    .frame(maxWidth: 402, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func inhalt(_ s0: Stunden.Heute) -> some View {
+        let z = eintrag.zettel
+        let offen = s0.fertig && Stunden.fahrerDran(z)
+        let arbeits: Int = {
+            guard let w = werte else { return s0.arbeitsMin }
+            let p = w.pausen.map { ($0.von, Optional($0.bis)) }
+            return Stunden.halbeAuf(w.ende.timeIntervalSince(w.start) / 60 - Stunden.pausenMin(p, bis: w.ende))
+        }()
+        let zeit = String(format: "%02d:%02d", arbeits / 60, arbeits % 60)
+        let rand: Color = (!s0.fertig || werte != nil || z == nil) ? lime : (z?.status == "zurueckgewiesen" ? rot : z?.status == "dispo_geaendert" ? orange : gruen)
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(spacing: 0) {
+                Text("Stundenerfassung").grotesk(18, .bold, abstand: -0.5).foregroundStyle(lime)
+                    .frame(height: 23).padding(.top, 11)
+                HStack(alignment: .top, spacing: 5) {
+                    if let w = werte {
+                        kasten("Start", oben: zeitFeld(w.start, gross: true) { werte?.start = $0 }, aktiv: true)
+                        ForEach(w.pausen.indices, id: \.self) { i in
+                            kasten("Pause", oben: zeitFeld(w.pausen[i].von) { werte?.pausen[i].von = $0 },
+                                   unten: zeitFeld(w.pausen[i].bis) { werte?.pausen[i].bis = $0 }, grau: true, aktiv: true)
+                        }
+                        kasten("Ende", oben: zeitFeld(w.ende, gross: true) { werte?.ende = $0 }, aktiv: true)
+                    } else {
+                        kasten("Start", oben: text(Stunden.uhr(s0.start), gross: true))
+                        ForEach(s0.pausen, id: \.self) { p in
+                            kasten("Pause", oben: text(Stunden.uhr(p.von)), unten: p.laeuft ? nil : text(Stunden.uhr(p.bis)), grau: true)
+                        }
+                        if let ende = s0.ende { kasten("Ende", oben: text(Stunden.uhr(ende), gross: true)) }
+                    }
+                }
+                .padding(.top, 13)
+                Text(zeit).grotesk(35, .bold, abstand: -0.5).foregroundStyle(zahl)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(.easeOut(duration: 0.45), value: zeit)
+                    .frame(height: 45).padding(.top, 9)
+                Spacer(minLength: 0)
+            }
+            .frame(width: 362, height: 220)
+            .background(flaeche)
+            .overlay(Rectangle().strokeBorder(rand, lineWidth: 2))
+
+            if s0.fertig, let z, werte == nil, let st = statusText(z) {
+                Text(st.0).grotesk(14, .bold).foregroundStyle(st.1).lineLimit(1).frame(height: 20).padding(.top, 10)
+            }
+
+            if offen && werte == nil {
+                HStack(spacing: 10) {
+                    knopf("Bearbeiten", farbe: rotKnopf) {
+                        if vollbild { zeigeVollbild = true; return }
+                        werte = Werte(start: s0.start, ende: s0.ende ?? s0.start,
+                                      pausen: s0.pausen.map { ($0.von, $0.bis ?? s0.ende ?? $0.von) })
+                        notiz = ""; fehler = nil
+                    }
+                    knopf("Bestätigen", farbe: gruen) {
+                        if let z, z.status == "dispo_geaendert" { zustimmen(z); return }
+                        senden(beginn: s0.start, ende: s0.ende ?? s0.start,
+                               pausen: s0.pausen.map { ($0.von, $0.bis ?? s0.ende ?? $0.von) }, angepasst: false)
+                    }
+                }
+                .padding(.top, 10)
+            }
+
+            if let w = werte {
+                Text("Zeiten antippen zum Ändern. Pause erst ab 3 Stunden, kürzere Pausen sind Arbeitszeit.")
+                    .grotesk(13, .medium).foregroundStyle(.white.opacity(0.5)).padding(.top, 8)
+                // Notiz wie beim Stornieren (NotizBlatt): dunkle Flaeche ueber die volle Breite, weisses Feld 362.
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Notizen").grotesk(16, .bold, abstand: 0.5).foregroundStyle(Color(hex: 0x1D1C1D))
+                        Spacer()
+                        Image("Stift").resizable().frame(width: 20, height: 20)
+                    }
+                    TextField("", text: $notiz, prompt: Text(verbatim: "Schreiben...").foregroundStyle(Color(red: 129 / 255, green: 129 / 255, blue: 129 / 255, opacity: 0.5)), axis: .vertical)
+                        .font(.grotesk(14)).tracking(0.25)
+                        .foregroundStyle(Color(hex: 0x1D1C1D))
+                        .focused($fokus)
+                        .lineLimit(6, reservesSpace: true)
+                    Spacer(minLength: 0)
+                }
+                .padding(16)
+                .frame(width: 362, height: 184, alignment: .topLeading)
+                .background(Color.white)
+                .onTapGesture { fokus = true }
+                .padding(20)
+                .frame(width: 402, height: 224)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color(hex: 0x1A1A1A)))
+                .padding(.leading, -20)
+                .padding(.top, 16)
+
+                Button {
+                    fokus = false
+                    let n = notiz.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !n.isEmpty else { fehler = "Bitte kurz schreiben, warum die Zeiten abweichen."; return }
+                    senden(beginn: w.start, ende: w.ende, pausen: w.pausen.map { ($0.von, $0.bis) }, angepasst: true, begruendung: n)
+                } label: {
+                    HStack {
+                        Text("Anfrage senden").grotesk(16, .bold, abstand: -0.5).foregroundStyle(.black)
+                        Spacer()
+                        if busy { ProgressView().tint(.black) } else { Image("PfeilDunkel").resizable().frame(width: 34, height: 20) }
+                    }
+                    .padding(.horizontal, 24)
+                    .frame(width: 362, height: 56)
+                    .background(lime)
+                }
+                .buttonStyle(.web)
+                .disabled(busy)
+                .padding(.top, 20)
+
+                Button { werte = nil; fehler = nil; schliessen?() } label: {
+                    Text("Abbrechen").grotesk(14, .bold).foregroundStyle(.white.opacity(0.6))
+                }
+                .frame(width: 362).padding(.top, 12)
+            }
+            if let fehler { Text(fehler).grotesk(14, .medium).foregroundStyle(rot).padding(.top, 10) }
+        }
+        .frame(width: 362, alignment: .leading)
+    }
+
+    private func statusText(_ z: Stunden.Zettel) -> (String, Color)? {
+        switch z.status {
+        case "eingereicht": return ("Anfrage gesendet, Dispo prüft.", lime)
+        case "bestaetigt": return ("Von der Dispo bestätigt.", Color(hex: 0x8DFFAF))
+        case "zurueckgewiesen": return ("Von der Dispo zurückgegeben" + ((z.dispo_notiz ?? "").isEmpty ? "" : ": \(z.dispo_notiz!)"), rot)
+        case "dispo_geaendert": return ("Dispo hat geändert, bitte bestätigen." + ((z.dispo_notiz ?? "").isEmpty ? "" : " \(z.dispo_notiz!)"), orange)
+        default: return nil
+        }
+    }
+
+    /// Aenderung der Dispo annehmen (Stand dispo_geaendert): fertig, keine neue Einreichung.
+    private func zustimmen(_ z: Stunden.Zettel) {
+        busy = true; fehler = nil
+        Task {
+            do {
+                try await Stunden.dispoAenderungAnnehmen(z)
+                await StundenSpeicher.shared.laden()
+                nachher()
+            } catch {
+                fehler = "Speichern fehlgeschlagen: \(error.localizedDescription)"
+            }
+            busy = false
+        }
+    }
+
+    private func senden(beginn: Date, ende: Date, pausen: [(Date, Date)], angepasst: Bool, begruendung: String? = nil) {
+        // Ende vor Beginn liegt am Folgetag (Nachtdienst).
+        let ende = ende <= beginn ? ende.addingTimeInterval(86400) : ende
+        busy = true; fehler = nil
+        Task {
+            do {
+                try await Stunden.heuteSpeichern(eintrag, beginn: beginn, ende: ende, pausen: pausen, angepasst: angepasst, begruendung: begruendung)
+                werte = nil
+                await StundenSpeicher.shared.laden()
+                nachher()
+            } catch {
+                fehler = "Speichern fehlgeschlagen: \(error.localizedDescription)"
+            }
+            busy = false
+        }
+    }
+
+    private func text(_ t: String, gross: Bool = false) -> AnyView {
+        AnyView(Text(t).grotesk(gross ? 22 : 17, .bold, abstand: -0.5))
+    }
+
+    /// Zeit im Kasten, antippen oeffnet die Uhrzeit-Auswahl (unsichtbarer DatePicker darueber).
+    private func zeitFeld(_ wert: Date, gross: Bool = false, setzen: @escaping (Date) -> Void) -> AnyView {
+        AnyView(
+            Text(Stunden.uhr(wert)).grotesk(gross ? 22 : 17, .bold, abstand: -0.5)
+                .overlay {
+                    DatePicker("", selection: Binding(get: { wert }, set: setzen), displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .environment(\.timeZone, Stunden.berlin)
+                        .blendMode(.destinationOver)
+                        .opacity(0.02)
+                        .scaleEffect(1.2)
+                }
+        )
+    }
+
+    private func kasten(_ titel: String, oben: AnyView, unten: AnyView? = nil, grau: Bool = false, aktiv: Bool = false) -> some View {
+        let grauFarbe = Color(hex: 0x5F5F5F)
+        let farbe: Color = grau ? (aktiv ? .white : grauFarbe) : zahl
+        return VStack(spacing: 8) {
+            VStack(spacing: 4.5) {
+                oben.foregroundStyle(farbe)
+                if let unten { unten.foregroundStyle(farbe) }
+            }
+            .frame(width: 78, height: 78)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color(hex: 0x242525)))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(aktiv ? lime : .clear, lineWidth: 2))
+            Text(titel).grotesk(16, .bold, abstand: -0.5).foregroundStyle(grau ? grauFarbe : .white).frame(height: 20)
+        }
+    }
+
+    private func knopf(_ titel: String, farbe: Color, aktion: @escaping () -> Void) -> some View {
+        Button(action: aktion) {
+            HStack {
+                Text(titel).grotesk(16, .regular, abstand: 0.5).foregroundStyle(.black)
+                Spacer()
+                if busy { ProgressView().tint(.black) } else { Image("PfeilDunkel").resizable().frame(width: 34, height: 19) }
+            }
+            .padding(.leading, 16).padding(.trailing, 10)
+            .frame(width: 176, height: 56)
+            .background(farbe)
+        }
+        .buttonStyle(.web)
+        .disabled(busy)
+    }
+}
+
 /// Verlauf (Profil -> Verlauf, wie Verlauf.jsx): erledigte Fahrten nach Tagen, neueste zuerst.
 /// Dienste aus der Stundenerfassung stehen als Rahmen (Dienststart, Fahrten, Dienstende) mit Stundenkarte darin.
 struct VerlaufAnsicht: View {
     var zurueck: () -> Void
     @State private var tage: [Verlauf.Tag]?
+    @State private var dienste: [Stunden.Eintrag] = []
     @State private var bearbeiten: Stunden.Eintrag?
     @State private var ablehnen: Stunden.Eintrag?
     @ObservedObject private var speicher = StundenSpeicher.shared
@@ -288,6 +573,9 @@ struct VerlaufAnsicht: View {
                             ForEach(tage) { tag in
                                 VStack(alignment: .leading, spacing: 24) {
                                     StundenTageszeile(datum: tag.datum)
+                                    if tag.datum == Stunden.heuteDatum, let e = heuteEintrag {
+                                        HeuteStundenKarte(eintrag: e) { Task { await neu() } }
+                                    }
                                     VStack(alignment: .leading, spacing: 6) {
                                         ForEach(tag.eintraege) { eintrag in
                                             switch eintrag {
@@ -311,6 +599,13 @@ struct VerlaufAnsicht: View {
             FussleisteUnten()
         }
         .task { await neu() }
+        // Solange heute ein Dienst ansteht oder laeuft jede Minute neu laden (Start, Pausen, Ende kommen dazu).
+        .task(id: heuteOffen) {
+            while heuteOffen && !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                if !Task.isCancelled { await neu() }
+            }
+        }
         .zurueckPerWischen(zurueck)
         .modifier(StundenAktionen(bearbeiten: $bearbeiten, ablehnen: $ablehnen) { Task { await neu() } })
     }
@@ -321,20 +616,28 @@ struct VerlaufAnsicht: View {
             ForEach(fahrten) { VerlaufFahrtKarte(fahrt: $0) }
             if e.vorbei {
                 VerlaufRahmenZeile(text: "Dienstende \(e.dienst.ende ?? "--:--")", farbe: rot).padding(.top, 9)
-                StundenKarte(eintrag: e, beschaeftigt: speicher.arbeitetID == e.id,
-                             annehmen: { Task { await speicher.annehmen(e); await neu() } },
-                             bearbeiten: { bearbeiten = e }, ablehnen: { ablehnen = e })
-                    .padding(.top, 18)
+                // Stundenerfassung im neuen Look (Figma 2823-12622) an jedem vergangenen Dienst.
+                if e.id != heuteEintrag?.id {
+                    HeuteStundenKarte(eintrag: e) { Task { await neu() } }.padding(.top, 18)
+                }
             } else {
                 Text("Dienst läuft noch").grotesk(16, .medium).foregroundStyle(.white.opacity(0.5)).padding(.top, 9)
             }
         }
     }
 
+    /// Letzter Dienst von heute, der schon begonnen hat.
+    private var heuteEintrag: Stunden.Eintrag? {
+        dienste.first { $0.dienst.datum == Stunden.heuteDatum && Stunden.heute($0) != nil }
+    }
+    private var heuteOffen: Bool { dienste.contains { $0.dienst.datum == Stunden.heuteDatum && !$0.vorbei } }
+
     private func neu() async {
         async let fahrten = Verlauf.fahrten()
-        async let dienste = Stunden.verlauf()
-        tage = Verlauf.tage(await fahrten, await dienste)
+        async let d = Stunden.verlauf()
+        let alle = await d
+        dienste = alle
+        tage = Verlauf.tage(await fahrten, alle)
     }
 }
 

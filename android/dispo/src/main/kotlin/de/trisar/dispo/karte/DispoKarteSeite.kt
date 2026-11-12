@@ -1,5 +1,7 @@
 package de.trisar.dispo.karte
 
+import de.trisar.dispo.Flaggen
+import de.trisar.dispo.FlaggenKnoepfe
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -19,6 +21,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -58,11 +62,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.AsyncImage
+import de.trisar.dispo.AuswahlErklaerung
 import de.trisar.dispo.DispoZiel
+import de.trisar.dispo.FahrerMarkierung
 import de.trisar.dispo.Navileiste
 import de.trisar.dispo.stamm.TextZeile
 import de.trisar.dispo.stamm.anrufen
@@ -88,6 +95,9 @@ private const val BLATT_UNTEN = 120f
 /** Oberkante der Navileiste ueber dem unteren Rand: 79 (Abstand + Fussleiste) + 131 - 32. */
 private const val LEISTE_OBEN = 178f
 private val BLATT_MIN = max(34f, (LEISTE_OBEN - BLATT_UNTEN) + 34f)
+/** Blatt gerade so weit offen, dass der Name zu sehen ist (Telefon bleibt verdeckt):
+ *  Rest-Griff 8 + Abstand im Namensblock 18 + Name 30, minus 2 gegen den Telefon-Streifen. */
+private val BLATT_NAME = BLATT_MIN + 8f + 18f + 30f - 2f
 
 /**
  * Live-Karte der Dispo (KartenView.jsx, Live-Zweig, wie DispoKarteAnsicht.swift): Fahrer mit Zustand
@@ -137,6 +147,34 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
         onDispose { EigeneOrte.nichtMehrBeobachten() }
     }
     var letzteNeuberechnung by remember { mutableLongStateOf(0L) }
+    // Mehrfachauswahl (Kaestchen oben rechts): an = Tippen markiert Fahrer statt sie zu oeffnen.
+    val markierung = FahrerMarkierung
+    var flaggenFehler by remember { mutableStateOf("") }
+    // Flagge bei allen markierten Fahrern setzen (null = entfernen), danach die Karte neu laden.
+    fun flaggeWaehlen(flagge: String?) {
+        val ids = FahrerMarkierung.ids
+        if (ids.isEmpty()) return
+        flaggenFehler = ""
+        scope.launch {
+            val fehler = Flaggen.setzen(ids, flagge)
+            if (fehler != null) flaggenFehler = fehler else daten.laden()
+        }
+    }
+    // Auswahlmodus der Karte beginnt bei jedem Oeffnen aus, auch wenn noch Fahrer markiert sind.
+    var kartenAuswahl by remember { mutableStateOf(false) }
+    // Flagge als Filter (nur Fahrer mit dieser Flagge), ausserhalb der Auswahl.
+    var flaggenFilter by remember { mutableStateOf(FahrerMarkierung.flaggen.toSet()) }
+    val markierteIDs = if (kartenAuswahl && markierung.aktiv) markierung.ids.toSet() else null
+    val benutzteFlaggen = Flaggen.alle.map { it.id }.filter { id -> daten.fahrer.any { it.flagge == id } }
+    // Flaggenfilter gilt in der ganzen Dispo wie eine Markierung (Flagge statt Namen), waehrend der manuellen Auswahl ruht das.
+    LaunchedEffect(flaggenFilter, daten.fahrer, kartenAuswahl) {
+        if (kartenAuswahl) return@LaunchedEffect
+        val ids = Flaggen.alle.map { it.id }.filter { it in flaggenFilter }
+        val mit = daten.fahrer.filter { it.flagge in ids }.map { FahrerMarkierung.Eintrag(it.id, it.name) }
+        FahrerMarkierung.flaggenSetzen(ids, mit)
+    }
+    LaunchedEffect(benutzteFlaggen) { if (flaggenFilter.any { it !in benutzteFlaggen }) flaggenFilter = flaggenFilter.filter { it in benutzteFlaggen }.toSet() }
+    var erklaerungSichtbar by remember { mutableStateOf(false) }
 
     // Filterkette wie im Web.
     val begriffe = filter.fahrerSuche.split(";").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
@@ -149,8 +187,9 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
         begriffe.any { heu.contains(it) }
     }
     val gefiltert = passende.filter { it.zustand in schnellFilter }
+        .filter { kartenAuswahl || flaggenFilter.isEmpty() || it.flagge in flaggenFilter }
     val gewaehlt = gefiltert.firstOrNull { it.id == gewaehltID }
-    val zaehler = passende.groupingBy { it.zustand }.eachCount()
+    val zaehler = passende.filter { kartenAuswahl || flaggenFilter.isEmpty() || it.flagge in flaggenFilter }.groupingBy { it.zustand }.eachCount()
 
     // selectedDriverForSheet: fehlt die Ankunft, aus Abfahrt + Fahrdauer der Route.
     val blattFahrer = gewaehlt?.let { g ->
@@ -190,6 +229,22 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
         if (id != null && gefiltert.none { it.id == id }) gewaehltID = null
     }
     LaunchedEffect(gewaehltID) { profilOffen = false }
+    // Namen der markierten Fahrer aktuell halten (fuer Fahrt anlegen, Fahrzeuge, KI).
+    LaunchedEffect(daten.fahrer, markierung.fahrer.size) {
+        if (markierung.fahrer.isNotEmpty()) markierung.ergaenzen(daten.fahrer.map { FahrerMarkierung.Eintrag(it.id, it.name) })
+    }
+
+    fun auswahlModusUmschalten() {
+        val an = !kartenAuswahl
+        kartenAuswahl = an
+        markierung.modusSetzen(an)
+        erklaerungSichtbar = an
+        if (an) {
+            gewaehltID = null
+            fahrtMinuten = null
+            blatt = BLATT_MIN
+        }
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(hex(0x0E0E0E))) {
         val rasterHoehe = maxHeight.value
@@ -202,12 +257,18 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                 blattHoehe = if (gewaehlt == null) 0f else blattHoehe,
                 rasterHoehe = rasterHoehe, einpassenSignal = einpassen,
                 orte = EigeneOrte.liste, ortGewaehlt = ortGewaehlt,
+                markiert = markierteIDs,
             ),
             waehlen = { id ->
+                if (kartenAuswahl) {
+                    val f = daten.fahrer.firstOrNull { it.id == id }
+                    markierung.umschalten(FahrerMarkierung.Eintrag(id, f?.name ?: ""))
+                } else {
                 // Zweiter Tipp auf denselben Fahrer hebt den Fokus wieder auf.
                 gewaehltID = if (gewaehltID == id) null else id
                 fahrtMinuten = null
-                blatt = BLATT_MIN
+                blatt = BLATT_NAME
+                }
             },
             leerTippen = { auswahlAufheben(); ortGewaehlt = null },
             abseits = {
@@ -230,25 +291,77 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                 }
             }
             // Zurueck: schwarzer Kreis als Unterlage, sonst schimmert am Rand die Karte durch.
-            Box(Modifier.platz(20f, 60f, 50f, 50f).clip(CircleShape).background(Color.Black).tippen { zeigen(DispoZiel.START) }) {
+            Box(Modifier.platz(20f, 60f, 50f, 50f).zIndex(31f).clip(CircleShape).background(Color.Black).tippen { zeigen(DispoZiel.START) }) {
                 Icon("Backbutton_Karte", Modifier.fillMaxSize())
             }
-            Box(Modifier.platz(402f - 20f - 50f, 60f, 50f, 50f).tippen { filterOffen = true }) {
+            Box(Modifier.platz(402f - 20f - 50f, 60f, 50f, 50f).zIndex(31f).tippen { filterOffen = true }) {
                 Icon("karten-layer-button", Modifier.fillMaxSize(), skalierung = ContentScale.FillBounds)
             }
+            // Mehrfachauswahl (Figma Koordinator_Screen_Map): leeres Kaestchen = aus, mit Haken = an.
+            Box(Modifier.platz(402f - 80f - 50f, 60f, 50f, 50f).zIndex(31f)) {
+                Box(
+                    Modifier.fillMaxSize().clip(CircleShape).background(LIME, CircleShape).border(2.dp, Color.Black, CircleShape)
+                        .tippen { auswahlModusUmschalten() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (kartenAuswahl) Icon("Auswahl_Haken", Modifier.padding(bottom = 3.dp).size(20.dp, 23.dp))
+                    else Icon("Auswahl_Leer", Modifier.size(20.dp))
+                }
+                if (kartenAuswahl && markierung.aktiv && markierung.fahrer.isNotEmpty()) {
+                    Box(
+                        Modifier.align(Alignment.BottomEnd).offset(4.dp, 4.dp).heightIn(min = 20.dp).widthIn(min = 20.dp)
+                            .background(Color.Black, CircleShape).padding(horizontal = 5.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("${markierung.fahrer.size}", style = grotesk(11f, 700, 20f, farbe = LIME), maxLines = 1)
+                    }
+                }
+            }
+            if (erklaerungSichtbar) {
+                Box(Modifier.fillMaxSize().zIndex(30f)) { AuswahlErklaerung { erklaerungSichtbar = false } }
+            }
 
-            SchnellFilterLeiste(zaehler, schnellFilter, Modifier.mittig(201f, 142f, 362f, 44f),
-                umschalten = { z ->
-                    // Sind alle Zustaende an, zeigt ein Tipp nur diesen. Nie leer: dann wieder alle.
-                    val neu = schnellFilter.toMutableSet()
-                    if (neu.size == FahrerZustand.entries.size) { neu.clear(); neu += z }
-                    else if (z in neu) neu -= z else neu += z
-                    val liste = FahrerZustand.entries.filter { it in neu }
-                    schnellFilter = liste.ifEmpty { FahrerZustand.entries.toList() }
-                    blatt = BLATT_MIN
-                },
-                fensterUmschalten = { zeigeFenster = !zeigeFenster },
-            )
+            // Im Auswahlmodus ohne Statusleiste, wie im Figma (2832:12528): dort stehen die Flaggen.
+            if (!kartenAuswahl) {
+                SchnellFilterLeiste(zaehler, schnellFilter, Modifier.mittig(201f, 142f, 362f, 44f),
+                    umschalten = { z ->
+                        // Sind alle Zustaende an, zeigt ein Tipp nur diesen. Nie leer: dann wieder alle.
+                        val neu = schnellFilter.toMutableSet()
+                        if (neu.size == FahrerZustand.entries.size) { neu.clear(); neu += z }
+                        else if (z in neu) neu -= z else neu += z
+                        val liste = FahrerZustand.entries.filter { it in neu }
+                        schnellFilter = liste.ifEmpty { FahrerZustand.entries.toList() }
+                        blatt = BLATT_MIN
+                    },
+                    fensterUmschalten = { zeigeFenster = !zeigeFenster },
+                )
+            }
+
+            // Flaggen (Figma 2832:12528): unter den Knoepfen, nur im Auswahlmodus.
+            if (kartenAuswahl) {
+                FlaggenKnoepfe(
+                    ids = markierung.ids,
+                    flaggeVon = { id -> daten.fahrer.firstOrNull { it.id == id }?.flagge },
+                    wahl = { flaggeWaehlen(it) },
+                    modifier = Modifier.platz(402f - 28f - 35f, 134f, 35f, 111f).zIndex(31f),
+                )
+            } else if (benutzteFlaggen.isNotEmpty()) {
+                // Ausserhalb der Auswahl bleiben die benutzten Flaggen rechts unter der Statusleiste und filtern die Karte.
+                FlaggenKnoepfe(
+                    ids = emptyList(),
+                    flaggeVon = { null },
+                    wahl = { id -> if (id != null) flaggenFilter = if (id in flaggenFilter) flaggenFilter - id else flaggenFilter + id },
+                    nur = benutzteFlaggen,
+                    aktiv = flaggenFilter,
+                    filtern = true,
+                    modifier = Modifier.platz(402f - 28f - 35f, 196f, 35f, benutzteFlaggen.size * 38f - 3f).zIndex(31f),
+                )
+            }
+            if (flaggenFehler.isNotEmpty()) {
+                Box(Modifier.platz(20f, 120f, 362f).zIndex(32f).background(hex(0x171717)).border(1.dp, hex(0xFF8E8E)).padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Text(flaggenFehler, style = grotesk(12f, 500, 12f * 1.35f, farbe = hex(0xFF8E8E)))
+                }
+            }
 
             if (zeigeFenster) {
                 InaktivFenster(fensterStunden, Modifier.mittig(201f, 190f, 362f),
@@ -389,8 +502,8 @@ private fun FahrerBlatt(
     val ctx = LocalContext.current
     val hoeheAktuell by rememberUpdatedState(hoehe)
     val maxAktuell by rememberUpdatedState(maximum)
-    /** Unterkante des Namensblocks: Griff 42 + Markieren 56 + 12 + Kennzeichen 70 + 12 + Name 96. */
-    val nameRast = min(max(288f, minimum), maximum)
+    /** Rast, an der der Name (oberster Block) ganz zu sehen ist. */
+    val nameRast = min(max(BLATT_NAME, minimum), maximum)
     val rastAktuell by rememberUpdatedState(nameRast)
 
     Column(
@@ -434,15 +547,12 @@ private fun FahrerBlatt(
 
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 30.dp)) {
             val info = fahrer.info
-            // Markieren ist im Web noch ohne Funktion.
-            Row(
-                Modifier.size(362.dp, 56.dp).border(2.dp, LIME),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
+            Column(
+                Modifier.size(362.dp, 96.dp).background(LIME).padding(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically),
             ) {
-                Text("Markieren", style = grotesk(32f, 700, abstand = -0.5f, farbe = LIME), maxLines = 1)
-                Spacer(Modifier.width(10.dp))
-                Icon("Stern_Trisar_Icon_01_schwarz", Modifier.size(17.dp, 18.dp))
+                TextZeile(fahrer.name, grotesk(30f, 700, abstand = -0.8f, farbe = hex(0x1D1C1D)), Modifier.fillMaxWidth().tippen(profilOeffnen), hoehe = 30f)
+                TextZeile(fahrer.telefon, grotesk(16f, 700, abstand = 0.4f, farbe = hex(0x1D1C1D)), Modifier.tippen { anrufen(ctx, fahrer.telefon) }, hoehe = 24f)
             }
 
             Column(
@@ -454,34 +564,40 @@ private fun FahrerBlatt(
                 TextZeile(fahrer.fahrzeug, grotesk(16f, 700, abstand = -0.5f, farbe = hex(0x1D1C1D, 0.35f)), hoehe = 16f, ausrichtung = Alignment.Center)
             }
 
-            Column(
-                Modifier.padding(top = 12.dp).size(362.dp, 96.dp).background(LIME).padding(horizontal = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically),
-            ) {
-                TextZeile(fahrer.name, grotesk(30f, 700, abstand = -0.8f, farbe = hex(0x1D1C1D)), Modifier.fillMaxWidth().tippen(profilOeffnen), hoehe = 30f)
-                TextZeile(fahrer.telefon, grotesk(16f, 700, abstand = 0.4f, farbe = hex(0x1D1C1D)), Modifier.tippen { anrufen(ctx, fahrer.telefon) }, hoehe = 24f)
-            }
+            // Uhrzeit des letzten Signals, rot sobald seit 5 Minuten nichts mehr kam.
+            TextZeile(fahrer.signalText, grotesk(16f, 700, abstand = -0.3f, farbe = hex(fahrer.signalFarbe)),
+                Modifier.padding(top = 12.dp).fillMaxWidth(), hoehe = 18f)
+            TextZeile("Nächste Fahrt", grotesk(22f, 700, abstand = -1f, farbe = LIME), Modifier.padding(top = 6.dp), hoehe = 21f)
 
-            TextZeile("Nächste Fahrt", grotesk(22f, 700, abstand = -1f, farbe = LIME), Modifier.padding(top = 36.dp), hoehe = 21f)
-
-            val fahrText = when {
-                info.fahrMinuten > 0 -> "-${info.fahrMinuten} min Fahrt"
-                info.unterwegs && info.ankunft != "--:--" -> "-<1 min Fahrt"
-                else -> "- min Fahrt"
-            }
-            ZeitPaar("ETD" to info.abfahrt, "ETA" to info.ankunft, fahrText, Modifier.padding(top = 12.dp))
-
-            Row(Modifier.padding(top = 24.dp).width(362.dp), verticalAlignment = Alignment.CenterVertically) {
-                OrtKachel(info.von.icon)
-                Box(Modifier.weight(1f).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-                    Icon("Arrow_Trisar_Icons_01_Lime", Modifier.size(59.dp, 38.dp))
+            if (info.hatFahrt) {
+                val fahrText = when {
+                    info.fahrMinuten > 0 -> "-${info.fahrMinuten} min Fahrt"
+                    info.unterwegs && info.ankunft != "--:--" -> "-<1 min Fahrt"
+                    else -> "- min Fahrt"
                 }
-                OrtKachel(info.nach.icon)
-            }
+                ZeitPaar("ETD" to info.abfahrt, "ETA" to info.ankunft, fahrText, Modifier.padding(top = 12.dp))
 
-            Row(Modifier.padding(top = 12.dp).width(362.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                OrtText(info.von, rechts = false, Modifier.weight(1f))
-                OrtText(info.nach, rechts = true, Modifier.weight(1f))
+                Row(Modifier.padding(top = 24.dp).width(362.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OrtKachel(info.von.icon)
+                    Box(Modifier.weight(1f).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                        Icon("Arrow_Trisar_Icons_01_Lime", Modifier.size(59.dp, 38.dp))
+                    }
+                    OrtKachel(info.nach.icon)
+                }
+
+                Row(Modifier.padding(top = 12.dp).width(362.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    OrtText(info.von, rechts = false, Modifier.weight(1f))
+                    OrtText(info.nach, rechts = true, Modifier.weight(1f))
+                }
+            } else {
+                // Ohne laufende oder naechste Fahrt: Hinweis statt leerer Zeiten und Orte.
+                Column(
+                    Modifier.padding(top = 12.dp).width(362.dp).background(hex(0x242525), RoundedCornerShape(16.dp)).padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text("Keine Fahrt geplant", style = grotesk(22f, 700, abstand = -0.8f, farbe = hex(0xF4F5F4)))
+                    Text("Gerade steht keine weitere Fahrt für diesen Fahrer an.", style = grotesk(14f, 700, abstand = -0.3f, farbe = GRAU))
+                }
             }
 
             ZeitPaar("Dienststart" to info.dienststart, "Dienstende" to info.dienstende, null, Modifier.padding(top = 24.dp, bottom = 30.dp))

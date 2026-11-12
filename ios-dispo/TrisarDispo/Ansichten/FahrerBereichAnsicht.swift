@@ -4,32 +4,76 @@ import SwiftUI
 /// (FahrerErstellenView.jsx). Wie openDriverCreate/openDriverEditor in App.jsx.
 struct FahrerBereichAnsicht: View {
     let zeigen: (DispoZiel) -> Void
+    /// Fahrt aus dem Ablauf der Fahrer-Ansicht oeffnen (Editor liegt in DispoHaupt).
+    var oeffneFahrt: (UUID) -> Void = { _ in }
     @StateObject private var liste = FahrerListeDienst()
     @State private var seite: Seite = .liste
     /// Markierte Fahrer bleiben ueber Anlegen/Bearbeiten erhalten (sessionStorage im Web).
-    @State private var markiert: [String] = []
+    /// Auf der Karte markierte Fahrer sind hier schon ausgewaehlt (Mehrfachauswahl).
+    @State private var markiert: [String] = FahrerMarkierung.geteilt.wirkt ? FahrerMarkierung.geteilt.ids : []
 
     enum Seite: Equatable {
-        case liste, erstellen, bearbeiten(DispoFahrer)
+        case liste, erstellen, bearbeiten(DispoFahrer), ansicht(DispoFahrer)
     }
 
     var body: some View {
-        Group {
+        // Liste bleibt immer aufgebaut (nur ausgeblendet), damit sie beim Zurueckkommen an derselben
+        // Stelle steht statt wieder oben (12.11.). Die anderen Seiten liegen darueber.
+        ZStack {
+            AlleFahrerAnsicht(liste: liste, markiert: $markiert, zeigen: zeigen,
+                              erstellen: { seite = .erstellen },
+                              bearbeiten: { seite = .bearbeiten($0) },
+                              oeffnen: { seite = .ansicht($0) })
+                .opacity(seite == .liste ? 1 : 0)
+                .allowsHitTesting(seite == .liste)
+                .accessibilityHidden(seite != .liste)
             switch seite {
             case .liste:
-                AlleFahrerAnsicht(liste: liste, markiert: $markiert, zeigen: zeigen,
-                                  erstellen: { seite = .erstellen },
-                                  bearbeiten: { seite = .bearbeiten($0) })
+                EmptyView()
             case .erstellen:
-                FahrerErstellenAnsicht(fahrer: nil) { zurueckZurListe() }
+                FahrerErstellenAnsicht(fahrer: nil, oeffneFahrzeug: fahrzeugOeffnen) { zurueckZurListe() }
                     .id("neu")
+            case let .ansicht(f):
+                // Tipp auf einen Fahrer: Stunden, Ablauf, Dienste (wie FahrerAnsichtView.jsx).
+                FahrerAnsichtDispo(fahrer: f, zurueck: { zurueckZurListe() }, bearbeiten: { seite = .bearbeiten(f) }, oeffneFahrt: oeffneFahrt,
+                                   oeffneFahrzeug: fahrzeugOeffnen)
+                    .id("ansicht-\(f.id)")
             case let .bearbeiten(f):
-                FahrerErstellenAnsicht(fahrer: f) { zurueckZurListe() }
+                FahrerErstellenAnsicht(fahrer: f, oeffneFahrzeug: fahrzeugOeffnen) { zurueckZurListe() }
                     .id(f.id)
             }
         }
         .task { await liste.starten() }
+        // Sprung aus „Fahrzeug bearbeiten“: diesen Fahrer direkt in der Fahrer-Ansicht oeffnen.
+        .onChange(of: liste.fahrer.map(\.id) + [liste.laedt ? "laedt" : ""], initial: true) { _, _ in
+            guard let ziel = FahrerSprung.id else { return }
+            guard let f = liste.fahrer.first(where: { $0.id.lowercased() == ziel.lowercased() }) else {
+                // Fertig geladen und nicht dabei: Sprung verwerfen, sonst greift er beim naechsten Mal.
+                if !liste.laedt { FahrerSprung.id = nil }
+                return
+            }
+            FahrerSprung.id = nil
+            seite = .ansicht(f)
+        }
         .onDisappear { Task { await liste.stoppen() } }
+        // Ist die Mehrfachauswahl der Karte an, gilt eine Aenderung hier auch dort
+        // (und damit fuer Fahrzeuge, Fahrten, Fahrt anlegen und KI-Assistent).
+        .onChange(of: markiert) { _, ids in
+            let m = FahrerMarkierung.geteilt
+            guard m.aktiv else { return }
+            m.ersetzen(ids.map { id in
+                let alt = m.fahrer.first { $0.id == id }
+                let name = liste.fahrer.first { $0.id == id }?.name ?? ""
+                return FahrerMarkierung.Eintrag(id: id, name: name.isEmpty ? (alt?.name ?? "") : name, vehicleId: alt?.vehicleId ?? "")
+            })
+        }
+    }
+
+    /// Fahrzeug-Bereich mit genau diesem Fahrzeug in „Fahrzeug bearbeiten“ (wie eine Push mit vehicle_id).
+    private func fahrzeugOeffnen(_ id: String) {
+        guard !id.isEmpty else { return }
+        FahrzeugSprung.id = id
+        zeigen(.fahrzeuge)
     }
 
     private func zurueckZurListe() {
@@ -38,16 +82,22 @@ struct FahrerBereichAnsicht: View {
     }
 }
 
+/// Fahrer, der beim naechsten Oeffnen des Fahrer-Bereichs direkt in der Fahrer-Ansicht erscheinen soll
+/// (Sprung aus „Fahrzeug bearbeiten“, wie FahrzeugSprung fuer Fahrzeuge).
+@MainActor enum FahrerSprung { static var id: String? }
+
 // MARK: - Alle Fahrer
 
 /// Nachbau von AlleFahrer.jsx (Raster 402, LAYOUT_GRID). Der KI-Planer-Knopf fuehrt zur Planung,
-/// "Dienste planen" ist im Web ausgeschaltet (DIENSTE_VON_HAND = false) und fehlt darum hier.
+/// Mit markierten Fahrern: "Dienste planen" schickt Dienststart, Dienstende und Pausen (wie DienstePlanenBlatt.jsx).
 struct AlleFahrerAnsicht: View {
     @ObservedObject var liste: FahrerListeDienst
     @Binding var markiert: [String]
+    @State private var flaggenFehler = ""
     let zeigen: (DispoZiel) -> Void
     let erstellen: () -> Void
     let bearbeiten: (DispoFahrer) -> Void
+    var oeffnen: ((DispoFahrer) -> Void)? = nil
 
     @State private var suche = ""
     @FocusState private var sucheFokus: Bool
@@ -58,6 +108,9 @@ struct AlleFahrerAnsicht: View {
     @State private var endDatum = Dienstzeit.heute()
     @State private var chartStart = Planung.chartStart
     @State private var zeitWahl: ZeitWahl?
+    @State private var planenOffen = false
+    /// Stunden aller oder ausgewaehlter Fahrer als Excel (Knopf oben rechts).
+    @State private var exportOffen = false
 
     private let kartenOben: CGFloat = 698
     private let kartenSchritt: CGFloat = 96
@@ -76,6 +129,7 @@ struct AlleFahrerAnsicht: View {
             Leinwand(basisHoehe: 874, inhaltHoehe: inhalt, mitHintergrund: false) { _ in
                 ZStack(alignment: .topLeading) {
                     ZurueckKnopf { zeigen(.start) }.platz(20, 60, 50, 50)
+                    HStack { Spacer(); ExportKnopf { exportOffen = true } }.platz(20, 60, 362, 50)
 
                     Text("Alle Fahrer").grotesk(42, .bold)
                         .foregroundStyle(Color(hex: 0xE3F654))
@@ -120,15 +174,43 @@ struct AlleFahrerAnsicht: View {
             }
 
             if !markiert.isEmpty {
+                // Flaggen: eine Reihe ueber der Leiste, setzen die Flagge bei allen Markierten.
+                VStack(alignment: .trailing, spacing: 6) {
+                    Spacer()
+                    if !flaggenFehler.isEmpty {
+                        Text(flaggenFehler).grotesk(12, .medium).foregroundStyle(Color(hex: 0xFF8E8E))
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .frame(maxWidth: 362, alignment: .leading)
+                            .background(Color(hex: 0x171717))
+                    }
+                    FlaggenKnoepfe(ids: markiert,
+                                   flaggeVon: { id in liste.fahrer.first { $0.id == id }?.flagge },
+                                   wahl: flaggeWaehlen,
+                                   waagerecht: true)
+                        .padding(.trailing, 36)
+                }
+                .padding(.bottom, 226)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .ignoresSafeArea()
+
                 // Markierung loeschen: right 24, bottom 160.
                 VStack {
                     Spacer()
                     HStack {
                         Spacer()
+                        Button { planenOffen = true } label: {
+                            Text("Dienste planen").grotesk(16, .medium, abstand: 0.4).foregroundStyle(Color(hex: 0xE3F654))
+                                .padding(.horizontal, 20).frame(height: 54)
+                                .background(Color.black)
+                                .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
+                        }
+                        .buttonStyle(.web)
                         Button { markiert = [] } label: {
-                            Text("X").grotesk(26, .bold).foregroundStyle(Color(hex: 0x1D1C1D))
+                            // Rot mit dem TRISAR-Schliessen-Icon, Rand schwarz wie der Auswahlknopf der Karte.
+                            Image("Schliessen_Trisar_Icons_01").resizable().frame(width: 22, height: 22)
                                 .frame(width: 54, height: 54)
-                                .background(Circle().fill(Color(hex: 0xE3F654)))
+                                .background(Circle().fill(Color(hex: 0xFF6F63)))
+                                .overlay(Circle().strokeBorder(.black, lineWidth: 2))
                         }
                         .buttonStyle(.web)
                         .accessibilityLabel("Markierung löschen")
@@ -143,6 +225,11 @@ struct AlleFahrerAnsicht: View {
             if !sucheFokus {
                 Navileiste(aktiv: .fahrer, waehlen: zeigen)
             }
+        }
+        .sheet(isPresented: $exportOffen) { StundenExportFenster { exportOffen = false } }
+        .sheet(isPresented: $planenOffen) {
+            DienstePlanenBlatt(fahrerIDs: markiert) { planenOffen = false; Task { await liste.laden() } }
+                .presentationDetents([.large])
         }
         .sheet(item: $zeitWahl) { w in
             ZeitWahlBlatt(wahl: w, wert: w.feld == .start
@@ -218,7 +305,7 @@ struct AlleFahrerAnsicht: View {
                 FahrerKarte(
                     fahrer: f, imDienst: f.imDienst(jetzt: jetzt), markiert: markiert.contains(f.id),
                     antippen: {
-                        if !markiert.isEmpty { umschalten(f.id) } else { bearbeiten(f) }
+                        if !markiert.isEmpty { umschalten(f.id) } else { (oeffnen ?? bearbeiten)(f) }
                     },
                     markieren: { umschalten(f.id) },
                     bearbeiten: { bearbeiten(f) }
@@ -229,6 +316,20 @@ struct AlleFahrerAnsicht: View {
     }
 
     // MARK: Logik (wie AlleFahrer.jsx)
+
+    /// Flagge bei allen Markierten setzen (nil = entfernen), danach die Liste neu laden.
+    private func flaggeWaehlen(_ flagge: String?) {
+        let ids = markiert
+        guard !ids.isEmpty else { return }
+        flaggenFehler = ""
+        Task {
+            if let fehler = await Flaggen.setzen(ids: ids, flagge: flagge) {
+                flaggenFehler = fehler
+            } else {
+                await liste.laden()
+            }
+        }
+    }
 
     private func umschalten(_ id: String) {
         guard !id.isEmpty else { return }
@@ -469,7 +570,6 @@ struct FahrerKarte: View {
 
     @State private var versatz: CGFloat = 0
     @State private var zugStart: CGFloat?
-    @State private var waagrecht: Bool?
 
     private let aktionsBreite: CGFloat = 90, oeffnen: CGFloat = 36, ausloesen: CGFloat = 124, maxVersatz: CGFloat = 160
 
@@ -482,10 +582,10 @@ struct FahrerKarte: View {
             aktion(icon: "Edit_Trisar_Icon_01", iconX: maxVersatz - rechts / 2 - 17, text: "Fahrer bearbeiten") { schliessen(); bearbeiten() }
                 .platz(362 - maxVersatz, 0, maxVersatz, 84)
 
-            // Verschieben ueber Abstand statt .offset, damit die Tipp-Flaeche mitwandert.
+            // Verschieben per .offset (nur Grafik, kein neues Layout je Bildpunkt). Die Tipp-Flaeche
+            // wandert mit, weil offset auch das Antippen verschiebt.
             karte
-                .padding(.leading, links).padding(.trailing, rechts)
-                .frame(width: 362, height: 84, alignment: versatz >= 0 ? .leading : .trailing)
+                .offset(x: versatz)
         }
         .frame(width: 362, height: 84)
         .clipped()
@@ -524,6 +624,11 @@ struct FahrerKarte: View {
             .foregroundStyle(zeitFarbe)
             .fixedSize()
             .platz(0, 84 - 10 - 32, 362 - 14, 32, .topTrailing)
+
+            // Flagge: haengt oben links buendig an der Kante der Karte, wie eine Lasche.
+            if let flagge = fahrer.flagge {
+                FlaggeMitRand(flagge: flagge).platz(5.2, -0.8, 15.6, 19.6)
+            }
         }
         .frame(width: 362, height: 84)
         .overlay(Rectangle().strokeBorder(markiert ? Color(hex: 0xE3F654) : .clear, lineWidth: 2))
@@ -532,26 +637,19 @@ struct FahrerKarte: View {
             if versatz != 0 { schliessen(); return }
             antippen()
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 14)
-                .onChanged { w in
-                    if waagrecht == nil {
-                        waagrecht = abs(w.translation.width) >= abs(w.translation.height)
-                        zugStart = versatz
-                    }
-                    guard waagrecht == true else { return }
-                    versatz = max(-maxVersatz, min(maxVersatz, (zugStart ?? 0) + w.translation.width))
-                }
-                .onEnded { _ in
-                    defer { waagrecht = nil; zugStart = nil }
-                    guard waagrecht == true else { return }
-                    if versatz >= ausloesen { schliessen(); markieren() }
-                    else if versatz <= -ausloesen { schliessen(); bearbeiten() }
-                    else if versatz > oeffnen { withAnimation(.easeOut(duration: 0.22)) { versatz = aktionsBreite } }
-                    else if versatz < -oeffnen { withAnimation(.easeOut(duration: 0.22)) { versatz = -aktionsBreite } }
-                    else { schliessen() }
-                }
-        )
+        // UIKit-Geste wie bei den Fahrtenkarten: startet nur bei waagerechter Bewegung, sonst scrollt
+        // die Liste ungestoert (die SwiftUI-DragGesture lief gleichzeitig mit dem Scrollen und bremste es).
+        .waagerechtWischen(geaendert: { dx in
+            if zugStart == nil { zugStart = versatz }
+            versatz = max(-maxVersatz, min(maxVersatz, (zugStart ?? 0) + dx))
+        }, beendet: { _ in
+            zugStart = nil
+            if versatz >= ausloesen { schliessen(); markieren() }
+            else if versatz <= -ausloesen { schliessen(); bearbeiten() }
+            else if versatz > oeffnen { withAnimation(.snappy(duration: 0.22)) { versatz = aktionsBreite } }
+            else if versatz < -oeffnen { withAnimation(.snappy(duration: 0.22)) { versatz = -aktionsBreite } }
+            else { schliessen() }
+        })
     }
 
     private func aktion(icon: String, iconX: CGFloat, text: String, tun: @escaping () -> Void) -> some View {
@@ -568,7 +666,7 @@ struct FahrerKarte: View {
     }
 
     private func schliessen() {
-        withAnimation(.easeOut(duration: 0.22)) { versatz = 0 }
+        withAnimation(.snappy(duration: 0.22)) { versatz = 0 }
     }
 }
 
@@ -703,5 +801,732 @@ struct ZeitWahlBlatt: View {
                 auswahl = Datum.ausTagWert(wert)
             }
         }
+    }
+}
+
+
+// MARK: - Dienste planen
+
+/// "Dienste planen" fuer die markierten Fahrer (DienstePlanenBlatt.jsx, Senden wie applyBulkPlanning in AlleFahrer.jsx).
+/// Gestaltung wie die Stundenerfassung der Fahrer-App (Figma 2838:12842): dunkle Karte mit gruenem Rand,
+/// vier Kacheln Start | Pause | Pause | Ende, darunter die Dauer gross in Lime, unten Rot (Abbrechen) und Gruen (Senden).
+/// Dienststart und Dienstende sind unabhaengig: was leer bleibt, wird nicht gesendet.
+/// Eine Kachel antippen oeffnet das Drehrad wie in der Stundenerfassung (15-Minuten-Schritte).
+/// Legt je Fahrer eine Dienstanfrage an (driver_service_requests, pending) und speichert die Pausen in dienst_pausen.
+struct DienstePlanenBlatt: View {
+    let fahrerIDs: [String]
+    /// Fahrer bearbeiten: Tag, Zeiten und Pausen eines vorhandenen Dienstes vorbelegen
+    /// (tag nil = neuer Dienst, Tag im Kalender waehlen).
+    var vorgabe: DienstVorgabe? = nil
+    let fertig: () -> Void
+
+    private static let lime = Color(hex: 0xE3F654)
+    private static let gruen = Color(hex: 0x59BE80)
+    private static let rot = Color(hex: 0xFF6F63)
+    private static let kachelFarbe = Color(hex: 0x242525)
+    private static let grau = Color(hex: 0x5F5F5F)
+    private static let schritt = 15
+    private static let vorlagen: [(name: String, start: String, ende: String)] = [
+        ("Früh", "06:00", "14:00"), ("Tag", "08:00", "16:00"), ("Spät", "14:00", "22:00"), ("Nacht", "22:00", "06:00"),
+    ]
+
+    struct Pause: Equatable { var von: String; var bis: String }
+    struct DienstVorgabe { var tag: String?; var start = ""; var ende = ""; var pausen: [Pause] = [] }
+    /// Welche Zeit gerade im Drehrad eingestellt wird.
+    enum Feld: Equatable { case start, ende, pause(Int, bis: Bool) }
+
+    /// Gewaehlte Tage (Kalender wie bei Fahrt anlegen), sortiert, mindestens einer.
+    @State private var tage: [String] = [Dienstzeit.heute()]
+    @State private var kalenderOffen = false
+    @State private var start = ""
+    @State private var ende = ""
+    @State private var pausen: [Pause] = []
+    @State private var feld: Feld?
+    /// Drehrad fuer das gewaehlte Feld offen.
+    @State private var radOffen = false
+    @State private var speichert = false
+    @State private var fehler: String?
+    /// Vorhandener Dienst bei genau einem Fahrer und einem Tag (vorausgefuellt, gesendet wird nur Geaendertes).
+    @State private var bestand: Bestand?
+    @State private var hatteBestand = false
+
+    struct Bestand {
+        var id: String
+        var start: String
+        var ende: String
+        var pausen: [Pause]
+        var angenommen: Bool
+        var vorher: (start: String, ende: String, pausen: [Pause])?
+    }
+    enum Zustand { case neu, bestaetigt, angefragt }
+
+    private var schluessel: String {
+        fahrerIDs.count == 1 && tage.count == 1 ? "\(fahrerIDs[0])|\(tage[0])" : ""
+    }
+
+    private struct DienstZeile: Decodable { let id: String; let service_start_time: String?; let service_end_time: String?; let status: String? }
+    private struct PauseJSON: Decodable { let von: String?; let bis: String? }
+    private struct PausenJSON: Decodable { let pausen: [PauseJSON]? }
+    private struct VorherJSON: Decodable { let start: String?; let ende: String?; let pausen: [PauseJSON]? }
+    private struct AenderungJSON: Decodable { let vorher: VorherJSON? }
+
+    private static func hm(_ x: String?) -> String { String((x ?? "").prefix(5)) }
+    private static func pausenAus(_ l: [PauseJSON]?) -> [Pause] {
+        (l ?? []).map { Pause(von: hm($0.von), bis: hm($0.bis)) }.filter { !$0.von.isEmpty && !$0.bis.isEmpty }
+    }
+
+    /// Letzte nicht abgelehnte Dienstzeile des Tages mit Pausen und gemerktem angenommenem Stand.
+    private static func bestandLaden(fahrer: String, tag: String) async -> Bestand? {
+        let c = Backend.client
+        let zeilen: [DienstZeile] = (try? await c.from("driver_service_requests")
+            .select("id, service_start_time, service_end_time, status")
+            .eq("driver_id", value: fahrer).eq("service_date", value: tag)
+            .order("created_at", ascending: false).limit(5).execute().value) ?? []
+        guard let d = zeilen.first(where: { ($0.status ?? "").lowercased() != "refused" }) else { return nil }
+        let p: [PausenJSON] = (try? await c.from("dienst_pausen").select("pausen").eq("dienst_id", value: d.id).execute().value) ?? []
+        let a: [AenderungJSON] = (try? await c.from("dienst_aenderung").select("vorher").eq("dienst_id", value: d.id).execute().value) ?? []
+        let v = a.first?.vorher
+        return Bestand(
+            id: d.id, start: hm(d.service_start_time), ende: hm(d.service_end_time),
+            pausen: pausenAus(p.first?.pausen),
+            angenommen: (d.status ?? "").lowercased() == "accepted",
+            vorher: v.map { (hm($0.start), hm($0.ende), pausenAus($0.pausen)) })
+    }
+
+    private static func gleichePausen(_ a: [Pause], _ b: [Pause]) -> Bool {
+        a.filter { !$0.von.isEmpty && !$0.bis.isEmpty } == b.filter { !$0.von.isEmpty && !$0.bis.isEmpty }
+    }
+
+    /// Zustand eines vorausgefuellten Feldes wie im Web (feldZustand).
+    private func zustand(_ welches: String) -> Zustand? {
+        guard let b = bestand else { return nil }
+        let gleich: Bool, leer: Bool, wieVorher: Bool
+        switch welches {
+        case "start": gleich = start == b.start; leer = start.isEmpty; wieVorher = b.vorher?.start == start
+        case "ende": gleich = ende == b.ende; leer = ende.isEmpty; wieVorher = b.vorher?.ende == ende
+        default:
+            gleich = Self.gleichePausen(pausen, b.pausen); leer = pausen.isEmpty
+            wieVorher = b.vorher.map { Self.gleichePausen($0.pausen, pausen) } ?? false
+        }
+        if !gleich { return .neu }
+        if leer { return nil }
+        if b.angenommen { return .bestaetigt }
+        if b.vorher != nil { return wieVorher ? .bestaetigt : .angefragt }
+        return .angefragt
+    }
+
+    private var unveraendert: Bool {
+        bestand != nil && zustand("start") != .neu && zustand("ende") != .neu && zustand("pausen") != .neu
+    }
+
+    private func zustandZeile(_ z: Zustand?) -> some View {
+        let (text, farbe): (String, Color) = {
+            switch z {
+            case .neu: return ("Neu", Self.lime)
+            case .bestaetigt: return ("Bestätigt", Self.gruen)
+            case .angefragt: return ("Angefragt", Color(hex: 0xFFCD8A))
+            case nil: return ("", .clear)
+            }
+        }()
+        return Text(text).grotesk(11, .bold).foregroundStyle(farbe).frame(height: 13)
+    }
+
+    /// × bei vorausgefuellten Feldern: zurueck auf den gesendeten Stand, Gesendetes selbst bleibt.
+    private func zurueck(istStart: Bool) -> (() -> Void)? {
+        let gesendet = istStart ? (bestand?.start ?? "") : (bestand?.ende ?? "")
+        if gesendet.isEmpty { return { if istStart { start = "" } else { ende = "" }; feld = nil } }
+        guard zustand(istStart ? "start" : "ende") == .neu else { return nil }
+        return { if istStart { start = gesendet } else { ende = gesendet }; feld = nil }
+    }
+
+    private static func isoText(_ d: Date) -> String {
+        let p = DateFormatter(); p.locale = Locale(identifier: "en_US_POSIX"); p.dateFormat = "yyyy-MM-dd"
+        return p.string(from: d)
+    }
+
+    /// "Heute 11.11.", "Morgen 12.11.", sonst "Mi 13.11." (tagText im Web).
+    private static func tagText(_ iso: String) -> String {
+        let p = DateFormatter(); p.locale = Locale(identifier: "en_US_POSIX"); p.dateFormat = "yyyy-MM-dd"
+        guard let d = p.date(from: iso) else { return iso }
+        let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.dateFormat = "dd.MM."
+        let datum = f.string(from: d)
+        let kal = Calendar.current
+        if kal.isDateInToday(d) { return "Heute \(datum)" }
+        if kal.isDateInTomorrow(d) { return "Morgen \(datum)" }
+        let w = DateFormatter(); w.locale = Locale(identifier: "de_DE"); w.dateFormat = "EE"
+        return "\(w.string(from: d).replacingOccurrences(of: ".", with: "")) \(datum)"
+    }
+
+    /// Kalender: gewaehlter Tag kommt dazu (ohne Doppelte, sortiert).
+    private var kalenderBindung: Binding<Date> {
+        Binding(get: { Date() }, set: { neu in
+            let iso = Self.isoText(neu)
+            if !tage.contains(iso) { tage = (tage + [iso]).sorted() }
+            kalenderOffen = false
+        })
+    }
+
+    // MARK: Zeitrechnung
+
+    private static func minuten(_ hhmm: String) -> Int? {
+        let t = hhmm.split(separator: ":").compactMap { Int($0) }
+        return t.count == 2 ? t[0] * 60 + t[1] : nil
+    }
+
+    private static func uhr(_ min: Int) -> String {
+        let x = ((min % 1440) + 1440) % 1440
+        return String(format: "%02d:%02d", x / 60, x % 60)
+    }
+
+    /// Spanne ueber Mitternacht gerechnet (Nachtdienst 22–06 = 8 h).
+    private static func spanne(_ von: String, _ bis: String) -> Int {
+        guard let a = minuten(von), let b = minuten(bis) else { return 0 }
+        let d = ((b - a) + 1440) % 1440
+        return d == 0 ? 1440 : d
+    }
+
+    /// Netto-Dienstzeit als HH:MM wie in der Stundenerfassung (Pausen abgezogen).
+    private var nettoText: String {
+        let pause = pausen.reduce(0) { $0 + Self.spanne($1.von, $1.bis) }
+        let netto = max(0, Self.spanne(start, ende) - pause)
+        return String(format: "%02d:%02d", netto / 60, netto % 60)
+    }
+
+    private var feldWert: String {
+        switch feld {
+        case .start: return start
+        case .ende: return ende
+        case let .pause(i, bis): return pausen.indices.contains(i) ? (bis ? pausen[i].bis : pausen[i].von) : ""
+        case nil: return ""
+        }
+    }
+
+    private var feldName: String {
+        switch feld {
+        case .start: return "Dienststart"
+        case .ende: return "Dienstende"
+        case let .pause(i, bis): return "Pause \(i + 1) \(bis ? "bis" : "von")"
+        case nil: return ""
+        }
+    }
+
+    private func feldSetzen(_ wert: String) {
+        switch feld {
+        case .start: start = wert
+        case .ende: ende = wert
+        case let .pause(i, bis):
+            guard pausen.indices.contains(i) else { return }
+            if bis { pausen[i].bis = wert } else { pausen[i].von = wert }
+        case nil: break
+        }
+    }
+
+    /// "HH:MM" als Zeitpunkt heute (Berlin) fuer das Drehrad und zurueck.
+    private var feldDatum: Date {
+        guard let m = Self.minuten(feldWert) else { return Date() }
+        var k = Calendar(identifier: .gregorian); k.timeZone = Stunden.berlin
+        let tag = k.startOfDay(for: Date())
+        return tag.addingTimeInterval(Double(m) * 60)
+    }
+
+    /// Feld weglassen: Start oder Ende wird nicht gesendet, eine Pause faellt weg.
+    private func feldEntfernen() {
+        switch feld {
+        case .start: start = ""
+        case .ende: ende = ""
+        case let .pause(i, _): if pausen.indices.contains(i) { pausen.remove(at: i) }
+        case nil: break
+        }
+        feld = nil
+    }
+
+    /// Leere Kachel: sinnvolle Zeit vorschlagen (Ende 8 h nach Start, sonst 16:00) und auswaehlen.
+    private func zeitTippen(istStart: Bool) {
+        if istStart && start.isEmpty {
+            start = Self.minuten(ende).map { Self.uhr($0 - 8 * 60) } ?? "08:00"
+        } else if !istStart && ende.isEmpty {
+            ende = Self.minuten(start).map { Self.uhr($0 + 8 * 60) } ?? "16:00"
+        }
+        feld = istStart ? .start : .ende
+        radOffen = true
+    }
+
+    /// Neue Pause in der Mitte des Dienstes, 30 Minuten.
+    private func pauseNeu(_ index: Int) {
+        let mitte: Double
+        if let a = Self.minuten(start), !ende.isEmpty { mitte = Double(a) + Double(Self.spanne(start, ende)) / 2 } else { mitte = 12 * 60 }
+        let von = Int((mitte / Double(Self.schritt)).rounded()) * Self.schritt + index * 60
+        pausen.append(Pause(von: Self.uhr(von), bis: Self.uhr(von + 30)))
+        feld = .pause(pausen.count - 1, bis: false)
+        radOffen = true
+    }
+
+    // MARK: Ansicht
+
+    var body: some View {
+        let lime = Self.lime
+        // Senden geht auch nur mit einer Pause (Dienst des Tages bleibt, der Fahrer bestaetigt nur die Pause).
+        let nurPause = start.isEmpty && ende.isEmpty && !pausen.isEmpty
+        let nichtsGesetzt = start.isEmpty && ende.isEmpty && !nurPause
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    Text("Dienste planen").grotesk(18, .bold, abstand: -0.5).foregroundStyle(lime)
+                    Text(fahrerIDs.isEmpty ? "Noch keine Fahrer ausgewählt" : "\(fahrerIDs.count) Fahrer ausgewählt")
+                        .grotesk(12, .medium).foregroundStyle(.white.opacity(0.6))
+                        .padding(.top, 2)
+
+                    // Tage: Kalender wie bei Fahrt anlegen, beliebig viele Tage. Antippen entfernt einen Tag.
+                    TagUmbruch(abstand: 8) {
+                        ForEach(tage, id: \.self) { iso in
+                            Button { if tage.count > 1 { tage.removeAll { $0 == iso } } } label: {
+                                HStack(spacing: 8) {
+                                    Text(Self.tagText(iso)).grotesk(15, .bold).foregroundStyle(lime).lineLimit(1)
+                                    if tage.count > 1 {
+                                        Text("×").grotesk(18).foregroundStyle(.white.opacity(0.6))
+                                    }
+                                }
+                                .padding(.leading, 12).padding(.trailing, 10)
+                                .frame(height: 48)
+                                .background(kachelGrund(aktiv: true))
+                            }
+                            .buttonStyle(.web)
+                            .accessibilityLabel(tage.count > 1 ? "\(Self.tagText(iso)) entfernen" : Self.tagText(iso))
+                        }
+                        Button { kalenderOffen.toggle() } label: {
+                            Text(kalenderOffen ? "Kalender zu" : "+ Tag").grotesk(15, .bold).foregroundStyle(kalenderOffen ? Self.lime : .white)
+                                .padding(.horizontal, 14)
+                                .frame(height: 48)
+                                .background(kachelGrund(aktiv: false))
+                        }
+                        .buttonStyle(.web)
+                        .accessibilityLabel("Tag im Kalender wählen")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 12)
+
+                    // Monatskalender: auch Vergangenheit, Tage mit Dienst der ausgewaehlten Fahrer mit Punkt.
+                    if kalenderOffen {
+                        DienstKalender(gewaehlt: tage, fahrerIDs: fahrerIDs) { iso in
+                            if tage.contains(iso) { if tage.count > 1 { tage.removeAll { $0 == iso } } }
+                            else { tage = (tage + [iso]).sorted() }
+                        }
+                        .padding(.top, 10)
+                    }
+
+                    // Start | Pause | Pause | Ende
+                    HStack(alignment: .top, spacing: 6) {
+                        spalte("Start", an: !start.isEmpty, zustand: zustand("start")) { zeitKachel(start, aktiv: feld == .start, entfernen: zurueck(istStart: true)) { zeitTippen(istStart: true) } }
+                        ForEach(0..<2, id: \.self) { i in
+                            spalte("Pause", an: false, zustand: pausen.indices.contains(i) ? zustand("pausen") : nil) {
+                                if pausen.indices.contains(i) || i == pausen.count {
+                                    pausenKachel(i)
+                                } else {
+                                    RoundedRectangle(cornerRadius: 12).fill(Self.kachelFarbe).opacity(0.5).frame(height: 69)
+                                }
+                            }
+                        }
+                        spalte("Ende", an: !ende.isEmpty, zustand: zustand("ende")) { zeitKachel(ende, aktiv: feld == .ende, entfernen: zurueck(istStart: false)) { zeitTippen(istStart: false) } }
+                    }
+                    .padding(.top, 14)
+
+                    // Dauer gross, wie die Arbeitszeit in der Stundenerfassung
+                    VStack(spacing: 0) {
+                        if !start.isEmpty && !ende.isEmpty {
+                            Text(nettoText).grotesk(35, .bold, abstand: -0.5).foregroundStyle(lime).monospacedDigit()
+                                .frame(height: 44)
+                            if let a = Self.minuten(start), let b = Self.minuten(ende), b <= a {
+                                Text("endet am Folgetag").grotesk(12, .medium).foregroundStyle(.white.opacity(0.6))
+                            }
+                        } else {
+                            Text(nichtsGesetzt ? "Start oder Ende antippen" : nurPause ? "Nur Pause" : (start.isEmpty ? "Nur Dienstende" : "Nur Dienststart"))
+                                .grotesk(18, .bold, abstand: -0.5)
+                                .foregroundStyle(nichtsGesetzt ? Self.grau : lime)
+                                .frame(height: 44)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 10)
+                }
+                .padding(.horizontal, 17).padding(.top, 14).padding(.bottom, 16)
+                .background(Color(hex: 0x1A1A1A))
+                .overlay(Rectangle().strokeBorder(Self.gruen, lineWidth: 2))
+
+                // Vorlagen
+                HStack(spacing: 6) {
+                    ForEach(Self.vorlagen, id: \.name) { v in
+                        let aktiv = start == v.start && ende == v.ende
+                        Button { start = v.start; ende = v.ende; feld = .start } label: {
+                            VStack(spacing: 0) {
+                                Text(v.name).grotesk(14, .bold).frame(height: 17)
+                                Text("\(v.start.prefix(2))–\(v.ende.prefix(2))").grotesk(11).monospacedDigit().opacity(0.7).frame(height: 14)
+                            }
+                            .foregroundStyle(aktiv ? lime : .white)
+                            .frame(maxWidth: .infinity).frame(height: 48)
+                            .background(kachelGrund(aktiv: aktiv))
+                        }
+                        .buttonStyle(.web)
+                    }
+                }
+                .padding(.top, 10)
+
+                if unveraendert {
+                    Text("Schon gesendet. Zeit antippen zum Ändern.").grotesk(13, .medium).foregroundStyle(.white.opacity(0.6))
+                        .frame(maxWidth: .infinity).padding(.top, 8)
+                }
+
+                if let fehler {
+                    Text(fehler).grotesk(13, .medium).foregroundStyle(Color(hex: 0xFF8E8E))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 8)
+                }
+
+                HStack(spacing: 9) {
+                    Button(action: fertig) { knopfInhalt("Abbrechen", farbe: Self.rot) }
+                        .buttonStyle(.web)
+                    Button { Task { await senden() } } label: {
+                        knopfInhalt(speichert ? "Speichern ..." : "Senden (\(fahrerIDs.count))", farbe: Self.gruen)
+                    }
+                    .buttonStyle(.web)
+                    .disabled(speichert || nichtsGesetzt || unveraendert || fahrerIDs.isEmpty)
+                    .opacity(speichert || nichtsGesetzt || unveraendert || fahrerIDs.isEmpty ? 0.5 : 1)
+                }
+                .padding(.top, 12)
+            }
+            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 22)
+        }
+        .background(Color.black.ignoresSafeArea())
+        // Drehrad wie in der Stundenerfassung: Stunden und Minuten in 15-Minuten-Schritten.
+        .sheet(isPresented: $radOffen) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text(feldName).grotesk(15, .bold).foregroundStyle(.white.opacity(0.6))
+                    Spacer()
+                    Button("Fertig") { radOffen = false }.font(.grotesk(17, .bold)).foregroundStyle(Self.lime)
+                }
+                .padding(.horizontal, 20).frame(height: 48)
+                ZeitRad(wert: feldDatum, setzen: { feldSetzen(Stunden.uhr($0)) }).frame(height: 216)
+                Spacer(minLength: 0)
+            }
+            .background(Color(hex: 0x1C1C1E).ignoresSafeArea())
+            .presentationDetents([.height(300)])
+        }
+        .onAppear {
+            guard let v = vorgabe else { return }
+            tage = v.tag.map { [$0] } ?? []
+            start = v.start
+            ende = v.ende
+            pausen = v.pausen
+            feld = v.start.isEmpty ? nil : .start
+        }
+        // Genau ein Fahrer und ein Tag: vorhandenen Dienst laden und die Kacheln damit fuellen.
+        .task(id: schluessel) {
+            var b: Bestand?
+            if !schluessel.isEmpty, let tag = tage.first, let f = fahrerIDs.first {
+                b = await Self.bestandLaden(fahrer: f, tag: tag)
+            }
+            guard !Task.isCancelled else { return }
+            bestand = b
+            if let b {
+                start = b.start; ende = b.ende; pausen = b.pausen
+            } else if hatteBestand {
+                start = ""; ende = ""; pausen = []
+            }
+            hatteBestand = b != nil
+            feld = nil
+        }
+    }
+
+    private var feldIstPause: Bool {
+        if case .pause = feld { return true }
+        return false
+    }
+
+    private func kachelGrund(aktiv: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 12).fill(Self.kachelFarbe)
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(aktiv ? Self.lime : .clear, lineWidth: 2))
+    }
+
+    private func spalte<K: View>(_ titel: String, an: Bool, zustand: Zustand? = nil, @ViewBuilder kachel: () -> K) -> some View {
+        VStack(spacing: 6) {
+            kachel()
+            VStack(spacing: 0) {
+                Text(titel).grotesk(16, .bold, abstand: -0.5).foregroundStyle(an ? .white : Self.grau)
+                if bestand != nil { zustandZeile(zustand) }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Kleines rotes × oben rechts wie in der Stundenerfassung: setzt die Kachel zurueck.
+    private func entfernenKnopf(_ titel: String, _ aktion: @escaping () -> Void) -> some View {
+        Button(action: aktion) {
+            Text("×").grotesk(16, .bold).foregroundStyle(.black).frame(width: 24, height: 24).background(Circle().fill(Self.rot))
+        }
+        .buttonStyle(.web).offset(x: 8, y: -8).accessibilityLabel(titel)
+    }
+
+    /// Kachel fuer Start oder Ende: eine Zeit gross in Lime, leer grau. Gesetzt mit × zum Zuruecksetzen.
+    private func zeitKachel(_ wert: String, aktiv: Bool, entfernen: (() -> Void)?, tippen: @escaping () -> Void) -> some View {
+        Button(action: tippen) {
+            Text(wert.isEmpty ? "--:--" : wert).grotesk(22, .bold, abstand: -0.5).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .foregroundStyle(wert.isEmpty ? Self.grau : Self.lime)
+                .frame(maxWidth: .infinity).frame(height: 69)
+                .background(kachelGrund(aktiv: aktiv))
+        }
+        .buttonStyle(.web)
+        .overlay(alignment: .topTrailing) { if !wert.isEmpty, let entfernen { entfernenKnopf("Zeit zurücksetzen", entfernen) } }
+    }
+
+    /// Kachel fuer eine Pause: von oben, bis unten, grau. Leer ein Plus.
+    @ViewBuilder private func pausenKachel(_ i: Int) -> some View {
+        if pausen.indices.contains(i) {
+            let p = pausen[i]
+            let aktiv: Bool = { if case let .pause(j, _) = feld { return j == i }; return false }()
+            VStack(spacing: 0) {
+                ForEach([false, true], id: \.self) { bis in
+                    Button { feld = .pause(i, bis: bis); radOffen = true } label: {
+                        Text(bis ? p.bis : p.von).grotesk(17, .bold, abstand: -0.5).monospacedDigit()
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                            .foregroundStyle(feld == .pause(i, bis: bis) ? Self.lime : Self.grau)
+                            .frame(maxWidth: .infinity).frame(height: 22)
+                    }
+                    .buttonStyle(.web)
+                }
+            }
+            .frame(maxWidth: .infinity).frame(height: 69)
+            .background(kachelGrund(aktiv: aktiv))
+            .overlay(alignment: .topTrailing) {
+                entfernenKnopf("Pause entfernen") { if pausen.indices.contains(i) { pausen.remove(at: i) }; feld = nil }
+            }
+        } else {
+            // Wie in der Stundenerfassung: gestrichelter Rahmen mit Plus.
+            Button { pauseNeu(i) } label: {
+                Text("+").grotesk(28, .bold).foregroundStyle(Self.lime)
+                    .frame(maxWidth: .infinity).frame(height: 69)
+                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Self.lime, style: StrokeStyle(lineWidth: 2, dash: [5, 4])))
+            }
+            .buttonStyle(.web)
+            .accessibilityLabel("Pause hinzufügen")
+        }
+    }
+
+    /// Text links, Pfeil rechts (Pfeil_Knopf_Figma zeigt nach links, daher gedreht).
+    private func knopfInhalt(_ text: String, farbe: Color) -> some View {
+        HStack(spacing: 0) {
+            Text(text).grotesk(16, .medium, abstand: 0.5).foregroundStyle(Color(hex: 0x202020)).lineLimit(1)
+            Spacer(minLength: 4)
+            Image("Pfeil_Knopf_Figma").resizable().frame(width: 34, height: 19).rotationEffect(.degrees(180))
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity).frame(height: 56)
+        .background(farbe)
+    }
+
+    // MARK: Senden (applyBulkPlanning)
+
+    /// Nicht gesetzte Zeiten gehen als null mit, damit nur das Gesetzte gilt.
+    private struct Anfrage: Encodable {
+        let driver_id: String
+        let service_date: String
+        let start: String?
+        let ende: String?
+        let requested_by = "dispo-ios"
+
+        enum CodingKeys: String, CodingKey { case driver_id, service_date, service_start_time, service_end_time, status, requested_by }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(driver_id, forKey: .driver_id)
+            try c.encode(service_date, forKey: .service_date)
+            if let start { try c.encode(start, forKey: .service_start_time) } else { try c.encodeNil(forKey: .service_start_time) }
+            if let ende { try c.encode(ende, forKey: .service_end_time) } else { try c.encodeNil(forKey: .service_end_time) }
+            try c.encode("pending", forKey: .status)
+            try c.encode(requested_by, forKey: .requested_by)
+        }
+    }
+    private struct NeueID: Decodable { let id: String }
+    private struct PausePlan: Encodable { let art = "fest"; let von: String; let bis: String }
+    private struct PausenZeile: Encodable { let dienst_id: String; let pausen: [PausePlan]; let aktualisiert: String }
+
+    private func senden() async {
+        guard !fahrerIDs.isEmpty else { fehler = "Bitte mindestens einen Fahrer auswählen."; return }
+        guard !start.isEmpty || !ende.isEmpty || !pausen.isEmpty else { return }
+        speichert = true; fehler = nil
+        defer { speichert = false }
+        let c = Backend.client
+        // Vorausgefuellter Dienst: nur Geaendertes senden (fehlende Zeiten uebernimmt der DB-Trigger).
+        let b = fahrerIDs.count == 1 && tage.count == 1 ? bestand : nil
+        let s = start.isEmpty || start == b?.start ? nil : start
+        let e = ende.isEmpty || ende == b?.ende ? nil : ende
+        let pausenGeaendert = b.map { !Self.gleichePausen(pausen, $0.pausen) } ?? true
+        let pausenWeg = b != nil && pausenGeaendert && pausen.isEmpty && !(b?.pausen.isEmpty ?? true)
+        if b != nil && s == nil && e == nil && !pausenGeaendert { fehler = "Keine Änderung zum Senden."; return }
+        if let b, pausenWeg, s == nil, e == nil {
+            // Nur alle Pausen entfernt: direkt am Dienst loeschen, der Fahrer bestaetigt das.
+            do { try await c.from("dienst_pausen").delete().eq("dienst_id", value: b.id).execute() }
+            catch { fehler = "Pausen nicht entfernt: \(error.localizedDescription)"; return }
+            fertig()
+            return
+        }
+        // Eine Anfrage je Fahrer und gewaehltem Tag, das Profil bekommt den fruehesten Tag.
+        let gewaehlt = Array(Set(tage)).sorted()
+        guard !gewaehlt.isEmpty else { fehler = "Bitte einen Tag im Kalender wählen."; return }
+        let tag = gewaehlt.first ?? Dienstzeit.heute()
+        do {
+            let neu: [NeueID] = try await c.from("driver_service_requests")
+                .insert(gewaehlt.flatMap { t in fahrerIDs.map { Anfrage(driver_id: $0, service_date: t, start: s, ende: e) } })
+                .select("id").execute().value
+            // Feste Pausen je Dienst (dienst_pausen), fliessen in die Stundenerfassung des Fahrers.
+            let plan = pausenGeaendert ? pausen.filter { $0.von != $0.bis }.map { PausePlan(von: $0.von, bis: $0.bis) } : []
+            if !plan.isEmpty && !neu.isEmpty {
+                let jetzt = ISO8601DateFormatter().string(from: Date())
+                do {
+                    try await c.from("dienst_pausen").upsert(neu.map { PausenZeile(dienst_id: $0.id, pausen: plan, aktualisiert: jetzt) }).execute()
+                } catch {
+                    fehler = "Dienste gesendet, Pausen nicht gespeichert: \(error.localizedDescription)"
+                    return
+                }
+            } else if plan.isEmpty, pausenWeg || (b == nil && vorgabe?.pausen.isEmpty == false), !neu.isEmpty {
+                // Alle Pausen entfernt: der DB-Trigger hat die alten zur neuen Zeile gelegt, also weg damit.
+                _ = try? await c.from("dienst_pausen").delete().in("dienst_id", values: neu.map(\.id)).execute()
+            }
+        } catch {
+            fehler = "Senden fehlgeschlagen: \(error.localizedDescription)"
+            return
+        }
+        // Im Profil nur das gesetzte Feld, fehlen die Datumsspalten, ohne sie.
+        var mitDatum: [String: String] = [:], ohneDatum: [String: String] = [:]
+        if let s { mitDatum["service_start_time"] = s; mitDatum["service_start_date"] = tag; ohneDatum["service_start_time"] = s }
+        if let e { mitDatum["service_end_time"] = e; mitDatum["service_end_date"] = tag; ohneDatum["service_end_time"] = e }
+        // Nur Pause: am Profil aendert sich nichts.
+        if !mitDatum.isEmpty { do {
+            try await c.from("profiles").update(mitDatum).in("id", values: fahrerIDs).execute()
+        } catch {
+            do {
+                try await c.from("profiles").update(ohneDatum).in("id", values: fahrerIDs).execute()
+            } catch {
+                fehler = "Dienste gesendet, Profil nicht aktualisiert: \(error.localizedDescription)"
+                return
+            }
+        } }
+        fertig()
+    }
+}
+
+/// Reihen mit Umbruch (flex-wrap) fuer die Tages-Chips in "Dienste planen".
+private struct TagUmbruch: Layout {
+    var abstand: CGFloat = 8
+
+    private func reihen(_ breite: CGFloat, _ teile: Subviews) -> [(x: CGFloat, y: CGFloat)] {
+        var orte: [(x: CGFloat, y: CGFloat)] = []
+        var x: CGFloat = 0, y: CGFloat = 0, zeile: CGFloat = 0
+        for t in teile {
+            let g = t.sizeThatFits(.unspecified)
+            if x > 0 && x + g.width > breite { x = 0; y += zeile + abstand; zeile = 0 }
+            orte.append((x, y))
+            x += g.width + abstand
+            zeile = max(zeile, g.height)
+        }
+        return orte
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let breite = proposal.width ?? .infinity
+        let orte = reihen(breite, subviews)
+        var hoehe: CGFloat = 0, rechts: CGFloat = 0
+        for (o, t) in zip(orte, subviews) {
+            let g = t.sizeThatFits(.unspecified)
+            hoehe = max(hoehe, o.y + g.height)
+            rechts = max(rechts, o.x + g.width)
+        }
+        return CGSize(width: proposal.width ?? rechts, height: hoehe)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for (o, t) in zip(reihen(bounds.width, subviews), subviews) {
+            t.place(at: CGPoint(x: bounds.minX + o.x, y: bounds.minY + o.y), proposal: .unspecified)
+        }
+    }
+}
+
+/// Monatskalender fuer "Dienste planen" (wie DienstKalender im Web): auch Tage in der Vergangenheit.
+/// Tage, an denen die ausgewaehlten Fahrer schon einen Dienst haben, tragen einen Lime-Punkt.
+private struct DienstKalender: View {
+    let gewaehlt: [String]
+    let fahrerIDs: [String]
+    let umschalten: (String) -> Void
+    @State private var monat: Date = {
+        var k = Calendar(identifier: .gregorian); k.timeZone = Stunden.berlin
+        return k.date(from: k.dateComponents([.year, .month], from: Date())) ?? Date()
+    }()
+    @State private var belegt = Set<String>()
+    private let lime = Color(hex: 0xE3F654)
+
+    private var kal: Calendar { var k = Calendar(identifier: .gregorian); k.timeZone = Stunden.berlin; k.firstWeekday = 2; return k }
+    private func iso(_ d: Date) -> String { StundenExport.isoTag(d) }
+
+    var body: some View {
+        let tage = kal.range(of: .day, in: .month, for: monat)?.count ?? 30
+        let leer = (kal.component(.weekday, from: monat) + 5) % 7
+        let felder: [Int?] = Array(repeating: nil, count: leer) + (1...tage).map { Optional($0) }
+        let heute = iso(Date())
+        VStack(spacing: 4) {
+            HStack {
+                Button { monat = kal.date(byAdding: .month, value: -1, to: monat) ?? monat } label: { Text("‹").grotesk(20, .bold).foregroundStyle(lime).frame(width: 36, height: 32) }
+                Spacer()
+                Text(monatText).grotesk(15, .bold).foregroundStyle(.white)
+                Spacer()
+                Button { monat = kal.date(byAdding: .month, value: 1, to: monat) ?? monat } label: { Text("›").grotesk(20, .bold).foregroundStyle(lime).frame(width: 36, height: 32) }
+            }
+            .buttonStyle(.web)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 2) {
+                ForEach(["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"], id: \.self) { Text($0).grotesk(11, .bold).foregroundStyle(.white.opacity(0.5)) }
+                ForEach(Array(felder.enumerated()), id: \.offset) { _, tag in
+                    if let tag, let d = kal.date(byAdding: .day, value: tag - 1, to: monat) {
+                        let i = iso(d)
+                        let an = gewaehlt.contains(i)
+                        Button { umschalten(i) } label: {
+                            ZStack(alignment: .bottom) {
+                                Text("\(tag)").grotesk(14, .bold).monospacedDigit()
+                                    .foregroundStyle(an ? .black : (i < heute ? Color(hex: 0x5F5F5F) : .white))
+                                    .frame(maxWidth: .infinity).frame(height: 36)
+                                if belegt.contains(i) { Circle().fill(an ? .black : lime).frame(width: 5, height: 5).padding(.bottom, 3) }
+                            }
+                            .background(RoundedRectangle(cornerRadius: 8).fill(an ? lime : .clear))
+                            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(i == heute && !an ? lime : .clear, lineWidth: 1))
+                        }
+                        .buttonStyle(.web)
+                    } else {
+                        Color.clear.frame(height: 36)
+                    }
+                }
+            }
+            HStack(spacing: 6) {
+                Circle().fill(lime).frame(width: 5, height: 5)
+                Text("schon ein Dienst eingetragen").grotesk(11, .medium).foregroundStyle(.white.opacity(0.5))
+                Spacer()
+            }
+            .padding(.top, 2)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(hex: 0x242525)))
+        .task(id: "\(iso(monat))|\(fahrerIDs.joined(separator: ","))") { await belegtLaden() }
+    }
+
+    private var monatText: String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.timeZone = Stunden.berlin; f.dateFormat = "LLLL yyyy"
+        return f.string(from: monat)
+    }
+
+    private func belegtLaden() async {
+        struct Zeile: Decodable { let service_date: String; let status: String? }
+        guard !fahrerIDs.isEmpty, let ende = kal.date(byAdding: DateComponents(month: 1, day: -1), to: monat) else { belegt = []; return }
+        let zeilen: [Zeile] = (try? await Backend.client.from("driver_service_requests").select("service_date, status")
+            .in("driver_id", values: fahrerIDs).gte("service_date", value: iso(monat)).lte("service_date", value: iso(ende))
+            .execute().value) ?? []
+        belegt = Set(zeilen.filter { ($0.status ?? "").lowercased() != "refused" }.map(\.service_date))
     }
 }

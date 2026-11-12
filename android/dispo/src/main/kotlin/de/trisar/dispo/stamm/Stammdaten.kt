@@ -160,24 +160,27 @@ internal data class TrackerWahl(val imei: String, val nummer: Int, val vehicle_i
 @Serializable private data class NfcFahrer(val first_name: String? = null, val last_name: String? = null)
 
 internal class FahrzeugeDienst {
-    var fahrzeuge by mutableStateOf<List<StammFahrzeug>>(emptyList())
+    // Letzter Stand aus dem companion: beim Oeffnen sofort da, frisch geladen wird im Hintergrund.
+    var fahrzeuge by mutableStateOf(zwischenspeicher)
         private set
-    var laedt by mutableStateOf(true)
+    var laedt by mutableStateOf(zwischenspeicher.isEmpty())
         private set
     var fehler by mutableStateOf("")
         private set
     private val beobachter = TabellenBeobachter("admin-vehicles-live", listOf("vehicles"))
 
     suspend fun laden() {
-        laedt = true
+        // Mit gemerktem Stand kein Ladekreis, die Liste wird nur ausgetauscht.
+        if (fahrzeuge.isEmpty()) laedt = true
         fehler = ""
         try {
             fahrzeuge = Backend.client.from("vehicles").select { order("brand_model", Order.ASCENDING) }
                 .decodeList<JsonObject>().map { StammFahrzeug(it) }
+            zwischenspeicher = fahrzeuge
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            fahrzeuge = emptyList()
+            if (zwischenspeicher.isEmpty()) fahrzeuge = emptyList()
             fehler = dbMeldung(e)
         }
         laedt = false
@@ -187,6 +190,8 @@ internal class FahrzeugeDienst {
     fun beenden() = beobachter.beenden()
 
     companion object {
+        private var zwischenspeicher: List<StammFahrzeug> = emptyList()
+
         /**
          * saveVehicle aus FahrzeugErstellenView.jsx: Update mit Rueckgabe der Zeile, sonst Insert.
          * Den Admin-Schluessel-Rueckfall des Webs gibt es in der App nicht.

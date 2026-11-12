@@ -49,7 +49,7 @@ const schrift = "font-['Space_Grotesk']";
 const ERKENNUNG_MS = 900;
 
 // Hinweise, die eine Zeile nicht ausschliessen, aber angeschaut werden sollten.
-const WARNUNGEN = new Set(['doppelt', 'vergangen', 'adresseUnbekannt', 'mehrNamenAlsPersonen', 'gleicheAdresse', 'emailUngueltig']);
+const WARNUNGEN = new Set(['doppelt', 'vergangen', 'adresseUnbekannt', 'mehrNamenAlsPersonen', 'gleicheAdresse', 'emailUngueltig', 'fahrerUnbekannt']);
 
 const FunkenIcon = ({ drehen = false }) => (
   <svg viewBox="0 0 29 29.14" width="22" height="22" fill="none" className={drehen ? 'animate-pulse' : ''}>
@@ -138,7 +138,9 @@ const ImportKarte = ({ satz: s, modus, offen, oeffnen, umschalten, aendern, adre
           <div className="flex-1 min-w-0 flex flex-col gap-[5px]">
             <div className={`font-bold ${schrift} break-words line-clamp-2`} style={{ fontSize: groesse, lineHeight: 1.3, color: text }}>{namen}</div>
             <div className={`text-xs font-medium ${schrift} leading-4 tracking-wide opacity-80`} style={{ color: text }}>{route}</div>
+            {modus === 'rides' && d.zwischenstopps?.length ? <div className={`text-xs font-medium ${schrift} leading-4 opacity-80`} style={{ color: text }}>{t('imp.ueber', { orte: d.zwischenstopps.join(' · ') })}</div> : null}
             {firma ? <div className={`text-[13px] font-bold ${schrift} truncate`} style={{ color: text }}>{firma}</div> : null}
+            {modus === 'rides' && (d.fahrer || d.fahrer_name) ? <div className={`text-[13px] font-bold ${schrift}`} style={{ color: text }}>{t('imp.fahrer', { name: d.fahrer || `${d.fahrer_name} ?` })}</div> : null}
             {extra ? <div className={`text-[13px] font-bold ${schrift}`} style={{ color: text }}>{extra}</div> : null}
             {rot ? <div className={`text-[12px] font-bold ${schrift}`} style={{ color: '#000' }}>{t('imp.fehltFeld', { felder: s.fehlt.map(feldText).join(', ') })}</div> : null}
             {warnungen.length ? <div className={`text-[12px] font-bold ${schrift}`} style={{ color: rot ? '#000' : '#FF8A00' }}>{warnungen.map(hinweisText).join(' · ')}</div> : null}
@@ -525,7 +527,7 @@ export default function ImportView({ setView, mode = 'rides' }) {
                       className={`h-[30px] px-3 border text-[12px] font-medium whitespace-nowrap shrink-0 ${schrift}`}
                       style={b.index === analyse.blatt ? { background: LIME, color: '#000', borderColor: LIME } : { borderColor: 'rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.7)' }}
                     >
-                      {b.name}{(b.fahrten ?? 0) > 0 && b.index !== analyse.blatt ? ` · ${b.fahrten}` : ''}
+                      {b.name}{b.mitEingelesen ? ` · ${t('imp.blattMit')}` : (b.fahrten ?? 0) > 0 && b.index !== analyse.blatt ? ` · ${b.fahrten}` : ''}
                     </button>
                   ))}
                 </div>
@@ -666,7 +668,7 @@ export default function ImportView({ setView, mode = 'rides' }) {
               ) : null}
               {rueckgaengigText ? <div className={`mt-[10px] text-[13px] font-medium ${schrift}`} style={{ color: '#8DFFAF' }}>{rueckgaengigText}</div> : null}
               {/* Weitere Blaetter derselben Datei (schon importierte Fahrten kommen als Dublette abgewaehlt). */}
-              {analyse?.blaetter?.length > 1 && quelle ? analyse.blaetter.filter((b) => b.index !== analyse.blatt && (b.fahrten ?? 1) > 0).map((b) => (
+              {analyse?.blaetter?.length > 1 && quelle ? analyse.blaetter.filter((b) => b.index !== analyse.blatt && !b.mitEingelesen && (b.fahrten ?? 1) > 0).map((b) => (
                 <button
                   key={b.index}
                   type="button"

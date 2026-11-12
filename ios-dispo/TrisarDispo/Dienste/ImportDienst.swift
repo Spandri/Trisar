@@ -4,7 +4,7 @@ import Supabase
 /// Excel-/CSV-Import ueber die Funktion dispo-admin (Aktionen import_*), wie importDienst.js der Web-Dispo.
 /// Erkennung, Blattwahl, Llama, Dubletten und Adresspruefung laufen auf dem Server, hier nur Anzeige und Bearbeiten.
 enum ImportDienst {
-    struct Blatt: Decodable, Hashable { let index: Int; let name: String; let zeilen: Int; let fahrten: Int? }
+    struct Blatt: Decodable, Hashable { let index: Int; let name: String; let zeilen: Int; let fahrten: Int?; var mitEingelesen: Bool? = nil }
     struct Vorlage: Decodable { let name: String? }
     struct Llama: Decodable { let genutzt: Bool; let erreichbar: Bool? }
     struct Kontext: Decodable { let datum: String?; let ziel: String? }
@@ -147,7 +147,7 @@ enum ImportDienst {
         if text(d["pickup_address"]).isEmpty { fehlt.append("abholort") }
         if text(d["dropoff_address"]).isEmpty { fehlt.append("zielort") }
         satz.fehlt = fehlt
-        var h = satz.hinweise.filter { ["mehrereZeilen", "datumUebernommen", "datumAusDatei", "zielAusDatei", "llama", "doppelt", "adresseUnbekannt"].contains($0) }
+        var h = satz.hinweise.filter { ["mehrereZeilen", "datumUebernommen", "datumAusDatei", "zielAusDatei", "llama", "doppelt", "adresseUnbekannt", "zwischenstopp", "fahrerUnbekannt", "ausWeiteremBlatt"].contains($0) }
         let heute = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withFullDate])
         let datum = text(d["ride_date"])
         if !datum.isEmpty && datum < heute { h.append("vergangen") }

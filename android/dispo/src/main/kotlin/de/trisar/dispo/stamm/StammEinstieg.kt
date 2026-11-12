@@ -7,7 +7,7 @@ import de.trisar.dispo.DispoZiel
 
 /** Alle Fahrer mit Planungsuebersicht, Anlegen und Bearbeiten (FahrerBereichAnsicht.swift). */
 @Composable
-fun FahrerBereich(zeigen: (DispoZiel) -> Unit) = FahrerBereichSeite(zeigen)
+fun FahrerBereich(zeigen: (DispoZiel) -> Unit, oeffneFahrt: (String) -> Unit = {}) = FahrerBereichSeite(zeigen, oeffneFahrt)
 
 /** Fahrzeugliste, Filter, Anlegen und Bearbeiten (FahrzeugBereichAnsicht.swift). */
 @Composable

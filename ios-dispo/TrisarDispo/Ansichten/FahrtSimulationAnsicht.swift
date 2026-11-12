@@ -829,7 +829,10 @@ private struct NebenSimKarte: UIViewRepresentable {
             linie(stil, "sim-leer", legs.filter { !$0.gast }.map(\.pts), UIColor(hex: 0xE3F654), 5, gestrichelt: true, deckung: 1)
             linie(stil, "sim-gast", legs.filter(\.gast).map(\.pts), UIColor(hex: 0x0059FF), 6, gestrichelt: false, deckung: 0.9)
 
-            karte.removeAnnotations(stationen)
+            // Punkte nie mitten in einem Rueckruf der Karte aendern, MapLibre bricht sonst beim Zeichnen ab
+            // (TestFlight-Absturz Dispo Build 19). Einen Moment spaeter, in fester Reihenfolge.
+            let alt = stationen
+            DispatchQueue.main.async { [weak karte] in karte?.removeAnnotations(alt) }
             stationen = []
             // Mehrere Abholungen naeher als 40 m teilen sich einen Pin ("1/3").
             var orte: [(ort: CLLocationCoordinate2D, nummern: [Int])] = []
@@ -845,7 +848,8 @@ private struct NebenSimKarte: UIViewRepresentable {
                 p.coordinate = o.ort
                 return p
             }
-            karte.addAnnotations(stationen)
+            let neu = stationen
+            DispatchQueue.main.async { [weak karte] in karte?.addAnnotations(neu) }
         }
 
         private static func abstandM(_ a: CLLocationCoordinate2D, _ b: CLLocationCoordinate2D) -> Double {
@@ -854,7 +858,10 @@ private struct NebenSimKarte: UIViewRepresentable {
 
         private func fahrerSetzen(_ karte: MLNMapView, _ s: NebenSimKarte) {
             guard let ort = s.punkt else {
-                if let fahrer { karte.removeAnnotation(fahrer); self.fahrer = nil }
+                if let fahrer {
+                    DispatchQueue.main.async { [weak karte] in karte?.removeAnnotation(fahrer) }
+                    self.fahrer = nil
+                }
                 return
             }
             if let fahrer {
@@ -863,7 +870,7 @@ private struct NebenSimKarte: UIViewRepresentable {
                 let p = SimFahrerPunkt()
                 p.coordinate = ort
                 fahrer = p
-                karte.addAnnotation(p)
+                DispatchQueue.main.async { [weak karte] in karte?.addAnnotation(p) }
             }
             fahrerAnsicht?.anwenden(zustand: s.zustand, nummer: s.nummer)
         }

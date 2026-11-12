@@ -1,5 +1,5 @@
 // Datenquelle je nach Build (siehe ../datenquelle.js): Demo-Mock oder echtes Supabase.
-import { createClient } from '@supabase/supabase-js';
+import { createClient, processLock } from '@supabase/supabase-js';
 import { demoSupabase } from '../demo/demoClient.js';
 import { DEMO_MODE } from '../datenquelle.js';
 
@@ -25,7 +25,13 @@ const createLiveClients = () => {
   // Disposition ueber ihre Anmeldung (AnmeldeTor) und die Regeln in der DB,
   // Admin-Aufgaben wie Fahrer einladen laufen ueber die Funktion dispo-admin.
   const SUPABASE_ANON_KEY = normalizeEnvValue(import.meta.env.VITE_SUPABASE_ANON_KEY);
-  const client = createClient(RESOLVED_SUPABASE_URL, SUPABASE_ANON_KEY || 'fehlt');
+  // Sperre nur innerhalb des Tabs (processLock) statt ueber alle Tabs (navigator.locks):
+  // In Safari blieb die tabuebergreifende Sperre haengen, die Dispo blieb nach dem Start
+  // schwarz und "Anmelden" tat nichts (12.11.). Mehrere Dispo-Tabs erneuern ihr Token
+  // dann ggf. doppelt, das ist harmlos.
+  const client = createClient(RESOLVED_SUPABASE_URL, SUPABASE_ANON_KEY || 'fehlt', {
+    auth: { lock: processLock },
+  });
   const hasConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
   return {
     hasConfig,

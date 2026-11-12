@@ -1,5 +1,6 @@
 package de.trisar.dispo.karte
 
+import de.trisar.dispo.Flaggen
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -86,6 +87,8 @@ internal data class KartenFahrtInfo(
     val ankunft: String = "--:--",
     val fahrMinuten: Int = 0,
     val unterwegs: Boolean = false,
+    /** false: weder laufende noch naechste Fahrt, das Blatt zeigt dann "Keine Fahrt geplant". */
+    val hatFahrt: Boolean = false,
     val von: KartenOrt = KartenOrt("-", null, "Keine aktive Fahrt"),
     val nach: KartenOrt = KartenOrt("-", null, "-"),
 )
@@ -109,6 +112,10 @@ internal data class KartenFahrer(
     val name: String,
     val bildURL: String,
     val zuendungAus: Boolean,
+    /** captured_at des Standorts. Seit 5 Minuten nichts mehr: offline (Figma 2816-12309). */
+    val letztesSignal: java.time.ZonedDateTime? = null,
+    /** Minuten ohne Signal: 0 frisch, 1 bis 4 orange werdend, 5 ohne Signal (grauer Kreis). */
+    val signalStufe: Int = 0,
     val nummer: String?,
     val telefon: String,
     val kennzeichen: String,
@@ -118,9 +125,21 @@ internal data class KartenFahrer(
     val zustand: FahrerZustand,
     val info: KartenFahrtInfo,
     val fahrt: KartenFahrt?,
+    /** profiles.flagge (flagge1 bis flagge3), null = keine. */
+    val flagge: String? = null,
 ) {
     val ort get() = KartenPunkt(lat, lng)
     val vorname get() = name.split(" ").firstOrNull { it.isNotEmpty() } ?: "Fahrer"
+    val offline get() = signalStufe >= 5
+    /** Farbe von Punkt und Uhrzeit je Stufe, von Hellorange zum Rot der Stufe 5. */
+    val signalFarbe: Long get() = listOf(0x868687L, 0xFFB84DL, 0xFFA04DL, 0xFF8A55L, 0xFF7A5CL, 0xFF6F63L)[signalStufe.coerceIn(0, 5)]
+
+    /** "Letztes Signal 14:32", an einem anderen Tag mit Datum. */
+    val signalText: String get() {
+        val d = letztesSignal ?: return "Noch kein Signal"
+        val heute = d.toLocalDate() == java.time.LocalDate.now(d.zone)
+        return "Letztes Signal " + d.format(java.time.format.DateTimeFormatter.ofPattern(if (heute) "HH:mm" else "dd.MM. HH:mm"))
+    }
 }
 
 /**
@@ -179,12 +198,14 @@ internal class KartenDaten {
             laden()
             // Eigener Name je Oeffnen: der alte Kanal wird im Hintergrund abgemeldet und darf den neuen nicht treffen.
             val k = Backend.client.channel("ko-karten-live-refresh-${System.currentTimeMillis()}")
-            val stroeme: List<Flow<PostgresAction>> = listOf("driver_live_locations", "jobs", "convoy_assignments").map { t ->
+            val stroeme: List<Flow<PostgresAction>> = listOf("jobs", "convoy_assignments").map { t ->
                 k.postgresChangeFlow<PostgresAction>(schema = "public") { table = t }
             }
+            val standorte = k.postgresChangeFlow<PostgresAction>(schema = "public") { table = "driver_live_locations" }
             val zuendung = k.postgresChangeFlow<PostgresAction>(schema = "public") { table = "vehicle_telemetry_live" }
             kanal = k
             stroeme.forEach { s -> auftraege += scope.launch { s.collect { laden() } } }
+            auftraege += scope.launch { standorte.collect { standortGeaendert(it, scope) } }
             auftraege += scope.launch { zuendung.collect { zuendungGeaendert(it) } }
             runCatching { k.subscribe() }
         }
@@ -202,6 +223,42 @@ internal class KartenDaten {
         val k = kanal ?: return
         kanal = null
         kartenAufraeumen.launch { runCatching { Backend.client.realtime.removeChannel(k) } }
+    }
+
+    /**
+     * Standort-Meldung: Position sofort setzen (wie KartenView.jsx). Das komplette Neuladen
+     * (Status, Fahrten) kommt hoechstens alle 10 s hinterher, nicht bei jeder Meldung.
+     */
+    private var nachladenGeplant = false
+    private suspend fun standortGeaendert(a: PostgresAction, scope: CoroutineScope) {
+        val satz = when (a) {
+            is PostgresAction.Insert -> a.record
+            is PostgresAction.Update -> a.record
+            else -> { laden(); return }
+        }
+        val id = jText(satz["driver_id"])
+        val lat = jZahl(satz["lat"])
+        val lng = jZahl(satz["lng"])
+        val i = fahrer.indexOfFirst { it.id == id }
+        if (id.isEmpty() || lat == null || lng == null || i < 0) { laden(); return }
+        val signal = runCatching {
+            java.time.OffsetDateTime.parse(jText(satz["captured_at"]).replace(' ', 'T')).atZoneSameInstant(java.time.ZoneId.systemDefault())
+        }.getOrNull()
+        val alt = fahrer[i]
+        fahrer = fahrer.toMutableList().also {
+            it[i] = alt.copy(
+                lat = lat, lng = lng,
+                letztesSignal = signal ?: alt.letztesSignal,
+                signalStufe = signal?.let { s -> java.time.Duration.between(s.toInstant(), java.time.Instant.now()).toMinutes().coerceIn(0, 5).toInt() } ?: alt.signalStufe,
+            )
+        }
+        if (nachladenGeplant) return
+        nachladenGeplant = true
+        auftraege += scope.launch {
+            delay(10_000)
+            nachladenGeplant = false
+            laden()
+        }
     }
 
     /** Nur bei Wechsel der Zuendung neu laden, nicht bei jedem Datensatz. */
@@ -244,6 +301,7 @@ internal class KartenDaten {
             val basis = "id, first_name, last_name, phone, role, is_dispo, vehicle_id, driver_number, vehicles:vehicle_id(license_plate, brand_model, trim)"
             val mitBild = "$basis, avatar_url"
             val kandidaten = listOf(
+                "$mitBild, driver_activity_state, service_start_time, service_end_time, flagge",
                 "$mitBild, driver_activity_state, service_start_time, service_end_time",
                 "$mitBild, driver_activity_state",
                 "$mitBild, service_start_time, service_end_time",
@@ -373,6 +431,9 @@ internal class KartenDaten {
             val lat = jZahl(zeile["lat"]); val lng = jZahl(zeile["lng"])
             if (id.isEmpty() || lat == null || lng == null || id in versteckt) return@mapNotNull null
             val p = profilJe[id]
+            val signal = runCatching {
+                java.time.OffsetDateTime.parse(jText(zeile["captured_at"]).replace(' ', 'T')).atZoneSameInstant(java.time.ZoneId.systemDefault())
+            }.getOrNull()
             val name = listOf(jText(p?.get("first_name")), jText(p?.get("last_name"))).filter { it.isNotEmpty() }.joinToString(" ")
             val fz = p?.get("vehicles") as? JsonObject
             val kennzeichen = jText(fz?.get("license_plate"))
@@ -407,11 +468,14 @@ internal class KartenDaten {
                 name = name.ifEmpty { "Fahrer ${id.take(8)}" },
                 bildURL = jText(p?.get("avatar_url")),
                 zuendungAus = zuendung[id] == false,
+                letztesSignal = signal,
+                signalStufe = signal?.let { java.time.Duration.between(it.toInstant(), java.time.Instant.now()).toMinutes().coerceIn(0, 5).toInt() } ?: 0,
                 nummer = nummerText.ifEmpty { null },
                 telefon = jText(p?.get("phone")),
                 kennzeichen = kennzeichen.ifEmpty { "-" },
                 fahrzeug = fahrzeug.ifEmpty { "Fahrzeug" },
                 lat = lat, lng = lng, zustand = zustand, info = info, fahrt = fahrt,
+                flagge = Flaggen.id(jText(p?.get("flagge"))),
             )
         }
         return liste to sichtbar.size
@@ -601,6 +665,7 @@ internal object KartenRegeln {
             ankunft = ankunft(job, routenDauer(job), jetzt) ?: "--:--",
             fahrMinuten = restFahrzeit(job, jetzt),
             unterwegs = status(job["status"]) in unterwegsStatus,
+            hatFahrt = true,
             von = KartenOrt(s.first, s.second, ortName(vn, va)),
             nach = KartenOrt(z.first, z.second, ortName(zn, za)),
         )

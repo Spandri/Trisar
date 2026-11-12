@@ -1,5 +1,6 @@
 package de.trisar.fahrer.haupt
 
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -79,13 +81,19 @@ internal object StundenSpeicher {
     val fehler = MutableStateFlow<String?>(null)
 
     /** Karten fuer die Startseite: Dienst vorbei, noch nicht bestaetigt. */
-    fun karten(liste: List<Stunden.Eintrag>): List<Stunden.Eintrag> = liste.filter { it.vorbei && it.zettel?.status != "bestaetigt" }
+    /** Vorbei und noch nicht bestaetigt, dazu der laufende Dienst von heute (Figma 2823-12431). */
+    fun karten(liste: List<Stunden.Eintrag>): List<Stunden.Eintrag> = liste.filter {
+        (it.vorbei && it.zettel?.status != "bestaetigt")
+            || (!it.vorbei && it.dienst.datum == Stunden.heuteDatum() && Stunden.heute(it) != null)
+    }
 
     suspend fun laden() {
         eintraege.value = try { Stunden.verlauf(null, 14) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { eintraege.value }
     }
 
     suspend fun annehmen(fahrerID: String, e: Stunden.Eintrag) {
+        val z = e.zettel
+        if (z != null && z.status == "dispo_geaendert") { ausfuehren(e) { Stunden.dispoAenderungAnnehmen(z.id) }; return }
         val v = e.vorschlag
         if (v.beginn.isEmpty() || v.ende.isEmpty()) { fehler.value = "Kein Vorschlag, bitte bearbeiten."; return }
         ausfuehren(e) { Stunden.speichern(fahrerID, e, v.beginn, v.ende, v.pauseMin, angepasst = false, begruendung = null) }
@@ -168,9 +176,10 @@ internal fun StundenKarte(
     val beginn = Stunden.uhr(z?.beginn ?: v.beginn)
     val ende = Stunden.uhr(z?.ende ?: v.ende)
     val pauseMin = z?.pauseMin ?: v.pauseMin
-    val rand = when (z?.status) { "eingereicht" -> LIME; "zurueckgewiesen" -> ROT; else -> Color.Transparent }
+    val rand = when (z?.status) { "eingereicht" -> LIME; "zurueckgewiesen" -> ROT; "dispo_geaendert" -> ORANGE; else -> Color.Transparent }
     val etikett = when (z?.status) {
         "eingereicht" -> "Eingereicht" to LIME
+        "dispo_geaendert" -> "Von Dispo geändert" to ORANGE
         "zurueckgewiesen" -> "Zurückgegeben" to ROT
         "bestaetigt" -> "Bestätigt" to GRUEN
         else -> null
@@ -287,6 +296,255 @@ private fun VerlaufRahmenZeile(text: String, farbe: Color, modifier: Modifier = 
  * Verlauf (Profil -> Verlauf, wie Verlauf.jsx): erledigte Fahrten nach Tagen, neueste zuerst. Dienste aus der
  * Stundenerfassung stehen als Rahmen (Dienststart, Fahrten, Dienstende) mit Stundenkarte darin.
  */
+/**
+ * Heute (Figma 2837-12573, wie HeuteStunden in Stunden.jsx): Karte 362 x 220 mit Start, begonnenen
+ * Pausen und nach dem Dienst Ende, immer mittig. Darunter die Arbeitszeit, die jede Minute hochrollt.
+ * Fertig (Dienstende, keine Fahrt mehr unterwegs, Figma 2838-12842): Bearbeiten und Bestaetigen.
+ * Bearbeiten macht die Zeiten antippbar, dazu Notiz wie beim Stornieren und „Anfrage senden“.
+ * Rand Lime bis bestaetigt bzw. gesendet, dann gruen, von der Dispo zurueckgegeben rot.
+ */
+private class HeuteWerte(val start: java.time.Instant, val ende: java.time.Instant, val pausen: List<Pair<java.time.Instant, java.time.Instant>>)
+
+/** Hoehe im Raster der Fahrtenliste: Karte 220, Statuszeile 10 + 20, Knoepfe 10 + 56. */
+internal fun heuteKartenHoehe(e: Stunden.Eintrag): Float {
+    val s = Stunden.heute(e) ?: return 0f
+    val z = e.zettel
+    val offen = s.fertig && Stunden.fahrerDran(z)
+    return 220f + (if (s.fertig && z != null) 30f else 0f) + (if (offen) 66f else 0f)
+}
+
+/**
+ * vollbild: in der Fahrtenliste (festes Raster) oeffnet Bearbeiten ein Vollbild statt unter der Karte.
+ * startetBearbeitet/schliessen: das Vollbild selbst (startet im Bearbeiten-Modus, Abbrechen schliesst).
+ */
+@Composable
+internal fun HeuteStundenKarte(
+    fahrerID: String, e: Stunden.Eintrag, nachher: () -> Unit,
+    vollbild: Boolean = false, startetBearbeitet: Boolean = false, schliessen: (() -> Unit)? = null,
+) {
+    var jetzt by remember { mutableStateOf(java.time.Instant.now()) }
+    var zeigeVollbild by remember { mutableStateOf(false) }
+    var werte by remember(e.dienst.id) {
+        mutableStateOf<HeuteWerte?>(if (!startetBearbeitet) null else Stunden.heute(e)?.let { s ->
+            val ende = s.ende ?: s.start
+            HeuteWerte(s.start, ende, s.pausen.map { it.von to (it.bis ?: ende) })
+        })
+    }
+    var notiz by remember(e.dienst.id) { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var fehler by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val kontext = androidx.compose.ui.platform.LocalContext.current
+    val s0 = Stunden.heute(e, jetzt)
+    LaunchedEffect(s0?.fertig) {
+        while (s0?.fertig != true) { kotlinx.coroutines.delay(1000); jetzt = java.time.Instant.now() }
+    }
+    if (s0 == null) return
+    val z = e.zettel
+    val offen = s0.fertig && Stunden.fahrerDran(z)
+    val w = werte
+    val arbeits = if (w == null) s0.arbeitsMin
+        else Stunden.halbeAuf(java.time.Duration.between(w.start, w.ende).seconds / 60.0 - Stunden.pausenMin(w.pausen.map { it.first to it.second }, w.ende))
+    val zeit = "%02d:%02d".format(arbeits / 60, arbeits % 60)
+    val zahl = hex(0xE2F754)
+    val grau = hex(0x5F5F5F)
+    val gruen = hex(0x59BE80)
+    val rotKnopf = hex(0xFF6F63)
+    val rand = if (!s0.fertig || w != null || z == null) LIME else if (z.status == "zurueckgewiesen") ROT else if (z.status == "dispo_geaendert") ORANGE else gruen
+
+    // Uhrzeit-Auswahl des Geraets, behaelt den Tag (Europe/Berlin).
+    fun waehlen(t: java.time.Instant, setzen: (java.time.Instant) -> Unit) {
+        val z0 = t.atZone(Stunden.BERLIN)
+        android.app.TimePickerDialog(kontext, { _, h, m -> setzen(z0.withHour(h).withMinute(m).withSecond(0).withNano(0).toInstant()) }, z0.hour, z0.minute, true).show()
+    }
+
+    @Composable
+    fun kasten(titel: String, oben: java.time.Instant?, unten: java.time.Instant? = null, istGrau: Boolean = false,
+               setOben: ((java.time.Instant) -> Unit)? = null, setUnten: ((java.time.Instant) -> Unit)? = null) {
+        val aktiv = setOben != null
+        val farbe = if (istGrau) (if (aktiv) Color.White else grau) else zahl
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                Modifier.size(78.dp).background(hex(0x242525), androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .then(if (aktiv) Modifier.border(2.dp, LIME, androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) else Modifier),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.5.dp, Alignment.CenterVertically),
+            ) {
+                val gross = if (istGrau) 17f else 22f
+                Text(Stunden.uhrZeit(oben), style = grotesk(gross, 700, abstand = -0.5f, farbe = farbe),
+                    modifier = if (setOben != null && oben != null) Modifier.tippen { waehlen(oben, setOben) } else Modifier)
+                if (unten != null) Text(Stunden.uhrZeit(unten), style = grotesk(gross, 700, abstand = -0.5f, farbe = farbe),
+                    modifier = if (setUnten != null) Modifier.tippen { waehlen(unten, setUnten) } else Modifier)
+            }
+            Text(titel, style = grotesk(16f, 700, zeilenHoehe = 20f, abstand = -0.5f, farbe = if (istGrau) grau else Color.White), modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+
+    /** Aenderung der Dispo annehmen (Stand dispo_geaendert): fertig, keine neue Einreichung. */
+    fun zustimmen(zettelID: String) {
+        busy = true; fehler = null
+        scope.launch {
+            try {
+                Stunden.dispoAenderungAnnehmen(zettelID)
+                nachher()
+            } catch (x: kotlinx.coroutines.CancellationException) { throw x } catch (x: Exception) {
+                fehler = "Speichern fehlgeschlagen: ${x.message}"
+            }
+            busy = false
+        }
+    }
+
+    fun senden(beginn: java.time.Instant, ende0: java.time.Instant, pausen: List<Pair<java.time.Instant, java.time.Instant>>, angepasst: Boolean, begruendung: String? = null) {
+        val ende = if (!ende0.isAfter(beginn)) ende0.plusSeconds(86400) else ende0 // Nachtdienst
+        busy = true; fehler = null
+        scope.launch {
+            try {
+                Stunden.heuteSpeichern(fahrerID, e, beginn, ende, pausen, angepasst, begruendung)
+                werte = null
+                nachher()
+            } catch (x: kotlinx.coroutines.CancellationException) { throw x } catch (x: Exception) {
+                fehler = "Speichern fehlgeschlagen: ${x.message}"
+            }
+            busy = false
+        }
+    }
+
+    @Composable
+    fun knopf(titel: String, farbe: Color, breite: Float, fett: Boolean, aktion: () -> Unit) {
+        Row(
+            Modifier.size(breite.dp, 56.dp).background(farbe).tippen { if (!busy) aktion() }
+                .padding(start = if (fett) 24.dp else 16.dp, end = if (fett) 24.dp else 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(titel, style = grotesk(16f, if (fett) 700 else 400, abstand = if (fett) -0.5f else 0.5f, farbe = Color.Black))
+            Spacer(Modifier.weight(1f))
+            if (busy) androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), color = Color.Black, strokeWidth = 2.dp)
+            else Icon("PfeilDunkel", Modifier.size(34.dp, 19.dp))
+        }
+    }
+
+    Column(Modifier.width(362.dp)) {
+        Column(Modifier.size(362.dp, 220.dp).background(FLAECHE).border(2.dp, rand), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Stundenerfassung", style = grotesk(18f, 700, zeilenHoehe = 23f, abstand = -0.5f, farbe = LIME), modifier = Modifier.padding(top = 11.dp))
+            Row(Modifier.padding(top = 13.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                if (w != null) {
+                    kasten("Start", w.start, setOben = { t -> werte = HeuteWerte(t, w.ende, w.pausen) })
+                    w.pausen.forEachIndexed { i, p ->
+                        kasten("Pause", p.first, p.second, istGrau = true,
+                            setOben = { t -> werte = HeuteWerte(w.start, w.ende, w.pausen.mapIndexed { j, q -> if (j == i) t to q.second else q }) },
+                            setUnten = { t -> werte = HeuteWerte(w.start, w.ende, w.pausen.mapIndexed { j, q -> if (j == i) q.first to t else q }) })
+                    }
+                    kasten("Ende", w.ende, setOben = { t -> werte = HeuteWerte(w.start, t, w.pausen) })
+                } else {
+                    kasten("Start", s0.start)
+                    s0.pausen.forEach { p -> kasten("Pause", p.von, if (p.laeuft) null else p.bis, istGrau = true) }
+                    if (s0.ende != null) kasten("Ende", s0.ende)
+                }
+            }
+            // Jede Ziffer rollt beim Wechsel von unten nach oben (wie im Entwurf 08:45 -> 08:46).
+            Row(Modifier.padding(top = 9.dp).height(45.dp).clipToBounds()) {
+                zeit.forEachIndexed { i, c ->
+                    androidx.compose.runtime.key(i) {
+                        androidx.compose.animation.AnimatedContent(
+                            targetState = c,
+                            transitionSpec = {
+                                (androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(450)) { it } togetherWith
+                                    androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(450)) { -it })
+                            },
+                            label = "ziffer",
+                        ) { d -> Text(d.toString(), style = grotesk(35f, 700, zeilenHoehe = 45f, abstand = -0.5f, farbe = zahl)) }
+                    }
+                }
+            }
+        }
+
+        if (s0.fertig && z != null && w == null) {
+            val (text, farbe) = when (z.status) {
+                "eingereicht" -> "Anfrage gesendet, Dispo prüft." to LIME
+                "bestaetigt" -> "Von der Dispo bestätigt." to GRUEN
+                "dispo_geaendert" -> ("Dispo hat geändert, bitte bestätigen." + (if (z.dispoNotiz.isNotEmpty()) " ${z.dispoNotiz}" else "")) to ORANGE
+                else -> ("Von der Dispo zurückgegeben" + (if (z.dispoNotiz.isNotEmpty()) ": ${z.dispoNotiz}" else "")) to ROT
+            }
+            Text(text, style = grotesk(14f, 700, zeilenHoehe = 20f, farbe = farbe), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp).height(20.dp))
+        }
+
+        if (offen && w == null) {
+            Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                knopf("Bearbeiten", rotKnopf, 176f, false) {
+                    if (vollbild) { zeigeVollbild = true; return@knopf }
+                    val ende = s0.ende ?: s0.start
+                    werte = HeuteWerte(s0.start, ende, s0.pausen.map { it.von to (it.bis ?: ende) })
+                    notiz = ""; fehler = null
+                }
+                knopf("Bestätigen", gruen, 176f, false) {
+                    if (z != null && z.status == "dispo_geaendert") { zustimmen(z.id); return@knopf }
+                    val ende = s0.ende ?: s0.start
+                    senden(s0.start, ende, s0.pausen.map { it.von to (it.bis ?: ende) }, angepasst = false)
+                }
+            }
+        }
+
+        if (w != null) {
+            Text("Zeiten antippen zum Ändern. Pause erst ab 3 Stunden, kürzere Pausen sind Arbeitszeit.",
+                style = grotesk(13f, 500, farbe = Color.White.copy(alpha = 0.5f)), modifier = Modifier.padding(top = 8.dp))
+            // Notiz wie beim Stornieren (NotizBlatt in KeineFahrt.kt): dunkle Flaeche 402 breit, weisses Feld 362.
+            Box(Modifier.padding(top = 16.dp).offset(x = (-20).dp).size(402.dp, 224.dp).background(hex(0x1A1A1A), androidx.compose.foundation.shape.RoundedCornerShape(12.dp))) {
+                Column(
+                    Modifier.padding(start = 20.dp, top = 20.dp).size(362.dp, 184.dp).background(Color.White).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Notizen", style = grotesk(16f, 700, abstand = 0.5f, farbe = hex(0x1D1C1D)))
+                        Spacer(Modifier.weight(1f))
+                        Icon("Stift", Modifier.size(20.dp))
+                    }
+                    BasicTextField(
+                        notiz, { notiz = it },
+                        textStyle = grotesk(14f, abstand = 0.25f, farbe = hex(0x1D1C1D)),
+                        cursorBrush = SolidColor(hex(0x1D1C1D)),
+                        minLines = 6, maxLines = 6,
+                        modifier = Modifier.fillMaxWidth(),
+                        decorationBox = { inner ->
+                            Box {
+                                if (notiz.isEmpty()) Text("Schreiben...", style = grotesk(14f, abstand = 0.25f, farbe = Color(129, 129, 129).copy(alpha = 0.5f)))
+                                inner()
+                            }
+                        },
+                    )
+                }
+            }
+            Box(Modifier.padding(top = 20.dp)) {
+                knopf("Anfrage senden", LIME, 362f, true) {
+                    val n = notiz.trim()
+                    if (n.isEmpty()) fehler = "Bitte kurz schreiben, warum die Zeiten abweichen."
+                    else senden(w.start, w.ende, w.pausen, angepasst = true, begruendung = n)
+                }
+            }
+            Text("Abbrechen", style = grotesk(14f, 700, farbe = Color.White.copy(alpha = 0.6f)),
+                modifier = Modifier.padding(top = 12.dp).align(Alignment.CenterHorizontally).tippen { werte = null; fehler = null; schliessen?.invoke() })
+        }
+        fehler?.let { Text(it, style = grotesk(14f, 500, farbe = ROT), modifier = Modifier.padding(top = 10.dp)) }
+    }
+
+    if (zeigeVollbild) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { zeigeVollbild = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+        ) {
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                ProfilHintergrund()
+                Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding(), contentAlignment = Alignment.TopCenter) {
+                    Column(Modifier.width(402.dp).padding(start = 20.dp, end = 20.dp, top = 70.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        Text("Stunden bearbeiten", style = grotesk(42f, 700, zeilenHoehe = 48f, abstand = -0.5f, farbe = LIME))
+                        HeuteStundenKarte(fahrerID, e, nachher = { zeigeVollbild = false; nachher() },
+                            startetBearbeitet = true, schliessen = { zeigeVollbild = false })
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 internal fun VerlaufSeite(
     fahrerID: String,
@@ -297,12 +555,22 @@ internal fun VerlaufSeite(
 ) {
     var tage by remember { mutableStateOf<List<Verlauf.Tag>?>(null) }
     var neu by remember { mutableIntStateOf(0) }
+    var dienstListe by remember { mutableStateOf<List<Stunden.Eintrag>>(emptyList()) }
     val arbeitet by StundenSpeicher.arbeitetID.collectAsState()
     val scope = rememberCoroutineScope()
     LaunchedEffect(stand, neu) {
         val dienste = try { Stunden.verlauf(null, 60) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
         val fahrten = try { Verlauf.fahrten(fahrerID, 60) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
         tage = Verlauf.tage(fahrten, dienste)
+        dienstListe = dienste
+    }
+    val heute = Stunden.heuteDatum()
+    // Letzter Dienst von heute, der schon begonnen hat.
+    val heuteEintrag = dienstListe.firstOrNull { it.dienst.datum == heute && Stunden.heute(it) != null }
+    // Solange heute ein Dienst ansteht oder laeuft jede Minute neu laden (Start, Pausen, Ende kommen dazu).
+    val heuteOffen = dienstListe.any { it.dienst.datum == heute && !it.vorbei }
+    LaunchedEffect(heuteOffen) {
+        while (heuteOffen) { kotlinx.coroutines.delay(60_000); neu++ }
     }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         ProfilHintergrund()
@@ -320,6 +588,7 @@ internal fun VerlaufSeite(
                             androidx.compose.runtime.key(tag.datum) {
                                 Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
                                     StundenTageszeile(tag.datum)
+                                    if (tag.datum == heute && heuteEintrag != null) HeuteStundenKarte(fahrerID, heuteEintrag, nachher = { neu++ })
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         tag.eintraege.forEach { eintrag ->
                                             androidx.compose.runtime.key(eintrag.schluessel) {
@@ -332,13 +601,9 @@ internal fun VerlaufSeite(
                                                             eintrag.fahrten.forEach { VerlaufFahrtKarte(it) }
                                                             if (e.vorbei) {
                                                                 VerlaufRahmenZeile("Dienstende ${e.dienst.ende.ifEmpty { "--:--" }}", ROT, Modifier.padding(top = 9.dp))
-                                                                Box(Modifier.padding(top = 18.dp)) {
-                                                                    StundenKarte(
-                                                                        e, beschaeftigt = arbeitet == e.dienst.id,
-                                                                        annehmen = { scope.launch { StundenSpeicher.annehmen(fahrerID, e); neu++ } },
-                                                                        bearbeiten = { bearbeiten(e) },
-                                                                        ablehnen = { ablehnen(e) },
-                                                                    )
+                                                                // Stundenerfassung im neuen Look (Figma 2823-12622) an jedem vergangenen Dienst.
+                                                                if (e !== heuteEintrag) Box(Modifier.padding(top = 18.dp)) {
+                                                                    HeuteStundenKarte(fahrerID, e, nachher = { neu++ })
                                                                 }
                                                             } else {
                                                                 Text("Dienst läuft noch", style = grotesk(16f, 500, farbe = Color.White.copy(alpha = 0.5f)), modifier = Modifier.padding(top = 9.dp))

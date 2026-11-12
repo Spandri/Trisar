@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,14 +61,13 @@ private enum class EditorMenue { SPRACHE, FAHRZEUG, TRACKER }
  * Ortung: Handy-App oder OBD-Tracker mit IMEI (profiles.tracking_mode, imei_driver_map).
  */
 @Composable
-internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
+internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, fahrzeugOeffnen: ((String) -> Unit)? = null, zurueck: () -> Unit) {
     val m = remember { FahrerEditorModell(fahrer) }
     val scope = rememberCoroutineScope()
     val fokusManager = LocalFocusManager.current
     var menue by remember { mutableStateOf<EditorMenue?>(null) }
     var pwSichtbar by remember { mutableStateOf(false) }
     // Stunden des Fahrers (FahrerStunden.jsx): pruefen, Pausen planen, Excel. Nur beim Bearbeiten.
-    var stundenOffen by remember { mutableStateOf(false) }
     var loeschFrage by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { m.start(this) }
 
@@ -77,6 +77,9 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
     // Platz fuer die Ortungs-Zeilen: Auswahl (68) plus bei OBD IMEI-Feld und Hinweiszeile (88).
     val ortungsHoehe = if (m.ortung == "obd") 156f else 68f
     val warnung = m.nummerWarnung.isNotEmpty()
+    // Zeile Stundenlohn (68) direkt ueber dem Speichern-Knopf, alles darunter rutscht nach (12.11.).
+    val lohnY = z + (if (warnung) 696f else 674f) + ortungsHoehe
+    val l = 68f
 
     fun umschalten(neu: EditorMenue) {
         fokusManager.clearFocus()
@@ -155,13 +158,9 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         TrisarHintergrund()
         // Im Bearbeiten unten zusaetzlich „Fahrer löschen“ (48 hoch).
-        Leinwand(913f + z, 913f + z + ortungsHoehe + (if (fahrer != null) 60f else 0f)) {
+        // +100 unter "Fahrer löschen": Platz fuer die Fusszeile, sonst schneidet sie den Knopf ab (12.11.).
+        Leinwand(913f + z, 913f + z + l + ortungsHoehe + (if (fahrer != null) 60f + 100f else 0f)) {
             ZurueckKnopf(Modifier.platz(20f, 60f), zurueck)
-            if (m.bearbeiten && fahrer != null) {
-                Box(Modifier.platz(402f - 20f - 98f, 66f, 98f, 38f).background(LIME).tippen { stundenOffen = true }, contentAlignment = Alignment.Center) {
-                    Text("Stunden", style = grotesk(15f, 700, farbe = Color.Black))
-                }
-            }
 
             StammTitel(if (m.bearbeiten) "Fahrer bearbeiten" else "Fahrer erstellen", Modifier.platz(20f, o + 120f), abstand = -0.5f, farbe = 0xE2F754)
 
@@ -179,7 +178,7 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
             // E-Mail: Brief-Icon links, optional wenn ein Benutzername gesetzt ist.
             val mailFokus = remember { FocusRequester() }
             kasten(20f, 322f, 362f)
-            Icon("Mail_Trisar_Icons_01_Lime", Modifier.platz(12f, o + 322f + 21.5f, 10f, 13f).scale(1.2f))
+            Icon("Mail_Trisar_Icons_01_Lime", Modifier.platz(20f + 12f, o + 322f + 21.5f, 10f, 13f).scale(1.2f))
             feld(m.email, { m.email = it }, "E-Mail (optional)", 60f, 322f, 362f - 80f, mailFokus, KeyboardType.Email,
                 gross = KeyboardCapitalization.None)
             pfeil(mailFokus, 20f, 322f, 362f)
@@ -251,9 +250,31 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
                 }
             }
 
+            // Stundenlohn in Euro, rechts Eingabe. Ist ein Fahrzeug gewaehlt, daneben direkt zum Fahrzeug.
+            val mitFahrzeug = m.fahrzeugID.isNotEmpty() && fahrzeugOeffnen != null
+            val lohnFokus = remember { FocusRequester() }
+            Box(Modifier.platz(20f, o + lohnY, if (mitFahrzeug) 271f else 362f, 56f).border(2.dp, LIME)
+                .tippen { menue = null; runCatching { lohnFokus.requestFocus() } }) {
+                Text("Stundenlohn €", style = grotesk(16f, 500, farbe = SCHRIFT),
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 16.dp))
+                Box(Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).size(90.dp, 56.dp), contentAlignment = Alignment.CenterEnd) {
+                    // Platzhalter selbst rechtsbuendig, der von Eingabe stuende links.
+                    if (m.stundenlohn.isEmpty()) Text("0,00", style = grotesk(16f, 700, farbe = SCHRIFT.copy(alpha = 0.6f)))
+                    Eingabe(m.stundenlohn, { m.stundenlohn = it.filter { c -> c.isDigit() || c == ',' || c == '.' } }, "",
+                        grotesk(16f, 700, farbe = LIME).copy(textAlign = TextAlign.End), SCHRIFT.copy(alpha = 0.6f),
+                        Modifier.fillMaxWidth(), tastatur = KeyboardType.Decimal, gross = KeyboardCapitalization.None, fokus = lohnFokus)
+                }
+            }
+            if (mitFahrzeug) {
+                Box(Modifier.platz(297f, o + lohnY, 85f, 56f).background(LIME).tippen { fokusManager.clearFocus(); fahrzeugOeffnen?.invoke(m.fahrzeugID) },
+                    contentAlignment = Alignment.Center) {
+                    Text("Fahrzeug", style = grotesk(14f, 700, farbe = Color.Black))
+                }
+            }
+
             // Speichern: loest erst der Knopf aus (createDriver).
             Box(
-                Modifier.platz(20f, o + z + (if (warnung) 696f else 674f) + ortungsHoehe, 362f, 56f).alpha(if (m.speichert) 0.7f else 1f)
+                Modifier.platz(20f, o + lohnY + l, 362f, 56f).alpha(if (m.speichert) 0.7f else 1f)
                     .background(hex(0xDBEE4A))
                     .tippen {
                         if (m.speichert) return@tippen
@@ -268,7 +289,7 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
             }
 
             Box(
-                Modifier.platz(20f, o + z + (if (warnung) 764f else 742f) + ortungsHoehe, 362f).heightIn(min = 56.dp)
+                Modifier.platz(20f, o + z + (if (warnung) 764f else 742f) + ortungsHoehe + l, 362f).heightIn(min = 56.dp)
                     .border(1.dp, hex(0x7F8A2B)).padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 Text(
@@ -279,7 +300,7 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
 
             if (fahrer != null) {
                 Box(
-                    Modifier.platz(20f, o + z + (if (warnung) 832f else 810f) + ortungsHoehe, 362f, 48f)
+                    Modifier.platz(20f, o + z + (if (warnung) 832f else 810f) + ortungsHoehe + l, 362f, 48f)
                         .border(2.dp, hex(0xFF3B30)).alpha(if (m.speichert) 0.6f else 1f)
                         .tippen { if (!m.speichert) loeschFrage = true },
                     contentAlignment = Alignment.Center,
@@ -323,9 +344,6 @@ internal fun FahrerErstellenSeite(fahrer: DispoFahrer?, zurueck: () -> Unit) {
                 ok = { loeschFrage = false; scope.launch { if (m.loeschen()) zurueck() } },
                 abbrechen = { loeschFrage = false },
             )
-        }
-        if (stundenOffen && fahrer != null) {
-            FahrerStundenSeite(fahrer.id, "${m.vorname} ${m.nachname}".trim().ifEmpty { "Fahrer" }) { stundenOffen = false }
         }
     }
 }

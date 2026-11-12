@@ -41,6 +41,18 @@ import kotlinx.serialization.json.put
  */
 object Push {
     const val KANAL = "trisar"
+    /** Eigener Kanal fuer die Dispo-Warnungen (ohne Signal, ohne Fahrer, zu spaet). */
+    const val KANAL_WARNUNG = "trisar_dispo_warnung"
+    /** Knoepfe Annehmen/Ablehnen: Broadcast an die eigene App (FahrtAntwortEmpfaenger der Fahrer-App). */
+    const val AKTION_FAHRT_ANTWORT = "de.trisar.FAHRT_ANTWORT"
+    const val EXTRA_FAHRT = "fahrt_id"
+    const val EXTRA_ANNEHMEN = "annehmen"
+    const val EXTRA_MITTEILUNG = "mitteilung_id"
+    const val EXTRA_TEXT = "fahrt_text"
+    /** Arten mit Knoepfen Annehmen/Ablehnen (wie TRISAR_FAHRT_ANTWORT in iOS). */
+    val ANTWORT_ARTEN = setOf("fahrt_neu", "erinnerung_offen")
+    /** Warnungen an die Dispo (wie TRISAR_DISPO_WARNUNG in iOS). */
+    val WARN_ARTEN = setOf("dispo_ohne_signal", "dispo_ohne_fahrer", "dispo_verspaetet")
     private val bereich = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** Ziel aus der zuletzt angetippten Mitteilung ("ziel", "job_id", "kolonne_id", ...). */
@@ -67,6 +79,7 @@ object Push {
                 description = "Fahrten, Änderungen, Chat und Erinnerungen"
             })
         }
+        if (app == "dispo") kanalWarnung(ctx)
     }
 
     /** Nach erfolgreicher Anmeldung: Erlaubnis anfragen und Token melden. */
@@ -123,17 +136,43 @@ object Push {
         bmp
     }.getOrNull()
 
-    /** Mitteilung selbst zeigen (App im Vordergrund oder reine Daten-Nachricht). */
-    internal fun zeigen(ctx: Context, titel: String, text: String, daten: Map<String, String>) {
+    private fun kanalWarnung(ctx: Context) {
+        val nm = ctx.getSystemService(NotificationManager::class.java)
+        if (nm.getNotificationChannel(KANAL_WARNUNG) == null) {
+            nm.createNotificationChannel(NotificationChannel(KANAL_WARNUNG, "Dispo-Warnungen", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Fahrer ohne Signal, Fahrt ohne Fahrer, Fahrer kommt zu spät"
+            })
+        }
+    }
+
+    /** Knopf in der Mitteilung, der die Fahrt im Hintergrund annimmt oder ablehnt. */
+    private fun antwortKnopf(ctx: Context, fahrtID: String, text: String, mitteilung: Int, annehmen: Boolean): NotificationCompat.Action? {
+        val absicht = Intent(AKTION_FAHRT_ANTWORT).setPackage(ctx.packageName).apply {
+            putExtra(EXTRA_FAHRT, fahrtID); putExtra(EXTRA_ANNEHMEN, annehmen)
+            putExtra(EXTRA_MITTEILUNG, mitteilung); putExtra(EXTRA_TEXT, text)
+        }
+        // Nur die Fahrer-App hat den Empfaenger, die Dispo bekommt diese Arten ohnehin nicht.
+        if (ctx.packageManager.queryBroadcastReceivers(absicht, 0).isEmpty()) return null
+        val warten = PendingIntent.getBroadcast(ctx, mitteilung * 2 + if (annehmen) 1 else 0, absicht,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return NotificationCompat.Action.Builder(0, if (annehmen) "Annehmen" else "Ablehnen", warten).build()
+    }
+
+    /** Mitteilung selbst zeigen (App im Vordergrund oder reine Daten-Nachricht). [id] ersetzt eine vorhandene. */
+    fun zeigen(ctx: Context, titel: String, text: String, daten: Map<String, String>, id: Int? = null, leise: Boolean = false) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val start = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             daten.forEach { (k, v) -> putExtra(k, v) }
         } ?: return
-        val tippen = PendingIntent.getActivity(ctx, (System.currentTimeMillis() % Int.MAX_VALUE).toInt(), start,
+        val nummer = id ?: (System.nanoTime() % (Int.MAX_VALUE / 4)).toInt().let { if (it == 0) 1 else kotlin.math.abs(it) }
+        val tippen = PendingIntent.getActivity(ctx, nummer, start,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val mitteilung = NotificationCompat.Builder(ctx, KANAL)
+        val art = daten["art"].orEmpty()
+        val warnung = art in WARN_ARTEN
+        if (warnung) kanalWarnung(ctx)
+        val bau = NotificationCompat.Builder(ctx, if (warnung) KANAL_WARNUNG else KANAL)
             .setSmallIcon(R.drawable.ic_mitteilung)
             .setColor(farbe)
             .setLargeIcon(appSymbol(ctx))
@@ -141,10 +180,16 @@ object Push {
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setAutoCancel(true)
+            .setOnlyAlertOnce(leise)
+            .setSilent(leise)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(tippen)
-            .build()
-        runCatching { NotificationManagerCompat.from(ctx).notify((System.nanoTime() % Int.MAX_VALUE).toInt(), mitteilung) }
+        val fahrtID = daten["job_id"]
+        if (art in ANTWORT_ARTEN && !fahrtID.isNullOrBlank()) {
+            antwortKnopf(ctx, fahrtID, text, nummer, annehmen = true)?.let { bau.addAction(it) }
+            antwortKnopf(ctx, fahrtID, text, nummer, annehmen = false)?.let { bau.addAction(it) }
+        }
+        runCatching { NotificationManagerCompat.from(ctx).notify(nummer, bau.build()) }
     }
 }
 
@@ -182,6 +227,9 @@ object PushArten {
         Gruppe("dienst", "Dienstplan bestätigt oder abgelehnt", listOf("dispo_dienst_angenommen", "dispo_dienst_abgelehnt")),
         Gruppe("chat", "Kolonnen-Chat", listOf("chat")),
         Gruppe("schaden", "Schadensmeldungen", listOf("dispo_schaden")),
+        Gruppe("ohne_signal", "Fahrer ohne Signal", listOf("dispo_ohne_signal")),
+        Gruppe("ohne_fahrer", "Fahrt ohne Fahrer (30 min vorher)", listOf("dispo_ohne_fahrer")),
+        Gruppe("verspaetet", "Fahrer kommt zu spät zum Gast", listOf("dispo_verspaetet")),
     )
 }
 

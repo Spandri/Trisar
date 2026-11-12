@@ -39,9 +39,25 @@ export const stundenExport = async (admin: Admin, body: any) => {
     ? await admin.from('stundenzettel').select('*').in('dienst_id', dienste.map((d: any) => d.id))
     : { data: [] };
   const zettelJe = new Map((zettel || []).map((z: any) => [z.dienst_id, z]));
+  // Standby am Event-Ort (angenommen) je Fahrer und Tag als Vermerk "BMW Welt 18:00–23:00".
+  const { data: sbFahrer } = ids.length
+    ? await admin.from('standby_fahrer').select('standby_id, driver_id, von_eigen, bis_eigen').in('driver_id', ids).eq('status', 'accepted')
+    : { data: [] };
+  const sbIds = [...new Set((sbFahrer || []).map((f: any) => f.standby_id))];
+  const { data: sbListe } = sbIds.length
+    ? await admin.from('standby').select('id, datum, von, bis, ort_name').in('id', sbIds).gte('datum', von).lte('datum', bis)
+    : { data: [] };
+  const sbJe = new Map((sbListe || []).map((s: any) => [s.id, s]));
+  const standbyText = (fahrer: string, tag: string) => (sbFahrer || [])
+    .filter((f: any) => f.driver_id === fahrer && sbJe.get(f.standby_id)?.datum === tag)
+    .map((f: any) => {
+      const s: any = sbJe.get(f.standby_id);
+      return `${s.ort_name} ${String(f.von_eigen || s.von).slice(0, 5)}–${String(f.bis_eigen || s.bis).slice(0, 5)}`;
+    })
+    .join(', ');
 
   const kopf = ['Fahrer', 'Datum', 'Dienst geplant', 'Beginn', 'Ende', 'Pause (Min.)', 'Arbeitszeit', 'Stunden (dezimal)',
-    'Fahrten', 'Status', 'Angepasst', 'Begründung Fahrer', 'Vorschlag System', 'Notiz Dispo'];
+    'Fahrten', 'Standby', 'Status', 'Angepasst', 'Begründung Fahrer', 'Vorschlag System', 'Notiz Dispo'];
   const zeilen: unknown[][] = [kopf];
   const summen = new Map<string, { tage: number; min: number; bestaetigt: number; offen: number }>();
 
@@ -60,6 +76,7 @@ export const stundenExport = async (admin: Admin, body: any) => {
       `${String(d.service_start_time || '').slice(0, 5)}–${String(d.service_end_time || '').slice(0, 5)}`,
       zeit(beginn), zeit(ende), pause, hmm(min), Math.round(min / 6) / 10,
       (v?.fahrten || []).length,
+      standbyText(d.driver_id, d.service_date),
       z ? STATUS[z.status] || z.status : 'nicht erfasst',
       z?.angepasst ? 'ja' : '',
       z?.begruendung || '',
@@ -74,7 +91,7 @@ export const stundenExport = async (admin: Admin, body: any) => {
 
   const mappe = XLSX.utils.book_new();
   const blatt = XLSX.utils.aoa_to_sheet(zeilen);
-  blatt['!cols'] = [22, 11, 13, 8, 8, 11, 11, 15, 8, 14, 10, 34, 24, 28].map((w) => ({ wch: w }));
+  blatt['!cols'] = [22, 11, 13, 8, 8, 11, 11, 15, 8, 24, 14, 10, 34, 24, 28].map((w) => ({ wch: w }));
   XLSX.utils.book_append_sheet(mappe, blatt, 'Stunden');
   const summenZeilen: unknown[][] = [['Fahrer', 'Dienste', 'Arbeitszeit', 'Stunden (dezimal)', 'bestätigt', 'offen']];
   [...summen.entries()].sort().forEach(([fn, s]) => summenZeilen.push([fn, s.tage, hmm(s.min), Math.round(s.min / 6) / 10, s.bestaetigt, s.offen]));

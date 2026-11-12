@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Push-Dienst: schickt Mitteilungen aus push_ausgang an iPhones (APNs) und Android (FCM)
-// und ruft jede Minute push_erinnerungen() fuer die zeitgesteuerten Erinnerungen auf.
+// und ruft jede Minute push_erinnerungen() fuer die zeitgesteuerten Erinnerungen und
+// push_dispo_warnungen() (Fahrer ohne Signal, Fahrt ohne Fahrer, Fahrer zu spaet) auf.
 //
 // Ohne Zusatzpakete (nur Node 22): Supabase ueber REST, APNs ueber HTTP/2, FCM ueber HTTP v1.
 // Zugangsdaten stehen in integration_settings (nur service_role liest dort):
@@ -37,6 +38,14 @@ const DIENST_SCHLUESSEL = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const TAKT_MS = Number(process.env.PUSH_TAKT_MS || 3000);
 const ERINNERUNG_MS = 60_000;
 const BUNDLE = { fahrer: 'de.trisar.fahrer', dispo: 'de.trisar.dispo' };
+// iOS-Kategorien (Push.swift): Annehmen/Ablehnen direkt in der Mitteilung, Dispo-Warnungen mit Oeffnen.
+const KATEGORIE = {
+  fahrt_neu: 'TRISAR_FAHRT_ANTWORT',
+  erinnerung_offen: 'TRISAR_FAHRT_ANTWORT',
+  dispo_ohne_signal: 'TRISAR_DISPO_WARNUNG',
+  dispo_ohne_fahrer: 'TRISAR_DISPO_WARNUNG',
+  dispo_verspaetet: 'TRISAR_DISPO_WARNUNG',
+};
 
 if (!SUPABASE_URL || !DIENST_SCHLUESSEL) {
   console.error('[push] SUPABASE_URL und SUPABASE_SERVICE_ROLE_KEY fehlen.');
@@ -104,6 +113,7 @@ const apnsSenden = (host, z, geraet, nachricht) => new Promise((fertig) => {
       alert: { title: nachricht.titel, body: nachricht.text },
       sound: 'default',
       'thread-id': nachricht.art,
+      ...(KATEGORIE[nachricht.art] ? { category: KATEGORIE[nachricht.art] } : {}),
     },
     ...nachricht.daten,
     art: nachricht.art,
@@ -261,6 +271,13 @@ const erinnern = async () => {
     if (anzahl) log(`${anzahl} Erinnerung(en) angelegt`);
   } catch (e) {
     log('Fehler bei Erinnerungen:', e.message || e);
+  }
+  try {
+    const anzahl = await rest('rpc/push_dispo_warnungen', { methode: 'POST', koerper: {} });
+    if (anzahl) log(`${anzahl} Dispo-Warnung(en) angelegt`);
+  } catch (e) {
+    // Fehlt die Migration 20261111060000 noch, nicht jede Minute laut werden.
+    if (!/push_dispo_warnungen|PGRST202/.test(String(e.message || e))) log('Fehler bei Dispo-Warnungen:', e.message || e);
   }
 };
 

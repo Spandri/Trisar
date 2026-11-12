@@ -20,6 +20,10 @@ const fahrtenInactiveSrc = '/icon/_Icon_Grau/Arrow_Nav_Trisar_Icons_01_grau.svg'
 const profileActiveSrc = '/icon/_Icon_Lime/Person_Trisar_Icons_01_Lime.svg';
 const profileInactiveSrc = '/icon/_Icon_Grau/Person_Trisar_Icons_01_grau.svg';
 const LONG_PRESS_MS = 450;
+// Kurzes Vibrieren beim Antippen von Home und Karte (geht nur, wo der Browser es kann).
+const kurzVibrieren = () => {
+  if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10);
+};
 
 const noCalloutStyle = {
   WebkitTouchCallout: 'none',
@@ -370,7 +374,7 @@ export default function Navibar({
       </div>
 
       <button
-        onClick={() => onNavigateToMap?.()}
+        onClick={() => { kurzVibrieren(); onNavigateToMap?.(); }}
         data-tutorial="navi-karte"
         className="absolute left-[20.99%] top-[8px] w-[17.68%] h-[64px] flex items-center justify-center cursor-pointer touch-manipulation"
         aria-label={t('nav.map')}
@@ -384,7 +388,7 @@ export default function Navibar({
       </button>
 
       <button
-        onClick={() => onNavigateHome?.()}
+        onClick={() => { kurzVibrieren(); onNavigateHome?.(); }}
         data-tutorial="navi-home"
         className="absolute left-[1.93%] top-[8px] w-[17.96%] h-[64px] flex items-center justify-center cursor-pointer touch-manipulation"
         aria-label={t('nav.home')}

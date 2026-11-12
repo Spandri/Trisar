@@ -40,6 +40,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.dp
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
 import de.trisar.dispo.fahrten.FahrtFormularSeite
 import de.trisar.dispo.fahrten.FahrtenSeite
 import de.trisar.dispo.karte.DispoKarteSeite
@@ -100,7 +104,7 @@ fun DispoHaupt(anmeldung: Anmeldung) {
         key(ziel) {
             when (ziel) {
                 DispoZiel.START -> DispoStartseite(anmeldung, zeigen)
-                DispoZiel.FAHRER -> FahrerBereich(zeigen)
+                DispoZiel.FAHRER -> FahrerBereich(zeigen, oeffneFahrt)
                 DispoZiel.FAHRZEUGE -> FahrzeugBereich(zeigen)
                 DispoZiel.KUNDEN -> KundenBereich(zeigen, importieren = { gaesteImport = true })
                 DispoZiel.PROFIL -> KoordinatorProfil(zeigen)
@@ -129,6 +133,14 @@ fun DispoHaupt(anmeldung: Anmeldung) {
 @Composable
 private fun DispoStartseite(anmeldung: Anmeldung, zeigen: (DispoZiel) -> Unit) {
     val profil by anmeldung.profil.collectAsState()
+    // Live: Einsatzkosten = gearbeitete Minuten x Stundenlohn aller Fahrer (DB einsatzkosten(), 12.11.), jede Minute neu.
+    var kosten by remember { mutableStateOf<Pair<Double, Double>?>(null) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            einsatzkostenLaden()?.let { kosten = it }
+            kotlinx.coroutines.delay(60_000)
+        }
+    }
     Box(Modifier.fillMaxSize()) {
         DispoHintergrund()
         Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -140,6 +152,12 @@ private fun DispoStartseite(anmeldung: Anmeldung, zeigen: (DispoZiel) -> Unit) {
                     style = grotesk(34f, 500, 34f * 1.276f, -0.5f),
                     modifier = Modifier.platz(20f, 180f, 362f),
                 )
+                kosten?.let { (euro, stunden) ->
+                    Row(Modifier.platz(20f, 302f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        StartKachel("Seit Einsatzbeginn", "${deutscheZahl(euro)} €", "Einsatzkosten")
+                        StartKachel("Seit Einsatzbeginn", "${Math.round(stunden)} h", "Arbeitsstunden")
+                    }
+                }
                 Column(Modifier.platz(20f, 442f, 362f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     PlanungsKnopf { zeigen(DispoZiel.PLANUNG) }
                     StartKnopf("Fahrer Liste") { zeigen(DispoZiel.FAHRER) }
@@ -149,6 +167,35 @@ private fun DispoStartseite(anmeldung: Anmeldung, zeigen: (DispoZiel) -> Unit) {
             }
         }
         Navileiste(DispoZiel.START, zeigen)
+    }
+}
+
+/** RPC einsatzkosten(): {kosten, stunden, dienste_ohne_lohn}. null bei Fehler, dann bleibt der alte Wert stehen. */
+private suspend fun einsatzkostenLaden(): Pair<Double, Double>? = try {
+    val text = de.trisar.kern.Backend.client.postgrest.rpc("einsatzkosten").data
+    val o = de.trisar.kern.Backend.json.parseToJsonElement(text) as? JsonObject
+    if (o == null) null else {
+        fun zahl(k: String) = (o[k] as? JsonPrimitive)?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() } ?: 0.0
+        zahl("kosten") to zahl("stunden")
+    }
+} catch (e: kotlinx.coroutines.CancellationException) {
+    throw e
+} catch (e: Exception) {
+    null
+}
+
+/** Gerundet mit deutschem Tausenderpunkt wie toLocaleString('de-DE'). */
+private fun deutscheZahl(n: Double): String =
+    java.text.NumberFormat.getIntegerInstance(java.util.Locale.GERMANY).format(Math.round(n))
+
+/** StatCard aus HomeScreen.jsx: 178 x 112, 2er Lime-Rand, Titel und Untertitel halb durchsichtig. */
+@Composable
+private fun StartKachel(titel: String, zahl: String, unten: String) {
+    val lime = hex(0xE3F654)
+    Box(Modifier.size(178.dp, 112.dp).border(2.dp, lime)) {
+        Text(titel, style = grotesk(14f, 500, 24f, 0.3f, lime.copy(alpha = 0.5f)), maxLines = 1, softWrap = false, modifier = Modifier.platz(18f, 15f))
+        Text(zahl, style = grotesk(30f, 500, 24f, 0.5f, lime), maxLines = 1, softWrap = false, modifier = Modifier.platz(18f, 47f))
+        Text(unten, style = grotesk(14f, 500, 24f, 0.3f, lime.copy(alpha = 0.5f)), maxLines = 1, softWrap = false, modifier = Modifier.platz(18f, 77f))
     }
 }
 

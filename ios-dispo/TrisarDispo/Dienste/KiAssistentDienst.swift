@@ -7,6 +7,8 @@ enum KiAssistentDienst {
     struct Antwort {
         var text: String
         var buchungsVorschlag: KiBuchungsVorschlag?
+        /// Dienststart/Dienstende fuer die markierten Fahrer, erst der Knopf schickt ab.
+        var dienstVorschlag: DienstVorschlag?
     }
 
     /// Letzte Fahrer und Fahrten des Gespraechs, fuer Rueckfragen.
@@ -28,9 +30,12 @@ enum KiAssistentDienst {
         let kontext: AnyJSON?
         let offenerVorschlag: KiBuchungsVorschlag?
         let letzteFahrtId: String?
+        /// Auf der Karte markierte Fahrer: "schick die alle in Feierabend" meint sie.
+        let markierteFahrer: [MarkierterFahrer]
     }
+    private struct MarkierterFahrer: Encodable { let id: String; let name: String }
     private struct ServerAntwort: Decodable {
-        struct Aktion: Decodable { let type: String?; let proposal: KiBuchungsVorschlag? }
+        struct Aktion: Decodable { let type: String?; let proposal: KiBuchungsVorschlag?; let vorschlag: DienstVorschlag? }
         let answer: String?
         let action: Aktion?
         let kontext: AnyJSON?
@@ -71,11 +76,14 @@ enum KiAssistentDienst {
         let frage = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if frage.isEmpty { return Antwort(text: "Bitte stelle eine Frage.") }
         let anfrage = Anfrage(frage: frage, verlauf: verlauf.map { Eintrag(role: $0.rolle, text: $0.text) }, kontext: kontext,
-                              offenerVorschlag: offenerVorschlag, letzteFahrtId: letzteFahrtId)
+                              offenerVorschlag: offenerVorschlag, letzteFahrtId: letzteFahrtId,
+                              markierteFahrer: FahrerMarkierung.geteilt.wirkt
+                                ? FahrerMarkierung.geteilt.fahrer.map { MarkierterFahrer(id: $0.id, name: $0.name) } : [])
         let antwort: ServerAntwort = try await Backend.client.functions.invoke("dispo-admin", options: FunctionInvokeOptions(body: anfrage))
         if let neu = antwort.kontext { kontext = neu }
         let vorschlag = antwort.action?.type == "booking_proposal" ? antwort.action?.proposal : nil
-        return Antwort(text: antwort.answer ?? "", buchungsVorschlag: vorschlag)
+        let dienst = antwort.action?.type == "dienst_vorschlag" ? antwort.action?.vorschlag : nil
+        return Antwort(text: antwort.answer ?? "", buchungsVorschlag: vorschlag, dienstVorschlag: dienst)
     }
 }
 

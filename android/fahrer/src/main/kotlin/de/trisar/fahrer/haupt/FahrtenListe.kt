@@ -53,13 +53,38 @@ private const val NACH_KNOPF = 24f
 private const val TAG_OBEN = 44f
 private const val TAG_HOEHE = 32f
 private const val TAG_UNTEN = 56f
-private const val DIENST_HOEHE = 124f
 private const val DIENST_ABSTAND = 12f
 private const val DIENST_LISTE = 48f
+// Angenommener Dienst (12.11.): wie im Verlauf je eine Zeile Dienststart (vor den Fahrten) und
+// Dienstende (danach). Ist die Uhrzeit vorbei, verschwindet die Zeile (steht dann im Verlauf).
+private const val DIENST_ZEILE = 48f
+
+private fun dienstZeiten(a: DienstAnfrage): Pair<java.time.Instant?, java.time.Instant?> {
+    val tag = a.service_date.orEmpty().take(10)
+    val start = de.trisar.kern.Stunden.zuZeitpunkt(tag, a.service_start_time.orEmpty().take(5))
+    val ende = de.trisar.kern.Stunden.zuZeitpunkt(tag, a.service_end_time.orEmpty().take(5), start) // Nachtdienst
+    return start?.let { java.time.Instant.parse(it) } to ende?.let { java.time.Instant.parse(it) }
+}
+private fun zeigeStart(a: DienstAnfrage, jetzt: java.time.Instant) =
+    a.service_start_time.orEmpty().isNotEmpty() && (dienstZeiten(a).first?.isAfter(jetzt) ?: true)
+private fun zeigeEnde(a: DienstAnfrage, jetzt: java.time.Instant) =
+    a.service_end_time.orEmpty().isNotEmpty() && (dienstZeiten(a).second?.isAfter(jetzt) ?: true)
+
+/** Pausen-Zeilen eines angenommenen Dienstes, deren Uhrzeit noch nicht vorbei ist. */
+private fun offenePausen(a: DienstAnfrage, jetzt: java.time.Instant): List<AnfrageZeile> {
+    val tag = a.service_date.orEmpty().take(10)
+    return AnfrageZeile.pausenZeilen(a).filter { z ->
+        val t = de.trisar.kern.Stunden.zuZeitpunkt(tag, z.zeit)?.let { java.time.Instant.parse(it) } ?: return@filter true
+        t.plusSeconds(if (z.m >= 1440) 86_400 else 0).isAfter(jetzt)
+    }
+}
+
+/** Ein Dienst-Eintrag im Raster. art: "karte" (offene Anfrage), "start", "ende" oder "pause" (angenommen). */
+private class DienstEintrag(val anfrage: DienstAnfrage, val oben: Float, val art: String, val zeile: AnfrageZeile? = null)
 
 private class ListenRaster {
     val zeilen = mutableListOf<Pair<String, Float>>()
-    val dienste = mutableListOf<Pair<DienstAnfrage, Float>>()
+    val dienste = mutableListOf<DienstEintrag>()
     val fahrten = mutableListOf<Triple<Fahrt, Float, Boolean>>()
     val stunden = mutableListOf<Pair<de.trisar.kern.Stunden.Eintrag, Float>>()
     var unterkante = 0f
@@ -71,7 +96,7 @@ private class ListenRaster {
  */
 private fun rasterBerechnen(
     alle: List<Fahrt>, anfragen: List<DienstAnfrage>, stundenKarten: List<de.trisar.kern.Stunden.Eintrag>,
-    hoehe: (Fahrt) -> Float, fahrzeugKarte: Float = 268f,
+    hoehe: (Fahrt) -> Float, fahrzeugKarte: Float = 268f, jetzt: java.time.Instant = java.time.Instant.now(),
 ): ListenRaster {
     fun minuten(zeit: String): Int {
         val t = zeit.split(":").mapNotNull { it.toIntOrNull() }
@@ -82,6 +107,8 @@ private fun rasterBerechnen(
     for (a in anfragen) {
         val tag = a.service_date.orEmpty().take(10)
         if (tag.isEmpty()) continue
+        // Angenommen und Dienstende vorbei: nur noch im Verlauf.
+        if (a.angenommen && !zeigeStart(a, jetzt) && !zeigeEnde(a, jetzt) && offenePausen(a, jetzt).isEmpty()) continue
         anfragenProTag.getOrPut(tag) { mutableListOf() }.add(a)
     }
     val fahrtenProTag = fahrten.groupBy { it.fahrtDatum }
@@ -95,24 +122,46 @@ private fun rasterBerechnen(
         if (t > 0) cursor += TAG_OBEN
         r.zeilen += tag to cursor
         cursor += TAG_HOEHE + TAG_UNTEN
-        val liste = anfragenProTag[tag].orEmpty()
+        val alleDienste = anfragenProTag[tag].orEmpty()
+        val liste = alleDienste.filter { !it.angenommen }
         liste.forEachIndexed { i, a ->
-            r.dienste += a to cursor
-            cursor += if (a.angenommen) DIENST_HOEHE else DIENST_HOEHE + KNOPF_ABSTAND + KNOPF_HOEHE
+            r.dienste += DienstEintrag(a, cursor, "karte")
+            cursor += AnfrageZeile.kartenHoehe(AnfrageZeile.zeilen(a)) + KNOPF_ABSTAND + KNOPF_HOEHE
             if (i < liste.size - 1) cursor += DIENST_ABSTAND
         }
         if (liste.isNotEmpty()) cursor += DIENST_LISTE
+        for (a in alleDienste.filter { it.angenommen && zeigeStart(it, jetzt) }) {
+            r.dienste += DienstEintrag(a, cursor, "start")
+            cursor += DIENST_ZEILE + KARTEN_ABSTAND
+        }
+        // Pausen des angenommenen Dienstes warten, bis ihre Uhrzeit zwischen den Fahrten dran ist.
+        val pausenWarte = ArrayDeque(alleDienste.filter { it.angenommen }
+            .flatMap { a -> offenePausen(a, jetzt).map { a to it } }.sortedBy { it.second.m })
+        fun pausenBis(m: Double) {
+            while (pausenWarte.isNotEmpty() && pausenWarte.first().second.m <= m) {
+                val (a, z) = pausenWarte.removeFirst()
+                r.dienste += DienstEintrag(a, cursor, "pause", z)
+                cursor += DIENST_ZEILE + KARTEN_ABSTAND
+            }
+        }
         val tagesFahrten = fahrtenProTag[tag].orEmpty()
         for (f in tagesFahrten) {
+            val fm = minuten(f.etd)
+            if (fm != Int.MAX_VALUE) pausenBis(fm.toDouble())
             val mitKnoepfen = f.wartetAufAntwort
             r.fahrten += Triple(f, cursor, mitKnoepfen)
             val h = hoehe(f)
             cursor += if (mitKnoepfen) h + KNOPF_ABSTAND + KNOPF_HOEHE + NACH_KNOPF else h + KARTEN_ABSTAND
         }
+        pausenBis(Double.POSITIVE_INFINITY)
+        for (a in alleDienste.filter { it.angenommen && zeigeEnde(it, jetzt) }) {
+            r.dienste += DienstEintrag(a, cursor, "ende")
+            cursor += DIENST_ZEILE + KARTEN_ABSTAND
+        }
         for (e in stundenProTag[tag].orEmpty()) {
             if (tagesFahrten.isNotEmpty()) cursor += KARTEN_ABSTAND
             r.stunden += e to cursor
-            cursor += StundenKarteMass.hoehe(e) + if (StundenKarteMass.mitKnoepfen(e)) NACH_KNOPF else KARTEN_ABSTAND
+            cursor += heuteKartenHoehe(e) + KARTEN_ABSTAND
         }
     }
     r.unterkante = cursor
@@ -149,7 +198,12 @@ internal fun FahrtenListeSeite(
     val stundenFehler by StundenSpeicher.fehler.collectAsState()
     val stundenKarten = remember(stundenAlle) { StundenSpeicher.karten(stundenAlle) }
     val stundenScope = androidx.compose.runtime.rememberCoroutineScope()
-    val raster = remember(fahrten, anfragen, fahrzeugHoehe, stundenKarten) { rasterBerechnen(fahrten, anfragen, stundenKarten, kartenHoehe, fahrzeugHoehe) }
+    // Halbminutentakt, damit Dienststart/-ende verschwinden, sobald die Uhrzeit vorbei ist.
+    var jetzt by remember { mutableStateOf(java.time.Instant.now()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) { kotlinx.coroutines.delay(30_000); jetzt = java.time.Instant.now() }
+    }
+    val raster = remember(fahrten, anfragen, fahrzeugHoehe, stundenKarten, jetzt) { rasterBerechnen(fahrten, anfragen, stundenKarten, kartenHoehe, fahrzeugHoehe, jetzt) }
 
     Box(Modifier.fillMaxSize()) {
         Leinwand(inhaltHoehe = raster.unterkante + VERSATZ + NACH_KNOPF + 64f + 40f) {
@@ -161,7 +215,27 @@ internal fun FahrtenListeSeite(
 
             for ((datum, oben) in raster.zeilen) Tageszeile(datum, Modifier.platz(20f, VERSATZ + oben, 362f, TAG_HOEHE))
 
-            for ((anfrage, oben) in raster.dienste) {
+            for (d in raster.dienste) {
+                val anfrage = d.anfrage
+                val oben = d.oben
+                val art = d.art
+                val z = d.zeile
+                if (art == "pause" && z != null) {
+                    // Pausenstart/-ende des angenommenen Dienstes, nach Uhrzeit zwischen den Fahrten.
+                    Box(Modifier.platz(20f, VERSATZ + oben, 362f, DIENST_ZEILE).border(1.dp, z.farbe).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(z.text, style = grotesk(24f, 700, zeilenHoehe = 24f, abstand = 0.6f, farbe = z.farbe), maxLines = 1)
+                    }
+                    continue
+                }
+                if (art == "start" || art == "ende") {
+                    val farbe = if (art == "start") hex(0xE3F654) else hex(0xFF6F63)
+                    val zeit = (if (art == "start") anfrage.service_start_time else anfrage.service_end_time).orEmpty().take(5)
+                    Box(Modifier.platz(20f, VERSATZ + oben, 362f, DIENST_ZEILE).border(1.dp, farbe).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(if (art == "start") "Dienststart $zeit" else "Dienstende $zeit",
+                            style = grotesk(24f, 700, zeilenHoehe = 24f, abstand = 0.6f, farbe = farbe), maxLines = 1)
+                    }
+                    continue
+                }
                 DienstKarte(anfrage, dienstArbeitet == anfrage.id, Modifier.platz(20f, VERSATZ + oben, 362f)) { annehmen ->
                     speicher.dienstAntworten(anfrage, annehmen)
                 }
@@ -170,12 +244,10 @@ internal fun FahrtenListeSeite(
             // Stunden am Ende des Diensttages
             for ((e, oben) in raster.stunden) {
                 androidx.compose.runtime.key(e.dienst.id) {
-                    StundenKarte(
-                        e, Modifier.platz(20f, VERSATZ + oben, 362f), beschaeftigt = stundenArbeitet == e.dienst.id,
-                        annehmen = { stundenScope.launch { StundenSpeicher.annehmen(fahrerID, e) } },
-                        bearbeiten = { stundenBearbeiten(e) },
-                        ablehnen = { stundenAblehnen(e) },
-                    )
+                    // Stundenerfassung wie im Verlauf (Figma 2823-12431), Bearbeiten als Vollbild.
+                    Box(Modifier.platz(20f, VERSATZ + oben, 362f)) {
+                        HeuteStundenKarte(fahrerID, e, nachher = { stundenScope.launch { StundenSpeicher.laden() } }, vollbild = true)
+                    }
                 }
             }
 
@@ -226,20 +298,22 @@ private fun Tageszeile(datum: String, modifier: Modifier) {
     }
 }
 
-/** Dienstplan-Anfrage (Dienststart/Dienstende), darunter Ablehnen/Annehmen solange offen. */
+/** Dienstplan-Anfrage: Dienststart (Lime), Pausen (Grau), Dienstende (Rot), einzeln oder zusammen.
+ *  Erste Zeile gross, weitere kleiner. Darunter Ablehnen/Annehmen solange offen. */
 @Composable
 private fun DienstKarte(anfrage: DienstAnfrage, beschaeftigt: Boolean, modifier: Modifier, antworten: (Boolean) -> Unit) {
+    val zeilen = AnfrageZeile.zeilen(anfrage)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(
-            Modifier.size(362.dp, 124.dp).background(hex(0x1A1A1A))
+            Modifier.size(362.dp, AnfrageZeile.kartenHoehe(zeilen).dp).background(hex(0x1A1A1A))
                 .then(if (anfrage.angenommen) Modifier.border(2.dp, Farbe.lime) else Modifier)
                 .padding(start = 12.dp, end = 12.dp, top = 19.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            val start = anfrage.service_start_time
-            if (!start.isNullOrEmpty()) Text("Dienststart ${start.take(5)}", style = grotesk(38f, 700, farbe = hex(0xE3F654)), maxLines = 1)
-            val ende = anfrage.service_end_time
-            if (!ende.isNullOrEmpty()) Text("Dienstende ${ende.take(5)}", style = grotesk(24f, 700, farbe = hex(0xFF6F63)), maxLines = 1)
+            zeilen.forEachIndexed { i, z ->
+                val g = z.groesse(i == 0)
+                Text(z.text, style = grotesk(g, 700, zeilenHoehe = g, farbe = z.farbe), maxLines = 1, softWrap = false)
+            }
         }
         if (!anfrage.angenommen) AntwortKnoepfe(beschaeftigt, Modifier, { antworten(false) }, { antworten(true) })
     }

@@ -49,6 +49,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.trisar.dispo.DispoZiel
+import de.trisar.dispo.FahrerMarkierung
+import de.trisar.dispo.MarkierungsVermerk
 import de.trisar.dispo.Navileiste
 import de.trisar.kern.DispoHintergrund
 import de.trisar.kern.FussleisteUnten
@@ -92,7 +94,9 @@ internal fun FahrzeugBereichSeite(zeigen: (DispoZiel) -> Unit) {
                 erstellen = { seite = FahrzeugSeite.Erstellen }, bearbeiten = { seite = FahrzeugSeite.Bearbeiten(it) })
             FahrzeugSeite.Filter -> FahrzeugFilterSeite { seite = FahrzeugSeite.Liste }
             FahrzeugSeite.Erstellen -> FahrzeugFormularSeite(null) { seite = FahrzeugSeite.Liste }
-            is FahrzeugSeite.Bearbeiten -> FahrzeugFormularSeite(s.fahrzeug) { seite = FahrzeugSeite.Liste }
+            is FahrzeugSeite.Bearbeiten -> FahrzeugFormularSeite(s.fahrzeug,
+                // Sprung zum Fahrer (openDriverById): Fahrer-Bereich oeffnet dessen Ansicht.
+                fahrerOeffnen = { id -> FahrerSprung.id = id; zeigen(DispoZiel.FAHRER) }) { seite = FahrzeugSeite.Liste }
         }
     }
 }
@@ -116,7 +120,16 @@ private fun FahrzeugListeSeite(
         }
         onDispose { dienst.beenden() }
     }
-    val liste = filter.anwenden(dienst.fahrzeuge)
+    // Mehrfachauswahl der Karte: Fahrzeuge der markierten Fahrer zuerst und umrandet, alle uebrigen blass.
+    val markierungWirkt = FahrerMarkierung.wirkt
+    var markierteFahrzeuge by remember { mutableStateOf(emptySet<String>()) }
+    androidx.compose.runtime.LaunchedEffect(FahrerMarkierung.ids, markierungWirkt) {
+        markierteFahrzeuge = if (markierungWirkt) FahrerMarkierung.fahrzeugIDsLaden() else emptySet()
+    }
+    val liste = filter.anwenden(dienst.fahrzeuge).let { l ->
+        if (markierungWirkt) l.sortedBy { it.id !in markierteFahrzeuge } else l
+    }
+    val listeOben = if (markierungWirkt) 354f + 56f else 354f
     androidx.compose.runtime.LaunchedEffect(dienst.fahrzeuge) {
         val ziel = FahrzeugSprung.id ?: return@LaunchedEffect
         val f = dienst.fahrzeuge.firstOrNull { it.id == ziel } ?: return@LaunchedEffect
@@ -134,7 +147,7 @@ private fun FahrzeugListeSeite(
     val listenHoehe = bloecke.sum() + max(0, bloecke.size - 1) * 12f
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        Leinwand(874f, 354f + listenHoehe + 157f) { rahmen ->
+        Leinwand(874f, listeOben + listenHoehe + 157f) { rahmen ->
             DispoHintergrund(Modifier.platz(0f, 0f, 402f, rahmen))
             ZurueckKnopf(Modifier.platz(20f, 60f)) { zeigen(DispoZiel.START) }
             Box(Modifier.platz(332f, 60f, 50f, 50f).tippen(filterOeffnen)) {
@@ -153,7 +166,9 @@ private fun FahrzeugListeSeite(
                 }
             }
 
-            Column(Modifier.platz(20f, 354f, 362f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (markierungWirkt) MarkierungsVermerk(Modifier.platz(20f, 342f, 362f, 44f))
+
+            Column(Modifier.platz(20f, listeOben, 362f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (dienst.laedt) Text("Fahrzeuge werden geladen ...", style = grotesk(16f, 500, farbe = LIME))
                 if (!dienst.laedt && dienst.fehler.isNotEmpty()) {
                     FehlerKasten("Fahrzeuge konnten nicht geladen werden: ${dienst.fehler}", Modifier.fillMaxWidth())
@@ -163,7 +178,13 @@ private fun FahrzeugListeSeite(
                 }
                 for (f in liste) {
                     androidx.compose.runtime.key(f.id) {
-                        FahrzeugListenKarte(f, Modifier.tippen { bearbeiten(f) })
+                        val markiertesFahrzeug = f.id in markierteFahrzeuge
+                        val hervor = when {
+                            !markierungWirkt -> Modifier
+                            markiertesFahrzeug -> Modifier.border(3.dp, LIME)
+                            else -> Modifier.alpha(0.3f)
+                        }
+                        FahrzeugListenKarte(f, Modifier.tippen { bearbeiten(f) }.then(hervor))
                     }
                 }
             }
@@ -357,7 +378,7 @@ private fun FahrzeugFilterSeite(zurueck: () -> Unit) {
 private val KRAFTSTOFFE = listOf("E10", "Super 95", "Super Plus", "Diesel B7", "Diesel B10", "Elektro", "Plug-in-Hybrid")
 
 @Composable
-private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit) {
+private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((String) -> Unit)? = null, zurListe: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val fokus = LocalFocusManager.current
@@ -386,6 +407,31 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
             tracker = FahrzeugeDienst.trackerLaden()
             trackerStart = tracker.firstOrNull { it.vehicle_id == eigeneID }?.imei ?: ""
             trackerWahl = trackerStart
+        }
+    }
+
+    // Fahrer dieses Fahrzeugs (profiles.vehicle_id): zuweisen und mit einem Tipp zum Fahrer (12.11.).
+    var fahrerListe by remember { mutableStateOf(emptyList<FzFahrerWahl>()) }
+    var fahrerStand by remember { mutableStateOf(0) }
+    var fahrerOffen by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(fahrzeug?.id, fahrerStand) {
+        if (fahrzeug?.id.isNullOrEmpty()) return@LaunchedEffect
+        fahrerListe = runCatching { fzFahrerLaden() }.getOrElse { fahrerListe }
+    }
+    val zugewiesen = fahrerListe.firstOrNull { it.vehicleId == fahrzeug?.id }
+    fun fahrerZuweisen(neuID: String) {
+        val vid = fahrzeug?.id ?: return
+        fahrerOffen = false
+        scope.launch {
+            rueckmeldung = try {
+                fzFahrerZuweisen(vid, neuID)
+                if (neuID.isNotEmpty()) "Fahrer zugewiesen." else "Fahrer entfernt."
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                "Fahrer nicht gespeichert: ${dbMeldung(e)}"
+            }
+            fahrerStand++
         }
     }
 
@@ -447,6 +493,9 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
 
     var schadenHoehe by remember { mutableStateOf(0f) }
     val trackerVersatz = if (bearbeiten && tracker.isNotEmpty()) 136f else 0f
+    // Fahrer-Zeile (nur Bearbeiten) unter Bild bzw. Tracker, alles darunter 68 tiefer.
+    val fahrerVersatz = if (bearbeiten) 68f else 0f
+    val fahrerY = 682f + trackerVersatz
     val aktivitaet = NfcTagDienst.activity(ctx)
     DisposableEffect(Unit) { onDispose { aktivitaet?.let { NfcTagDienst.stoppen(it) } } }
 
@@ -472,7 +521,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
             )
         } ?: "Tag jetzt ans Handy halten zum Auslesen."
     }
-    val inhalt = if (bearbeiten) max(913f + trackerVersatz, 898f + trackerVersatz + schadenHoehe + 70f) else 913f
+    val inhalt = if (bearbeiten) max(913f + trackerVersatz + fahrerVersatz, 898f + trackerVersatz + fahrerVersatz + schadenHoehe + 70f) else 913f
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         Leinwand(874f, inhalt) { rahmen ->
             DispoHintergrund(Modifier.platz(0f, 0f, 402f, max(rahmen, inhalt)))
@@ -541,8 +590,34 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
                 }
             }
 
+            if (bearbeiten) {
+                val mitKnopf = zugewiesen != null && fahrerOeffnen != null
+                Box(Modifier.platz(20f, fahrerY, if (mitKnopf) 271f else 362f, 56f).border(2.dp, LIME).tippen { fokus.clearFocus(); fahrerOffen = true },
+                    contentAlignment = Alignment.CenterStart) {
+                    Text(zugewiesen?.name ?: "Kein Fahrer", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x8A9728)), maxLines = 1,
+                        modifier = Modifier.padding(start = 16.dp, end = 36.dp))
+                    Icon("Arrow-kurz_Trisar_Icons_01_Lime", Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(10.dp, 13.dp).rotate(90f))
+                    DropdownMenu(fahrerOffen, { fahrerOffen = false }, Modifier.background(hex(0x1E1E1E))) {
+                        DropdownMenuItem(text = { Text("Kein Fahrer", style = grotesk(16f, farbe = Color.White)) }, onClick = { fahrerZuweisen("") })
+                        for (p in fahrerListe) {
+                            val anderes = p.vehicleId.isNotEmpty() && p.vehicleId != fahrzeug?.id
+                            DropdownMenuItem(
+                                text = { Text(p.name + if (anderes) " (anderes Fahrzeug)" else "", style = grotesk(16f, farbe = Color.White)) },
+                                onClick = { fahrerZuweisen(p.id) },
+                            )
+                        }
+                    }
+                }
+                if (mitKnopf && zugewiesen != null) {
+                    Box(Modifier.platz(297f, fahrerY, 85f, 56f).background(LIME).tippen { fahrerOeffnen?.invoke(zugewiesen.id) },
+                        contentAlignment = Alignment.Center) {
+                        Text("Fahrer", style = grotesk(14f, 700, farbe = Color.Black))
+                    }
+                }
+            }
+
             Box(
-                Modifier.platz(20f, 694f + trackerVersatz, 362f, 56f).alpha(if (speichert) 0.7f else 1f).background(hex(0xDBEE4A))
+                Modifier.platz(20f, 694f + trackerVersatz + fahrerVersatz, 362f, 56f).alpha(if (speichert) 0.7f else 1f).background(hex(0xDBEE4A))
                     .tippen { if (!speichert) speichern() },
                 contentAlignment = Alignment.Center,
             ) {
@@ -550,7 +625,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
                     style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x0E1008)))
             }
 
-            Box(Modifier.platz(20f, 762f + trackerVersatz, 362f).heightIn(min = 56.dp).border(1.dp, hex(0x7F8A2B)).padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Box(Modifier.platz(20f, 762f + trackerVersatz + fahrerVersatz, 362f).heightIn(min = 56.dp).border(1.dp, hex(0x7F8A2B)).padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Text(rueckmeldung.ifEmpty { if (bearbeiten) "Fahrzeugdaten ändern und speichern." else "Fahrzeugdaten eintragen und speichern." },
                     style = grotesk(12f, 400, 12f * 1.3f, farbe = hex(0xC8D85D)))
             }
@@ -558,14 +633,14 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
             val fid = fahrzeug?.id
             if (bearbeiten && fid != null) {
                 Box(
-                    Modifier.platz(20f, 830f + trackerVersatz, 362f, 48f).border(2.dp, hex(0xFF3B30)).alpha(if (speichert) 0.6f else 1f)
+                    Modifier.platz(20f, 830f + trackerVersatz + fahrerVersatz, 362f, 48f).border(2.dp, hex(0xFF3B30)).alpha(if (speichert) 0.6f else 1f)
                         .tippen { if (!speichert) loeschFrage = true },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("Fahrzeug löschen", style = grotesk(16f, 500, farbe = hex(0xFF3B30)))
                 }
                 val dichte = androidx.compose.ui.platform.LocalDensity.current
-                SchadensBerichtDispo(fid, Modifier.platz(20f, 898f + trackerVersatz, 362f)
+                SchadensBerichtDispo(fid, Modifier.platz(20f, 898f + trackerVersatz + fahrerVersatz, 362f)
                     .then(Modifier.onSizeChanged { schadenHoehe = with(dichte) { it.height.toDp().value } }))
             }
         }
@@ -598,6 +673,35 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, zurListe: () -> Unit
 }
 
 
+
+// MARK: - Fahrer des Fahrzeugs
+
+private data class FzFahrerWahl(val id: String, val name: String, val vehicleId: String)
+
+/** Alle Fahrer ohne Dispo-, Koordinator- und Pruefkonten, nach Vorname (wie fahrerListe im Web). */
+private suspend fun fzFahrerLaden(): List<FzFahrerWahl> {
+    val ausgeschlossen = setOf("dispo", "dispatcher", "admin", "koordinator", "coordinator", "pruefung")
+    return de.trisar.kern.Backend.client.from("profiles")
+        .select(io.github.jan.supabase.postgrest.query.Columns.raw("id, first_name, last_name, vehicle_id, role, is_dispo")) {
+            order("first_name", io.github.jan.supabase.postgrest.query.Order.ASCENDING)
+        }.decodeList<JsonObject>()
+        .filter { !it.wahr("is_dispo") && it.text("role").lowercase() !in ausgeschlossen }
+        .map { p ->
+            val name = listOf(p.text("first_name"), p.text("last_name")).filter { it.isNotEmpty() }.joinToString(" ").trim()
+            FzFahrerWahl(p.text("id"), name.ifEmpty { "Ohne Name" }, p.text("vehicle_id"))
+        }
+}
+
+/** Bisherige Fahrer dieses Fahrzeugs loesen, dann den neuen setzen (leer = keiner). */
+private suspend fun fzFahrerZuweisen(fahrzeugID: String, neuID: String) {
+    val profile = de.trisar.kern.Backend.client.from("profiles")
+    profile.update(JsonObject(mapOf("vehicle_id" to JsonNull))) {
+        filter { eq("vehicle_id", fahrzeugID); neq("id", neuID.ifEmpty { "00000000-0000-0000-0000-000000000000" }) }
+    }
+    if (neuID.isNotEmpty()) {
+        profile.update(JsonObject(mapOf("vehicle_id" to JsonPrimitive(fahrzeugID)))) { filter { eq("id", neuID) } }
+    }
+}
 
 // MARK: - Schadensbericht (nur lesen)
 

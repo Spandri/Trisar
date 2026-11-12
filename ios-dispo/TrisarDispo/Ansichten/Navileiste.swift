@@ -122,7 +122,8 @@ private struct NaviKnopf: View {
     let aktiv: Bool
     let aktion: () -> Void
     var body: some View {
-        Button(action: aktion) {
+        // Leichtes Tippen wie bei den Schnellwahl-Feldern.
+        Button { UIImpactFeedbackGenerator(style: .soft).impactOccurred(); aktion() } label: {
             Image(icon).resizable().scaledToFit().frame(width: groesse.width, height: groesse.height)
                 .scaleEffect(aktiv ? 1.1 : 0.9)
                 .animation(.easeOut(duration: 0.3), value: aktiv)

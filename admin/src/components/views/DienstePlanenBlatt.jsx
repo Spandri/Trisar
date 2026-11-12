@@ -1,11 +1,21 @@
 // "Dienste planen" in der Fahrerliste: Dienstzeit fuer die ausgewaehlten Fahrer
-// setzen. Gestaltung wie der KI-Planer (Lime, eckig, Space Grotesk) statt der
-// Datums- und Zeitfelder des Browsers: Tag als Kacheln, Vorlagen mit Uhrzeit,
-// Zeiten mit Plus und Minus in 15-Minuten-Schritten.
+// setzen. Gestaltung wie die Stundenerfassung der Fahrer-App (Figma 2838:12842):
+// dunkle Karte mit gruenem Rand, vier Kacheln Start | Pause | Pause | Ende,
+// darunter die Dauer gross in Lime, unten Rot (Abbrechen) und Gruen (Senden).
+// Dienststart und Dienstende sind unabhaengig: was leer bleibt, wird nicht gesendet.
+// Eine Kachel antippen oeffnet das Drehrad wie in der Stundenerfassung (15-Minuten-Schritte).
 // Die Tutorial-Markierungen (dienste-sheet, dienst-vorlagen, dienst-vorlage-*,
 // dienst-abbrechen, dienst-anwenden) bleiben wie bisher.
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '../../services/supabase';
+import ZeitRad from '../ui/ZeitRad';
+import { dienstBestandLaden, pausenText } from '../../shared/dienstBestand';
 
 const LIME = '#E3F654';
+const GRUEN = '#59BE80';
+const ROT = '#FF6F63';
+const KACHEL = '#242525';
+const GRAU = '#5F5F5F';
 const SCHRITT_MIN = 15;
 
 const zuMinuten = (hhmm) => {
@@ -17,31 +27,200 @@ const zuUhrzeit = (min) => {
   const x = ((min % tag) + tag) % tag;
   return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`;
 };
-// Dauer in Stunden, ueber Mitternacht gerechnet (Nachtdienst 22–06 = 8 h).
-const dauerText = (start, ende) => {
-  const a = zuMinuten(start);
-  const b = zuMinuten(ende);
-  if (a == null || b == null) return '';
-  const d = ((b - a) + 24 * 60) % (24 * 60) || 24 * 60;
-  const h = Math.floor(d / 60);
-  const m = d % 60;
-  return m ? `${h} h ${m} min` : `${h} h`;
+// Spanne ueber Mitternacht gerechnet (Nachtdienst 22–06 = 8 h).
+const spanne = (von, bis) => {
+  const a = zuMinuten(von);
+  const b = zuMinuten(bis);
+  if (a == null || b == null) return 0;
+  return ((b - a) + 24 * 60) % (24 * 60) || 24 * 60;
+};
+// Netto-Dienstzeit als HH:MM wie in der Stundenerfassung (Pausen abgezogen).
+const nettoText = (start, ende, pausen) => {
+  const brutto = spanne(start, ende);
+  const pause = (pausen || []).reduce((summe, p) => summe + (p.von && p.bis ? spanne(p.von, p.bis) : 0), 0);
+  const netto = Math.max(0, brutto - pause);
+  return `${String(Math.floor(netto / 60)).padStart(2, '0')}:${String(netto % 60).padStart(2, '0')}`;
 };
 
-function Zeit({ titel, wert, onWert, start }) {
-  // Ohne Wert beginnt Plus und Minus bei einer sinnvollen Uhrzeit.
-  const ausgang = zuMinuten(wert) ?? zuMinuten(start);
-  const aendern = (delta) => onWert(zuUhrzeit(ausgang + delta));
-  const knopf = 'w-[44px] h-[44px] border-2 flex items-center justify-center text-[22px] font-bold leading-none';
+const heuteIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+// "Heute", "Morgen", sonst "Mi 12.11."
+const tagText = (iso) => {
+  const heute = heuteIso();
+  const d = new Date(`${iso}T12:00:00`);
+  const morgen = new Date(); morgen.setDate(morgen.getDate() + 1);
+  const morgenIso = `${morgen.getFullYear()}-${String(morgen.getMonth() + 1).padStart(2, '0')}-${String(morgen.getDate()).padStart(2, '0')}`;
+  const datum = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  if (iso === heute) return `Heute ${datum}`;
+  if (iso === morgenIso) return `Morgen ${datum}`;
+  return `${d.toLocaleDateString('de-DE', { weekday: 'short' })} ${datum}`;
+};
+
+function Pfeil() {
+  return <img src="/icon/_Icon_Schwarz/Pfeil_Knopf_Figma.svg" alt="" className="w-[34px] h-[19px] rotate-180" />;
+}
+
+// Kleines rotes × oben rechts wie in der Stundenerfassung: setzt die Kachel zurueck.
+function Entfernen({ onClick, titel }) {
   return (
-    <div className="border-2 px-[12px] pt-[8px] pb-[10px]" style={{ borderColor: LIME }}>
-      <span className="block text-[12px] font-medium" style={{ color: 'rgba(227,246,84,0.8)' }}>{titel}</span>
-      <div className="mt-[6px] flex items-center justify-between gap-[8px]">
-        <button type="button" onClick={() => aendern(-SCHRITT_MIN)} className={knopf} style={{ borderColor: LIME, color: LIME }} aria-label={`${titel} 15 Minuten früher`}>–</button>
-        <span className="text-[30px] font-bold tabular-nums tracking-[-0.5px]" style={{ color: wert ? LIME : 'rgba(227,246,84,0.35)' }}>{wert || start}</span>
-        <button type="button" onClick={() => aendern(SCHRITT_MIN)} className={knopf} style={{ borderColor: LIME, color: LIME }} aria-label={`${titel} 15 Minuten später`}>+</button>
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      aria-label={titel}
+      className="absolute -top-[8px] -right-[8px] z-[1] w-[24px] h-[24px] rounded-full flex items-center justify-center text-black text-[16px] font-bold leading-none"
+      style={{ background: ROT }}
+    >
+      ×
+    </button>
+  );
+}
+
+// Kachel fuer Start oder Ende: eine Zeit gross in Lime, leer grau. Gesetzt mit × zum Zuruecksetzen.
+function ZeitKachel({ wert, aktiv, onTippen, onEntfernen, marker }) {
+  return (
+    <div className="relative">
+    {wert && onEntfernen ? <Entfernen onClick={onEntfernen} titel="Zeit zurücksetzen" /> : null}
+    <button
+      type="button"
+      onClick={onTippen}
+      data-tutorial={marker}
+      className="w-full h-[69px] rounded-[12px] flex items-center justify-center"
+      style={{ background: KACHEL, outline: aktiv ? `2px solid ${LIME}` : 'none', outlineOffset: '-2px' }}
+    >
+      <span className="text-[22px] font-bold tracking-[-0.5px] tabular-nums whitespace-nowrap" style={{ color: wert ? LIME : GRAU }}>
+        {wert || '--:--'}
+      </span>
+    </button>
+    </div>
+  );
+}
+
+// Kachel fuer eine Pause: von oben, bis unten, grau. Leer ein Plus.
+function PausenKachel({ pause, aktivFeld, onTippen, onEntfernen }) {
+  const rahmen = aktivFeld ? `2px solid ${LIME}` : 'none';
+  if (!pause) {
+    // Wie in der Stundenerfassung: gestrichelter Rahmen mit Plus.
+    return (
+      <button
+        type="button"
+        onClick={() => onTippen('neu')}
+        className="w-full h-[69px] rounded-[12px] border-2 border-dashed flex items-center justify-center text-[28px] font-bold"
+        style={{ borderColor: LIME, color: LIME }}
+        aria-label="Pause hinzufügen"
+      >
+        +
+      </button>
+    );
+  }
+  const zeile = (feld) => (
+    <button
+      type="button"
+      onClick={() => onTippen(feld)}
+      className="w-full whitespace-nowrap text-[17px] font-bold tracking-[-0.5px] leading-[22px] tabular-nums"
+      style={{ color: aktivFeld === feld ? LIME : GRAU }}
+    >
+      {pause[feld]}
+    </button>
+  );
+  return (
+    <div
+      className="relative w-full h-[69px] rounded-[12px] flex flex-col items-center justify-center"
+      style={{ background: KACHEL, outline: rahmen, outlineOffset: '-2px' }}
+    >
+      {onEntfernen ? <Entfernen onClick={onEntfernen} titel="Pause entfernen" /> : null}
+      {zeile('von')}
+      {zeile('bis')}
+    </div>
+  );
+}
+
+// Zustand eines vorausgefuellten Feldes: 'neu' (geaendert), 'bestaetigt' oder 'angefragt'.
+const feldZustand = (bestand, feld, wert) => {
+  if (!bestand) return null;
+  const gleich = feld === 'pausen' ? pausenText(wert) === pausenText(bestand.pausen) : (wert || '') === (bestand[feld] || '');
+  if (!gleich) return 'neu';
+  if (!wert || (feld === 'pausen' && !wert.length)) return null;
+  if (bestand.angenommen) return 'bestaetigt';
+  if (bestand.vorher) {
+    const alt = feld === 'pausen' ? pausenText(bestand.vorher.pausen) === pausenText(wert) : (bestand.vorher[feld] || '') === (wert || '');
+    return alt ? 'bestaetigt' : 'angefragt';
+  }
+  return 'angefragt';
+};
+const ZUSTAND_TEXT = { neu: ['Neu', LIME], bestaetigt: ['Bestätigt', GRUEN], angefragt: ['Angefragt', '#FFCD8A'] };
+function ZustandZeile({ zustand }) {
+  if (!zustand) return null;
+  const [text, farbe] = ZUSTAND_TEXT[zustand];
+  return <span className="block text-center text-[11px] font-bold leading-[13px]" style={{ color: farbe }}>{text}</span>;
+}
+
+// Monatskalender fuer "+ Tag": auch Tage in der Vergangenheit. Tage, an denen die ausgewaehlten
+// Fahrer schon einen Dienst haben (angefragt oder angenommen), tragen einen Lime-Punkt.
+// Tippen waehlt einen Tag aus oder ab.
+const isoVon = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function DienstKalender({ gewaehlt, umschalten, fahrerIds }) {
+  const [monat, setMonat] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+  const [belegt, setBelegt] = useState(new Set());
+  const ids = (fahrerIds || []).join(',');
+  useEffect(() => {
+    let aktiv = true;
+    if (!ids) { Promise.resolve().then(() => { if (aktiv) setBelegt(new Set()); }); return () => { aktiv = false; }; }
+    const von = isoVon(monat);
+    const bis = isoVon(new Date(monat.getFullYear(), monat.getMonth() + 1, 0));
+    supabase.from('driver_service_requests').select('service_date, status')
+      .in('driver_id', ids.split(',')).gte('service_date', von).lte('service_date', bis)
+      .then(({ data }) => {
+        if (aktiv) setBelegt(new Set((data || []).filter((x) => String(x.status || '').toLowerCase() !== 'refused').map((x) => x.service_date)));
+      });
+    return () => { aktiv = false; };
+  }, [ids, monat]);
+  const ersterWochentag = (monat.getDay() + 6) % 7; // Montag = 0
+  const tage = new Date(monat.getFullYear(), monat.getMonth() + 1, 0).getDate();
+  const felder = [...Array(ersterWochentag).fill(null), ...Array.from({ length: tage }, (_, i) => i + 1)];
+  const heute = heuteIso();
+  return (
+    <div className="mt-[10px] rounded-[12px] p-[10px]" style={{ background: KACHEL }}>
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={() => setMonat(new Date(monat.getFullYear(), monat.getMonth() - 1, 1))} className="w-[36px] h-[32px] text-[20px] font-bold" style={{ color: LIME }} aria-label="Monat zurück">‹</button>
+        <span className="text-[15px] font-bold text-white">{monat.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</span>
+        <button type="button" onClick={() => setMonat(new Date(monat.getFullYear(), monat.getMonth() + 1, 1))} className="w-[36px] h-[32px] text-[20px] font-bold" style={{ color: LIME }} aria-label="Monat vor">›</button>
+      </div>
+      <div className="mt-[4px] grid grid-cols-7 text-center text-[11px] font-bold text-white/50">
+        {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((w) => <span key={w}>{w}</span>)}
+      </div>
+      <div className="mt-[2px] grid grid-cols-7 gap-y-[2px]">
+        {felder.map((tag, i) => {
+          if (!tag) return <span key={`l${i}`} />;
+          const iso = isoVon(new Date(monat.getFullYear(), monat.getMonth(), tag));
+          const an = gewaehlt.includes(iso);
+          return (
+            <button
+              key={iso}
+              type="button"
+              onClick={() => umschalten(iso)}
+              className="relative h-[36px] flex flex-col items-center justify-center rounded-[8px] text-[14px] font-bold tabular-nums"
+              style={{ background: an ? LIME : 'transparent', color: an ? '#000' : (iso < heute ? GRAU : '#FFFFFF'), outline: iso === heute && !an ? `1px solid ${LIME}` : 'none', outlineOffset: '-1px' }}
+            >
+              {tag}
+              {belegt.has(iso) ? <span className="absolute bottom-[3px] w-[5px] h-[5px] rounded-full" style={{ background: an ? '#000' : LIME }} /> : null}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-[6px] flex items-center gap-[6px] text-[11px] font-medium text-white/50">
+        <span className="w-[5px] h-[5px] rounded-full" style={{ background: LIME }} /> schon ein Dienst eingetragen
       </div>
     </div>
+  );
+}
+
+function Beschriftung({ text, an }) {
+  return (
+    <span className="block mt-[6px] text-center text-[16px] font-bold tracking-[-0.5px]" style={{ color: an ? '#FFFFFF' : GRAU }}>
+      {text}
+    </span>
   );
 }
 
@@ -50,45 +229,211 @@ export default function DienstePlanenBlatt({
   anzahl,
   tage,            // [{ iso, wochentag, datum }] der Planungshorizont
   datum, onDatum,
+  daten, onDaten,   // mehrere Tage (YYYY-MM-DD), optional
   start, onStart,
   ende, onEnde,
+  pausen, onPausen, // [{ von, bis }] als HH:MM, optional
+  fahrerIds = [],   // ausgewaehlte Fahrer, fuer die Punkte im Kalender
+  bestand = null, onBestand = () => {}, // vorhandener Dienst (ein Fahrer, ein Tag), vorausgefuellt
   vorlagen,
   fehler,
   speichert,
   onAnwenden,
   onSchliessen,
 }) {
+  // Gewaehlte Tage (Kalender). Ohne daten/onDaten gilt der einzelne Tag wie bisher.
+  const tageListe = (daten && daten.length ? daten : [datum]).filter(Boolean);
+  const tageSetzen = (liste) => {
+    if (onDaten) onDaten(liste);
+    if (liste[0]) onDatum(liste[0]);
+  };
+
+  // Welche Zeit Plus und Minus gerade verschieben: 'start', 'ende', 'p0-von', 'p1-bis' ...
+  const [feld, setFeld] = useState(start ? 'start' : null);
+  // Drehrad fuer das gewaehlte Feld offen.
+  const [radOffen, setRadOffen] = useState(false);
+  // Monatskalender fuer weitere Tage (auch Vergangenheit, belegte Tage mit Punkt).
+  const [kalenderOffen, setKalenderOffen] = useState(false);
+  const liste = pausen || [];
+
+  // Genau ein Fahrer und ein Tag: vorhandenen Dienst laden und die Kacheln damit fuellen.
+  const schluessel = fahrerIds.length === 1 && tageListe.length === 1 ? `${fahrerIds[0]}|${tageListe[0]}` : '';
+  const hatteBestand = useRef(false);
+  useEffect(() => {
+    let aktiv = true;
+    const setzen = (b) => {
+      if (!aktiv) return;
+      onBestand(b);
+      if (b) {
+        onStart(b.start); onEnde(b.ende); onPausen?.(b.pausen);
+      } else if (hatteBestand.current) {
+        onStart(''); onEnde(''); onPausen?.([]);
+      }
+      hatteBestand.current = Boolean(b);
+      setFeld(null);
+    };
+    if (!schluessel) { Promise.resolve().then(() => setzen(null)); return () => { aktiv = false; }; }
+    const [f, tag] = schluessel.split('|');
+    dienstBestandLaden(f, tag).then(setzen).catch(() => setzen(null));
+    return () => { aktiv = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schluessel]);
+  const zStart = feldZustand(bestand, 'start', start);
+  const zEnde = feldZustand(bestand, 'ende', ende);
+  const zPausen = feldZustand(bestand, 'pausen', liste);
+  const unveraendert = Boolean(bestand) && zStart !== 'neu' && zEnde !== 'neu' && zPausen !== 'neu';
+  // × bei vorausgefuellten Feldern: zurueck auf den gesendeten Stand. Gesendetes selbst bleibt.
+  const startZurueck = bestand?.start ? (zStart === 'neu' ? () => { onStart(bestand.start); setFeld(null); } : null) : () => { onStart(''); setFeld(null); };
+  const endeZurueck = bestand?.ende ? (zEnde === 'neu' ? () => { onEnde(bestand.ende); setFeld(null); } : null) : () => { onEnde(''); setFeld(null); };
   const aktiveVorlage = vorlagen.find((v) => v.start === start && v.end === ende)?.key || null;
+
+  const pausenIndex = feld?.startsWith('p') ? Number(feld.slice(1, 2)) : null;
+  const pausenFeld = pausenIndex != null ? feld.slice(3) : null;
+  const feldWert = feld === 'start' ? start
+    : feld === 'ende' ? ende
+      : (pausenIndex != null ? liste[pausenIndex]?.[pausenFeld] : '');
+
+  const feldSetzen = (wert) => {
+    if (feld === 'start') onStart(wert);
+    else if (feld === 'ende') onEnde(wert);
+    else if (pausenIndex != null && onPausen) {
+      onPausen(liste.map((p, i) => (i === pausenIndex ? { ...p, [pausenFeld]: wert } : p)));
+    }
+  };
+
+  const zeitTippen = (welches) => {
+    const wert = welches === 'start' ? start : ende;
+    if (!wert) {
+      // Leere Kachel: sinnvolle Zeit vorschlagen (Ende 8 h nach Start, sonst 16:00).
+      const vorschlag = welches === 'start'
+        ? (ende ? zuUhrzeit(zuMinuten(ende) - 8 * 60) : '08:00')
+        : (start ? zuUhrzeit(zuMinuten(start) + 8 * 60) : '16:00');
+      (welches === 'start' ? onStart : onEnde)(vorschlag);
+    }
+    setFeld(welches);
+    setRadOffen(true);
+  };
+
+  const pauseTippen = (index, was) => {
+    if (was === 'neu') {
+      // Neue Pause in der Mitte des Dienstes, 30 Minuten.
+      const a = zuMinuten(start);
+      const mitte = a != null && ende ? a + spanne(start, ende) / 2 : 12 * 60;
+      const von = Math.round(mitte / SCHRITT_MIN) * SCHRITT_MIN + index * 60;
+      onPausen?.([...liste, { von: zuUhrzeit(von), bis: zuUhrzeit(von + 30) }]);
+      setFeld(`p${liste.length}-von`);
+      setRadOffen(true);
+      return;
+    }
+    setFeld(`p${index}-${was}`);
+    setRadOffen(true);
+  };
+
+  // Senden geht auch nur mit einer Pause (Dienst des Tages bleibt, der Fahrer bestaetigt nur die Pause).
+  const nurPause = !start && !ende && liste.some((p) => p.von && p.bis);
+  const nichtsGesetzt = !start && !ende && !nurPause;
+
   return (
-    <div data-tutorial="dienste-sheet" className="absolute left-0 right-0 bottom-0 bg-black border-t-2 px-[20px] pt-[20px] pb-[22px] max-h-[calc(100dvh-20px)] overflow-y-auto font-['Space_Grotesk']" style={{ borderColor: LIME }}>
-      <div className="flex items-baseline justify-between">
-        <div className="text-[30px] font-bold leading-tight tracking-[-0.5px]" style={{ color: LIME }}>{t('fahrer.planServices')}</div>
-        <div className="text-[13px] font-medium text-white/70">
+    <div
+      data-tutorial="dienste-sheet"
+      className="absolute left-0 right-0 bottom-0 bg-black px-[20px] pt-[20px] pb-[22px] max-h-[calc(100dvh-20px)] overflow-y-auto font-['Space_Grotesk']"
+    >
+      <div className="border-2 px-[17px] pt-[14px] pb-[16px]" style={{ background: '#1A1A1A', borderColor: GRUEN }}>
+        <div className="text-center text-[18px] font-bold tracking-[-0.5px]" style={{ color: LIME }}>{t('fahrer.planServices')}</div>
+        <div className="mt-[2px] text-center text-[12px] font-medium text-white/60">
           {anzahl > 0 ? t('fahrer.driversSelected', { n: anzahl }) : t('fahrer.noneSelected')}
+        </div>
+
+        {/* Tage: Kalender wie bei Fahrt anlegen, beliebig viele Tage */}
+        <div className="mt-[12px] flex flex-wrap gap-[8px]">
+          {tageListe.map((iso) => (
+            <button
+              key={iso}
+              type="button"
+              onClick={() => (tageListe.length > 1 ? tageSetzen(tageListe.filter((d) => d !== iso)) : null)}
+              className="h-[48px] pl-[12px] pr-[10px] rounded-[12px] flex items-center gap-[8px]"
+              style={{ background: KACHEL, outline: `2px solid ${LIME}`, outlineOffset: '-2px', color: LIME }}
+              aria-label={tageListe.length > 1 ? `${tagText(iso)} entfernen` : tagText(iso)}
+            >
+              <span className="text-[15px] font-bold leading-[18px] whitespace-nowrap">{tagText(iso)}</span>
+              {tageListe.length > 1 ? <span className="text-[18px] leading-none text-white/60">×</span> : null}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setKalenderOffen((x) => !x)}
+            className="h-[48px] px-[14px] rounded-[12px] flex items-center gap-[8px]"
+            style={{ background: KACHEL, color: kalenderOffen ? LIME : '#FFFFFF' }}
+            aria-label="Tage im Kalender wählen"
+          >
+            <span className="text-[15px] font-bold leading-[18px] whitespace-nowrap">{kalenderOffen ? 'Kalender zu' : '+ Tag'}</span>
+          </button>
+        </div>
+
+        {kalenderOffen ? (
+          <DienstKalender
+            gewaehlt={tageListe}
+            fahrerIds={fahrerIds}
+            umschalten={(iso) => {
+              if (tageListe.includes(iso)) { if (tageListe.length > 1) tageSetzen(tageListe.filter((d) => d !== iso)); }
+              else tageSetzen([...tageListe, iso].sort());
+            }}
+          />
+        ) : null}
+
+        {/* Start | Pause | Pause | Ende */}
+        <div className="mt-[14px] grid grid-cols-4 gap-[6px]">
+          <div>
+            <ZeitKachel wert={start} aktiv={feld === 'start'} onTippen={() => zeitTippen('start')} onEntfernen={startZurueck} marker="dienst-start" />
+            <Beschriftung text="Start" an={Boolean(start)} />
+            <ZustandZeile zustand={zStart} />
+          </div>
+          {[0, 1].map((index) => (
+            <div key={index}>
+              {onPausen && (liste[index] || index === liste.length) ? (
+                <PausenKachel
+                  pause={liste[index]}
+                  aktivFeld={pausenIndex === index ? pausenFeld : null}
+                  onTippen={(was) => pauseTippen(index, was)}
+                  onEntfernen={() => { onPausen(liste.filter((_, i) => i !== index)); setFeld(null); }}
+                />
+              ) : (
+                <div className="w-full h-[69px] rounded-[12px]" style={{ background: KACHEL, opacity: 0.5 }} />
+              )}
+              <Beschriftung text="Pause" an={false} />
+              {liste[index] ? <ZustandZeile zustand={zPausen} /> : null}
+            </div>
+          ))}
+          <div>
+            <ZeitKachel wert={ende} aktiv={feld === 'ende'} onTippen={() => zeitTippen('ende')} onEntfernen={endeZurueck} marker="dienst-ende" />
+            <Beschriftung text="Ende" an={Boolean(ende)} />
+            <ZustandZeile zustand={zEnde} />
+          </div>
+        </div>
+
+        {radOffen && feld && feldWert ? (
+          <ZeitRad key={feld} wert={feldWert} setWert={feldSetzen} schliessen={() => setRadOffen(false)} />
+        ) : null}
+
+        {/* Dauer gross, wie die Arbeitszeit in der Stundenerfassung */}
+        <div className="mt-[10px] text-center tabular-nums">
+          {start && ende ? (
+            <>
+              <div className="text-[35px] font-bold tracking-[-0.5px] leading-[44px]" style={{ color: LIME }}>{nettoText(start, ende, liste)}</div>
+              {zuMinuten(ende) <= zuMinuten(start) ? (
+                <div className="text-[12px] font-medium text-white/60">endet am Folgetag</div>
+              ) : null}
+            </>
+          ) : (
+            <div className="text-[18px] font-bold tracking-[-0.5px] leading-[44px]" style={{ color: nichtsGesetzt ? GRAU : LIME }}>
+              {nichtsGesetzt ? 'Start oder Ende antippen' : nurPause ? 'Nur Pause' : (start ? 'Nur Dienststart' : 'Nur Dienstende')}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Tag */}
-      <div className="mt-[16px] grid grid-cols-3 gap-[8px]">
-        {tage.map((tag) => {
-          const aktiv = tag.iso === datum;
-          return (
-            <button
-              key={tag.iso}
-              type="button"
-              onClick={() => onDatum(tag.iso)}
-              className="h-[56px] border-2 flex flex-col items-center justify-center"
-              style={{ borderColor: LIME, background: aktiv ? LIME : 'transparent', color: aktiv ? '#000' : LIME }}
-            >
-              <span className="text-[12px] font-medium leading-[14px]">{tag.wochentag}</span>
-              <span className="text-[18px] font-bold leading-[22px]">{tag.datum}</span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* Vorlagen */}
-      <div data-tutorial="dienst-vorlagen" className="mt-[10px] grid grid-cols-4 gap-[8px]">
+      <div data-tutorial="dienst-vorlagen" className="mt-[10px] grid grid-cols-4 gap-[6px]">
         {vorlagen.map((v) => {
           const aktiv = v.key === aktiveVorlage;
           return (
@@ -96,48 +441,46 @@ export default function DienstePlanenBlatt({
               key={v.key}
               type="button"
               data-tutorial={`dienst-vorlage-${v.key}`}
-              onClick={() => { onStart(v.start); onEnde(v.end); }}
-              className="h-[56px] border-2 flex flex-col items-center justify-center"
-              style={{ borderColor: LIME, background: aktiv ? LIME : 'transparent', color: aktiv ? '#000' : LIME }}
+              onClick={() => { onStart(v.start); onEnde(v.end); setFeld('start'); }}
+              className="h-[48px] rounded-[12px] flex flex-col items-center justify-center"
+              style={{ background: KACHEL, outline: aktiv ? `2px solid ${LIME}` : 'none', outlineOffset: '-2px', color: aktiv ? LIME : '#FFFFFF' }}
             >
               <span className="text-[14px] font-bold leading-[17px]">{t(v.labelKey)}</span>
-              <span className="text-[11px] leading-[14px] opacity-80 tabular-nums">{`${v.start.slice(0, 2)}–${v.end.slice(0, 2)}`}</span>
+              <span className="text-[11px] leading-[14px] opacity-70 tabular-nums">{`${v.start.slice(0, 2)}–${v.end.slice(0, 2)}`}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Zeiten */}
-      <div className="mt-[10px] grid grid-cols-2 gap-[8px]">
-        <Zeit titel={t('fahrer.serviceStart')} wert={start} onWert={onStart} start="08:00" />
-        <Zeit titel={t('fahrer.serviceEnd')} wert={ende} onWert={onEnde} start="16:00" />
-      </div>
-      <div className="mt-[8px] h-[16px] text-[12px] text-white/60 tabular-nums">
-        {start && ende ? `${dauerText(start, ende)} Dienst${zuMinuten(ende) <= zuMinuten(start) ? ', endet am Folgetag' : ''}` : ''}
-      </div>
+      {unveraendert ? (
+        <div className="mt-[8px] text-center text-[13px] font-medium text-white/60">Schon gesendet. Zeit antippen zum Ändern.</div>
+      ) : null}
 
       {fehler ? (
         <div className="mt-[8px] text-[#FF8E8E] text-[13px] whitespace-pre-line font-medium">{fehler}</div>
       ) : null}
 
-      <div className="mt-[12px] grid grid-cols-2 gap-[8px]">
+      <div className="mt-[12px] grid grid-cols-2 gap-[9px]">
         <button
           type="button"
           onClick={onSchliessen}
           data-tutorial="dienst-abbrechen"
-          className="h-[51px] border-2 border-white/30 text-white text-[16px] font-medium"
+          className="h-[56px] px-[16px] flex items-center justify-between text-[#202020] text-[16px] font-medium tracking-[0.5px]"
+          style={{ background: ROT }}
         >
-          {t('fahrer.cancel')}
+          <span>{t('fahrer.cancel')}</span>
+          <Pfeil />
         </button>
         <button
           type="button"
           onClick={onAnwenden}
           data-tutorial="dienst-anwenden"
-          disabled={speichert}
-          className="h-[51px] text-black text-[16px] font-bold disabled:opacity-60"
-          style={{ background: LIME }}
+          disabled={speichert || nichtsGesetzt || unveraendert || !anzahl}
+          className="h-[56px] px-[16px] flex items-center justify-between text-[#202020] text-[16px] font-medium tracking-[0.5px] disabled:opacity-50"
+          style={{ background: GRUEN }}
         >
-          {speichert ? t('fahrer.saving') : t('fahrer.applyToDrivers', { n: anzahl || 0 })}
+          <span>{speichert ? t('fahrer.saving') : `Senden (${anzahl || 0})`}</span>
+          <Pfeil />
         </button>
       </div>
     </div>

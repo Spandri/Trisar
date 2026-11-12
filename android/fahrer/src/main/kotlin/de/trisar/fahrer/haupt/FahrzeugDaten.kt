@@ -274,7 +274,12 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
             val tank = zahl(live["fuel_level_pct"])
             if (tank != null) z += TelemetrieZeile("fuel", "Tank", "${tank.roundToInt()} %", tank < 15)
             if (tank == null) zahl(live["oem_fuel_l"])?.let { z += TelemetrieZeile("fuel", "Tank", "${dezimal(it)} l", false) }
-            zahl(live["oem_remaining_distance_km"])?.let { z += TelemetrieZeile("range", "Reichweite", "${ganz(it)} km", it < 50) }
+            // Echte Restreichweite des Autos, sonst selbst geschaetzt aus Tank (l) und gelerntem Verbrauch.
+            val reichweiteAuto = zahl(live["oem_remaining_distance_km"])
+            (reichweiteAuto ?: zahl(live["geschaetzte_reichweite_km"]))?.let {
+                z += TelemetrieZeile("range", "Reichweite", "${if (reichweiteAuto == null) "ca. " else ""}${ganz(it)} km", it < 50)
+            }
+            zahl(live["verbrauch_l_100km"])?.let { z += TelemetrieZeile("consumption", "Verbrauch", "${dezimal(it)} l/100 km", false) }
             zahl(live["coolant_c"])?.let { z += TelemetrieZeile("coolant", "Kühlmittel", "${it.roundToInt()} °C", it > 110) }
             zahl(live["ext_voltage_v"])?.let { z += TelemetrieZeile("voltage", "Bordspannung", "${dezimal(it)} V", it > 0 && it < 11.8) }
             (zahl(live["oem_mileage_km"]) ?: zahl(live["total_odometer_km"]))?.let { z += TelemetrieZeile("odometer", "Kilometerstand", "${ganz(it)} km", false) }

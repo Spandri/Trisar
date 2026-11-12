@@ -322,7 +322,8 @@ object FahrtSpeichern {
     private suspend fun vorbereiten(e: FahrtEingabe): Vorbereitet {
         val start = FahrtText.getrimmt(e.werte.start)
         val ziel = FahrtText.getrimmt(e.werte.ziel)
-        if (start.isEmpty() || ziel.isEmpty()) throw Abbruch(FahrtText.tr("app.startZielFehlt"))
+        // Start leer = Standort des Fahrers (DB-Trigger trg_jobs_a_start_fahrerstandort).
+        if (ziel.isEmpty()) throw Abbruch(FahrtText.tr("app.startZielFehlt"))
         val tag = FahrtText.fahrtDatum(e.werte.datum)
         if (tag.isEmpty()) throw Abbruch(FahrtText.tr("app.datumUngueltig"))
         var startZeit = FahrtText.uhrzeit(e.werte.startZeit, "")

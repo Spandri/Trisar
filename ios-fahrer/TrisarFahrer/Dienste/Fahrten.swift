@@ -47,8 +47,19 @@ struct DienstAnfrage: Decodable, Identifiable, Equatable {
     let service_start_time: String?
     let service_end_time: String?
     let status: String?
+    /// Geplante Pausen (dienst_pausen) und der zuletzt angenommene Stand (dienst_aenderung).
+    /// Ohne vorher ist es ein ganz neuer Dienst, sonst zeigt die Anfrage nur das Geaenderte.
+    var pausen: [Stunden.DienstPause]? = nil
+    var vorher: DienstVorher? = nil
 
     var angenommen: Bool { (status ?? "").lowercased() == "accepted" }
+}
+
+/// Zuletzt angenommener Stand eines geaenderten Dienstes (dienst_aenderung.vorher).
+struct DienstVorher: Decodable, Equatable {
+    let start: String?
+    let ende: String?
+    let pausen: [Stunden.DienstPause]?
 }
 
 // MARK: - Fahrt fuer die Anzeige
@@ -183,7 +194,23 @@ final class FahrtenSpeicher: ObservableObject {
             let profil = try await profilAbfrage
             let direkt = try await direktAbfrage
             let links = (try? await kolonnenAbfrage) ?? []
-            let dienste = (try? await dienstAbfrage) ?? []
+            var dienste = (try? await dienstAbfrage) ?? []
+            // Pausen und gemerkte Aenderung je Dienst dazu (fuer die Zeilen der Anfrage).
+            if !dienste.isEmpty {
+                struct PausenZeile: Decodable { let dienst_id: UUID; let pausen: [Stunden.DienstPause]? }
+                struct AenderungZeile: Decodable { let dienst_id: UUID; let vorher: DienstVorher? }
+                let ids = dienste.map(\.id.uuidString)
+                let pausen: [PausenZeile] = (try? await Backend.client.from("dienst_pausen").select("dienst_id,pausen")
+                    .in("dienst_id", values: ids).execute().value) ?? []
+                let aenderungen: [AenderungZeile] = (try? await Backend.client.from("dienst_aenderung").select("dienst_id,vorher")
+                    .in("dienst_id", values: ids).execute().value) ?? []
+                let pausenJe = Dictionary(pausen.map { ($0.dienst_id, $0.pausen ?? []) }, uniquingKeysWith: { a, _ in a })
+                let vorherJe = Dictionary(aenderungen.compactMap { a in a.vorher.map { (a.dienst_id, $0) } }, uniquingKeysWith: { a, _ in a })
+                for i in dienste.indices {
+                    dienste[i].pausen = pausenJe[dienste[i].id] ?? []
+                    dienste[i].vorher = vorherJe[dienste[i].id]
+                }
+            }
 
             let kolonnenIDs = Array(Set(links.filter { ($0.response_status ?? "pending") != "refused" }.compactMap(\.job_id)))
             var kolonnenFahrten: [FahrtZeile] = []
@@ -339,11 +366,11 @@ final class FahrtenSpeicher: ObservableObject {
         dienstArbeitetID = anfrage.id
         defer { dienstArbeitetID = nil }
         do {
-            struct Antwort: Encodable { let status: String; let responded_at: String; let refusal_reason: String? }
-            try await Backend.client.from("driver_service_requests")
-                .update(Antwort(status: annehmen ? "accepted" : "refused", responded_at: Datum.iso(Date()),
-                                refusal_reason: annehmen ? nil : "Fahrer hat den Dienstplan abgelehnt."))
-                .eq("id", value: anfrage.id).eq("driver_id", value: fahrer).execute()
+            // Datenbank-Funktion dienst_antworten: lehnt der Fahrer nur eine Aenderung ab, gilt wieder
+            // der alte Stand (Zeiten und Pausen) und der Dienst bleibt angenommen.
+            struct Parameter: Encodable { let p_id: String; let p_annehmen: Bool }
+            let ergebnis: String = try await Backend.client.rpc("dienst_antworten",
+                params: Parameter(p_id: anfrage.id.uuidString, p_annehmen: annehmen)).execute().value
             if annehmen {
                 struct Dienst: Encodable {
                     let service_start_time: String?; let service_end_time: String?
@@ -356,9 +383,20 @@ final class FahrtenSpeicher: ObservableObject {
             }
             dienstAnfragen = dienstAnfragen.compactMap { eintrag in
                 guard eintrag.id == anfrage.id else { return eintrag }
-                return annehmen ? DienstAnfrage(id: eintrag.id, service_date: eintrag.service_date,
-                                                service_start_time: eintrag.service_start_time,
-                                                service_end_time: eintrag.service_end_time, status: "accepted") : nil
+                switch ergebnis {
+                case "accepted":
+                    return DienstAnfrage(id: eintrag.id, service_date: eintrag.service_date,
+                                         service_start_time: eintrag.service_start_time,
+                                         service_end_time: eintrag.service_end_time, status: "accepted",
+                                         pausen: eintrag.pausen, vorher: nil)
+                case "zurueckgesetzt":
+                    let v = eintrag.vorher
+                    return DienstAnfrage(id: eintrag.id, service_date: eintrag.service_date,
+                                         service_start_time: v?.start, service_end_time: v?.ende, status: "accepted",
+                                         pausen: v?.pausen ?? [], vorher: nil)
+                default:
+                    return nil
+                }
             }
         } catch {
             fehler = "Dienstplan-Anfrage konnte nicht gespeichert werden: \(error.localizedDescription)"

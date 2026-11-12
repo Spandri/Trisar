@@ -8,8 +8,12 @@ import { adresseAufloesen, karteBereitstellen } from '../../shared/karte/maplibr
 import { FahrSimulation } from '../../demo/fahrSimulation';
 import { DEMO_MODE } from '../../datenquelle';
 import { useRoutenStandort } from '../../shared/routenStandort';
-import { ortIconUrl, ortNachId, useOrte } from '../../shared/orte';
+import { ORT_KREIS_URL, ORT_RING_URL, ortIconSchwarz, ortIconUrl, ortNachId, useOrte } from '../../shared/orte';
 import { ortKreiseAusblenden, ortKreiseZeigen, ortSchildBauen } from '../../shared/karte/ortKreise';
+import { fahrerMarkierung, useFahrerMarkierung } from '../../shared/fahrerMarkierung';
+import AuswahlErklaerung from '../ui/AuswahlErklaerung';
+import FlaggenKnoepfe from '../ui/FlaggenKnoepfe';
+import { FLAGGEN, FLAGGE_UMRISS, flaggeId, flaggeNachId, flaggeSetzen } from '../../shared/flaggen';
 
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
@@ -42,6 +46,8 @@ const EDGE_FUNCTIONS = {
   externalSync: 'external-sync',
 };
 const LIVE_DRIVERS_REFRESH_INTERVAL_MS = 15000;
+// Nach einer Standort-Meldung wird die Position sofort gesetzt, alles andere hoechstens so oft neu geladen.
+const POSITION_NACHLADEN_MS = 10000;
 const LIVE_ROUTE_SYNC_INTERVAL_MS = 12000;
 const DRIVER_MAP_CACHE_KEY = 'admin_karten_driver_cache_v1';
 const MAP_CAMERA_CACHE_KEY = 'admin_karten_camera_v1';
@@ -513,6 +519,8 @@ const buildDriverRideInfo = ({
     nextStart: abfahrt,
     nextEnd: computedEta || '--:--',
     driveMins: fahrMinuten,
+    // false: weder laufende noch naechste Fahrt, das Blatt zeigt dann "Keine Fahrt geplant".
+    hatFahrt: Boolean(rideJob),
     unterwegs: Boolean(rideJob) && ['in_progress', 'unterwegs', 'started', 'on_trip', 'ongoing', 'active'].includes(String(rideJob?.status || '').trim().toLowerCase()),
     from: rideJob
       ? {
@@ -602,6 +610,13 @@ const getMinSheetPercent = () => {
   const minSheetPx = Math.max(34, (NAV_TOP_FROM_BOTTOM_PX - NAV_BLOCK_OFFSET_PX) + SHEET_PEEK_PX);
   return (minSheetPx / viewportHeight) * 100;
 };
+// Blatt gerade so weit offen, dass der Name zu sehen ist (Telefon bleibt verdeckt):
+// Rest-Griff 8 + Abstand im Namensblock 18 + Name 30, minus 2 gegen den Telefon-Streifen.
+const getNameSheetPercent = () => {
+  const viewportHeight = window.innerHeight || 874;
+  const minSheetPx = Math.max(34, (NAV_TOP_FROM_BOTTOM_PX - NAV_BLOCK_OFFSET_PX) + SHEET_PEEK_PX);
+  return Math.min(getMaxSheetPercent(), ((minSheetPx + 8 + 18 + 30 - 2) / viewportHeight) * 100);
+};
 const getMaxSheetPercent = () => {
   const viewportHeight = window.innerHeight || 874;
   const maxSheetPx = Math.max(0, viewportHeight - NAV_BLOCK_OFFSET_PX - SHEET_MAX_TOP_GAP_PX);
@@ -648,7 +663,69 @@ const zuendungStand = new Map();
 // die Statusfarbe bleibt voll. Eigene SVG-Varianten mit Endung _zuendung_aus.
 const zuendungsVariante = (url, zuendungAus) => (zuendungAus && url ? url.replace(/\.svg$/, '_zuendung_aus.svg') : url);
 
-const createDriverMarkerIcon = (googleMaps, driverState, mitRichtung = false, zuendungAus = false) => {
+// Kein Signal seit 5 Minuten (Figma 2823-12621): dunkler Grundkreis, darauf der graue
+// Kreis halb durchsichtig, die Nummer weiss, unten rechts der rote Punkt mit
+// Signalbalken. Ohne Spitze und ohne Richtung, die Mitte steht auf dem letzten Ort.
+const KEIN_SIGNAL_NACH_MS = 5 * 60 * 1000;
+// Dauer, in der die Kreise eines gewaehlten Orts ausfahren.
+const ORT_AUSFAHREN_MS = 500;
+const FAHRER_OFFLINE_GRUND_URL = '/icon/_Icon_Karte/Fahrer_Offline_Grund_Trisar_01.svg';
+const FAHRER_OFFLINE_URL = '/icon/_Icon_Karte/Fahrer_Offline_Trisar_01.svg';
+const FAHRER_OFFLINE_PUNKT_URL = '/icon/_Icon_Karte/Fahrer_Offline_Punkt_Trisar_01.svg';
+const FAHRER_OFFLINE_BALKEN_URL = '/icon/_Icon_Karte/Fahrer_Offline_Balken_Trisar_01.svg';
+// Stufe nach Minuten ohne Signal: 0 frisch, 1 bis 4 orange werdend mit 4 bis 1 Strichen,
+// 5 ohne Signal (grauer Kreis).
+const signalStufe = (letztesSignal, jetztMs = Date.now()) => {
+  if (DEMO_MODE || !letztesSignal) return 0;
+  const zeit = new Date(letztesSignal).getTime();
+  if (!Number.isFinite(zeit)) return 0;
+  return Math.max(0, Math.min(5, Math.floor((jetztMs - zeit) / 60000)));
+};
+const ohneSignal = (letztesSignal, jetztMs = Date.now()) => signalStufe(letztesSignal, jetztMs) * 60000 >= KEIN_SIGNAL_NACH_MS;
+// Farbe von Punkt und Uhrzeit je Stufe, von Hellorange zum Rot der Stufe 5.
+const SIGNAL_FARBEN = ['#868687', '#FFB84D', '#FFA04D', '#FF8A55', '#FF7A5C', '#FF6F63'];
+const signalEbenen = (stufe) => (stufe >= 1 && stufe <= 4 ? [
+  { url: `/icon/_Icon_Karte/Fahrer_Signal_Punkt_${stufe}_Trisar_01.svg`, x: 22, y: 21, breite: 14, hoehe: 14, immerVoll: true },
+  { url: `/icon/_Icon_Karte/Fahrer_Signal_Balken_${5 - stufe}_Trisar_01.svg`, x: 25.3, y: 25, breite: 8.15, hoehe: 5.41667, oben: true, immerVoll: true },
+] : []);
+// Uhrzeit des letzten Signals, an einem anderen Tag mit Datum.
+const signalZeit = (letztesSignal) => {
+  const d = new Date(letztesSignal || '');
+  if (!Number.isFinite(d.getTime())) return '';
+  const zwei = (n) => String(n).padStart(2, '0');
+  const uhr = `${zwei(d.getHours())}:${zwei(d.getMinutes())}`;
+  return d.toDateString() === new Date().toDateString() ? uhr : `${zwei(d.getDate())}.${zwei(d.getMonth() + 1)}. ${uhr}`;
+};
+
+// Flagge des Fahrers: sitzt im runden Kopf des Zeichens oben rechts und wird am Rand des Kreises abgeschnitten,
+// als waere sie von hinten ueber den Rand gezogen. Der Kopf ist PIN_BREITE gross (Figma 2900:41598, 14 x 18).
+const flaggenEbene = (flagge) => {
+  const f = flaggeNachId(flagge);
+  return f ? [{ url: f.voll, kreis: 35, x: 21, y: -3.5, breite: 12, hoehe: 15.4, immerVoll: true, oben: true, filter: FLAGGE_UMRISS }] : [];
+};
+
+const createDriverMarkerIcon = (googleMaps, driverState, mitRichtung = false, zuendungAus = false, offline = false, stufe = 0, flagge = null) => {
+  const grund = driverMarkerGrundIcon(googleMaps, driverState, mitRichtung, zuendungAus, offline);
+  // Punkt und Striche der Stufen 1 bis 4 sitzen unten rechts am Kopf des Zeichens.
+  const ebenen = [...(offline ? (grund.ebenen || []) : signalEbenen(stufe)), ...flaggenEbene(flagge)];
+  return { ...grund, ebenen };
+};
+
+const driverMarkerGrundIcon = (googleMaps, driverState, mitRichtung = false, zuendungAus = false, offline = false) => {
+  if (offline) {
+    return {
+      url: FAHRER_OFFLINE_GRUND_URL,
+      scaledSize: new googleMaps.Size(PIN_BREITE, PIN_BREITE),
+      anchor: new googleMaps.Point(PIN_BREITE / 2, PIN_BREITE / 2),
+      labelOrigin: new googleMaps.Point(PIN_BREITE / 2, PIN_BREITE / 2),
+      ebenen: [
+        { url: FAHRER_OFFLINE_URL, x: 0, y: 0, breite: 35, hoehe: 35, deckkraft: 0.5 },
+        // Der rote Punkt bleibt immer voll, auch wenn ein anderer Fahrer gewaehlt ist.
+        { url: FAHRER_OFFLINE_PUNKT_URL, x: 22, y: 21, breite: 14, hoehe: 14, immerVoll: true },
+        { url: FAHRER_OFFLINE_BALKEN_URL, x: 25.3, y: 25, breite: 8.15, hoehe: 5.41667, oben: true, immerVoll: true },
+      ],
+    };
+  }
   // Fuer Gelb gibt es im Figma keinen eigenen Punkt: der Kreis des gelben Pins
   // ist derselbe, also wird nur seine Spitze abgeschnitten.
   if (mitRichtung && driverState === DRIVER_STATE_INACTIVE) {
@@ -677,9 +754,10 @@ const createDriverMarkerIcon = (googleMaps, driverState, mitRichtung = false, zu
   };
 };
 
-const createDriverMarkerLabel = (driverNumber) => ({
+const createDriverMarkerLabel = (driverNumber, offline = false) => ({
   text: driverNumber != null && String(driverNumber).trim() ? String(driverNumber) : '?',
-  color: '#1A1A1A',
+  // Ohne Signal weiss und voll lesbar (Figma hatte 35 %, das war auf dem dunklen Kreis kaum zu sehen).
+  color: offline ? '#FFFFFF' : '#1A1A1A',
   fontSize: '15px',
   fontWeight: '700',
 });
@@ -766,7 +844,7 @@ const ensureCoordinatorReadSession = async () => {
   }
 };
 
-function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyClick, sheetPercent, onRouteMetricsChange = () => {}, resetCameraSignal = 0, orte = [], gewaehlterOrtId = null, onOrtToggle = () => {} }) {
+function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyClick, sheetPercent, onRouteMetricsChange = () => {}, resetCameraSignal = 0, orte = [], gewaehlterOrtId = null, onOrtToggle = () => {}, markierung = null }) {
   const { t } = useI18n();
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -793,6 +871,11 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
   const selectedIdRef = useRef('');
   // Kolonnenfahrer der Fahrt des gewaehlten Fahrers — sie treten nicht zurueck.
   const kolonneIdsRef = useRef(new Set());
+  // Mehrfachauswahl (Kaestchen oben rechts): ist sie an, sind alle Fahrer blass
+  // ausser den markierten. null = aus.
+  const markierteIdsRef = useRef(null);
+  const markierungSchluessel = markierung ? `an|${[...markierung].sort().join(',')}` : 'aus';
+  markierteIdsRef.current = markierung;
   // Woher Standort, Richtung und Tempo kommen. In der Demo die Simulation,
   // im Betrieb die OBD-Werte des Fahrzeugs (heading_deg, speed_mps).
   const bewegungRef = useRef(null);
@@ -859,14 +942,20 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     const selectedId = selectedIdRef.current;
     const isSelected = selectedId === id;
     const inKolonne = kolonneIdsRef.current.has(id);
-    const isDimmed = Boolean(selectedId) && !isSelected && !inKolonne;
-    const nah = (map.getBreiteMeter?.() ?? Infinity) <= NAHANSICHT_BREITE_M;
+    const markiert = markierteIdsRef.current;
+    const isDimmed = markiert
+      ? !markiert.has(id)
+      : Boolean(selectedId) && !isSelected && !inKolonne;
+    const nah =(map.getBreiteMeter?.() ?? Infinity) <= NAHANSICHT_BREITE_M;
     const faehrt = Boolean(stand && stand.speedMps > 0);
-    const mitRichtung = faehrt && driver.driverState !== DRIVER_STATE_FREE && (isSelected || nah);
-    const form = `${driver.driverState}|${mitRichtung ? 'punkt' : 'pin'}|${driver.zuendungAus ? 'aus' : 'an'}`;
+    const offline = ohneSignal(driver.letztesSignal);
+    const stufe = signalStufe(driver.letztesSignal);
+    const mitRichtung = !offline && faehrt && driver.driverState !== DRIVER_STATE_FREE && (isSelected || nah);
+    const form = `${driver.driverState}|${mitRichtung ? 'punkt' : 'pin'}|${driver.zuendungAus ? 'aus' : 'an'}|${stufe}|${driver.flagge || ''}`;
     if (formByDriverRef.current.get(id) !== form) {
       formByDriverRef.current.set(id, form);
-      marker.setIcon(createDriverMarkerIcon(window.trisarKarte, driver.driverState, mitRichtung, driver.zuendungAus));
+      marker.setIcon(createDriverMarkerIcon(window.trisarKarte, driver.driverState, mitRichtung, driver.zuendungAus, offline, stufe, driver.flagge));
+      marker.setLabel(createDriverMarkerLabel(driver.driverNumber, offline));
     }
 
     let kegel = kegelByDriverRef.current.get(id);
@@ -907,6 +996,7 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
   // samt Schild (Name, Radien), erneuter Klick oder Klick auf die Karte blendet aus.
   const ortMarkerRef = useRef(new Map());
   const ortSchildRef = useRef(null);
+  const ortZuletztRef = useRef(null);
   const onOrtToggleRef = useRef(onOrtToggle);
   useEffect(() => {
     onOrtToggleRef.current = onOrtToggle;
@@ -1027,9 +1117,11 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     // Im Fokus-Modus bleibt der gewählte Fahrer immer als eigener Marker
     // sichtbar (nie in einem Cluster) und die Cluster treten zurück.
     const focusedId = String(selectedDriver?.id || '').trim();
-    const hasFocus = Boolean(focusedId);
+    const markiert = markierteIdsRef.current;
+    const hasFocus = Boolean(focusedId) || Boolean(markiert);
     // Die Kolonnenkollegen des gewaehlten Fahrers ebenso: nie im Cluster.
-    const immerEinzeln = new Set([focusedId, ...(selectedDriver?.activeRide?.kolonnenFahrerIds || [])].filter(Boolean));
+    // Bei der Mehrfachauswahl bleiben die markierten Fahrer einzeln antippbar.
+    const immerEinzeln = new Set([focusedId, ...(selectedDriver?.activeRide?.kolonnenFahrerIds || []), ...(markiert || [])].filter(Boolean));
 
     const zoom = map.getZoom();
     const projection = map.getProjection?.();
@@ -1127,7 +1219,7 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
 
       clusterMarkersRef.current.push(clusterMarker);
     }
-  }, [clearClusterMarkers, drivers, selectedDriver?.id]);
+  }, [clearClusterMarkers, drivers, selectedDriver?.id, markierungSchluessel]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1189,27 +1281,43 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     (Array.isArray(orte) ? orte : []).forEach((ort) => {
       if (!Number.isFinite(Number(ort?.lat)) || !Number.isFinite(Number(ort?.lng))) return;
       ids.add(ort.id);
-      const icon = {
-        url: ortIconUrl(ort.icon, ort.id === gewaehlterOrtId),
-        scaledSize: new window.trisarKarte.Size(28, 28),
-        anchor: new window.trisarKarte.Point(14, 14),
+      // Figma 2832-12397: 35 px wie die Fahrer, gestrichelter Ring aussen, Lime-Kreis 29 px
+      // bei 3/3, schwarzes Symbol 15 px bei 10/10.
+      const symbol = ortIconSchwarz(ort.icon);
+      // Gewaehlt: ohne den kleinen Ring, der ist dann zum Rausfahr-Kreis gewachsen (Figma 2836-12484).
+      const gewaehlt = ort.id === gewaehlterOrtId;
+      const icon = gewaehlt ? {
+        url: ORT_KREIS_URL,
+        scaledSize: new window.trisarKarte.Size(29, 29),
+        anchor: new window.trisarKarte.Point(14.5, 14.5),
+        ebenen: [{ url: symbol, x: 7, y: 7, breite: 15, hoehe: 15 }],
+      } : {
+        url: ORT_RING_URL,
+        scaledSize: new window.trisarKarte.Size(35, 35),
+        anchor: new window.trisarKarte.Point(17.5, 17.5),
+        ebenen: [
+          { url: ORT_KREIS_URL, x: 3, y: 3, breite: 29, hoehe: 29 },
+          { url: symbol, x: 10, y: 10, breite: 15, hoehe: 15 },
+        ],
       };
+      const formSchluessel = `${symbol}|${gewaehlt ? 'auf' : 'zu'}`;
       const position = { lat: Number(ort.lat), lng: Number(ort.lng) };
       let eintrag = vorhanden.get(ort.id);
       if (!eintrag) {
-        const marker = new window.trisarKarte.Marker({ position, map, icon, title: ort.name, zIndex: 40 });
+        // Gespeicherte Orte liegen ueber allen Fahrern (die gehen bis 2000).
+        const marker = new window.trisarKarte.Marker({ position, map, icon, title: ort.name, zIndex: 2500 });
         marker.addListener('click', (event) => {
           event?.stopPropagation?.();
           onOrtToggleRef.current?.(ort.id);
         });
-        eintrag = { marker, url: icon.url };
+        eintrag = { marker, url: formSchluessel };
         vorhanden.set(ort.id, eintrag);
       } else {
         eintrag.marker.setPosition(position);
         eintrag.marker.setTitle(ort.name);
-        if (eintrag.url !== icon.url) {
+        if (eintrag.url !== formSchluessel) {
           eintrag.marker.setIcon(icon);
-          eintrag.url = icon.url;
+          eintrag.url = formSchluessel;
         }
       }
     });
@@ -1225,13 +1333,39 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     if (!mapReady || !map) return;
     const ort = (Array.isArray(orte) ? orte : []).find((eintrag) => eintrag.id === gewaehlterOrtId) || null;
     if (!ortSchildRef.current) ortSchildRef.current = ortSchildBauen();
-    if (!ort) {
+    ortSchildRef.current.ausblenden();
+    // Nur die Radien, ohne Schild darueber. Beim Waehlen faehrt der kleine Ring des Zeichens (17,5 px)
+    // zum Rausfahr-Kreis aus, der gefuellte Kreis waechst vom Lime-Kreis (14,5 px) zum Reinfahr-Kreis.
+    // Beim Abwaehlen (nochmal tippen) faehrt beides wieder ein und verschwindet dann.
+    const vorher = ortZuletztRef.current;
+    ortZuletztRef.current = ort;
+    const einfahren = !ort && vorher && (Array.isArray(orte) ? orte : []).some((eintrag) => eintrag.id === vorher.id);
+    if (!ort && !einfahren) {
       ortKreiseAusblenden(map);
-      ortSchildRef.current.ausblenden();
       return;
     }
-    ortKreiseZeigen(map, ort);
-    ortSchildRef.current.zeigen(map, ort, t('orte.radienKurz', { rein: ort.radius_rein_m, raus: ort.radius_raus_m }));
+    const ziel = ort || vorher;
+    const lat = Number(ziel.lat);
+    const zoom = map.karte?.getZoom?.() ?? 14;
+    const meterJePixel = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom);
+    const startRaus = 17.5 * meterJePixel;
+    const startRein = 14.5 * meterJePixel;
+    const beginn = performance.now();
+    let laeuft = true;
+    const schritt = (jetzt) => {
+      if (!laeuft) return;
+      const anteil = Math.min(1, (jetzt - beginn) / ORT_AUSFAHREN_MS);
+      const weich = einfahren ? 1 - anteil ** 3 : 1 - (1 - anteil) ** 3;
+      ortKreiseZeigen(map, {
+        ...ziel,
+        radius_rein_m: startRein + (ziel.radius_rein_m - startRein) * weich,
+        radius_raus_m: startRaus + (ziel.radius_raus_m - startRaus) * weich,
+      });
+      if (anteil < 1) window.requestAnimationFrame(schritt);
+      else if (einfahren) ortKreiseAusblenden(map);
+    };
+    window.requestAnimationFrame(schritt);
+    return () => { laeuft = false; };
   }, [mapReady, orte, gewaehlterOrtId, t]);
 
   useEffect(() => () => {
@@ -1269,9 +1403,12 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
       // (blass und unter die Routenlinien), damit die Route frei liegt.
       // Ausnahme Kolonne: die Kollegen derselben Fahrt bleiben voll sichtbar.
       const inKolonne = kolonneIds.has(id);
-      const isDimmed = Boolean(selectedDriver?.id) && !isSelected && !inKolonne;
+      const markiert = markierteIdsRef.current;
+      const isDimmed = markiert
+        ? !markiert.has(id)
+        : Boolean(selectedDriver?.id) && !isSelected && !inKolonne;
       const markerOpacity = isDimmed ? DIMMED_MARKER_OPACITY : 1;
-      const markerZIndex = isSelected ? 2000 : (isDimmed ? 200 : (inKolonne ? 1500 : 1000));
+      const markerZIndex = isSelected ? 2000 : (isDimmed ? 200 : (inKolonne || markiert ? 1500 : 1000));
       let marker = markersByDriverRef.current.get(id);
 
       if (!marker) {
@@ -1279,8 +1416,8 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
           position: { lat: Number(driver.lat), lng: Number(driver.lng) },
           map,
           title: driver.name,
-          icon: createDriverMarkerIcon(window.trisarKarte, driver.driverState, false, driver.zuendungAus),
-          label: createDriverMarkerLabel(driver.driverNumber),
+          icon: createDriverMarkerIcon(window.trisarKarte, driver.driverState, false, driver.zuendungAus, ohneSignal(driver.letztesSignal), signalStufe(driver.letztesSignal), driver.flagge),
+          label: createDriverMarkerLabel(driver.driverNumber, ohneSignal(driver.letztesSignal)),
           // Blass, aber deckend: die Strasse darunter scheint nicht durch.
           abblenden: markerOpacity,
           zIndex: markerZIndex,
@@ -1293,13 +1430,13 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
         // window.__TRISAR_KARTE_FAHRER_WAEHLEN (siehe KartenView).
         marker.element?.setAttribute?.('data-tutorial', `karte-fahrer-${id}`);
         markersByDriverRef.current.set(id, marker);
-        formByDriverRef.current.set(id, `${driver.driverState}|pin|${driver.zuendungAus ? 'aus' : 'an'}`);
+        formByDriverRef.current.set(id, `${driver.driverState}|pin|${driver.zuendungAus ? 'aus' : 'an'}|${signalStufe(driver.letztesSignal)}|${driver.flagge || ''}`);
       } else {
         // Faehrt der Fahrer in der Bewegung schon, bleibt seine Position von
         // dort; sonst gilt der gespeicherte Standort.
         if (!bewegungRef.current.stand(id)) marker.setPosition({ lat: Number(driver.lat), lng: Number(driver.lng) });
         marker.setTitle(driver.name);
-        marker.setLabel(createDriverMarkerLabel(driver.driverNumber));
+        marker.setLabel(createDriverMarkerLabel(driver.driverNumber, ohneSignal(driver.letztesSignal)));
         marker.setAbblenden(markerOpacity);
         marker.setZIndex(markerZIndex);
       }
@@ -1310,7 +1447,7 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     if (selectedDriver?.id) bewegungRef.current.anfordern([String(selectedDriver.id)], { vorne: true });
     updateDriverClusters();
     drivers.forEach((driver) => fahrerDarstellen(driver));
-  }, [drivers, fahrerDarstellen, mapReady, selectedDriver?.id, updateDriverClusters]);
+  }, [drivers, fahrerDarstellen, mapReady, selectedDriver?.id, updateDriverClusters, markierungSchluessel]);
 
   // Wer gerade im Bild ist, bekommt seine Strecke zuerst, sobald man naeher
   // herangeht; die uebrigen folgen nach und nach.
@@ -1940,6 +2077,7 @@ function DriverProfilePopup({ driver, onClose }) {
 function ActiveRideSheet({ driver, sheetPercent, setSheetPercent }) {
   const { t } = useI18n();
   const ride = driver?.rideInfo || {
+    hatFahrt: false,
     dienststart: '--:--',
     dienstende: '--:--',
     nextStart: '--:--',
@@ -2022,16 +2160,7 @@ function ActiveRideSheet({ driver, sheetPercent, setSheetPercent }) {
 
   useEffect(() => {
     const updateNameSnap = () => {
-      if (!scrollRef.current || !nameBlockRef.current) return;
-      const viewportHeight = window.innerHeight || 874;
-      const scrollOffset = scrollRef.current.offsetTop || 0;
-      const nameOffset = nameBlockRef.current.offsetTop + nameBlockRef.current.offsetHeight;
-      const snapPx = scrollOffset + nameOffset;
-      const minPercent = getMinSheetPercent();
-      const maxPercent = getMaxSheetPercent();
-      const percent = (snapPx / viewportHeight) * 100;
-      const clamped = Math.max(minPercent, Math.min(maxPercent, percent));
-      setNameSnapPercent(clamped);
+      setNameSnapPercent(Math.max(getMinSheetPercent(), getNameSheetPercent()));
     };
 
     updateNameSnap();
@@ -2153,20 +2282,7 @@ function ActiveRideSheet({ driver, sheetPercent, setSheetPercent }) {
           sheetTouchStartedAtTopRef.current = false;
         }}
       >
-        <button
-          type="button"
-          className="w-full h-14 border-2 border-[#E3F654] flex items-center justify-center gap-[10px] text-[#E3F654] text-[32px] font-bold font-['Space_Grotesk'] tracking-[-0.5px]"
-        >
-          {t('karten.mark')}
-          <img src="/icon/_Icon_Schwarz/Stern_Trisar_Icon_01_schwarz.svg" alt="" className="w-[17px] h-[18px]" />
-        </button>
-
-        <div data-tutorial="karte-blatt-kennzeichen" className="mt-3 w-full bg-white py-[10px] text-center">
-          <div className="text-[#1d1c1d] text-[30px] leading-[1] font-bold tracking-[-0.8px] font-['Space_Grotesk']">{driver.plate}</div>
-          <div className="mt-[4px] text-[#1d1c1d]/35 text-[16px] leading-[1] font-bold tracking-[-0.5px] font-['Space_Grotesk']">{driver.vehicle}</div>
-        </div>
-
-        <div ref={nameBlockRef} className="mt-3 w-full h-[96px] bg-[#E3F654] px-[18px] overflow-hidden flex flex-col justify-center gap-[5px]">
+        <div ref={nameBlockRef} className="w-full h-[96px] bg-[#E3F654] px-[18px] overflow-hidden flex flex-col justify-center gap-[5px]">
           <button
             type="button"
             onClick={() => setShowDriverPopup(true)}
@@ -2185,44 +2301,69 @@ function ActiveRideSheet({ driver, sheetPercent, setSheetPercent }) {
           </a>
         </div>
 
-        <h3 className="mt-[36px] text-[#E3F654] text-[22px] leading-[0.95] font-bold tracking-[-1px] font-['Space_Grotesk']">{t('karten.nextRide')}</h3>
+        <div data-tutorial="karte-blatt-kennzeichen" className="mt-3 w-full bg-white py-[10px] text-center">
+          <div className="text-[#1d1c1d] text-[30px] leading-[1] font-bold tracking-[-0.8px] font-['Space_Grotesk']">{driver.plate}</div>
+          <div className="mt-[4px] text-[#1d1c1d]/35 text-[16px] leading-[1] font-bold tracking-[-0.5px] font-['Space_Grotesk']">{driver.vehicle}</div>
+        </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-6">
-          <div>
-            <div className="text-[#868687] text-[12px] leading-[1] font-bold tracking-[-0.3px] font-['Space_Grotesk']">{t('karten.etd')}</div>
-            <div className="mt-[8px] text-[#E3F654] text-[42px] leading-[0.9] font-bold tracking-[-1px] font-['Space_Grotesk']">{ride.nextStart}</div>
+        {/* Uhrzeit des letzten Signals in der Farbe der Signal-Stufe (grau, orange werdend, rot). */}
+        {!DEMO_MODE ? (
+          <div
+            className={`mt-3 h-[18px] text-[16px] leading-[18px] font-bold tracking-[-0.3px] font-['Space_Grotesk'] `}
+            style={{ color: SIGNAL_FARBEN[signalStufe(driver.letztesSignal)] }}
+          >
+            {driver.letztesSignal ? t('karten.letztesSignal', { zeit: signalZeit(driver.letztesSignal) }) : t('karten.keinSignal')}
           </div>
-          <div className="text-right">
-            <div className="text-[#868687] text-[12px] leading-[1] font-bold tracking-[-0.3px] font-['Space_Grotesk']">{t('karten.eta')}</div>
-            <div className="mt-[8px] text-[#E3F654] text-[42px] leading-[0.9] font-bold tracking-[-1px] font-['Space_Grotesk']">{ride.nextEnd}</div>
-            <div className="mt-[6px] text-[#f4f5f4] text-[12px] font-bold tracking-[-0.5px] opacity-50 font-['Space_Grotesk']">
-              {ride.driveMins > 0 ? t('karten.driveMins', { mins: ride.driveMins }) : (ride.unterwegs && ride.nextEnd !== '--:--' ? t('karten.driveMins', { mins: '<1' }) : t('karten.driveUnknown'))}
+        ) : null}
+
+        <h3 className={`${DEMO_MODE ? 'mt-[36px]' : 'mt-[6px]'} text-[#E3F654] text-[22px] leading-[0.95] font-bold tracking-[-1px] font-['Space_Grotesk']`}>{t('karten.nextRide')}</h3>
+
+        {ride.hatFahrt === false ? (
+          // Ohne laufende oder naechste Fahrt: Hinweis statt leerer Zeiten und Orte.
+          <div className="mt-3 w-full bg-[#242525] rounded-[16px] p-[18px] font-['Space_Grotesk'] font-bold">
+            <div className="text-[#F4F5F4] text-[22px] leading-[1.1] tracking-[-0.8px]">{t('karten.keineFahrt')}</div>
+            <div className="mt-[6px] text-[#868687] text-[14px] leading-[1.3] tracking-[-0.3px]">{t('karten.keineFahrtText')}</div>
+          </div>
+        ) : (
+          <>
+          <div className="mt-3 grid grid-cols-2 gap-6">
+            <div>
+              <div className="text-[#868687] text-[12px] leading-[1] font-bold tracking-[-0.3px] font-['Space_Grotesk']">{t('karten.etd')}</div>
+              <div className="mt-[8px] text-[#E3F654] text-[42px] leading-[0.9] font-bold tracking-[-1px] font-['Space_Grotesk']">{ride.nextStart}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[#868687] text-[12px] leading-[1] font-bold tracking-[-0.3px] font-['Space_Grotesk']">{t('karten.eta')}</div>
+              <div className="mt-[8px] text-[#E3F654] text-[42px] leading-[0.9] font-bold tracking-[-1px] font-['Space_Grotesk']">{ride.nextEnd}</div>
+              <div className="mt-[6px] text-[#f4f5f4] text-[12px] font-bold tracking-[-0.5px] opacity-50 font-['Space_Grotesk']">
+                {ride.driveMins > 0 ? t('karten.driveMins', { mins: ride.driveMins }) : (ride.unterwegs && ride.nextEnd !== '--:--' ? t('karten.driveMins', { mins: '<1' }) : t('karten.driveUnknown'))}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="mt-6 grid grid-cols-[64px_1fr_64px] items-center gap-4">
-          <div className="h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
-            {ride.from.icon ? <img src={ride.from.icon} alt="" className="w-[30px] h-[30px] object-contain" /> : null}
+          <div className="mt-6 grid grid-cols-[64px_1fr_64px] items-center gap-4">
+            <div className="h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
+              {ride.from.icon ? <img src={ride.from.icon} alt="" className="w-[30px] h-[30px] object-contain" /> : null}
+            </div>
+            <div className="flex justify-center">
+              <img src="/icon/_Icon_Lime/Arrow_Trisar_Icons_01_Lime.svg" alt="" className="w-[59px] h-[38px] object-contain" />
+            </div>
+            <div className="h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
+              {ride.to.icon ? <img src={ride.to.icon} alt="" className="w-[30px] h-[30px] object-contain" /> : null}
+            </div>
           </div>
-          <div className="flex justify-center">
-            <img src="/icon/_Icon_Lime/Arrow_Trisar_Icons_01_Lime.svg" alt="" className="w-[59px] h-[38px] object-contain" />
-          </div>
-          <div className="h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
-            {ride.to.icon ? <img src={ride.to.icon} alt="" className="w-[30px] h-[30px] object-contain" /> : null}
-          </div>
-        </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-6">
-          <div>
-            <div className="text-[#868687] text-[12px] leading-[1.1] font-bold tracking-[-0.4px] font-['Space_Grotesk']">{ride.from.type}</div>
-            <div className="mt-[4px] text-white text-[18px] leading-[1.05] font-bold tracking-[-0.5px] font-['Space_Grotesk']">{ride.from.label}</div>
+          <div className="mt-3 grid grid-cols-2 gap-6">
+            <div>
+              <div className="text-[#868687] text-[12px] leading-[1.1] font-bold tracking-[-0.4px] font-['Space_Grotesk']">{ride.from.type}</div>
+              <div className="mt-[4px] text-white text-[18px] leading-[1.05] font-bold tracking-[-0.5px] font-['Space_Grotesk']">{ride.from.label}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-[#868687] text-[12px] leading-[1.1] font-bold tracking-[-0.4px] font-['Space_Grotesk']">{ride.to.type}</div>
+              <div className="mt-[4px] text-white text-[18px] leading-[1.05] font-bold tracking-[-0.5px] font-['Space_Grotesk']">{ride.to.label}</div>
+            </div>
           </div>
-          <div className="text-right">
-            <div className="text-[#868687] text-[12px] leading-[1.1] font-bold tracking-[-0.4px] font-['Space_Grotesk']">{ride.to.type}</div>
-            <div className="mt-[4px] text-white text-[18px] leading-[1.05] font-bold tracking-[-0.5px] font-['Space_Grotesk']">{ride.to.label}</div>
-          </div>
-        </div>
+          </>
+        )}
 
         <div data-tutorial="karte-blatt-dienst" className="mt-6 mb-[30px] grid grid-cols-2 gap-6">
           <div>
@@ -2370,6 +2511,7 @@ export default function KartenView({ setView, filters = {} }) {
         const profileSelectBase = 'id, first_name, last_name, phone, role, is_dispo, vehicle_id, driver_number, vehicles:vehicle_id(license_plate, brand_model, trim)';
         const profileSelectWithAvatar = `${profileSelectBase}, avatar_url`;
         const profileSelectCandidates = [
+          `${profileSelectWithAvatar}, driver_activity_state, service_start_time, service_end_time, flagge`,
           `${profileSelectWithAvatar}, driver_activity_state, service_start_time, service_end_time`,
           `${profileSelectWithAvatar}, driver_activity_state`,
           `${profileSelectWithAvatar}, service_start_time, service_end_time`,
@@ -2657,10 +2799,13 @@ export default function KartenView({ setView, filters = {} }) {
               name,
               avatarUrl,
               zuendungAus: zuendungByDriver.get(id) === false,
+              letztesSignal: row?.captured_at || null,
+              flagge: flaggeId(profile?.flagge),
               driverNumber: profile?.driver_number ?? null,
               phone: String(profile?.phone || '').trim(),
               plate,
               vehicle,
+              vehicleId: String(profile?.vehicle_id || '').trim(),
               lat,
               lng,
               driverState,
@@ -2711,6 +2856,7 @@ export default function KartenView({ setView, filters = {} }) {
     // Kommt waehrend eines Ladens eine Aenderung (z. B. die Fahrzeit kurz nach dem
     // Losfahren), wird danach noch einmal geladen, statt sie zu verwerfen.
     let refreshPending = false;
+    let positionsNachladen = null;
     const refreshDrivers = async () => {
       if (refreshInFlight) {
         refreshPending = true;
@@ -2736,7 +2882,28 @@ export default function KartenView({ setView, filters = {} }) {
 
     const refreshChannel = supabase
       .channel('ko-karten-live-refresh')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_live_locations' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_live_locations' }, (payload) => {
+        // Position sofort auf der Karte setzen. Das komplette Neuladen (Status, Fahrten) kommt
+        // gedrosselt hinterher, damit nicht jede Meldung alle Fahrer, Fahrten und Fahrzeuge laedt.
+        const neu = payload?.new || {};
+        const fahrerId = String(neu.driver_id || '').trim();
+        const lat = Number(neu.lat);
+        const lng = Number(neu.lng);
+        if (fahrerId && Number.isFinite(lat) && Number.isFinite(lng)) {
+          setDrivers((prev) => {
+            let geaendert = false;
+            const naechste = (prev || []).map((d) => {
+              if (d?.id !== fahrerId) return d;
+              geaendert = true;
+              return { ...d, lat, lng, letztesSignal: neu.captured_at || d.letztesSignal };
+            });
+            return geaendert ? naechste : prev;
+          });
+          if (!positionsNachladen) {
+            positionsNachladen = window.setTimeout(() => { positionsNachladen = null; if (mounted) refreshDrivers(); }, POSITION_NACHLADEN_MS);
+          }
+          return;
+        }
         refreshDrivers();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicle_telemetry_live' }, (payload) => {
@@ -2759,6 +2926,7 @@ export default function KartenView({ setView, filters = {} }) {
     return () => {
       mounted = false;
       window.clearInterval(intervalId);
+      if (positionsNachladen) window.clearTimeout(positionsNachladen);
       document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(refreshChannel);
     };
@@ -2804,23 +2972,33 @@ export default function KartenView({ setView, filters = {} }) {
     });
   }, [driversMatchingSelection, normalizedDriverSearchTerms]);
 
+  // Flagge als Filter: nur Fahrer mit dieser Flagge (Tippen auf eine benutzte Flagge rechts unter der Statusleiste).
+  const [flaggenFilter, setFlaggenFilter] = useState(() => [...fahrerMarkierung.lesen().flaggen]);
+  // Auswahlmodus der Karte: beginnt bei jedem Oeffnen der Karte aus, auch wenn Fahrer noch markiert sind.
+  const [kartenAuswahl, setKartenAuswahl] = useState(false);
+  // Zaehler der Statusleiste folgen dem Flaggenfilter.
+  const driversMitFlagge = useMemo(
+    () => (kartenAuswahl || flaggenFilter.length === 0 ? driversMatchingSearch : driversMatchingSearch.filter((d) => flaggenFilter.includes(d?.flagge))),
+    [driversMatchingSearch, flaggenFilter, kartenAuswahl],
+  );
+
   const driverCounts = useMemo(() => {
     const initial = {
       [DRIVER_STATE_ACTIVE]: 0,
       [DRIVER_STATE_INACTIVE]: 0,
       [DRIVER_STATE_FREE]: 0,
     };
-    driversMatchingSearch.forEach((driver) => {
+    driversMitFlagge.forEach((driver) => {
       const state = driver?.driverState;
       if (!Object.prototype.hasOwnProperty.call(initial, state)) return;
       initial[state] += 1;
     });
     return initial;
-  }, [driversMatchingSearch]);
+  }, [driversMitFlagge]);
 
   const filteredDrivers = useMemo(
-    () => driversMatchingSearch.filter((driver) => quickFilters.includes(driver?.driverState)),
-    [driversMatchingSearch, quickFilters],
+    () => driversMitFlagge.filter((driver) => quickFilters.includes(driver?.driverState)),
+    [driversMitFlagge, quickFilters],
   );
 
   useEffect(() => {
@@ -2916,11 +3094,79 @@ export default function KartenView({ setView, filters = {} }) {
     setGewaehlterOrtId((prev) => (prev === ortId ? null : ortId));
   }, []);
 
+  // Mehrfachauswahl: Kaestchen oben rechts. An = Tippen markiert Fahrer statt sie zu oeffnen.
+  const markierungStand = useFahrerMarkierung();
+  const markierteIds = useMemo(
+    () => (kartenAuswahl && markierungStand.aktiv ? new Set(markierungStand.fahrer.map((f) => f.id)) : null),
+    [markierungStand, kartenAuswahl],
+  );
+  const kartenAuswahlRef = useRef(false);
+  kartenAuswahlRef.current = kartenAuswahl;
+  // Benutzte Flaggen: nur die, die mindestens ein Fahrer traegt.
+  const benutzteFlaggen = useMemo(
+    () => FLAGGEN.map((f) => f.id).filter((id) => drivers.some((d) => d.flagge === id)),
+    [drivers],
+  );
+  useEffect(() => {
+    if (flaggenFilter.some((id) => !benutzteFlaggen.includes(id))) setFlaggenFilter((alt) => alt.filter((id) => benutzteFlaggen.includes(id)));
+  }, [benutzteFlaggen, flaggenFilter]);
+  const [erklaerungSichtbar, setErklaerungSichtbar] = useState(false);
+  const filteredDriversRef = useRef([]);
+  // Flaggen: Tippen setzt die Flagge bei allen markierten Fahrern, gefuellt = alle tragen sie.
+  const flaggeVon = useCallback((id) => drivers.find((d) => String(d.id) === String(id))?.flagge || null, [drivers]);
+  const [flaggenFehler, setFlaggenFehler] = useState('');
+  const flaggeWaehlen = useCallback(async (flagge) => {
+    const ids = fahrerMarkierung.ids();
+    if (!ids.length) return;
+    setFlaggenFehler('');
+    const { ok, fehler } = await flaggeSetzen(ids, flagge);
+    if (!ok) {
+      setFlaggenFehler(fehler);
+      return;
+    }
+    const gesetzt = new Set(ids.map(String));
+    setDrivers((prev) => prev.map((d) => (gesetzt.has(String(d.id)) ? { ...d, flagge } : d)));
+  }, []);
+  const auswahlUmschalten = useCallback(() => {
+    const an = !kartenAuswahlRef.current;
+    setKartenAuswahl(an);
+    fahrerMarkierung.modusSetzen(an);
+    setErklaerungSichtbar(an);
+    if (an) {
+      setSelectedDriverId(null);
+      setRouteMetrics(null);
+      setSheetPercent(getMinSheetPercent());
+    }
+  }, []);
+  // Flaggenfilter gilt in der ganzen Dispo wie eine Markierung: alle Fahrer mit diesen Flaggen sind uebernommen,
+  // die anderen Ansichten zeigen das Flaggensymbol statt der Namen. Waehrend der manuellen Auswahl ruht das.
+  useEffect(() => {
+    if (kartenAuswahl) return;
+    if (flaggenFilter.length === 0) {
+      fahrerMarkierung.flaggenSetzen([], []);
+      return;
+    }
+    const mit = drivers
+      .filter((d) => flaggenFilter.includes(d.flagge))
+      .map((d) => ({ id: String(d.id), name: d.name || '', vehicleId: d.vehicleId || '' }));
+    fahrerMarkierung.flaggenSetzen(flaggenFilter, mit);
+  }, [flaggenFilter, drivers, kartenAuswahl]);
+  // Namen und Fahrzeuge der markierten Fahrer aktuell halten (fuer Fahrt anlegen, Fahrzeuge, KI).
+  useEffect(() => {
+    if (!markierungStand.fahrer.length) return;
+    fahrerMarkierung.ergaenzen(drivers.map((d) => ({ id: String(d.id), name: d.name, vehicleId: d.vehicleId })));
+  }, [drivers, markierungStand.fahrer.length]);
+
   const handleSelectDriver = useCallback((driverId) => {
+    if (kartenAuswahlRef.current) {
+      const driver = filteredDriversRef.current.find((d) => String(d.id) === String(driverId));
+      fahrerMarkierung.umschalten({ id: driverId, name: driver?.name, vehicleId: driver?.vehicleId });
+      return;
+    }
     // Zweiter Klick auf denselben Fahrer hebt den Fokus wieder auf.
     setSelectedDriverId((prev) => (prev === driverId ? null : driverId));
     setRouteMetrics(null);
-    setSheetPercent(getMinSheetPercent());
+    setSheetPercent(getNameSheetPercent());
   }, []);
 
   // Tipp auf die leere Karte: Auswahl aufheben und Blatt schliessen.
@@ -2994,9 +3240,12 @@ export default function KartenView({ setView, filters = {} }) {
     setSheetPercent(getMinSheetPercent());
   }, []);
 
+  filteredDriversRef.current = filteredDrivers;
+
   return (
     <div className="w-[min(402px,100vw)] h-dvh relative mx-auto overflow-hidden overscroll-none" style={gradientStyle}>
       <GoogleMapSurface
+        markierung={markierteIds}
         drivers={filteredDrivers}
         selectedDriver={selectedDriver}
         onDriverSelect={handleSelectDriver}
@@ -3021,7 +3270,7 @@ export default function KartenView({ setView, filters = {} }) {
         data-tutorial="karte-zurueck"
         aria-label={t('karten.back')}
         onTouchMove={(event) => event.preventDefault()}
-        className="absolute top-[60px] left-[20px] z-20 w-[50px] h-[50px] touch-none select-none"
+        className="absolute top-[60px] left-[20px] z-[31] w-[50px] h-[50px] touch-none select-none"
       >
         {/* Schwarzer Kreis als Unterlage, sonst schimmert am weichen
             Aussenrand die helle Karte durch. */}
@@ -3036,17 +3285,65 @@ export default function KartenView({ setView, filters = {} }) {
         data-tutorial="karte-filter-knopf"
         aria-label={t('karten.filter')}
         onTouchMove={(event) => event.preventDefault()}
-        className="absolute top-[60px] right-[20px] z-20 w-[50px] h-[50px] flex items-center justify-center touch-none select-none"
+        className="absolute top-[60px] right-[20px] z-[31] w-[50px] h-[50px] flex items-center justify-center touch-none select-none"
       >
         <img src="/icon/_Icon_Schwarz/karten-layer-button.svg" alt="" className="w-[50px] h-[50px]" />
       </button>
 
-      <DriverQuickFilterBar
-        counts={driverCounts}
-        selectedFilters={quickFilters}
-        onToggle={toggleQuickFilter}
-        onInactiveLongPress={() => setShowInactiveLookaheadSlider((prev) => !prev)}
-      />
+      {/* Mehrfachauswahl (Figma Koordinator_Screen_Map): leeres Kaestchen = aus, mit Haken = an. */}
+      <button
+        type="button"
+        onClick={auswahlUmschalten}
+        data-tutorial="karte-auswahl-knopf"
+        aria-label={kartenAuswahl ? t('auswahl.aus') : t('auswahl.an')}
+        aria-pressed={kartenAuswahl}
+        onTouchMove={(event) => event.preventDefault()}
+        className="absolute top-[60px] right-[80px] z-[31] w-[50px] h-[50px] rounded-full bg-[#E3F654] border-2 border-black flex items-center justify-center touch-none select-none"
+      >
+        {kartenAuswahl
+          ? <img src="/icon/_Icon_Schwarz/Auswahl_Haken.svg" alt="" className="w-[20px] h-[23px] -mt-[3px]" />
+          : <img src="/icon/_Icon_Schwarz/Auswahl_Leer.svg" alt="" className="w-[20px] h-[20px]" />}
+        {kartenAuswahl && markierungStand.aktiv && markierungStand.fahrer.length > 0 ? (
+          <span className="absolute -bottom-[4px] -right-[4px] min-w-[20px] h-[20px] px-[5px] rounded-full bg-black text-[#E3F654] text-[11px] font-bold leading-[20px] font-['Space_Grotesk']">
+            {markierungStand.fahrer.length}
+          </span>
+        ) : null}
+      </button>
+
+      {erklaerungSichtbar ? <AuswahlErklaerung onFertig={() => setErklaerungSichtbar(false)} /> : null}
+
+      {/* Flaggen (Figma 2832:12528): unter den Knoepfen, nur im Auswahlmodus. */}
+      {kartenAuswahl ? (
+        <FlaggenKnoepfe
+          ids={markierungStand.fahrer.map((f) => f.id)}
+          flaggeVon={flaggeVon}
+          onWahl={flaggeWaehlen}
+          className="absolute top-[134px] right-[28px] z-[31]"
+        />
+      ) : benutzteFlaggen.length > 0 ? (
+        // Ausserhalb der Auswahl bleiben die benutzten Flaggen rechts unter der Statusleiste und filtern die Karte.
+        <FlaggenKnoepfe
+          nur={benutzteFlaggen}
+          aktiv={flaggenFilter}
+          onWahl={(id) => setFlaggenFilter((alt) => (alt.includes(id) ? alt.filter((x) => x !== id) : [...alt, id]))}
+          className="absolute top-[196px] right-[28px] z-[31]"
+        />
+      ) : null}
+      {flaggenFehler ? (
+        <div className="absolute left-[20px] right-[20px] top-[120px] z-[32] bg-[#171717] border border-[#FF8E8E] text-[#FF8E8E] text-[12px] px-3 py-2 font-['Space_Grotesk']">
+          {flaggenFehler}
+        </div>
+      ) : null}
+
+      {/* Im Auswahlmodus ohne Statusleiste, wie im Figma (2832:12528): dort stehen die Flaggen. */}
+      {kartenAuswahl ? null : (
+        <DriverQuickFilterBar
+          counts={driverCounts}
+          selectedFilters={quickFilters}
+          onToggle={toggleQuickFilter}
+          onInactiveLongPress={() => setShowInactiveLookaheadSlider((prev) => !prev)}
+        />
+      )}
 
       {showInactiveLookaheadSlider ? (
         <div data-tutorial="karte-inaktiv-fenster" className="absolute left-1/2 -translate-x-1/2 top-[190px] z-20 w-[362px] bg-black/90 border border-[#2c2c2c] rounded-xl px-3 py-3">

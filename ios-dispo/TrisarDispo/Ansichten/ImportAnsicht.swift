@@ -33,7 +33,7 @@ struct ImportAnsicht: View {
     private let limeHalb = Color(hex: 0xE3F654).opacity(0.7)
     private let orange = Color(hex: 0xFFCD8A)
     private let rot = Color(hex: 0xFF8A8A)
-    private static let warnungen: Set<String> = ["doppelt", "vergangen", "adresseUnbekannt", "mehrNamenAlsPersonen", "gleicheAdresse", "emailUngueltig"]
+    private static let warnungen: Set<String> = ["doppelt", "vergangen", "adresseUnbekannt", "mehrNamenAlsPersonen", "gleicheAdresse", "emailUngueltig", "fahrerUnbekannt"]
 
     private var fahrten: Bool { modus == .fahrten }
     private var modusText: String { fahrten ? "rides" : "guests" }
@@ -203,7 +203,7 @@ struct ImportAnsicht: View {
                             ForEach(analyse.blaetter, id: \.self) { b in
                                 let aktiv = b.index == analyse.blatt
                                 Button { if !aktiv { neuAuswerten(blatt: b.index, zuordnung: nil) } } label: {
-                                    Text(b.name + ((b.fahrten ?? 0) > 0 && !aktiv ? " · \(b.fahrten ?? 0)" : ""))
+                                    Text(b.name + (b.mitEingelesen == true ? " · \(t("imp.blattMit"))" : ((b.fahrten ?? 0) > 0 && !aktiv ? " · \(b.fahrten ?? 0)" : "")))
                                         .font(.grotesk(12, .medium)).lineLimit(1)
                                         .foregroundStyle(aktiv ? .black : .white.opacity(0.7))
                                         .padding(.horizontal, 12).frame(height: 30)
@@ -422,7 +422,15 @@ struct ImportAnsicht: View {
                     Text(namen).font(.grotesk(groesse, .bold)).foregroundStyle(text).lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                     if !route.isEmpty { Text(route).font(.grotesk(12, .medium)).tracking(0.3).foregroundStyle(text).opacity(0.8) }
+                    if fahrten, case .array(let stopps)? = d["zwischenstopps"], !stopps.isEmpty {
+                        Text(t("imp.ueber", ["orte": stopps.compactMap { if case .string(let s) = $0 { return s }; return nil }.joined(separator: " · ")]))
+                            .font(.grotesk(12, .medium)).foregroundStyle(text).opacity(0.8)
+                    }
                     if !firma.isEmpty { Text(firma).font(.grotesk(13, .bold)).foregroundStyle(text).lineLimit(1) }
+                    if fahrten, !(wert(i, "fahrer").isEmpty && wert(i, "fahrer_name").isEmpty) {
+                        Text(t("imp.fahrer", ["name": wert(i, "fahrer").isEmpty ? "\(wert(i, "fahrer_name")) ?" : wert(i, "fahrer")]))
+                            .font(.grotesk(13, .bold)).foregroundStyle(text)
+                    }
                     if !extra.isEmpty { Text(extra).font(.grotesk(13, .bold)).foregroundStyle(text) }
                     if istRot {
                         Text(t("imp.fehltFeld", ["felder": s.fehlt.map(feldText).joined(separator: ", ")]))
@@ -587,7 +595,7 @@ struct ImportAnsicht: View {
             }
             // Weitere Blaetter derselben Datei (schon importierte Fahrten kommen als Dublette abgewaehlt).
             if let analyse, analyse.blaetter.count > 1, quelle != nil {
-                ForEach(analyse.blaetter.filter { $0.index != analyse.blatt && ($0.fahrten ?? 1) > 0 }, id: \.self) { b in
+                ForEach(analyse.blaetter.filter { $0.index != analyse.blatt && $0.mitEingelesen != true && ($0.fahrten ?? 1) > 0 }, id: \.self) { b in
                     randKnopf(t("imp.blattImportieren", ["name": b.name]), lime) {
                         ergebnis = nil
                         rueckgaengigText = ""
@@ -798,6 +806,14 @@ struct ImportAnsicht: View {
         "imp.erkennt": "Spalten werden erkannt …",
         "imp.fahrtenImportieren": "{n} Fahrten importieren",
         "imp.fahrtenImportiert": "{n} Fahrten importiert.",
+        "imp.feld.fahrer": "Fahrer",
+        "imp.feld.ankunft": "Ankunft am Ziel",
+        "imp.h.zwischenstopp": "Sammelfahrt: Zeilen mit gleichem Fahrer und gleicher Ankunft zusammengefasst",
+        "imp.h.fahrerUnbekannt": "Fahrer aus der Liste nicht gefunden, bitte nach dem Import zuteilen",
+        "imp.h.ausWeiteremBlatt": "aus einem weiteren Blatt der Datei",
+        "imp.fahrer": "Fahrer: {name}",
+        "imp.ueber": "über {orte}",
+        "imp.blattMit": "mit eingelesen",
         "imp.feld.abholort": "Abholort",
         "imp.feld.anzahl": "Anzahl Personen",
         "imp.feld.datum": "Datum",

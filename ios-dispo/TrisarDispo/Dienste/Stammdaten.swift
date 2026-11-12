@@ -169,21 +169,30 @@ struct TrackerWahl: Decodable, Identifiable {
 
 @MainActor
 final class FahrzeugeDienst: ObservableObject {
-    @Published private(set) var fahrzeuge: [StammFahrzeug] = []
-    @Published private(set) var laedt = true
+    /// Letzter Stand fuer die naechste Seite: beim Oeffnen sofort da, frisch geladen wird im Hintergrund.
+    private static var zwischenspeicher: [StammFahrzeug] = []
+    @Published private(set) var fahrzeuge: [StammFahrzeug]
+    @Published private(set) var laedt: Bool
     @Published private(set) var fehler = ""
     private var kanal: RealtimeChannelV2?
     private var beobachter: Task<Void, Never>?
 
+    init() {
+        fahrzeuge = Self.zwischenspeicher
+        laedt = Self.zwischenspeicher.isEmpty
+    }
+
     func laden() async {
-        laedt = true
+        // Mit gemerktem Stand kein Ladekreis, die Liste wird nur ausgetauscht.
+        if fahrzeuge.isEmpty { laedt = true }
         fehler = ""
         do {
             let zeilen: [DBZeile] = try await Backend.client.from("vehicles").select("*")
                 .order("brand_model", ascending: true).execute().value
             fahrzeuge = zeilen.map(StammFahrzeug.init)
+            Self.zwischenspeicher = fahrzeuge
         } catch {
-            fahrzeuge = []
+            if Self.zwischenspeicher.isEmpty { fahrzeuge = [] }
             fehler = dbMeldung(error)
         }
         laedt = false

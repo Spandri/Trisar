@@ -8,23 +8,107 @@ enum Stunden {
         let beginn: String?; let ende: String?
         let pause_min: Int?; let arbeits_min: Int?
         let pausen: [PauseRoh]?; let fahrten: [FahrtRoh]?
+        // Ungerundet, fuer die laufende Anzeige von heute.
+        var beginn_genau: String? = nil; var ende_genau: String? = nil
         // Roh fuer das Zurueckschreiben als jsonb (vorschlag-Spalte).
         struct PauseRoh: Codable, Hashable { let von: String?; let bis: String?; let art: String? }
         struct FahrtRoh: Codable, Hashable {
             let id: UUID; let zeit: String?; let gaeste: String?; let von: String?; let nach: String?
             let start: String?; let ende: String?; let genau: Bool?
+            var status: String? = nil
         }
     }
-    struct Dienst: Decodable, Hashable { let id: UUID; let datum: String; let beginn: String?; let ende: String? }
+    struct Dienst: Decodable, Hashable {
+        let id: UUID; let datum: String; let beginn: String?; let ende: String?
+        /// Geplante Pausen des Dienstes (dienst_pausen, HH:MM), fuer den Ablauf der Dispo.
+        var pausen: [DienstPause]? = nil
+    }
+    struct DienstPause: Decodable, Hashable { let von: String?; let bis: String? }
     struct Zettel: Decodable, Hashable {
         let id: UUID; let status: String; let arbeits_min: Int; let pause_min: Int
         let beginn: String; let ende: String; let begruendung: String?; let dispo_notiz: String?
+        var pausen: [Vorschlag.PauseRoh]? = nil
     }
     struct Eintrag: Decodable, Identifiable, Hashable {
         let dienst: Dienst; let vorschlag: Vorschlag?; let zettel: Zettel?; let vorbei: Bool
         var id: UUID { dienst.id }
-        /// Offen: Dienst vorbei und noch nicht erfasst bzw. zurueckgegeben.
-        var offen: Bool { vorbei && (zettel == nil || zettel?.status == "zurueckgewiesen") }
+        /// Offen: Dienst vorbei und noch nicht erfasst, zurueckgegeben oder von der Dispo geaendert.
+        var offen: Bool { vorbei && Stunden.fahrerDran(zettel) }
+    }
+
+    /// Heute (wie heuteStand in Stunden.jsx): Start, begonnene Pausen, Ende erst wenn fertig und die
+    /// Arbeitszeit bis jetzt. Geplante Pausen ab 3 Stunden halten die Zeit an, kuerzere sind Arbeitszeit.
+    /// Fertig: Dienstende erreicht und keine Fahrt mehr unterwegs. Danach zeigt die Karte, was eingereicht
+    /// wird bzw. wurde (Zettel), Arbeitszeit auf halbe Stunden auf.
+    struct Heute {
+        struct Pause: Hashable { let von: Date; let bis: Date?; let laeuft: Bool }
+        let start: Date; let ende: Date?; let fertig: Bool; let pausen: [Pause]; let arbeitsMin: Int
+    }
+    static let laeuftStatus: Set<String> = ["at_pickup", "pickup", "beim_pickup", "in_progress", "unterwegs", "started", "on_trip", "ongoing", "active"]
+    static func pausenMin(_ pausen: [(Date, Date?)], bis: Date) -> Double {
+        pausen.reduce(0) { s, p in
+            guard let pb = p.1, pb.timeIntervalSince(p.0) >= Double(pauseMindest) * 60 else { return s }
+            return s + max(0, min(pb, bis).timeIntervalSince(p.0) / 60)
+        }
+    }
+    /// Fahrer ist dran: nicht erfasst, zurueckgegeben (alt) oder von der Dispo geaendert (12.11.).
+    static func fahrerDran(_ z: Zettel?) -> Bool { z == nil || z?.status == "zurueckgewiesen" || z?.status == "dispo_geaendert" }
+    /// Aenderung der Dispo annehmen: Stunden sind dann fertig (stunden_fahrer_zustimmen).
+    static func dispoAenderungAnnehmen(_ z: Zettel) async throws {
+        try await Backend.client.rpc("stunden_fahrer_zustimmen", params: ["p_zettel": z.id.uuidString]).execute()
+    }
+    static func halbeAuf(_ min: Double) -> Int { Int((max(0, min) / 30).rounded(.up)) * 30 }
+    static func heute(_ e: Eintrag, jetzt: Date = Date()) -> Heute? {
+        let v = e.vorschlag
+        let fertig = e.vorbei && !(v?.fahrten ?? []).contains { laeuftStatus.contains(($0.status ?? "").lowercased()) }
+        let z = e.zettel
+        let zettelGilt = fertig && z != nil && (datum(z?.ende) ?? .distantPast) > (datum(z?.beginn) ?? .distantFuture)
+        let qBeginn = zettelGilt ? z?.beginn : (v?.beginn_genau ?? v?.beginn)
+        let qEnde = zettelGilt ? z?.ende : (v?.ende_genau ?? v?.ende)
+        let qPausen = zettelGilt ? (z?.pausen ?? []) : (v?.pausen ?? [])
+        guard let start = datum(qBeginn), start <= jetzt else { return nil }
+        let ende = fertig ? datum(qEnde) : nil
+        let bis = ende ?? jetzt
+        let pausen = qPausen.compactMap { p -> (Date, Date?)? in
+            guard let von = datum(p.von), von <= bis else { return nil }
+            return (von, datum(p.bis))
+        }.sorted { $0.0 < $1.0 }
+        let genau = max(0, bis.timeIntervalSince(start) / 60 - pausenMin(pausen, bis: bis))
+        let arbeits = !fertig ? Int(genau) : (zettelGilt ? (z?.arbeits_min ?? 0) : halbeAuf(genau))
+        return Heute(start: start, ende: ende, fertig: fertig,
+                     pausen: pausen.map { Heute.Pause(von: $0.0, bis: $0.1, laeuft: $0.1 == nil || $0.1! > bis) },
+                     arbeitsMin: arbeits)
+    }
+
+    private struct HeuteZeile: Encodable {
+        let driver_id: String; let dienst_id: String; let datum: String
+        let beginn: String; let ende: String
+        let pausen: [Vorschlag.PauseRoh]; let pause_min: Int; let arbeits_min: Int
+        let vorschlag: Vorschlag?; let angepasst: Bool; let begruendung: String?
+        let status = "eingereicht"; let eingereicht_am: String; let aktualisiert: String
+    }
+    /// Speichert die Zeiten von heute (Bestaetigen so wie gezeigt, Bearbeiten mit Notiz), wie heuteSpeichern im Web.
+    static func heuteSpeichern(_ e: Eintrag, beginn: Date, ende: Date, pausen: [(Date, Date)], angepasst: Bool, begruendung: String?) async throws {
+        guard let fahrer = try? await Backend.client.auth.session.user.id.uuidString.lowercased() else {
+            throw TrisarFehler.text("Nicht angemeldet.")
+        }
+        let jetzt = iso.string(from: Date())
+        let pause = Int(pausenMin(pausen.map { ($0.0, Optional($0.1)) }, bis: ende).rounded())
+        let arbeits = halbeAuf(ende.timeIntervalSince(beginn) / 60 - Double(pause))
+        let zeile = HeuteZeile(driver_id: fahrer, dienst_id: e.dienst.id.uuidString.lowercased(), datum: e.dienst.datum,
+                               beginn: iso.string(from: beginn), ende: iso.string(from: ende),
+                               pausen: pausen.map { Vorschlag.PauseRoh(von: iso.string(from: $0.0), bis: iso.string(from: $0.1), art: nil) },
+                               pause_min: pause, arbeits_min: arbeits, vorschlag: e.vorschlag, angepasst: angepasst,
+                               begruendung: angepasst ? begruendung : nil, eingereicht_am: jetzt, aktualisiert: jetzt)
+        if let z = e.zettel {
+            try await Backend.client.from("stundenzettel").update(zeile).eq("id", value: z.id.uuidString.lowercased()).execute()
+        } else {
+            try await Backend.client.from("stundenzettel").insert(zeile).execute()
+        }
+    }
+    static var heuteDatum: String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = berlin; f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
     }
 
     static func verlauf(tage: Int = 60) async -> [Eintrag] {

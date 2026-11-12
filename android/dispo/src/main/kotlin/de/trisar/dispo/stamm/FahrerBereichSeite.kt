@@ -1,5 +1,12 @@
 package de.trisar.dispo.stamm
 
+import de.trisar.kern.Backend
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.widthIn
+import de.trisar.dispo.FlaggeMitRand
+import de.trisar.dispo.FlaggenKnoepfe
+import de.trisar.dispo.Flaggen
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.animation.core.Animatable
@@ -7,6 +14,9 @@ import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import io.github.jan.supabase.postgrest.from
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -37,7 +47,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -53,11 +65,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.trisar.dispo.DispoZiel
+import de.trisar.dispo.FahrerMarkierung
 import de.trisar.dispo.Navileiste
 import de.trisar.kern.CssRadial
 import de.trisar.kern.Icon
@@ -78,11 +92,15 @@ import kotlin.math.roundToInt
 
 private val GELB = hex(0xFDE047)
 
+/** Fahrer, dessen Ansicht beim Erscheinen des Bereichs direkt aufgehen soll (openDriverById, Sprung vom Fahrzeug). */
+internal object FahrerSprung { var id: String? = null }
+
 /** Ansicht im Fahrer-Bereich (openDriverCreate/openDriverEditor in App.jsx). */
 private sealed interface FahrerSeite {
     data object Liste : FahrerSeite
     data object Erstellen : FahrerSeite
     data class Bearbeiten(val fahrer: DispoFahrer) : FahrerSeite
+    data class Ansicht(val fahrer: DispoFahrer) : FahrerSeite
 }
 
 /**
@@ -90,12 +108,15 @@ private sealed interface FahrerSeite {
  * Anlegen/Bearbeiten (FahrerErstellenView.jsx).
  */
 @Composable
-internal fun FahrerBereichSeite(zeigen: (DispoZiel) -> Unit) {
+internal fun FahrerBereichSeite(zeigen: (DispoZiel) -> Unit, oeffneFahrt: (String) -> Unit = {}) {
     val liste = remember { FahrerListeDienst() }
     val scope = rememberCoroutineScope()
     var seite by remember { mutableStateOf<FahrerSeite>(FahrerSeite.Liste) }
+    // Scrollposition der Liste bleibt beim Zurueckkommen erhalten (12.11.).
+    val listenScroll = rememberScrollState()
     /** Markierte Fahrer bleiben ueber Anlegen/Bearbeiten erhalten (sessionStorage im Web). */
-    val markiert = remember { mutableStateListOf<String>() }
+    /** Auf der Karte markierte Fahrer sind hier schon ausgewaehlt (fahrerMarkierung im Web). */
+    val markiert = remember { mutableStateListOf<String>().apply { if (FahrerMarkierung.wirkt) addAll(FahrerMarkierung.ids) } }
 
     DisposableEffect(Unit) {
         liste.starten(scope)
@@ -107,10 +128,27 @@ internal fun FahrerBereichSeite(zeigen: (DispoZiel) -> Unit) {
         scope.launch { liste.laden() }
     }
 
+    // Sprung vom Fahrzeug: Ansicht oeffnen, sobald der Fahrer in der Liste steht.
+    androidx.compose.runtime.LaunchedEffect(liste.fahrer, liste.laedt) {
+        val ziel = FahrerSprung.id ?: return@LaunchedEffect
+        val f = liste.fahrer.firstOrNull { it.id == ziel }
+        if (f == null) { if (!liste.laedt) FahrerSprung.id = null; return@LaunchedEffect }
+        FahrerSprung.id = null
+        seite = FahrerSeite.Ansicht(f)
+    }
+    // Sprung zum Fahrzeug (openVehicleById): Fahrzeug-Bereich oeffnet es dann im Bearbeiten.
+    val fahrzeugOeffnen: (String) -> Unit = { id -> FahrzeugSprung.id = id; zeigen(DispoZiel.FAHRZEUGE) }
+
     when (val s = seite) {
-        FahrerSeite.Liste -> AlleFahrerSeite(liste, markiert, zeigen, erstellen = { seite = FahrerSeite.Erstellen }, bearbeiten = { seite = FahrerSeite.Bearbeiten(it) })
+        FahrerSeite.Liste -> AlleFahrerSeite(liste, markiert, listenScroll, zeigen, erstellen = { seite = FahrerSeite.Erstellen }, bearbeiten = { seite = FahrerSeite.Bearbeiten(it) },
+            oeffnen = { seite = FahrerSeite.Ansicht(it) })
+        // Tipp auf einen Fahrer: Stunden, Ablauf, Dienste (wie FahrerAnsichtView.jsx).
+        is FahrerSeite.Ansicht -> androidx.compose.runtime.key("ansicht-" + s.fahrer.id) {
+            FahrerAnsichtSeite(s.fahrer, zurueck = { zurueckZurListe() }, bearbeiten = { seite = FahrerSeite.Bearbeiten(s.fahrer) }, oeffneFahrt = oeffneFahrt,
+                fahrzeugOeffnen = fahrzeugOeffnen)
+        }
         FahrerSeite.Erstellen -> androidx.compose.runtime.key("neu") { FahrerErstellenSeite(null) { zurueckZurListe() } }
-        is FahrerSeite.Bearbeiten -> androidx.compose.runtime.key(s.fahrer.id) { FahrerErstellenSeite(s.fahrer) { zurueckZurListe() } }
+        is FahrerSeite.Bearbeiten -> androidx.compose.runtime.key(s.fahrer.id) { FahrerErstellenSeite(s.fahrer, fahrzeugOeffnen) { zurueckZurListe() } }
     }
 }
 
@@ -118,15 +156,17 @@ internal fun FahrerBereichSeite(zeigen: (DispoZiel) -> Unit) {
 
 /**
  * Nachbau von AlleFahrer.jsx (Raster 402, LAYOUT_GRID). Der KI-Planer-Knopf fuehrt zur Planung,
- * "Dienste planen" ist im Web ausgeschaltet (DIENSTE_VON_HAND = false) und fehlt darum hier.
+ * Mit markierten Fahrern: "Dienste planen" schickt Dienststart, Dienstende und Pausen (wie DienstePlanenBlatt.jsx).
  */
 @Composable
 private fun AlleFahrerSeite(
     liste: FahrerListeDienst,
     markiert: MutableList<String>,
+    listenScroll: androidx.compose.foundation.ScrollState,
     zeigen: (DispoZiel) -> Unit,
     erstellen: () -> Unit,
     bearbeiten: (DispoFahrer) -> Unit,
+    oeffnen: ((DispoFahrer) -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
     var suche by remember { mutableStateOf("") }
@@ -137,6 +177,20 @@ private fun AlleFahrerSeite(
     var endZeit by remember { mutableStateOf("") }
     var endDatum by remember { mutableStateOf(Dienstzeit.heute()) }
     var chartStart by remember { mutableIntStateOf(Planung.CHART_START) }
+    var planenOffen by remember { mutableStateOf(false) }
+    var flaggenFehler by remember { mutableStateOf("") }
+    var exportOffen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    // Flagge bei allen Markierten setzen (null = entfernen), danach die Liste neu laden.
+    fun flaggeWaehlen(flagge: String?) {
+        if (markiert.isEmpty()) return
+        val ids = markiert.toList()
+        flaggenFehler = ""
+        scope.launch {
+            val fehler = Flaggen.setzen(ids, flagge)
+            if (fehler != null) flaggenFehler = fehler else liste.laden()
+        }
+    }
 
     val kartenOben = 698f
     val kartenSchritt = 96f
@@ -156,6 +210,19 @@ private fun AlleFahrerSeite(
     fun umschalten(id: String) {
         if (id.isEmpty()) return
         if (id in markiert) markiert.remove(id) else markiert.add(id)
+    }
+
+    // Ist die Mehrfachauswahl der Karte an, gilt eine Aenderung hier auch dort
+    // (und damit fuer Fahrzeuge, Fahrten, Fahrt anlegen und KI-Assistent).
+    androidx.compose.runtime.LaunchedEffect(markiert.toList(), liste.fahrer) {
+        val m = FahrerMarkierung
+        if (!m.aktiv) return@LaunchedEffect
+        val nachID = liste.fahrer.associateBy { it.id }
+        val neu = markiert.map { id ->
+            val alt = m.fahrer.firstOrNull { it.id == id }
+            FahrerMarkierung.Eintrag(id, nachID[id]?.name?.ifEmpty { null } ?: alt?.name ?: "", alt?.vehicleId ?: "")
+        }
+        if (m.ids != neu.map { it.id } || neu.withIndex().any { (i, f) -> f.name != m.fahrer.getOrNull(i)?.name }) m.ersetzen(neu)
     }
 
     fun zeitWaehlen(start: Boolean, zeit: Boolean) {
@@ -178,8 +245,10 @@ private fun AlleFahrerSeite(
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         CssRadial(1.4142f, 1.0221f, listOf(0x0048CFL to 0f, 0x000000L to 0.46f, 0x000000L to 1f))
-        Leinwand(874f, inhalt) {
+        Leinwand(874f, inhalt, listenScroll) {
             ZurueckKnopf(Modifier.platz(20f, 60f)) { zeigen(DispoZiel.START) }
+            // Stunden aller oder ausgewaehlter Fahrer als Excel, Zeitraum frei waehlbar.
+            ExportKnopf(Modifier.platz(402f - 20f - 50f, 60f)) { exportOffen = true }
             StammTitel("Alle Fahrer", Modifier.platz(20f, 140f))
 
             PlanungsUebersicht(angebot, fahrten, bedarf, chartStart, { chartStart = it }, Modifier.platz(20f, 206f, 362f, 198f)) {
@@ -228,7 +297,7 @@ private fun AlleFahrerSeite(
                     androidx.compose.runtime.key(f.id) {
                         FahrerKarte(
                             f, f.imDienst(jetzt), f.id in markiert, Modifier.platz(20f, kartenOben + i * kartenSchritt, 362f, 84f),
-                            antippen = { if (markiert.isNotEmpty()) umschalten(f.id) else bearbeiten(f) },
+                            antippen = { if (markiert.isNotEmpty()) umschalten(f.id) else (oeffnen ?: bearbeiten)(f) },
                             markieren = { umschalten(f.id) },
                             bearbeiten = { bearbeiten(f) },
                         )
@@ -238,12 +307,38 @@ private fun AlleFahrerSeite(
         }
 
         if (markiert.isNotEmpty()) {
-            // Markierung loeschen: right 24, bottom 160.
-            Box(Modifier.fillMaxSize().navigationBarsPadding().padding(end = 24.dp, bottom = 160.dp), contentAlignment = Alignment.BottomEnd) {
-                Box(Modifier.size(54.dp).background(LIME, CircleShape).tippen { markiert.clear() }, contentAlignment = Alignment.Center) {
-                    Text("X", style = grotesk(26f, 700, farbe = hex(0x1D1C1D)))
+            // Flaggen: eine Reihe ueber der Leiste, setzen die Flagge bei allen Markierten.
+            Box(Modifier.fillMaxSize().navigationBarsPadding().padding(end = 36.dp, bottom = 226.dp), contentAlignment = Alignment.BottomEnd) {
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (flaggenFehler.isNotEmpty()) {
+                        Box(Modifier.widthIn(max = 362.dp).background(hex(0x171717)).padding(horizontal = 12.dp, vertical = 8.dp)) {
+                            Text(flaggenFehler, style = grotesk(12f, 500, 12f * 1.35f, farbe = hex(0xFF8E8E)))
+                        }
+                    }
+                    FlaggenKnoepfe(
+                        ids = markiert.toList(),
+                        flaggeVon = { id -> liste.fahrer.firstOrNull { it.id == id }?.flagge },
+                        wahl = { flaggeWaehlen(it) },
+                        waagerecht = true,
+                    )
                 }
             }
+            // Markierung loeschen: right 24, bottom 160.
+            Box(Modifier.fillMaxSize().navigationBarsPadding().padding(end = 24.dp, bottom = 160.dp), contentAlignment = Alignment.BottomEnd) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.height(54.dp).background(Color.Black).border(2.dp, LIME).tippen { planenOffen = true }.padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
+                        Text("Dienste planen", style = grotesk(16f, 500, abstand = 0.4f, farbe = LIME))
+                    }
+                    // Rot mit dem TRISAR-Schliessen-Icon, Rand schwarz wie der Auswahlknopf der Karte.
+                    Box(Modifier.size(54.dp).background(hex(0xFF6F63), CircleShape).border(2.dp, Color.Black, CircleShape).tippen { markiert.clear() }, contentAlignment = Alignment.Center) {
+                        Icon("Schliessen_Trisar_Icons_01", Modifier.size(22.dp))
+                    }
+                }
+            }
+        }
+        if (exportOffen) StundenExportFenster { exportOffen = false }
+        if (planenOffen) {
+            DienstePlanenBlatt(markiert.toList()) { planenOffen = false; scope.launch { liste.laden() } }
         }
 
         // Mit offener Tastatur blendet das Web die Leiste aus.
@@ -507,6 +602,8 @@ private fun FahrerKarte(
                 TextZeile(fahrer.serviceStartTime.ifEmpty { "--:--" }, grotesk(15f, 600, abstand = 0.2f, farbe = zeitFarbe), hoehe = 15f, ausrichtung = Alignment.CenterEnd)
                 TextZeile("- ${fahrer.serviceEndTime.ifEmpty { "--:--" }}", grotesk(15f, 600, abstand = 0.2f, farbe = zeitFarbe), hoehe = 15f, ausrichtung = Alignment.CenterEnd)
             }
+            // Flagge: haengt oben links buendig an der Kante der Karte, wie eine Lasche.
+            fahrer.flagge?.let { FlaggeMitRand(it, modifier = Modifier.platz(5.2f, -0.8f, 15.6f, 19.6f)) }
         }
     }
 }
@@ -603,3 +700,515 @@ private fun RahmenKnopf(text: String, modifier: Modifier, aktion: () -> Unit) {
     }
 }
 
+
+
+/**
+ * "Dienste planen" fuer die markierten Fahrer (wie DienstePlanenBlatt.jsx und applyBulkPlanning in AlleFahrer.jsx).
+ * Gestaltung wie die Stundenerfassung der Fahrer-App (Figma 2838:12842): dunkle Karte mit gruenem Rand,
+ * vier Kacheln Start | Pause | Pause | Ende, darunter die Dauer gross in Lime, unten Rot (Abbrechen) und
+ * Gruen (Senden). Dienststart und Dienstende sind unabhaengig: was leer bleibt, wird nicht gesendet.
+ * Eine Kachel antippen waehlt sie aus, Plus und Minus darunter verschieben die Zeit in 15-Minuten-Schritten.
+ * Legt je Fahrer eine Dienstanfrage an (driver_service_requests, pending) und speichert die Pausen in dienst_pausen.
+ */
+/** Fahrer bearbeiten: Tag, Zeiten und Pausen eines vorhandenen Dienstes vorbelegen (tag null = neuer Dienst, Tag im Kalender waehlen). */
+internal data class DienstVorgabe(
+    val tag: String?,
+    val start: String = "",
+    val ende: String = "",
+    val pausen: List<Pair<String, String>> = emptyList(),
+)
+
+/** Vorhandener Dienst eines Fahrers an einem Tag (wie dienstBestandLaden im Web). */
+internal data class DienstBestand(
+    val id: String,
+    val start: String,
+    val ende: String,
+    val pausen: List<Pair<String, String>>,
+    val angenommen: Boolean,
+    val vorher: Triple<String, String, List<Pair<String, String>>>?,
+)
+
+/** Letzte nicht abgelehnte Dienstzeile des Tages mit Pausen und gemerktem angenommenem Stand. */
+internal suspend fun dienstBestandLaden(fahrer: String, tag: String): DienstBestand? = runCatching {
+    val c = Backend.client
+    fun text(o: kotlinx.serialization.json.JsonElement?, k: String) =
+        ((o as? kotlinx.serialization.json.JsonObject)?.get(k) as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty().take(5)
+    fun pausenAus(e: kotlinx.serialization.json.JsonElement?) = ((e as? kotlinx.serialization.json.JsonArray) ?: emptyList())
+        .map { text(it, "von") to text(it, "bis") }.filter { it.first.isNotEmpty() && it.second.isNotEmpty() }
+    val zeilen = c.from("driver_service_requests").select(io.github.jan.supabase.postgrest.query.Columns.raw("id, service_start_time, service_end_time, status, created_at")) {
+        filter { eq("driver_id", fahrer); eq("service_date", tag) }
+        order("created_at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+        limit(5)
+    }.decodeList<kotlinx.serialization.json.JsonObject>()
+    val d = zeilen.firstOrNull { ((it["status"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "").lowercase() != "refused" } ?: return@runCatching null
+    val id = (d["id"] as kotlinx.serialization.json.JsonPrimitive).content
+    val status = ((d["status"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "").lowercase()
+    val p = c.from("dienst_pausen").select(io.github.jan.supabase.postgrest.query.Columns.list("pausen")) { filter { eq("dienst_id", id) } }
+        .decodeList<kotlinx.serialization.json.JsonObject>().firstOrNull()
+    val a = c.from("dienst_aenderung").select(io.github.jan.supabase.postgrest.query.Columns.list("vorher")) { filter { eq("dienst_id", id) } }
+        .decodeList<kotlinx.serialization.json.JsonObject>().firstOrNull()?.get("vorher") as? kotlinx.serialization.json.JsonObject
+    DienstBestand(id, text(d, "service_start_time"), text(d, "service_end_time"), pausenAus(p?.get("pausen")), status == "accepted",
+        a?.let { Triple(text(it, "start"), text(it, "ende"), pausenAus(it["pausen"])) })
+}.getOrNull()
+
+@Composable
+internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe? = null, fertig: () -> Unit) {
+    val gruen = hex(0x59BE80); val rot = hex(0xFF6F63); val kachelGrund = hex(0x242525); val grau = hex(0x5F5F5F)
+    val schritt = 15
+    val scope = rememberCoroutineScope()
+    /** Gewaehlte Tage (Kalender wie bei Fahrt anlegen), sortiert, mindestens einer. Standard heute. */
+    var tageListe by remember { mutableStateOf(if (vorgabe != null) listOfNotNull(vorgabe.tag) else listOf(LocalDate.now().toString())) }
+    val dialogKontext = LocalContext.current
+    var start by remember { mutableStateOf(vorgabe?.start ?: "") }
+    var ende by remember { mutableStateOf(vorgabe?.ende ?: "") }
+    val pausen = remember { mutableStateListOf<Pair<String, String>>().apply { vorgabe?.pausen?.let { addAll(it) } } }
+    /** Welche Zeit Plus und Minus verschieben: "start", "ende", "p0-von", "p1-bis" ... */
+    var feld by remember { mutableStateOf<String?>(if (vorgabe?.start.isNullOrEmpty()) null else "start") }
+    val radCtx = LocalContext.current
+    var kalenderOffen by remember { mutableStateOf(false) }
+    var speichert by remember { mutableStateOf(false) }
+    var fehler by remember { mutableStateOf<String?>(null) }
+    val vorlagen = listOf(Triple("Früh", "06:00", "14:00"), Triple("Tag", "08:00", "16:00"), Triple("Spät", "14:00", "22:00"), Triple("Nacht", "22:00", "06:00"))
+    fun uhr(min: Int): String { val x = ((min % 1440) + 1440) % 1440; return "%02d:%02d".format(x / 60, x % 60) }
+    fun minuten(w: String) = Dienstzeit.minuten(w)
+    /** Spanne ueber Mitternacht gerechnet (Nachtdienst 22–06 = 8 h). */
+    fun spanne(von: String, bis: String): Int {
+        val a = minuten(von) ?: return 0; val b = minuten(bis) ?: return 0
+        return (((b - a) + 1440) % 1440).let { if (it == 0) 1440 else it }
+    }
+    /** "Heute 11.11.", "Morgen 12.11.", sonst "Mi 13.11." (tagText im Web). */
+    fun tagText(iso: String): String {
+        val d = runCatching { LocalDate.parse(iso) }.getOrNull() ?: return iso
+        val datum = d.format(DateTimeFormatter.ofPattern("dd.MM."))
+        val heute = LocalDate.now()
+        return when (d) {
+            heute -> "Heute $datum"
+            heute.plusDays(1) -> "Morgen $datum"
+            else -> "${d.format(DateTimeFormatter.ofPattern("EE", Locale.GERMAN)).removeSuffix(".")} $datum"
+        }
+    }
+    val pausenIndex = feld?.takeIf { it.startsWith("p") }?.substring(1, 2)?.toIntOrNull()
+    val pausenFeld = if (pausenIndex != null) feld?.substring(3) else null
+    val feldWert = when {
+        feld == "start" -> start
+        feld == "ende" -> ende
+        pausenIndex != null -> pausen.getOrNull(pausenIndex)?.let { if (pausenFeld == "von") it.first else it.second } ?: ""
+        else -> ""
+    }
+    fun feldSetzen(wert: String) {
+        when {
+            feld == "start" -> start = wert
+            feld == "ende" -> ende = wert
+            pausenIndex != null && pausenIndex < pausen.size -> {
+                val p = pausen[pausenIndex]
+                pausen[pausenIndex] = if (pausenFeld == "von") wert to p.second else p.first to wert
+            }
+        }
+        fehler = null
+    }
+    /** Feld weglassen: Start oder Ende wird nicht gesendet, eine Pause faellt weg. */
+    fun feldEntfernen() {
+        when {
+            feld == "start" -> start = ""
+            feld == "ende" -> ende = ""
+            pausenIndex != null && pausenIndex < pausen.size -> pausen.removeAt(pausenIndex)
+        }
+        feld = null
+    }
+    // Drehrad wie in der Stundenerfassung: Stunden und Minuten in 15-Minuten-Schritten.
+    fun radOeffnen(wert: String) { zeitRadWaehlen(radCtx, minuten(wert) ?: 480) { feldSetzen(it) } }
+    fun zeitTippen(welches: String) {
+        val wert = if (welches == "start") start else ende
+        if (wert.isEmpty()) {
+            // Leere Kachel: sinnvolle Zeit vorschlagen (Ende 8 h nach Start, sonst 16:00).
+            if (welches == "start") start = if (ende.isNotEmpty()) uhr((minuten(ende) ?: 960) - 480) else "08:00"
+            else ende = if (start.isNotEmpty()) uhr((minuten(start) ?: 480) + 480) else "16:00"
+        }
+        feld = welches
+        fehler = null
+        radOeffnen(if (welches == "start") start else ende)
+    }
+    fun pauseTippen(index: Int, was: String) {
+        if (was == "neu") {
+            // Neue Pause in der Mitte des Dienstes, 30 Minuten.
+            val a = minuten(start)
+            val mitte = if (a != null && ende.isNotEmpty()) a + spanne(start, ende) / 2.0 else 720.0
+            val von = (mitte / schritt).roundToInt() * schritt + index * 60
+            pausen.add(uhr(von) to uhr(von + 30))
+            feld = "p${pausen.size - 1}-von"
+            radOeffnen(uhr(von))
+            return
+        }
+        feld = "p$index-$was"
+        pausen.getOrNull(index)?.let { radOeffnen(if (was == "von") it.first else it.second) }
+    }
+
+    // Genau ein Fahrer und ein Tag: vorhandenen Dienst laden und die Kacheln damit fuellen.
+    var bestand by remember { mutableStateOf<DienstBestand?>(null) }
+    var hatteBestand by remember { mutableStateOf(false) }
+    val schluessel = if (fahrerIDs.size == 1 && tageListe.size == 1) "${fahrerIDs[0]}|${tageListe[0]}" else ""
+    LaunchedEffect(schluessel) {
+        val b = if (schluessel.isEmpty()) null else dienstBestandLaden(fahrerIDs[0], tageListe[0])
+        bestand = b
+        if (b != null) {
+            start = b.start; ende = b.ende; pausen.clear(); pausen.addAll(b.pausen)
+        } else if (hatteBestand) {
+            start = ""; ende = ""; pausen.clear()
+        }
+        hatteBestand = b != null
+        feld = null
+    }
+    fun gleichePausen(a: List<Pair<String, String>>, b: List<Pair<String, String>>) = a == b
+    /** Zustand eines vorausgefuellten Feldes: "neu" (geaendert), "bestaetigt" oder "angefragt". */
+    fun zustand(welches: String): String? {
+        val b = bestand ?: return null
+        val (gleich, leer, wieVorher) = when (welches) {
+            "start" -> Triple(start == b.start, start.isEmpty(), b.vorher?.first == start)
+            "ende" -> Triple(ende == b.ende, ende.isEmpty(), b.vorher?.second == ende)
+            else -> Triple(gleichePausen(pausen.toList(), b.pausen), pausen.isEmpty(), b.vorher?.let { gleichePausen(it.third, pausen.toList()) } ?: false)
+        }
+        return when {
+            !gleich -> "neu"
+            leer -> null
+            b.angenommen -> "bestaetigt"
+            b.vorher != null -> if (wieVorher) "bestaetigt" else "angefragt"
+            else -> "angefragt"
+        }
+    }
+    val zStart = zustand("start"); val zEnde = zustand("ende"); val zPausen = zustand("pausen")
+    val unveraendert = bestand != null && zStart != "neu" && zEnde != "neu" && zPausen != "neu"
+    /** × bei vorausgefuellten Feldern: zurueck auf den gesendeten Stand, Gesendetes selbst bleibt. */
+    fun zurueck(istStart: Boolean): (() -> Unit)? {
+        val gesendet = (if (istStart) bestand?.start else bestand?.ende).orEmpty()
+        if (gesendet.isEmpty()) return { if (istStart) start = "" else ende = ""; feld = null }
+        if ((if (istStart) zStart else zEnde) != "neu") return null
+        return { if (istStart) start = gesendet else ende = gesendet; feld = null }
+    }
+
+    // Senden geht auch nur mit einer Pause (Dienst des Tages bleibt, der Fahrer bestaetigt nur die Pause).
+    val nurPause = start.isEmpty() && ende.isEmpty() && pausen.isNotEmpty()
+    val nichtsGesetzt = start.isEmpty() && ende.isEmpty() && !nurPause
+    val anzahl = fahrerIDs.size
+    val feldName = when {
+        feld == "start" -> "Dienststart"
+        feld == "ende" -> "Dienstende"
+        pausenIndex != null -> "Pause ${pausenIndex + 1} ${if (pausenFeld == "von") "von" else "bis"}"
+        else -> ""
+    }
+
+    fun senden() {
+        if (fahrerIDs.isEmpty()) { fehler = "Bitte mindestens einen Fahrer markieren."; return }
+        if (nichtsGesetzt) return
+        if (tageListe.isEmpty()) { fehler = "Bitte einen Tag im Kalender wählen."; return }
+        // Vorausgefuellter Dienst: nur Geaendertes senden (fehlende Zeiten uebernimmt der DB-Trigger).
+        val b = if (fahrerIDs.size == 1 && tageListe.size == 1) bestand else null
+        val mitStart = start.isNotEmpty() && start != b?.start
+        val mitEnde = ende.isNotEmpty() && ende != b?.ende
+        val pausenGeaendert = b == null || !gleichePausen(pausen.toList(), b.pausen)
+        val pausenWeg = b != null && pausenGeaendert && pausen.isEmpty() && b.pausen.isNotEmpty()
+        if (b != null && !mitStart && !mitEnde && !pausenGeaendert) { fehler = "Keine Änderung zum Senden."; return }
+        speichert = true; fehler = null
+        if (b != null && pausenWeg && !mitStart && !mitEnde) {
+            // Nur alle Pausen entfernt: direkt am Dienst loeschen, der Fahrer bestaetigt das.
+            scope.launch {
+                runCatching { de.trisar.kern.Backend.client.from("dienst_pausen").delete { filter { eq("dienst_id", b.id) } } }
+                    .onSuccess { speichert = false; fertig() }
+                    .onFailure { fehler = "Pausen nicht entfernt: ${it.message}"; speichert = false }
+            }
+            return
+        }
+        scope.launch {
+            try {
+                val c = de.trisar.kern.Backend.client
+                fun t(w: String?) = if (w == null) kotlinx.serialization.json.JsonNull else kotlinx.serialization.json.JsonPrimitive(w)
+                // Je Fahrer und je gewaehltem Tag eine Dienstanfrage, das Profil bekommt den fruehesten Tag.
+                val tage = tageListe.sorted().ifEmpty { listOf(Dienstzeit.heute()) }
+                val tag = tage.first()
+                val zeilen = tage.flatMap { dienstTag -> fahrerIDs.map { id -> dienstTag to id } }.map { (dienstTag, id) ->
+                    kotlinx.serialization.json.buildJsonObject {
+                        put("driver_id", t(id))
+                        put("service_date", t(dienstTag))
+                        put("service_start_time", t(start.takeIf { mitStart }))
+                        put("service_end_time", t(ende.takeIf { mitEnde }))
+                        put("status", t("pending"))
+                        put("requested_by", t("dispo-android"))
+                    }
+                }
+                val neu = c.from("driver_service_requests").insert(zeilen) { select(io.github.jan.supabase.postgrest.query.Columns.list("id")) }
+                    .decodeList<kotlinx.serialization.json.JsonObject>()
+                    .mapNotNull { (it["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content }
+                val plan = if (!pausenGeaendert) emptyList() else pausen.filter { it.first != it.second }.map { (v, bis) ->
+                    kotlinx.serialization.json.buildJsonObject {
+                        put("art", t("fest"))
+                        put("von", t(v))
+                        put("bis", t(bis))
+                    }
+                }
+                if (plan.isNotEmpty() && neu.isNotEmpty()) {
+                    val jetzt = java.time.Instant.now().toString()
+                    c.from("dienst_pausen").upsert(neu.map { id ->
+                        kotlinx.serialization.json.buildJsonObject {
+                            put("dienst_id", t(id))
+                            put("pausen", kotlinx.serialization.json.JsonArray(plan))
+                            put("aktualisiert", t(jetzt))
+                        }
+                    })
+                } else if (plan.isEmpty() && (pausenWeg || (b == null && vorgabe?.pausen?.isNotEmpty() == true)) && neu.isNotEmpty()) {
+                    // Alle Pausen entfernt: der DB-Trigger hat die alten zur neuen Zeile gelegt, also weg damit.
+                    runCatching { c.from("dienst_pausen").delete { filter { isIn("dienst_id", neu) } } }
+                }
+                // Profil: nur das gesetzte Feld, ohne Datumsspalten als Rueckfall (nur Pause: nichts).
+                if (mitStart || mitEnde) runCatching {
+                    c.from("profiles").update(kotlinx.serialization.json.buildJsonObject {
+                        if (mitStart) { put("service_start_time", t(start)); put("service_start_date", t(tag)) }
+                        if (mitEnde) { put("service_end_time", t(ende)); put("service_end_date", t(tag)) }
+                    }) { filter { isIn("id", fahrerIDs) } }
+                }.onFailure {
+                    runCatching {
+                        c.from("profiles").update(kotlinx.serialization.json.buildJsonObject {
+                            if (mitStart) put("service_start_time", t(start))
+                            if (mitEnde) put("service_end_time", t(ende))
+                        }) { filter { isIn("id", fahrerIDs) } }
+                    }
+                }
+                speichert = false
+                fertig()
+            } catch (x: kotlinx.coroutines.CancellationException) { throw x } catch (x: Exception) {
+                fehler = "Senden fehlgeschlagen: ${x.message}"
+                speichert = false
+            }
+        }
+    }
+
+    val form = RoundedCornerShape(12.dp)
+    fun Modifier.kachel(aktiv: Boolean) = this.background(kachelGrund, form).then(if (aktiv) Modifier.border(2.dp, LIME, form) else Modifier)
+
+    @Composable
+    fun beschriftung(text: String, an: Boolean, zustand: String? = null) {
+        Text(text, style = grotesk(16f, 700, abstand = -0.5f, farbe = if (an) Color.White else grau), textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp), maxLines = 1)
+        if (bestand != null) {
+            val (z, f) = when (zustand) {
+                "neu" -> "Neu" to LIME
+                "bestaetigt" -> "Bestätigt" to gruen
+                "angefragt" -> "Angefragt" to hex(0xFFCD8A)
+                else -> "" to Color.Transparent
+            }
+            Text(z, style = grotesk(11f, 700, 13f, farbe = f), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), maxLines = 1)
+        }
+    }
+
+    /** Kleines rotes × oben rechts wie in der Stundenerfassung: setzt die Kachel zurueck. */
+    @Composable
+    fun androidx.compose.foundation.layout.BoxScope.entfernenKnopf(aktion: () -> Unit) {
+        Box(Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-8).dp).size(24.dp).background(rot, CircleShape).tippen(aktion),
+            contentAlignment = Alignment.Center) {
+            Text("×", style = grotesk(16f, 700, farbe = Color.Black))
+        }
+    }
+
+    @Composable
+    fun zeitKachel(wert: String, aktiv: Boolean, modifier: Modifier, entfernen: (() -> Unit)?, tippen: () -> Unit) {
+        Box(modifier) {
+            Box(Modifier.fillMaxWidth().height(69.dp).kachel(aktiv).tippen(tippen), contentAlignment = Alignment.Center) {
+                Text(wert.ifEmpty { "--:--" }, style = grotesk(22f, 700, abstand = -0.5f, farbe = if (wert.isNotEmpty()) LIME else grau), maxLines = 1, softWrap = false)
+            }
+            if (wert.isNotEmpty() && entfernen != null) entfernenKnopf(entfernen)
+        }
+    }
+
+    @Composable
+    fun pausenKachel(index: Int, modifier: Modifier) {
+        val p = pausen.getOrNull(index)
+        val aktivFeld = if (pausenIndex == index) pausenFeld else null
+        when {
+            // Wie in der Stundenerfassung: gestrichelter Rahmen mit Plus.
+            p == null && index == pausen.size -> Box(modifier.height(69.dp).drawBehind {
+                drawRoundRect(LIME, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx(),
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx()))
+            }.tippen { pauseTippen(index, "neu") }, contentAlignment = Alignment.Center) {
+                Text("+", style = grotesk(28f, 700, farbe = LIME))
+            }
+            p == null -> Box(modifier.height(69.dp).alpha(0.5f).background(kachelGrund, form))
+            else -> Box(modifier) {
+                Column(Modifier.fillMaxWidth().height(69.dp).kachel(aktivFeld != null), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    for ((w, name) in listOf(p.first to "von", p.second to "bis")) {
+                        Text(w, style = grotesk(17f, 700, 22f, -0.5f, if (aktivFeld == name) LIME else grau), textAlign = TextAlign.Center, maxLines = 1, softWrap = false,
+                            modifier = Modifier.fillMaxWidth().tippen { pauseTippen(index, name) })
+                    }
+                }
+                entfernenKnopf { if (index < pausen.size) pausen.removeAt(index); feld = null }
+            }
+        }
+    }
+
+    @Composable
+    fun pfeil() {
+        Icon("Pfeil_Knopf_Figma", Modifier.size(34.dp, 19.dp).rotate(180f))
+    }
+
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)).tippen { fertig() }) {
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black).tippen { }
+                .navigationBarsPadding().verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 22.dp),
+        ) {
+            Column(Modifier.fillMaxWidth().background(hex(0x1A1A1A)).border(2.dp, gruen).padding(start = 17.dp, end = 17.dp, top = 14.dp, bottom = 16.dp)) {
+                Text("Dienste planen", style = grotesk(18f, 700, abstand = -0.5f, farbe = LIME), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(if (anzahl > 0) "$anzahl Fahrer ausgewählt" else "Noch keine Fahrer ausgewählt", style = grotesk(12f, 500, farbe = Color.White.copy(alpha = 0.6f)),
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 2.dp))
+
+                // Tage: Kalender wie bei Fahrt anlegen, beliebig viele Tage. Antippen entfernt (ausser dem letzten).
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(
+                    Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val mehrere = tageListe.size > 1
+                    tageListe.forEach { iso ->
+                        Row(
+                            Modifier.height(48.dp).kachel(true).tippen { if (mehrere) tageListe = tageListe - iso }.padding(start = 12.dp, end = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(tagText(iso), style = grotesk(15f, 700, 18f, farbe = LIME), maxLines = 1, softWrap = false)
+                            if (mehrere) Text("×", style = grotesk(18f, 400, farbe = Color.White.copy(alpha = 0.6f)))
+                        }
+                    }
+                    Box(Modifier.height(48.dp).background(kachelGrund, form).tippen { kalenderOffen = !kalenderOffen }.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+                        Text(if (kalenderOffen) "Kalender zu" else "+ Tag", style = grotesk(15f, 700, 18f, farbe = if (kalenderOffen) LIME else Color.White), maxLines = 1, softWrap = false)
+                    }
+                }
+                // Monatskalender: auch Vergangenheit, Tage mit Dienst der ausgewaehlten Fahrer mit Punkt.
+                if (kalenderOffen) {
+                    DienstKalender(tageListe, fahrerIDs, Modifier.padding(top = 10.dp)) { iso ->
+                        tageListe = if (iso in tageListe) { if (tageListe.size > 1) tageListe - iso else tageListe } else (tageListe + iso).sorted()
+                    }
+                }
+
+                // Start | Pause | Pause | Ende
+                Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        zeitKachel(start, feld == "start", Modifier.fillMaxWidth(), zurueck(true)) { zeitTippen("start") }
+                        beschriftung("Start", start.isNotEmpty(), zStart)
+                    }
+                    for (i in 0..1) {
+                        Column(Modifier.weight(1f)) {
+                            pausenKachel(i, Modifier.fillMaxWidth())
+                            beschriftung("Pause", false, if (i < pausen.size) zPausen else null)
+                        }
+                    }
+                    Column(Modifier.weight(1f)) {
+                        zeitKachel(ende, feld == "ende", Modifier.fillMaxWidth(), zurueck(false)) { zeitTippen("ende") }
+                        beschriftung("Ende", ende.isNotEmpty(), zEnde)
+                    }
+                }
+
+                // Dauer gross, wie die Arbeitszeit in der Stundenerfassung
+                Column(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (start.isNotEmpty() && ende.isNotEmpty()) {
+                        val pause = pausen.sumOf { spanne(it.first, it.second) }
+                        val netto = max(0, spanne(start, ende) - pause)
+                        Text("%02d:%02d".format(netto / 60, netto % 60), style = grotesk(35f, 700, 44f, -0.5f, LIME))
+                        if ((minuten(ende) ?: 0) <= (minuten(start) ?: 0)) {
+                            Text("endet am Folgetag", style = grotesk(12f, 500, farbe = Color.White.copy(alpha = 0.6f)))
+                        }
+                    } else {
+                        Text(
+                            if (nichtsGesetzt) "Start oder Ende antippen" else if (nurPause) "Nur Pause" else if (start.isNotEmpty()) "Nur Dienststart" else "Nur Dienstende",
+                            style = grotesk(18f, 700, 44f, -0.5f, if (nichtsGesetzt) grau else LIME),
+                        )
+                    }
+                }
+            }
+
+            // Vorlagen
+            val aktiveVorlage = vorlagen.firstOrNull { it.second == start && it.third == ende }?.first
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                vorlagen.forEach { (name, a, b) ->
+                    val aktiv = name == aktiveVorlage
+                    val farbe = if (aktiv) LIME else Color.White
+                    Column(Modifier.weight(1f).height(48.dp).kachel(aktiv).tippen { start = a; ende = b; feld = "start"; fehler = null },
+                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Text(name, style = grotesk(14f, 700, 17f, farbe = farbe))
+                        Text("${a.take(2)}–${b.take(2)}", style = grotesk(11f, 400, 14f, farbe = farbe.copy(alpha = 0.7f)))
+                    }
+                }
+            }
+
+            if (unveraendert) {
+                Text("Schon gesendet. Zeit antippen zum Ändern.", style = grotesk(13f, 500, farbe = Color.White.copy(alpha = 0.6f)),
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+            }
+            fehler?.let { Text(it, style = grotesk(13f, 500, farbe = hex(0xFF8E8E)), modifier = Modifier.padding(top = 8.dp)) }
+
+            val sendenAktiv = !speichert && !nichtsGesetzt && !unveraendert && anzahl > 0
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                Row(Modifier.weight(1f).height(56.dp).background(rot).tippen { fertig() }.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Abbrechen", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x202020)), modifier = Modifier.weight(1f), maxLines = 1)
+                    pfeil()
+                }
+                Row(Modifier.weight(1f).height(56.dp).alpha(if (sendenAktiv) 1f else 0.5f).background(gruen).tippen { if (sendenAktiv) senden() }.padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (speichert) "Speichert ..." else "Senden ($anzahl)", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x202020)), modifier = Modifier.weight(1f), maxLines = 1)
+                    pfeil()
+                }
+            }
+        }
+    }
+}
+
+/** Monatskalender fuer "Dienste planen" (wie DienstKalender im Web): auch Tage in der Vergangenheit.
+ *  Tage, an denen die ausgewaehlten Fahrer schon einen Dienst haben, tragen einen Lime-Punkt. */
+@Composable
+private fun DienstKalender(gewaehlt: List<String>, fahrerIDs: List<String>, modifier: Modifier, umschalten: (String) -> Unit) {
+    var monat by remember { mutableStateOf(LocalDate.now().withDayOfMonth(1)) }
+    var belegt by remember { mutableStateOf(emptySet<String>()) }
+    LaunchedEffect(monat, fahrerIDs) {
+        belegt = if (fahrerIDs.isEmpty()) emptySet() else runCatching {
+            Backend.client.from("driver_service_requests").select(io.github.jan.supabase.postgrest.query.Columns.raw("service_date, status")) {
+                filter { isIn("driver_id", fahrerIDs); gte("service_date", monat.toString()); lte("service_date", monat.plusMonths(1).minusDays(1).toString()) }
+            }.decodeList<kotlinx.serialization.json.JsonObject>()
+                .filter { (it["status"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.lowercase() != "refused" }
+                .mapNotNull { (it["service_date"] as? kotlinx.serialization.json.JsonPrimitive)?.content }.toSet()
+        }.getOrDefault(emptySet())
+    }
+    val heute = LocalDate.now().toString()
+    val leer = monat.dayOfWeek.value - 1
+    val tage = monat.lengthOfMonth()
+    val felder: List<Int?> = List(leer) { null } + (1..tage).map { it }
+    Column(modifier.fillMaxWidth().background(hex(0x242525), RoundedCornerShape(12.dp)).padding(10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("‹", style = grotesk(20f, 700, farbe = LIME), modifier = Modifier.size(36.dp, 32.dp).tippen { monat = monat.minusMonths(1) }, textAlign = TextAlign.Center)
+            Text(monat.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale.GERMAN)), style = grotesk(15f, 700, farbe = Color.White),
+                modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            Text("›", style = grotesk(20f, 700, farbe = LIME), modifier = Modifier.size(36.dp, 32.dp).tippen { monat = monat.plusMonths(1) }, textAlign = TextAlign.Center)
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+            listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So").forEach {
+                Text(it, style = grotesk(11f, 700, farbe = Color.White.copy(alpha = 0.5f)), modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            }
+        }
+        felder.chunked(7).forEach { woche ->
+            Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
+                for (i in 0 until 7) {
+                    val tag = woche.getOrNull(i)
+                    if (tag == null) { Spacer(Modifier.weight(1f).height(36.dp)); continue }
+                    val iso = monat.withDayOfMonth(tag).toString()
+                    val an = iso in gewaehlt
+                    Box(Modifier.weight(1f).height(36.dp)
+                        .background(if (an) LIME else Color.Transparent, RoundedCornerShape(8.dp))
+                        .then(if (iso == heute && !an) Modifier.border(1.dp, LIME, RoundedCornerShape(8.dp)) else Modifier)
+                        .tippen { umschalten(iso) }, contentAlignment = Alignment.Center) {
+                        Text("$tag", style = grotesk(14f, 700, farbe = if (an) Color.Black else if (iso < heute) hex(0x5F5F5F) else Color.White))
+                        if (iso in belegt) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).size(5.dp).background(if (an) Color.Black else LIME, CircleShape))
+                    }
+                }
+            }
+        }
+        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(5.dp).background(LIME, CircleShape))
+            Text("  schon ein Dienst eingetragen", style = grotesk(11f, 500, farbe = Color.White.copy(alpha = 0.5f)))
+        }
+    }
+}

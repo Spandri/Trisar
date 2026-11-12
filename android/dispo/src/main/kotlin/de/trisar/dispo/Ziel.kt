@@ -215,7 +215,9 @@ private fun Leiste(
 @Composable
 private fun NaviKnopf(icon: String, w: Float, h: Float, aktiv: Boolean, modifier: Modifier, aktion: () -> Unit) {
     val s by animateFloatAsState(if (aktiv) 1.1f else 0.9f, tween(300), label = "navi")
-    Box(modifier.tippen(aktion), contentAlignment = Alignment.Center) {
+    // Leichtes Tippen wie bei den Schnellwahl-Feldern.
+    val haptik = LocalHapticFeedback.current
+    Box(modifier.tippen { haptik.performHapticFeedback(HapticFeedbackType.TextHandleMove); aktion() }, contentAlignment = Alignment.Center) {
         Icon(icon, Modifier.size(w.dp, h.dp).graphicsLayer { scaleX = s; scaleY = s })
     }
 }

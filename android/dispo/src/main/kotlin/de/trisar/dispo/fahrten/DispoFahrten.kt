@@ -15,6 +15,8 @@ import io.github.jan.supabase.realtime.realtime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
@@ -67,6 +69,8 @@ data class DispoFahrt(
     val datum: String,
     val bestaetigt: Boolean,
     val jobStatus: String,
+    /** Fahrer der Fahrt (jobs.driver_id und Kolonne convoy_assignments), fuer die Mehrfachauswahl. */
+    val fahrerIDs: List<String> = emptyList(),
 ) {
     val archiviert: Boolean get() = jobStatus in setOf("archived", "cancelled")
 }
@@ -223,38 +227,63 @@ object DispoFahrtenSpeicher {
             val jobFahrerIDs = jobs.map { W.t(it["driver_id"]) }.filter { it.isNotEmpty() }.distinct()
             val konvoiIDs = jobs.map { W.t(it["convoy_id"]) }.filter { it.isNotEmpty() }.distinct()
 
-            val zuordnungen = stapelweise(jobIDs, """relation .*convoy_assignments|table .*convoy_assignments|does not exist""") {
-                Backend.client.from("convoy_assignments").select(Columns.raw("job_id, driver_id, response_status")) { filter { isIn("job_id", it) } }.decodeList<JsonObject>()
-            }
-            val fahrerIDs = (jobFahrerIDs + zuordnungen.map { W.t(it["driver_id"]) }.filter { it.isNotEmpty() }).distinct()
-            val profile = stapelweise(fahrerIDs) {
-                Backend.client.from("profiles").select(Columns.raw("id, first_name, last_name, driver_number")) { filter { isIn("id", it) } }.decodeList<JsonObject>()
-            }
-            val jobGaeste = stapelweise(jobIDs) {
-                Backend.client.from("job_guests").select(Columns.raw("job_id, guest_id, is_main_contact")) { filter { isIn("job_id", it) } }.decodeList<JsonObject>()
-            }
-            val notizZeilen = stapelweise(jobIDs, """relation .*job_notes|table .*job_notes|does not exist""") {
-                Backend.client.from("job_notes").select(Columns.raw("job_id, note_text, created_at, author_name")) {
-                    filter { isIn("job_id", it) }
-                    order("created_at", Order.DESCENDING)
-                }.decodeList<JsonObject>()
-            }
-            // Archiv: Fehler (fehlende Tabelle, keine Rechte) zaehlen wie leer.
-            val archivZeilen = runCatching {
-                stapelweise(jobIDs) {
-                    Backend.client.from("jobs_archive").select(Columns.raw("job_id")) { filter { isIn("job_id", it) } }.decodeList<JsonObject>()
+            // Die Nebentabellen gleichzeitig holen statt nacheinander. Nur Fahrer haengen an den
+            // Zuordnungen und Gaeste an job_guests, die laufen jeweils als Kette.
+            val archivVorher = lokalArchiviert.toSet()
+            coroutineScope {
+                val zuordnungenUndProfile = async {
+                    val zuordnungen = stapelweise(jobIDs, """relation .*convoy_assignments|table .*convoy_assignments|does not exist""") {
+                        Backend.client.from("convoy_assignments").select(Columns.raw("job_id, driver_id, response_status")) { filter { isIn("job_id", it) } }.decodeList<JsonObject>()
+                    }
+                    val fahrerIDs = (jobFahrerIDs + zuordnungen.map { W.t(it["driver_id"]) }.filter { it.isNotEmpty() }).distinct()
+                    val profile = stapelweise(fahrerIDs) {
+                        Backend.client.from("profiles").select(Columns.raw("id, first_name, last_name, driver_number")) { filter { isIn("id", it) } }.decodeList<JsonObject>()
+                    }
+                    zuordnungen to profile
                 }
-            }.getOrDefault(emptyList())
-            val archivIDs = lokalArchiviert + archivZeilen.map { W.t(it["job_id"]) }.filter { it.isNotEmpty() }
-            val gastIDs = jobGaeste.map { W.t(it["guest_id"]) }.filter { it.isNotEmpty() }.distinct()
-            val gaeste = stapelweise(gastIDs) {
-                Backend.client.from("guests").select(Columns.raw("id, first_name, last_name")) { filter { isIn("id", it) } }.decodeList<JsonObject>()
-            }
-            val konvois = stapelweise(konvoiIDs) {
-                Backend.client.from("convoys").select(Columns.raw("id, name")) { filter { isIn("id", it) } }.decodeList<JsonObject>()
-            }
+                val gaesteKette = async {
+                    val jobGaeste = stapelweise(jobIDs) {
+                        Backend.client.from("job_guests").select(Columns.raw("job_id, guest_id, is_main_contact")) { filter { isIn("job_id", it) } }.decodeList<JsonObject>()
+                    }
+                    val gastIDs = jobGaeste.map { W.t(it["guest_id"]) }.filter { it.isNotEmpty() }.distinct()
+                    val gaeste = stapelweise(gastIDs) {
+                        Backend.client.from("guests").select(Columns.raw("id, first_name, last_name")) { filter { isIn("id", it) } }.decodeList<JsonObject>()
+                    }
+                    jobGaeste to gaeste
+                }
+                val notizenLaden = async {
+                    stapelweise(jobIDs, """relation .*job_notes|table .*job_notes|does not exist""") {
+                        Backend.client.from("job_notes").select(Columns.raw("job_id, note_text, created_at, author_name")) {
+                            filter { isIn("job_id", it) }
+                            order("created_at", Order.DESCENDING)
+                        }.decodeList<JsonObject>()
+                    }
+                }
+                // Archiv: Fehler (fehlende Tabelle, keine Rechte) zaehlen wie leer.
+                val archivLaden = async {
+                    try {
+                        stapelweise(jobIDs) {
+                            Backend.client.from("jobs_archive").select(Columns.raw("job_id")) { filter { isIn("job_id", it) } }.decodeList<JsonObject>()
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                }
+                val konvoisLaden = async {
+                    stapelweise(konvoiIDs) {
+                        Backend.client.from("convoys").select(Columns.raw("id, name")) { filter { isIn("id", it) } }.decodeList<JsonObject>()
+                    }
+                }
 
-            fahrten = abbilden(jobs, zuordnungen, profile, jobGaeste, notizZeilen, archivIDs, gaeste, konvois)
+                val (zuordnungen, profile) = zuordnungenUndProfile.await()
+                val (jobGaeste, gaeste) = gaesteKette.await()
+                val notizZeilen = notizenLaden.await()
+                val archivIDs = archivVorher + archivLaden.await().map { W.t(it["job_id"]) }.filter { it.isNotEmpty() }
+                val konvois = konvoisLaden.await()
+                fahrten = abbilden(jobs, zuordnungen, profile, jobGaeste, notizZeilen, archivIDs, gaeste, konvois)
+            }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             fahrten = emptyList()
@@ -468,6 +497,7 @@ object DispoFahrtenSpeicher {
                 datum = datum,
                 bestaetigt = "accepted" in antworten,
                 jobStatus = jobStatus,
+                fahrerIDs = (listOf(fahrerID) + zugeordneteIDs).filter { it.isNotEmpty() }.distinct(),
             )
         }
     }
