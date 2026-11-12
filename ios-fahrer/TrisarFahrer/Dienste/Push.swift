@@ -128,6 +128,19 @@ final class Push: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
 
 /// Liefert das Geraete-Token an Push (SwiftUI hat dafuer keinen eigenen Weg).
 final class PushAppDelegate: NSObject, UIApplicationDelegate {
+    /// CarPlay-Szene ausdruecklich einhaengen. Mit SwiftUI-App reicht der Eintrag in der Info.plist
+    /// allein nicht, CarPlay schaltet sonst auf eine leere Seite. Fahrer: CarPlaySzene, Dispo: DispoCarPlaySzene.
+    func application(_ application: UIApplication, configurationForConnecting sitzung: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let konfig = UISceneConfiguration(name: sitzung.role == .carTemplateApplication ? "CarPlay" : nil,
+                                          sessionRole: sitzung.role)
+        if sitzung.role == .carTemplateApplication {
+            let modul = String(reflecting: PushAppDelegate.self).components(separatedBy: ".").first ?? ""
+            konfig.delegateClass = NSClassFromString("\(modul).DispoCarPlaySzene") ?? NSClassFromString("\(modul).CarPlaySzene")
+        }
+        return konfig
+    }
+
     func application(_ application: UIApplication,
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         Task { @MainActor in Push.shared.tokenErhalten(deviceToken) }
