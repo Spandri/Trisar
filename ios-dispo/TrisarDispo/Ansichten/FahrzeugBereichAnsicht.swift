@@ -172,13 +172,11 @@ struct FahrzeugListenKarte: View {
         ZStack(alignment: .topLeading) {
             Color.white
             Color(hex: 0xECECEC).platz(6, 38, 150, 74)
-            // V-Klasse mit bekanntem Lack: Seitenbild aus den Fahrer-App-Bildern statt hochgeladenem Bild.
-            if let seite = FahrzeugDrehVorschlaege.seitenBild(markeModell: fahrzeug.brandModel, farbe: fahrzeug.color) {
-                Color.white.platz(6, 38, 150, 74)
-                Image(uiImage: seite).resizable().scaledToFit().platz(6, 38, 150, 74)
-            } else if !fahrzeug.imageUrl.isEmpty {
-                StammBild(quelle: fahrzeug.imageUrl).platz(6, 38, 150, 74)
+            // Modell mit bekanntem Lack: Seitenbild vom Server (Bilder der Fahrer-App) statt hochgeladenem Bild.
+            FahrzeugSeitenBild(markeModell: fahrzeug.brandModel, farbe: fahrzeug.color, grund: .white) {
+                if !fahrzeug.imageUrl.isEmpty { StammBild(quelle: fahrzeug.imageUrl) }
             }
+            .platz(6, 38, 150, 74)
             (Text("VIN  ").bold() + Text(fahrzeug.vinLabel).kerning(2))
                 .font(.grotesk(12))
                 .foregroundStyle(Color(red: 29 / 255, green: 28 / 255, blue: 29 / 255, opacity: 0.2))
@@ -293,6 +291,8 @@ struct FahrzeugFormularSeite: View {
     @State private var bildWaehlen = false
     @State private var bildAuswahl: PhotosPickerItem?
     @FocusState private var fokus: Feld?
+    /// Neu zeichnen, wenn der Fahrzeugkatalog (Vorschlaege, Farbpunkt) vom Server nachlaedt.
+    @ObservedObject private var katalog = DrehKatalog.shared
     /// Hoehe des Schadensberichts (nur beim Bearbeiten), die Seite waechst mit.
     @State private var schadenHoehe: CGFloat = 0
     /// Fahrer dieses Fahrzeugs (profiles.vehicle_id): zuweisen und mit einem Tipp zum Fahrer (12.11.).
@@ -666,18 +666,14 @@ struct FahrzeugFormularSeite: View {
             }
             .buttonStyle(.web)
             .padding(.leading, 16).padding(.trailing, 48)
-            // Seitenbild der V-Klasse in diesem Lack steht vor einem hochgeladenen Bild.
-            if let seite = FahrzeugDrehVorschlaege.seitenBild(markeModell: markeModell, farbe: farbe) {
-                Image(uiImage: seite).resizable().scaledToFit().frame(width: 64, height: 40)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.trailing, 44)
-                    .allowsHitTesting(false)
-            } else if !bildURL.isEmpty {
-                StammBild(quelle: bildURL).frame(width: 64, height: 40)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.trailing, 44)
-                    .allowsHitTesting(false)
+            // Seitenbild des Modells in diesem Lack (vom Server) steht vor einem hochgeladenen Bild.
+            FahrzeugSeitenBild(markeModell: markeModell, farbe: farbe) {
+                if !bildURL.isEmpty { StammBild(quelle: bildURL) }
             }
+            .frame(width: 64, height: 40)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.trailing, 44)
+            .allowsHitTesting(false)
             Button {
                 if bildURL.isEmpty { bildWaehlen = true } else { bildURL = "" }
             } label: {

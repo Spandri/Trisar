@@ -182,7 +182,7 @@ data class FahrzeugAngaben(
     }
 }
 
-/** Hoehe der Startseiten-Karte fuer die Listen darunter. */
+/** Hoehe der Startseiten-Karte fuer die Listen darunter. In Compose aufgerufen, rechnet neu, sobald der Katalog da ist. */
 fun fahrzeugKartenHoehe(f: FahrzeugZeile?, bildOben: Float = 63f, ctx: android.content.Context? = null): Float {
     val a = FahrzeugAngaben.aus(f)
     val dreh = ctx?.let { DrehSatz.finden(it, a.modell, a.farbe) }
@@ -209,7 +209,9 @@ fun FahrzeugKarte(fahrzeug: FahrzeugZeile?, titel: String, modifier: Modifier = 
     val a = FahrzeugAngaben.aus(fahrzeug)
     // Modell und Farbe passen zu einem 360-Grad-Satz: Auto schraeg vorne links, ohne Drehung.
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    val dreh = androidx.compose.runtime.remember(a.modell, a.farbe) { DrehSatz.finden(ctx, a.modell, a.farbe) }
+    // Katalog als Schluessel: rechnet neu, sobald er vom Server nachgeladen ist.
+    val katalog = DrehInfo.laden(ctx)
+    val dreh = androidx.compose.runtime.remember(katalog, a.modell, a.farbe) { DrehSatz.finden(katalog, a.modell, a.farbe) }
     val r = a.kartenRaster(bildOben, mitDreh = dreh != null)
     Box(modifier.size(362.dp, r.hoehe.dp).background(Color.White)) {
         SchrumpfText(titel, grotesk(30f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 338f,

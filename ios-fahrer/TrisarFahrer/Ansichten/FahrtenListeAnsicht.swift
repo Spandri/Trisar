@@ -17,6 +17,8 @@ struct FahrtenListeAnsicht: View {
     @State private var stundenAblehnen: Stunden.Eintrag?
     /// Neu zeichnen, wenn ein Fahrzeugbild nicht laedt (Karte/Block werden kuerzer).
     @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
+    /// Neu zeichnen, wenn der Fahrzeugkatalog (360-Grad-Bilder) vom Server nachlaedt.
+    @ObservedObject private var katalog = DrehKatalog.shared
     /// Standby am Event-Ort: Karte mit Knoepfen unter den Dienstanfragen des Tages.
     @ObservedObject private var standby = StandbySpeicher.shared
 

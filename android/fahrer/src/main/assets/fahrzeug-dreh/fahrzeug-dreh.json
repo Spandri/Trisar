@@ -2,17 +2,10 @@
  "bilder": 36,
  "start": 32,
  "seite": 27,
- "breite": 800,
- "hoehe": 317,
- "endbox": [
-  43,
-  26,
-  656,
-  312
- ],
  "modelle": [
   {
    "id": "v-klasse",
+   "marke": "Mercedes-Benz",
    "name": "Mercedes-Benz V-Klasse",
    "modell": [
     "vklasse",
@@ -25,188 +18,5407 @@
    ],
    "farben": [
     [
-     "obsidian",
-     "9197"
+     "bergkristallweissmetallic",
+     "bergkristallweiss-metallic"
     ],
     [
-     "bergkristall",
-     "9134"
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
     ],
     [
-     "arktik",
-     "9147"
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
     ],
     [
-     "hightech",
-     "9922"
+     "sodalithblaumetallic",
+     "sodalithblau-metallic"
     ],
     [
-     "graphit",
-     "7831"
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
     ],
     [
-     "alpin",
-     "7956"
+     "hyazinthrotmetallic",
+     "hyazinthrot-metallic"
     ],
     [
-     "sodalith",
-     "5842"
+     "bergkristallweiss",
+     "bergkristallweiss-metallic"
     ],
     [
-     "stahl",
-     "5389"
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
     ],
     [
-     "vintage",
-     "5934"
+     "hightechsilber",
+     "hightechsilber-metallic"
     ],
     [
-     "hyazinth",
-     "3334"
+     "sodalithblau",
+     "sodalithblau-metallic"
     ],
     [
-     "jupiter",
-     "3589"
+     "arktikweiss",
+     "arktikweiss"
+    ],
+    [
+     "vintageblau",
+     "vintageblau"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "hyazinthrot",
+     "hyazinthrot-metallic"
+    ],
+    [
+     "jupiterrot",
+     "jupiterrot"
+    ],
+    [
+     "alpingrau",
+     "alpingrau"
+    ],
+    [
+     "stahlblau",
+     "stahlblau"
     ],
     [
      "anthrazit",
-     "7831"
-    ],
-    [
-     "dunkelgrau",
-     "7831"
-    ],
-    [
-     "hellblau",
-     "5934"
-    ],
-    [
-     "dunkelblau",
-     "5842"
+     "graphitgrau-metallic"
     ],
     [
      "schwarz",
-     "9197"
-    ],
-    [
-     "black",
-     "9197"
-    ],
-    [
-     "weiss",
-     "9147"
-    ],
-    [
-     "white",
-     "9147"
+     "obsidianschwarz-metallic"
     ],
     [
      "silber",
-     "9922"
+     "hightechsilber-metallic"
     ],
     [
      "silver",
-     "9922"
+     "hightechsilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "bergkristallweiss-metallic"
+    ],
+    [
+     "white",
+     "bergkristallweiss-metallic"
     ],
     [
      "grau",
-     "7956"
+     "graphitgrau-metallic"
     ],
     [
      "grey",
-     "7956"
+     "graphitgrau-metallic"
     ],
     [
      "gray",
-     "7956"
+     "graphitgrau-metallic"
     ],
     [
      "blau",
-     "5842"
+     "sodalithblau-metallic"
     ],
     [
      "blue",
-     "5842"
+     "sodalithblau-metallic"
     ],
     [
      "rot",
-     "3334"
+     "hyazinthrot-metallic"
     ],
     [
      "red",
-     "3334"
+     "hyazinthrot-metallic"
     ]
+   ],
+   "lacke": [
+    "obsidianschwarz-metallic",
+    "bergkristallweiss-metallic",
+    "hightechsilber-metallic",
+    "graphitgrau-metallic",
+    "sodalithblau-metallic",
+    "hyazinthrot-metallic",
+    "arktikweiss",
+    "alpingrau",
+    "stahlblau",
+    "vintageblau",
+    "jupiterrot"
    ],
    "lackliste": [
     {
-     "code": "9197",
+     "code": "obsidianschwarz-metallic",
      "name": "Obsidianschwarz metallic",
-     "hex": "#1B1C1E"
+     "hex": "#2B2D2C"
     },
     {
-     "code": "9134",
+     "code": "bergkristallweiss-metallic",
      "name": "Bergkristallweiß metallic",
-     "hex": "#E9E9E6"
+     "hex": "#DADDDC"
     },
     {
-     "code": "9922",
+     "code": "hightechsilber-metallic",
      "name": "Hightechsilber metallic",
-     "hex": "#B9BEC3"
+     "hex": "#C8CED3"
     },
     {
-     "code": "7831",
+     "code": "graphitgrau-metallic",
      "name": "Graphitgrau metallic",
-     "hex": "#55595D"
+     "hex": "#757C7C"
     },
     {
-     "code": "5842",
+     "code": "sodalithblau-metallic",
      "name": "Sodalithblau metallic",
-     "hex": "#233A5C"
+     "hex": "#3C5473"
     },
     {
-     "code": "3334",
+     "code": "hyazinthrot-metallic",
      "name": "Hyazinthrot metallic",
-     "hex": "#7D1720"
+     "hex": "#B2363E"
     },
     {
-     "code": "9147",
+     "code": "arktikweiss",
      "name": "Arktikweiß",
-     "hex": "#F2F3F1"
+     "hex": "#D0D2D4"
     },
     {
-     "code": "7956",
+     "code": "alpingrau",
      "name": "Alpingrau",
-     "hex": "#9A9D9F"
+     "hex": "#979999"
     },
     {
-     "code": "5389",
+     "code": "stahlblau",
      "name": "Stahlblau",
-     "hex": "#2C4466"
+     "hex": "#334256"
     },
     {
-     "code": "5934",
+     "code": "vintageblau",
      "name": "Vintageblau",
-     "hex": "#7F9BBD"
+     "hex": "#7A95A7"
     },
     {
-     "code": "3589",
+     "code": "jupiterrot",
      "name": "Jupiterrot",
-     "hex": "#B3201F"
+     "hex": "#AB3937"
     }
    ],
+   "breite": 800,
+   "hoehe": 317,
+   "endbox": [
+    43,
+    26,
+    656,
+    312
+   ]
+  },
+  {
+   "id": "c-klasse",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz C-Klasse Limousine",
+   "modell": [
+    "cklasse",
+    "c200",
+    "c220",
+    "c300",
+    "c400"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotbright",
+     "manufaktur-patagonienrot-bright"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "manufakturgraphitgraumagno",
+     "manufaktur-graphitgrau-magno"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturalpingrauuni",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "lavendersilvermetallic",
+     "lavender-silver-metallic"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "spektralblaumetallic",
+     "spektralblau-metallic"
+    ],
+    [
+     "moodyskygreymetallic",
+     "moody-sky-grey-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "lavendersilver",
+     "lavender-silver-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-bright"
+    ],
+    [
+     "spektralblau",
+     "spektralblau-metallic"
+    ],
+    [
+     "moodyskygrey",
+     "moody-sky-grey-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "alpingrau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "silver",
+     "hightechsilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "spektralblau-metallic"
+    ],
+    [
+     "blue",
+     "spektralblau-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-bright"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-bright"
+    ]
+   ],
    "lacke": [
-    "3334",
-    "3589",
-    "5389",
-    "5842",
-    "5934",
-    "7831",
-    "7956",
-    "9134",
-    "9147",
-    "9197",
-    "9922"
+    "manufaktur-graphitgrau-magno",
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-alpingrau-uni",
+    "manufaktur-patagonienrot-bright",
+    "obsidianschwarz-metallic",
+    "lavender-silver-metallic",
+    "graphitgrau-metallic",
+    "hightechsilber-metallic",
+    "spektralblau-metallic",
+    "moody-sky-grey-metallic",
+    "schwarz-uni",
+    "polarweiss-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-graphitgrau-magno",
+     "name": "MANUFAKTUR graphitgrau magno",
+     "hex": "#444746"
+    },
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#D0D4D5"
+    },
+    {
+     "code": "manufaktur-alpingrau-uni",
+     "name": "MANUFAKTUR alpingrau uni",
+     "hex": "#656864"
+    },
+    {
+     "code": "manufaktur-patagonienrot-bright",
+     "name": "MANUFAKTUR patagonienrot bright",
+     "hex": "#9E1825"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#0F1110"
+    },
+    {
+     "code": "lavender-silver-metallic",
+     "name": "Lavender silver metallic",
+     "hex": "#9798AA"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#3C3F3E"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#B3BAC3"
+    },
+    {
+     "code": "spektralblau-metallic",
+     "name": "Spektralblau metallic",
+     "hex": "#155690"
+    },
+    {
+     "code": "moody-sky-grey-metallic",
+     "name": "Moody sky grey metallic",
+     "hex": "#2C333C"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#060508"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#C7C9CA"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 303,
+   "endbox": [
+    30,
+    4,
+    674,
+    294
+   ]
+  },
+  {
+   "id": "e-klasse",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz E-Klasse Limousine",
+   "modell": [
+    "eklasse",
+    "e200",
+    "e220",
+    "e300",
+    "e400",
+    "e450"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturalpingrauuni",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "verdesilbermetallic",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "nautikblaumetallic",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraunmetallic",
+     "samtbraun-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "verdesilber",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "nautikblau",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraun",
+     "samtbraun-metallic"
+    ],
+    [
+     "alpingrau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "verdesilber-metallic"
+    ],
+    [
+     "silver",
+     "verdesilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "braun",
+     "samtbraun-metallic"
+    ],
+    [
+     "brown",
+     "samtbraun-metallic"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "nautikblau-metallic"
+    ],
+    [
+     "blue",
+     "nautikblau-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-alpingrau-uni",
+    "manufaktur-patagonienrot-metallic",
+    "verdesilber-metallic",
+    "obsidianschwarz-metallic",
+    "nautikblau-metallic",
+    "samtbraun-metallic",
+    "graphitgrau-metallic",
+    "hightechsilber-metallic",
+    "schwarz-uni",
+    "polarweiss-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#E1E4E1"
+    },
+    {
+     "code": "manufaktur-alpingrau-uni",
+     "name": "MANUFAKTUR alpingrau uni",
+     "hex": "#8F9089"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#BC2934"
+    },
+    {
+     "code": "verdesilber-metallic",
+     "name": "Verdesilber metallic",
+     "hex": "#829E99"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#1B1B1B"
+    },
+    {
+     "code": "nautikblau-metallic",
+     "name": "Nautikblau metallic",
+     "hex": "#1A2B45"
+    },
+    {
+     "code": "samtbraun-metallic",
+     "name": "Samtbraun metallic",
+     "hex": "#AEA294"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#535751"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#CACFCD"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#101010"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#DEDFDC"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 304,
+   "endbox": [
+    30,
+    4,
+    679,
+    295
+   ]
+  },
+  {
+   "id": "e-klasse-t",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz E-Klasse T-Modell",
+   "modell": [
+    "eklassetmodell",
+    "etmodell",
+    "eklassekombi",
+    "tmodell",
+    "tmodel",
+    "estate"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturalpingrauuni",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "verdesilbermetallic",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "nautikblaumetallic",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraunmetallic",
+     "samtbraun-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "verdesilber",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "nautikblau",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraun",
+     "samtbraun-metallic"
+    ],
+    [
+     "alpingrau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "verdesilber-metallic"
+    ],
+    [
+     "silver",
+     "verdesilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "braun",
+     "samtbraun-metallic"
+    ],
+    [
+     "brown",
+     "samtbraun-metallic"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "nautikblau-metallic"
+    ],
+    [
+     "blue",
+     "nautikblau-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-alpingrau-uni",
+    "manufaktur-patagonienrot-metallic",
+    "verdesilber-metallic",
+    "obsidianschwarz-metallic",
+    "nautikblau-metallic",
+    "samtbraun-metallic",
+    "graphitgrau-metallic",
+    "hightechsilber-metallic",
+    "schwarz-uni",
+    "polarweiss-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#E1E4E1"
+    },
+    {
+     "code": "manufaktur-alpingrau-uni",
+     "name": "MANUFAKTUR alpingrau uni",
+     "hex": "#8F9089"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#BC2934"
+    },
+    {
+     "code": "verdesilber-metallic",
+     "name": "Verdesilber metallic",
+     "hex": "#829E99"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#1B1B19"
+    },
+    {
+     "code": "nautikblau-metallic",
+     "name": "Nautikblau metallic",
+     "hex": "#192B45"
+    },
+    {
+     "code": "samtbraun-metallic",
+     "name": "Samtbraun metallic",
+     "hex": "#ACA394"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#535751"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#C9CDCE"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#101010"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#DEDFDC"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 308,
+   "endbox": [
+    30,
+    6,
+    680,
+    299
+   ]
+  },
+  {
+   "id": "s-klasse",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz S-Klasse",
+   "modell": [
+    "sklasse",
+    "s350",
+    "s400",
+    "s450",
+    "s500",
+    "s580"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturkalaharigoldmetallic",
+     "manufaktur-kalaharigold-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "manufakturopalithweissmagno",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "smaragdgruenmetallic",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "verdesilbermetallic",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "nautikblaumetallic",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraunmetallic",
+     "samtbraun-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "smaragdgruen",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "kalaharigold",
+     "manufaktur-kalaharigold-metallic"
+    ],
+    [
+     "warmgreyuni",
+     "warmgrey-uni"
+    ],
+    [
+     "verdesilber",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "nautikblau",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraun",
+     "samtbraun-metallic"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "warmgrey",
+     "warmgrey-uni"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "verdesilber-metallic"
+    ],
+    [
+     "silver",
+     "verdesilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "white",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "gruen",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "green",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "braun",
+     "samtbraun-metallic"
+    ],
+    [
+     "brown",
+     "samtbraun-metallic"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "nautikblau-metallic"
+    ],
+    [
+     "blue",
+     "nautikblau-metallic"
+    ],
+    [
+     "gold",
+     "manufaktur-kalaharigold-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-opalithweiss-magno",
+    "manufaktur-kalaharigold-metallic",
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-patagonienrot-metallic",
+    "verdesilber-metallic",
+    "obsidianschwarz-metallic",
+    "nautikblau-metallic",
+    "samtbraun-metallic",
+    "graphitgrau-metallic",
+    "hightechsilber-metallic",
+    "smaragdgruen-metallic",
+    "schwarz-uni",
+    "warmgrey-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-opalithweiss-magno",
+     "name": "MANUFAKTUR opalithweiß magno",
+     "hex": "#D2D4D6"
+    },
+    {
+     "code": "manufaktur-kalaharigold-metallic",
+     "name": "MANUFAKTUR kalaharigold metallic",
+     "hex": "#C4BEAE"
+    },
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#D3D7D8"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#9D1A26"
+    },
+    {
+     "code": "verdesilber-metallic",
+     "name": "Verdesilber metallic",
+     "hex": "#668384"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#151716"
+    },
+    {
+     "code": "nautikblau-metallic",
+     "name": "Nautikblau metallic",
+     "hex": "#191E2E"
+    },
+    {
+     "code": "samtbraun-metallic",
+     "name": "Samtbraun metallic",
+     "hex": "#91877F"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#3D4240"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#B4BCC2"
+    },
+    {
+     "code": "smaragdgruen-metallic",
+     "name": "Smaragdgrün metallic",
+     "hex": "#0A211E"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#101012"
+    },
+    {
+     "code": "warmgrey-uni",
+     "name": "Warmgrey uni",
+     "hex": "#3A3A3A"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 287,
+   "endbox": [
+    28,
+    3,
+    652,
+    277
+   ]
+  },
+  {
+   "id": "s-klasse-lang",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz S-Klasse Lang",
+   "modell": [
+    "sklasselang",
+    "sklasselangversion",
+    "slang",
+    "350lang",
+    "400lang",
+    "450lang",
+    "500lang",
+    "580lang",
+    "langversion"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturkalaharigoldmetallic",
+     "manufaktur-kalaharigold-metallic"
+    ],
+    [
+     "manufakturmysticblaumetallic",
+     "manufaktur-mysticblau-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "manufakturnachtschwarzmagno",
+     "manufaktur-nachtschwarz-magno"
+    ],
+    [
+     "manufakturopalithweissmagno",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "manufakturkalaharigoldmagno",
+     "manufaktur-kalaharigold-magno"
+    ],
+    [
+     "manufakturverdesilbermagno",
+     "manufaktur-verdesilber-magno"
+    ],
+    [
+     "manufakturschwarzsparkling",
+     "manufaktur-schwarz-sparkling"
+    ],
+    [
+     "manufakturgraphitmetallic",
+     "manufaktur-graphit-metallic"
+    ],
+    [
+     "manufaktursiliziumgrauuni",
+     "manufaktur-siliziumgrau-uni"
+    ],
+    [
+     "manufakturvintageblauuni",
+     "manufaktur-vintageblau-uni"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturolivmetallic",
+     "manufaktur-oliv-metallic"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "smaragdgruenmetallic",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "verdesilbermetallic",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "nautikblaumetallic",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraunmetallic",
+     "samtbraun-metallic"
+    ],
+    [
+     "schwarzsparkling",
+     "manufaktur-schwarz-sparkling"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "smaragdgruen",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "siliziumgrau",
+     "manufaktur-siliziumgrau-uni"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "nachtschwarz",
+     "manufaktur-nachtschwarz-magno"
+    ],
+    [
+     "kalaharigold",
+     "manufaktur-kalaharigold-magno"
+    ],
+    [
+     "warmgreyuni",
+     "warmgrey-uni"
+    ],
+    [
+     "verdesilber",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "vintageblau",
+     "manufaktur-vintageblau-uni"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "nautikblau",
+     "nautikblau-metallic"
+    ],
+    [
+     "mysticblau",
+     "manufaktur-mysticblau-metallic"
+    ],
+    [
+     "samtbraun",
+     "samtbraun-metallic"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "warmgrey",
+     "warmgrey-uni"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "graphit",
+     "manufaktur-graphit-metallic"
+    ],
+    [
+     "silber",
+     "verdesilber-metallic"
+    ],
+    [
+     "silver",
+     "verdesilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "white",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "gruen",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "green",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "braun",
+     "samtbraun-metallic"
+    ],
+    [
+     "brown",
+     "samtbraun-metallic"
+    ],
+    [
+     "oliv",
+     "manufaktur-oliv-metallic"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "nautikblau-metallic"
+    ],
+    [
+     "blue",
+     "nautikblau-metallic"
+    ],
+    [
+     "gold",
+     "manufaktur-kalaharigold-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-nachtschwarz-magno",
+    "manufaktur-verdesilber-magno",
+    "manufaktur-opalithweiss-magno",
+    "manufaktur-kalaharigold-magno",
+    "manufaktur-mysticblau-metallic",
+    "manufaktur-graphit-metallic",
+    "manufaktur-siliziumgrau-uni",
+    "manufaktur-oliv-metallic",
+    "manufaktur-kalaharigold-metallic",
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-vintageblau-uni",
+    "manufaktur-patagonienrot-metallic",
+    "verdesilber-metallic",
+    "obsidianschwarz-metallic",
+    "nautikblau-metallic",
+    "samtbraun-metallic",
+    "graphitgrau-metallic",
+    "hightechsilber-metallic",
+    "smaragdgruen-metallic",
+    "manufaktur-schwarz-sparkling",
+    "schwarz-uni",
+    "warmgrey-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-nachtschwarz-magno",
+     "name": "MANUFAKTUR nachtschwarz magno",
+     "hex": "#121416"
+    },
+    {
+     "code": "manufaktur-verdesilber-magno",
+     "name": "MANUFAKTUR verdesilber magno",
+     "hex": "#597476"
+    },
+    {
+     "code": "manufaktur-opalithweiss-magno",
+     "name": "MANUFAKTUR opalithweiß magno",
+     "hex": "#D3D6D7"
+    },
+    {
+     "code": "manufaktur-kalaharigold-magno",
+     "name": "MANUFAKTUR kalaharigold magno",
+     "hex": "#C4BEAE"
+    },
+    {
+     "code": "manufaktur-mysticblau-metallic",
+     "name": "MANUFAKTUR mysticblau metallic",
+     "hex": "#091953"
+    },
+    {
+     "code": "manufaktur-graphit-metallic",
+     "name": "MANUFAKTUR graphit metallic",
+     "hex": "#5D6464"
+    },
+    {
+     "code": "manufaktur-siliziumgrau-uni",
+     "name": "MANUFAKTUR siliziumgrau uni",
+     "hex": "#313838"
+    },
+    {
+     "code": "manufaktur-oliv-metallic",
+     "name": "MANUFAKTUR oliv metallic",
+     "hex": "#34402C"
+    },
+    {
+     "code": "manufaktur-kalaharigold-metallic",
+     "name": "MANUFAKTUR kalaharigold metallic",
+     "hex": "#C5BFAF"
+    },
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#D3D7D8"
+    },
+    {
+     "code": "manufaktur-vintageblau-uni",
+     "name": "MANUFAKTUR vintageblau uni",
+     "hex": "#496C82"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#9D1928"
+    },
+    {
+     "code": "verdesilber-metallic",
+     "name": "Verdesilber metallic",
+     "hex": "#668384"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#13151B"
+    },
+    {
+     "code": "nautikblau-metallic",
+     "name": "Nautikblau metallic",
+     "hex": "#19202E"
+    },
+    {
+     "code": "samtbraun-metallic",
+     "name": "Samtbraun metallic",
+     "hex": "#938880"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#3D4240"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#B4BCC4"
+    },
+    {
+     "code": "smaragdgruen-metallic",
+     "name": "Smaragdgrün metallic",
+     "hex": "#171918"
+    },
+    {
+     "code": "manufaktur-schwarz-sparkling",
+     "name": "MANUFAKTUR schwarz sparkling",
+     "hex": "#161A1E"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#0F1112"
+    },
+    {
+     "code": "warmgrey-uni",
+     "name": "Warmgrey uni",
+     "hex": "#3E3C3B"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 287,
+   "endbox": [
+    28,
+    3,
+    658,
+    277
+   ]
+  },
+  {
+   "id": "maybach-s",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Maybach S-Klasse",
+   "modell": [
+    "maybachs",
+    "maybachsklasse",
+    "s580maybach",
+    "s680",
+    "maybach"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturkalaharigoldmetallic",
+     "manufaktur-kalaharigold-metallic"
+    ],
+    [
+     "manufakturmysticblaumetallic",
+     "manufaktur-mysticblau-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "manufakturnachtschwarzmagno",
+     "manufaktur-nachtschwarz-magno"
+    ],
+    [
+     "manufakturopalithweissmagno",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "manufakturkalaharigoldmagno",
+     "manufaktur-kalaharigold-magno"
+    ],
+    [
+     "manufakturverdesilbermagno",
+     "manufaktur-verdesilber-magno"
+    ],
+    [
+     "manufakturschwarzsparkling",
+     "manufaktur-schwarz-sparkling"
+    ],
+    [
+     "manufakturgraphitmetallic",
+     "manufaktur-graphit-metallic"
+    ],
+    [
+     "manufaktursiliziumgrauuni",
+     "manufaktur-siliziumgrau-uni"
+    ],
+    [
+     "manufakturvintageblauuni",
+     "manufaktur-vintageblau-uni"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturolivmetallic",
+     "manufaktur-oliv-metallic"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "smaragdgruenmetallic",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "verdesilbermetallic",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "nautikblaumetallic",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraunmetallic",
+     "samtbraun-metallic"
+    ],
+    [
+     "schwarzsparkling",
+     "manufaktur-schwarz-sparkling"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "smaragdgruen",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "siliziumgrau",
+     "manufaktur-siliziumgrau-uni"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "nachtschwarz",
+     "manufaktur-nachtschwarz-magno"
+    ],
+    [
+     "kalaharigold",
+     "manufaktur-kalaharigold-magno"
+    ],
+    [
+     "warmgreyuni",
+     "warmgrey-uni"
+    ],
+    [
+     "verdesilber",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "vintageblau",
+     "manufaktur-vintageblau-uni"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "nautikblau",
+     "nautikblau-metallic"
+    ],
+    [
+     "mysticblau",
+     "manufaktur-mysticblau-metallic"
+    ],
+    [
+     "samtbraun",
+     "samtbraun-metallic"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "warmgrey",
+     "warmgrey-uni"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "graphit",
+     "manufaktur-graphit-metallic"
+    ],
+    [
+     "silber",
+     "verdesilber-metallic"
+    ],
+    [
+     "silver",
+     "verdesilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "white",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "gruen",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "green",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "braun",
+     "samtbraun-metallic"
+    ],
+    [
+     "brown",
+     "samtbraun-metallic"
+    ],
+    [
+     "oliv",
+     "manufaktur-oliv-metallic"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "nautikblau-metallic"
+    ],
+    [
+     "blue",
+     "nautikblau-metallic"
+    ],
+    [
+     "gold",
+     "manufaktur-kalaharigold-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-nachtschwarz-magno",
+    "manufaktur-verdesilber-magno",
+    "manufaktur-opalithweiss-magno",
+    "manufaktur-kalaharigold-magno",
+    "manufaktur-mysticblau-metallic",
+    "manufaktur-graphit-metallic",
+    "manufaktur-siliziumgrau-uni",
+    "manufaktur-oliv-metallic",
+    "manufaktur-kalaharigold-metallic",
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-vintageblau-uni",
+    "manufaktur-patagonienrot-metallic",
+    "verdesilber-metallic",
+    "obsidianschwarz-metallic",
+    "nautikblau-metallic",
+    "samtbraun-metallic",
+    "graphitgrau-metallic",
+    "hightechsilber-metallic",
+    "smaragdgruen-metallic",
+    "manufaktur-schwarz-sparkling",
+    "schwarz-uni",
+    "warmgrey-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-nachtschwarz-magno",
+     "name": "MANUFAKTUR nachtschwarz magno",
+     "hex": "#131613"
+    },
+    {
+     "code": "manufaktur-verdesilber-magno",
+     "name": "MANUFAKTUR verdesilber magno",
+     "hex": "#597476"
+    },
+    {
+     "code": "manufaktur-opalithweiss-magno",
+     "name": "MANUFAKTUR opalithweiß magno",
+     "hex": "#D3D6D7"
+    },
+    {
+     "code": "manufaktur-kalaharigold-magno",
+     "name": "MANUFAKTUR kalaharigold magno",
+     "hex": "#C4BEAE"
+    },
+    {
+     "code": "manufaktur-mysticblau-metallic",
+     "name": "MANUFAKTUR mysticblau metallic",
+     "hex": "#1C1E3B"
+    },
+    {
+     "code": "manufaktur-graphit-metallic",
+     "name": "MANUFAKTUR graphit metallic",
+     "hex": "#5D6464"
+    },
+    {
+     "code": "manufaktur-siliziumgrau-uni",
+     "name": "MANUFAKTUR siliziumgrau uni",
+     "hex": "#333A3A"
+    },
+    {
+     "code": "manufaktur-oliv-metallic",
+     "name": "MANUFAKTUR oliv metallic",
+     "hex": "#34402E"
+    },
+    {
+     "code": "manufaktur-kalaharigold-metallic",
+     "name": "MANUFAKTUR kalaharigold metallic",
+     "hex": "#C5BFAF"
+    },
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#D5D7D8"
+    },
+    {
+     "code": "manufaktur-vintageblau-uni",
+     "name": "MANUFAKTUR vintageblau uni",
+     "hex": "#496E84"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#A11826"
+    },
+    {
+     "code": "verdesilber-metallic",
+     "name": "Verdesilber metallic",
+     "hex": "#678486"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#161819"
+    },
+    {
+     "code": "nautikblau-metallic",
+     "name": "Nautikblau metallic",
+     "hex": "#172032"
+    },
+    {
+     "code": "samtbraun-metallic",
+     "name": "Samtbraun metallic",
+     "hex": "#948A80"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#3E4140"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#B4BCC4"
+    },
+    {
+     "code": "smaragdgruen-metallic",
+     "name": "Smaragdgrün metallic",
+     "hex": "#092321"
+    },
+    {
+     "code": "manufaktur-schwarz-sparkling",
+     "name": "MANUFAKTUR schwarz sparkling",
+     "hex": "#181C1F"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#0F1112"
+    },
+    {
+     "code": "warmgrey-uni",
+     "name": "Warmgrey uni",
+     "hex": "#3F3F3D"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 289,
+   "endbox": [
+    28,
+    4,
+    668,
+    279
+   ]
+  },
+  {
+   "id": "eqe",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz EQE Limousine",
+   "modell": [
+    "eqe300",
+    "eqe350",
+    "eqe500",
+    "eqelimousine",
+    "eqe",
+    "eqe43",
+    "eqe53"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "manufakturgraphitgraumagno",
+     "manufaktur-graphitgrau-magno"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturalpingrauuni",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "sodalithblaumetallic",
+     "sodalithblau-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "sodalithblau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "alpingrau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "silver",
+     "hightechsilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "blue",
+     "sodalithblau-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-graphitgrau-magno",
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-alpingrau-uni",
+    "manufaktur-patagonienrot-metallic",
+    "obsidianschwarz-metallic",
+    "graphitgrau-metallic",
+    "sodalithblau-metallic",
+    "hightechsilber-metallic",
+    "schwarz-uni",
+    "polarweiss-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-graphitgrau-magno",
+     "name": "MANUFAKTUR graphitgrau magno",
+     "hex": "#454749"
+    },
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#CED0D1"
+    },
+    {
+     "code": "manufaktur-alpingrau-uni",
+     "name": "MANUFAKTUR alpingrau uni",
+     "hex": "#787A7B"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#831421"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#101213"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#383B43"
+    },
+    {
+     "code": "sodalithblau-metallic",
+     "name": "Sodalithblau metallic",
+     "hex": "#485E7D"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#B0B3BD"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#030303"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#C0C4C8"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 292,
+   "endbox": [
+    28,
+    3,
+    690,
+    277
+   ]
+  },
+  {
+   "id": "eqs",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz EQS Limousine",
+   "modell": [
+    "eqs450",
+    "eqs500",
+    "eqs580",
+    "eqslimousine",
+    "eqs",
+    "eqs53"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturrubellitrotmetallic",
+     "manufaktur-rubellitrot-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "manufakturnachtschwarzmagno",
+     "manufaktur-nachtschwarz-magno"
+    ],
+    [
+     "manufakturopalithweissmagno",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "manufakturkalaharigoldmagno",
+     "manufaktur-kalaharigold-magno"
+    ],
+    [
+     "manufakturverdesilbermagno",
+     "manufaktur-verdesilber-magno"
+    ],
+    [
+     "manufakturgraphitgraumagno",
+     "manufaktur-graphitgrau-magno"
+    ],
+    [
+     "manufakturschwarzsparkling",
+     "manufaktur-schwarz-sparkling"
+    ],
+    [
+     "manufaktursiliziumgrauuni",
+     "manufaktur-siliziumgrau-uni"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "sodalithblaumetallic",
+     "sodalithblau-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "nautikblaumetallic",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraunmetallic",
+     "samtbraun-metallic"
+    ],
+    [
+     "schwarzsparkling",
+     "manufaktur-schwarz-sparkling"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "sodalithblau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "siliziumgrau",
+     "manufaktur-siliziumgrau-uni"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "nachtschwarz",
+     "manufaktur-nachtschwarz-magno"
+    ],
+    [
+     "kalaharigold",
+     "manufaktur-kalaharigold-magno"
+    ],
+    [
+     "warmgreyuni",
+     "warmgrey-uni"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "verdesilber",
+     "manufaktur-verdesilber-magno"
+    ],
+    [
+     "rubellitrot",
+     "manufaktur-rubellitrot-metallic"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "nautikblau",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraun",
+     "samtbraun-metallic"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "warmgrey",
+     "warmgrey-uni"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "silver",
+     "hightechsilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "braun",
+     "samtbraun-metallic"
+    ],
+    [
+     "brown",
+     "samtbraun-metallic"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "nautikblau-metallic"
+    ],
+    [
+     "blue",
+     "nautikblau-metallic"
+    ],
+    [
+     "gold",
+     "manufaktur-kalaharigold-magno"
+    ],
+    [
+     "rot",
+     "manufaktur-rubellitrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-rubellitrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-nachtschwarz-magno",
+    "manufaktur-verdesilber-magno",
+    "manufaktur-opalithweiss-magno",
+    "manufaktur-kalaharigold-magno",
+    "manufaktur-graphitgrau-magno",
+    "manufaktur-siliziumgrau-uni",
+    "manufaktur-rubellitrot-metallic",
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-patagonienrot-metallic",
+    "obsidianschwarz-metallic",
+    "nautikblau-metallic",
+    "samtbraun-metallic",
+    "graphitgrau-metallic",
+    "sodalithblau-metallic",
+    "hightechsilber-metallic",
+    "manufaktur-schwarz-sparkling",
+    "schwarz-uni",
+    "polarweiss-uni",
+    "warmgrey-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-nachtschwarz-magno",
+     "name": "MANUFAKTUR nachtschwarz magno",
+     "hex": "#1E2021"
+    },
+    {
+     "code": "manufaktur-verdesilber-magno",
+     "name": "MANUFAKTUR verdesilber magno",
+     "hex": "#7B9698"
+    },
+    {
+     "code": "manufaktur-opalithweiss-magno",
+     "name": "MANUFAKTUR opalithweiß magno",
+     "hex": "#DEE0E2"
+    },
+    {
+     "code": "manufaktur-kalaharigold-magno",
+     "name": "MANUFAKTUR kalaharigold magno",
+     "hex": "#D9D4C8"
+    },
+    {
+     "code": "manufaktur-graphitgrau-magno",
+     "name": "MANUFAKTUR graphitgrau magno",
+     "hex": "#5D6261"
+    },
+    {
+     "code": "manufaktur-siliziumgrau-uni",
+     "name": "MANUFAKTUR siliziumgrau uni",
+     "hex": "#3B4443"
+    },
+    {
+     "code": "manufaktur-rubellitrot-metallic",
+     "name": "MANUFAKTUR rubellitrot metallic",
+     "hex": "#3A2827"
+    },
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#DCDEDF"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#BA2837"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#202224"
+    },
+    {
+     "code": "nautikblau-metallic",
+     "name": "Nautikblau metallic",
+     "hex": "#1A2B4E"
+    },
+    {
+     "code": "samtbraun-metallic",
+     "name": "Samtbraun metallic",
+     "hex": "#AA9F9A"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#515554"
+    },
+    {
+     "code": "sodalithblau-metallic",
+     "name": "Sodalithblau metallic",
+     "hex": "#4D668D"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#C7CDD2"
+    },
+    {
+     "code": "manufaktur-schwarz-sparkling",
+     "name": "MANUFAKTUR schwarz sparkling",
+     "hex": "#222629"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#161819"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#D0D4D5"
+    },
+    {
+     "code": "warmgrey-uni",
+     "name": "Warmgrey uni",
+     "hex": "#474747"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 302,
+   "endbox": [
+    29,
+    5,
+    673,
+    292
+   ]
+  },
+  {
+   "id": "eqe-suv",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz EQE SUV",
+   "modell": [
+    "eqesuv",
+    "eqe300suv",
+    "eqe350suv",
+    "eqe500suv"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturalpingrauuni",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "sodalithblaumetallic",
+     "sodalithblau-metallic"
+    ],
+    [
+     "samtbraunmetallic",
+     "samtbraun-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "sodalithblau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "samtbraun",
+     "samtbraun-metallic"
+    ],
+    [
+     "alpingrau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "anthrazit",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "silver",
+     "hightechsilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "braun",
+     "samtbraun-metallic"
+    ],
+    [
+     "brown",
+     "samtbraun-metallic"
+    ],
+    [
+     "grau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "grey",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "gray",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "blau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "blue",
+     "sodalithblau-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-alpingrau-uni",
+    "manufaktur-patagonienrot-metallic",
+    "obsidianschwarz-metallic",
+    "samtbraun-metallic",
+    "sodalithblau-metallic",
+    "hightechsilber-metallic",
+    "schwarz-uni",
+    "polarweiss-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#D1D3D5"
+    },
+    {
+     "code": "manufaktur-alpingrau-uni",
+     "name": "MANUFAKTUR alpingrau uni",
+     "hex": "#7F7E85"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#91222C"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#191B1F"
+    },
+    {
+     "code": "samtbraun-metallic",
+     "name": "Samtbraun metallic",
+     "hex": "#8A7D76"
+    },
+    {
+     "code": "sodalithblau-metallic",
+     "name": "Sodalithblau metallic",
+     "hex": "#465A7A"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#BEC1C9"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#020202"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#ADB0B6"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 351,
+   "endbox": [
+    26,
+    8,
+    688,
+    342
+   ]
+  },
+  {
+   "id": "glc",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz GLC",
+   "modell": [
+    "glc",
+    "glc200",
+    "glc220",
+    "glc300",
+    "glc400",
+    "glc43",
+    "glc63"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "manufakturgraphitgraumagno",
+     "manufaktur-graphitgrau-magno"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturalpingrauuni",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "spektralblaumetallic",
+     "spektralblau-metallic"
+    ],
+    [
+     "verdesilbermetallic",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "spektralblau",
+     "spektralblau-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "verdesilber",
+     "verdesilber-metallic"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "alpingrau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "verdesilber-metallic"
+    ],
+    [
+     "silver",
+     "verdesilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "spektralblau-metallic"
+    ],
+    [
+     "blue",
+     "spektralblau-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-graphitgrau-magno",
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-alpingrau-uni",
+    "manufaktur-patagonienrot-metallic",
+    "verdesilber-metallic",
+    "obsidianschwarz-metallic",
+    "graphitgrau-metallic",
+    "hightechsilber-metallic",
+    "spektralblau-metallic",
+    "schwarz-uni",
+    "polarweiss-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-graphitgrau-magno",
+     "name": "MANUFAKTUR graphitgrau magno",
+     "hex": "#303332"
+    },
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#D6D8D9"
+    },
+    {
+     "code": "manufaktur-alpingrau-uni",
+     "name": "MANUFAKTUR alpingrau uni",
+     "hex": "#979799"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#A8222F"
+    },
+    {
+     "code": "verdesilber-metallic",
+     "name": "Verdesilber metallic",
+     "hex": "#687A7A"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#1C1C1C"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#3F3F3F"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#B0B5BD"
+    },
+    {
+     "code": "spektralblau-metallic",
+     "name": "Spektralblau metallic",
+     "hex": "#005390"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#141414"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#DCDCDC"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 342,
+   "endbox": [
+    29,
+    7,
+    668,
+    327
+   ]
+  },
+  {
+   "id": "gle",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz GLE",
+   "modell": [
+    "gle",
+    "gle300",
+    "gle350",
+    "gle400",
+    "gle450",
+    "gle580",
+    "gle53",
+    "gle63"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturalpingrauuni",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "sodalithblaumetallic",
+     "sodalithblau-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "darkpetroluni",
+     "dark-petrol-uni"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "sodalithblau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "darkpetrol",
+     "dark-petrol-uni"
+    ],
+    [
+     "alpingrau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "silver",
+     "hightechsilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "blue",
+     "sodalithblau-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-alpingrau-uni",
+    "manufaktur-patagonienrot-metallic",
+    "obsidianschwarz-metallic",
+    "graphitgrau-metallic",
+    "sodalithblau-metallic",
+    "hightechsilber-metallic",
+    "schwarz-uni",
+    "polarweiss-uni",
+    "dark-petrol-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#D9DCDB"
+    },
+    {
+     "code": "manufaktur-alpingrau-uni",
+     "name": "MANUFAKTUR alpingrau uni",
+     "hex": "#828380"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#4C494D"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#141316"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#474747"
+    },
+    {
+     "code": "sodalithblau-metallic",
+     "name": "Sodalithblau metallic",
+     "hex": "#384A68"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#ADB3BC"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#08080A"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#DBDBDB"
+    },
+    {
+     "code": "dark-petrol-uni",
+     "name": "Dark petrol uni",
+     "hex": "#2F3A39"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 350,
+   "endbox": [
+    30,
+    9,
+    665,
+    340
+   ]
+  },
+  {
+   "id": "gls",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz GLS",
+   "modell": [
+    "gls",
+    "gls350",
+    "gls400",
+    "gls450",
+    "gls580",
+    "gls600",
+    "gls63"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturalpingrauuni",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "sodalithblaumetallic",
+     "sodalithblau-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "darkpetroluni",
+     "dark-petrol-uni"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "sodalithblau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "darkpetrol",
+     "dark-petrol-uni"
+    ],
+    [
+     "alpingrau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "silver",
+     "hightechsilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ],
+    [
+     "blau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "blue",
+     "sodalithblau-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-alpingrau-uni",
+    "manufaktur-patagonienrot-metallic",
+    "obsidianschwarz-metallic",
+    "graphitgrau-metallic",
+    "sodalithblau-metallic",
+    "hightechsilber-metallic",
+    "schwarz-uni",
+    "polarweiss-uni",
+    "dark-petrol-uni"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#E0E3E2"
+    },
+    {
+     "code": "manufaktur-alpingrau-uni",
+     "name": "MANUFAKTUR alpingrau uni",
+     "hex": "#848482"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#B4222F"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#141414"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#4A4D4A"
+    },
+    {
+     "code": "sodalithblau-metallic",
+     "name": "Sodalithblau metallic",
+     "hex": "#435D82"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#C7C8CC"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#070709"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#DADDDC"
+    },
+    {
+     "code": "dark-petrol-uni",
+     "name": "Dark petrol uni",
+     "hex": "#2F3A39"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 363,
+   "endbox": [
+    26,
+    20,
+    684,
+    354
+   ]
+  },
+  {
+   "id": "g-klasse",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz G-Klasse",
+   "modell": [
+    "gklasse",
+    "g450",
+    "g500",
+    "g580",
+    "g63"
+   ],
+   "farben": [
+    [
+     "manufakturtravertinbeigemetallic",
+     "manufaktur-travertinbeige-metallic"
+    ],
+    [
+     "manufaktursuedseeblaumetallic",
+     "manufaktur-suedseeblau-metallic"
+    ],
+    [
+     "manufakturrubellitrotmetallic",
+     "manufaktur-rubellitrot-metallic"
+    ],
+    [
+     "manufakturhyazinthrotmetallic",
+     "manufaktur-hyazinthrot-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "manufakturindiumgraumetallic",
+     "manufaktur-indiumgrau-metallic"
+    ],
+    [
+     "manufakturnachtschwarzmagno",
+     "manufaktur-nachtschwarz-magno"
+    ],
+    [
+     "manufakturkupferorangemagno",
+     "manufaktur-kupferorange-magno"
+    ],
+    [
+     "manufakturopalithweissmagno",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "manufakturkalaharigoldmagno",
+     "manufaktur-kalaharigold-magno"
+    ],
+    [
+     "manufakturmanganitgraumagno",
+     "manufaktur-manganitgrau-magno"
+    ],
+    [
+     "manufakturbrillantblaumagno",
+     "manufaktur-brillantblau-magno"
+    ],
+    [
+     "manufakturcitrinbraunmagno",
+     "manufaktur-citrinbraun-magno"
+    ],
+    [
+     "manufakturmeerblaumetallic",
+     "manufaktur-meerblau-metallic"
+    ],
+    [
+     "manufakturhyazinthrotmagno",
+     "manufaktur-hyazinthrot-magno"
+    ],
+    [
+     "manufakturdunkelolivmagno",
+     "manufaktur-dunkeloliv-magno"
+    ],
+    [
+     "manufakturgraphitmetallic",
+     "manufaktur-graphit-metallic"
+    ],
+    [
+     "manufakturmonzagraumagno",
+     "manufaktur-monza-grau-magno"
+    ],
+    [
+     "manufakturclassicgrauuni",
+     "manufaktur-classicgrau-uni"
+    ],
+    [
+     "manufakturwuestensanduni",
+     "manufaktur-wuestensand-uni"
+    ],
+    [
+     "manufakturvintageblauuni",
+     "manufaktur-vintageblau-uni"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufaktursonnengelbuni",
+     "manufaktur-sonnengelb-uni"
+    ],
+    [
+     "manufakturdunkelblauuni",
+     "manufaktur-dunkelblau-uni"
+    ],
+    [
+     "manufakturolivmetallic",
+     "manufaktur-oliv-metallic"
+    ],
+    [
+     "manufakturtiefgruenuni",
+     "manufaktur-tiefgruen-uni"
+    ],
+    [
+     "manufakturplatinmagno",
+     "manufaktur-platin-magno"
+    ],
+    [
+     "iridiumsilbermetallic",
+     "iridiumsilber-metallic"
+    ],
+    [
+     "brilliantblaumetallic",
+     "brilliantblau-metallic"
+    ],
+    [
+     "sodalithblaumetallic",
+     "sodalithblau-metallic"
+    ],
+    [
+     "mojavesilbermetallic",
+     "mojavesilber-metallic"
+    ],
+    [
+     "smaragdgruenmetallic",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "manufakturolivmagno",
+     "manufaktur-oliv-magno"
+    ],
+    [
+     "selenitgraumetallic",
+     "selenitgrau-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "travertinbeige",
+     "manufaktur-travertinbeige-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "iridiumsilber",
+     "iridiumsilber-metallic"
+    ],
+    [
+     "brilliantblau",
+     "brilliantblau-metallic"
+    ],
+    [
+     "smaragdgruen",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "sodalithblau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "mojavesilber",
+     "mojavesilber-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-magno"
+    ],
+    [
+     "nachtschwarz",
+     "manufaktur-nachtschwarz-magno"
+    ],
+    [
+     "kupferorange",
+     "manufaktur-kupferorange-magno"
+    ],
+    [
+     "kalaharigold",
+     "manufaktur-kalaharigold-magno"
+    ],
+    [
+     "manganitgrau",
+     "manufaktur-manganitgrau-magno"
+    ],
+    [
+     "brillantblau",
+     "manufaktur-brillantblau-magno"
+    ],
+    [
+     "aquamintuni",
+     "aquamint-uni"
+    ],
+    [
+     "selenitgrau",
+     "selenitgrau-metallic"
+    ],
+    [
+     "wuestensand",
+     "manufaktur-wuestensand-uni"
+    ],
+    [
+     "classicgrau",
+     "manufaktur-classicgrau-uni"
+    ],
+    [
+     "vintageblau",
+     "manufaktur-vintageblau-uni"
+    ],
+    [
+     "citrinbraun",
+     "manufaktur-citrinbraun-magno"
+    ],
+    [
+     "hyazinthrot",
+     "manufaktur-hyazinthrot-magno"
+    ],
+    [
+     "suedseeblau",
+     "manufaktur-suedseeblau-metallic"
+    ],
+    [
+     "rubellitrot",
+     "manufaktur-rubellitrot-metallic"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "sonnengelb",
+     "manufaktur-sonnengelb-uni"
+    ],
+    [
+     "dunkelblau",
+     "manufaktur-dunkelblau-uni"
+    ],
+    [
+     "dunkeloliv",
+     "manufaktur-dunkeloliv-magno"
+    ],
+    [
+     "indiumgrau",
+     "manufaktur-indiumgrau-metallic"
+    ],
+    [
+     "tiefgruen",
+     "manufaktur-tiefgruen-uni"
+    ],
+    [
+     "monzagrau",
+     "manufaktur-monza-grau-magno"
+    ],
+    [
+     "anthrazit",
+     "selenitgrau-metallic"
+    ],
+    [
+     "aquamint",
+     "aquamint-uni"
+    ],
+    [
+     "meerblau",
+     "manufaktur-meerblau-metallic"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "graphit",
+     "manufaktur-graphit-metallic"
+    ],
+    [
+     "platin",
+     "manufaktur-platin-magno"
+    ],
+    [
+     "silber",
+     "mojavesilber-metallic"
+    ],
+    [
+     "silver",
+     "mojavesilber-metallic"
+    ],
+    [
+     "orange",
+     "manufaktur-kupferorange-magno"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "gruen",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "green",
+     "smaragdgruen-metallic"
+    ],
+    [
+     "braun",
+     "manufaktur-citrinbraun-magno"
+    ],
+    [
+     "brown",
+     "manufaktur-citrinbraun-magno"
+    ],
+    [
+     "beige",
+     "manufaktur-travertinbeige-metallic"
+    ],
+    [
+     "oliv",
+     "manufaktur-oliv-magno"
+    ],
+    [
+     "grau",
+     "selenitgrau-metallic"
+    ],
+    [
+     "grey",
+     "selenitgrau-metallic"
+    ],
+    [
+     "gray",
+     "selenitgrau-metallic"
+    ],
+    [
+     "blau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "blue",
+     "sodalithblau-metallic"
+    ],
+    [
+     "gold",
+     "manufaktur-kalaharigold-magno"
+    ],
+    [
+     "gelb",
+     "manufaktur-sonnengelb-uni"
+    ],
+    [
+     "rot",
+     "manufaktur-rubellitrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-rubellitrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-platin-magno",
+    "manufaktur-monza-grau-magno",
+    "manufaktur-nachtschwarz-magno",
+    "manufaktur-dunkeloliv-magno",
+    "manufaktur-citrinbraun-magno",
+    "manufaktur-kupferorange-magno",
+    "manufaktur-opalithweiss-magno",
+    "manufaktur-kalaharigold-magno",
+    "manufaktur-oliv-magno",
+    "manufaktur-manganitgrau-magno",
+    "obsidianschwarz-metallic",
+    "iridiumsilber-metallic",
+    "sodalithblau-metallic",
+    "mojavesilber-metallic",
+    "brilliantblau-metallic",
+    "smaragdgruen-metallic",
+    "selenitgrau-metallic",
+    "schwarz-uni",
+    "polarweiss-uni",
+    "aquamint-uni",
+    "manufaktur-sonnengelb-uni",
+    "manufaktur-meerblau-metallic",
+    "manufaktur-graphit-metallic",
+    "manufaktur-classicgrau-uni",
+    "manufaktur-suedseeblau-metallic",
+    "manufaktur-oliv-metallic",
+    "manufaktur-wuestensand-uni",
+    "manufaktur-rubellitrot-metallic",
+    "manufaktur-travertinbeige-metallic",
+    "manufaktur-tiefgruen-uni",
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-dunkelblau-uni",
+    "manufaktur-vintageblau-uni",
+    "manufaktur-indiumgrau-metallic",
+    "manufaktur-hyazinthrot-metallic",
+    "manufaktur-brillantblau-magno",
+    "manufaktur-hyazinthrot-magno"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-platin-magno",
+     "name": "MANUFAKTUR platin magno",
+     "hex": "#75777B"
+    },
+    {
+     "code": "manufaktur-monza-grau-magno",
+     "name": "MANUFAKTUR Monza grau magno",
+     "hex": "#565149"
+    },
+    {
+     "code": "manufaktur-nachtschwarz-magno",
+     "name": "MANUFAKTUR nachtschwarz magno",
+     "hex": "#292929"
+    },
+    {
+     "code": "manufaktur-dunkeloliv-magno",
+     "name": "MANUFAKTUR dunkeloliv magno",
+     "hex": "#62615B"
+    },
+    {
+     "code": "manufaktur-citrinbraun-magno",
+     "name": "MANUFAKTUR citrinbraun magno",
+     "hex": "#413C32"
+    },
+    {
+     "code": "manufaktur-kupferorange-magno",
+     "name": "MANUFAKTUR kupferorange magno",
+     "hex": "#CF4E2C"
+    },
+    {
+     "code": "manufaktur-opalithweiss-magno",
+     "name": "MANUFAKTUR opalithweiß magno",
+     "hex": "#D5D7D8"
+    },
+    {
+     "code": "manufaktur-kalaharigold-magno",
+     "name": "MANUFAKTUR kalaharigold magno",
+     "hex": "#BBB09D"
+    },
+    {
+     "code": "manufaktur-oliv-magno",
+     "name": "MANUFAKTUR oliv magno",
+     "hex": "#303729"
+    },
+    {
+     "code": "manufaktur-manganitgrau-magno",
+     "name": "MANUFAKTUR manganitgrau magno",
+     "hex": "#817E72"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#232323"
+    },
+    {
+     "code": "iridiumsilber-metallic",
+     "name": "Iridiumsilber metallic",
+     "hex": "#CACED1"
+    },
+    {
+     "code": "sodalithblau-metallic",
+     "name": "Sodalithblau metallic",
+     "hex": "#3F536F"
+    },
+    {
+     "code": "mojavesilber-metallic",
+     "name": "Mojavesilber metallic",
+     "hex": "#989694"
+    },
+    {
+     "code": "brilliantblau-metallic",
+     "name": "Brilliantblau metallic",
+     "hex": "#203A61"
+    },
+    {
+     "code": "smaragdgruen-metallic",
+     "name": "Smaragdgrün metallic",
+     "hex": "#1D2927"
+    },
+    {
+     "code": "selenitgrau-metallic",
+     "name": "Selenitgrau metallic",
+     "hex": "#717878"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#1E1E1E"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#D9DBDD"
+    },
+    {
+     "code": "aquamint-uni",
+     "name": "Aquamint uni",
+     "hex": "#8F9EA0"
+    },
+    {
+     "code": "manufaktur-sonnengelb-uni",
+     "name": "MANUFAKTUR sonnengelb uni",
+     "hex": "#C4A84B"
+    },
+    {
+     "code": "manufaktur-meerblau-metallic",
+     "name": "MANUFAKTUR meerblau metallic",
+     "hex": "#124958"
+    },
+    {
+     "code": "manufaktur-graphit-metallic",
+     "name": "MANUFAKTUR graphit metallic",
+     "hex": "#5F6362"
+    },
+    {
+     "code": "manufaktur-classicgrau-uni",
+     "name": "MANUFAKTUR classicgrau uni",
+     "hex": "#8F908B"
+    },
+    {
+     "code": "manufaktur-suedseeblau-metallic",
+     "name": "MANUFAKTUR südseeblau metallic",
+     "hex": "#056A9A"
+    },
+    {
+     "code": "manufaktur-oliv-metallic",
+     "name": "MANUFAKTUR oliv metallic",
+     "hex": "#3C4333"
+    },
+    {
+     "code": "manufaktur-wuestensand-uni",
+     "name": "MANUFAKTUR wüstensand uni",
+     "hex": "#BBA67F"
+    },
+    {
+     "code": "manufaktur-rubellitrot-metallic",
+     "name": "MANUFAKTUR rubellitrot metallic",
+     "hex": "#3A2123"
+    },
+    {
+     "code": "manufaktur-travertinbeige-metallic",
+     "name": "MANUFAKTUR travertinbeige metallic",
+     "hex": "#C0B7B1"
+    },
+    {
+     "code": "manufaktur-tiefgruen-uni",
+     "name": "MANUFAKTUR tiefgrün uni",
+     "hex": "#2B4437"
+    },
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#D8DADC"
+    },
+    {
+     "code": "manufaktur-dunkelblau-uni",
+     "name": "MANUFAKTUR dunkelblau uni",
+     "hex": "#222D3B"
+    },
+    {
+     "code": "manufaktur-vintageblau-uni",
+     "name": "MANUFAKTUR vintageblau uni",
+     "hex": "#6D91A4"
+    },
+    {
+     "code": "manufaktur-indiumgrau-metallic",
+     "name": "MANUFAKTUR indiumgrau metallic",
+     "hex": "#5B5A56"
+    },
+    {
+     "code": "manufaktur-hyazinthrot-metallic",
+     "name": "MANUFAKTUR hyazinthrot metallic",
+     "hex": "#A62C33"
+    },
+    {
+     "code": "manufaktur-brillantblau-magno",
+     "name": "MANUFAKTUR brillantblau magno",
+     "hex": "#25304E"
+    },
+    {
+     "code": "manufaktur-hyazinthrot-magno",
+     "name": "MANUFAKTUR hyazinthrot magno",
+     "hex": "#A32C32"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 409,
+   "endbox": [
+    41,
+    25,
+    687,
+    400
+   ]
+  },
+  {
+   "id": "5er",
+   "marke": "BMW",
+   "name": "BMW 5er Limousine",
+   "modell": [
+    "5er",
+    "520",
+    "530",
+    "540",
+    "550",
+    "i5",
+    "m5"
+   ],
+   "farben": [
+    [
+     "sophistograubrillanteffektmetallic",
+     "sophistograu-brillanteffekt-metallic"
+    ],
+    [
+     "bmwindividualtansanitblaumetallic",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "saphirschwarzmetallic",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "capeyorkgruenmetallic",
+     "cape-york-gruen-metallic"
+    ],
+    [
+     "mineralweissmetallic",
+     "mineralweiss-metallic"
+    ],
+    [
+     "phytonicblaumetallic",
+     "phytonicblau-metallic"
+    ],
+    [
+     "oxidgraumetallic",
+     "oxidgrau-metallic"
+    ],
+    [
+     "alpinweissuni",
+     "alpinweiss-uni"
+    ],
+    [
+     "saphirschwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "capeyorkgruen",
+     "cape-york-gruen-metallic"
+    ],
+    [
+     "mineralweiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "phytonicblau",
+     "phytonicblau-metallic"
+    ],
+    [
+     "sophistograu",
+     "sophistograu-brillanteffekt-metallic"
+    ],
+    [
+     "tansanitblau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "alpinweiss",
+     "alpinweiss-uni"
+    ],
+    [
+     "anthrazit",
+     "oxidgrau-metallic"
+    ],
+    [
+     "oxidgrau",
+     "oxidgrau-metallic"
+    ],
+    [
+     "schwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "black",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "white",
+     "mineralweiss-metallic"
+    ],
+    [
+     "gruen",
+     "cape-york-gruen-metallic"
+    ],
+    [
+     "green",
+     "cape-york-gruen-metallic"
+    ],
+    [
+     "grau",
+     "oxidgrau-metallic"
+    ],
+    [
+     "grey",
+     "oxidgrau-metallic"
+    ],
+    [
+     "gray",
+     "oxidgrau-metallic"
+    ],
+    [
+     "blau",
+     "phytonicblau-metallic"
+    ],
+    [
+     "blue",
+     "phytonicblau-metallic"
+    ]
+   ],
+   "lacke": [
+    "alpinweiss-uni",
+    "saphirschwarz-metallic",
+    "sophistograu-brillanteffekt-metallic",
+    "mineralweiss-metallic",
+    "phytonicblau-metallic",
+    "oxidgrau-metallic",
+    "cape-york-gruen-metallic",
+    "bmw-individual-tansanitblau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "alpinweiss-uni",
+     "name": "Alpinweiß uni",
+     "hex": "#D4CFD0"
+    },
+    {
+     "code": "saphirschwarz-metallic",
+     "name": "Saphirschwarz metallic",
+     "hex": "#151314"
+    },
+    {
+     "code": "sophistograu-brillanteffekt-metallic",
+     "name": "Sophistograu Brillanteffekt metallic",
+     "hex": "#2B2724"
+    },
+    {
+     "code": "mineralweiss-metallic",
+     "name": "Mineralweiß metallic",
+     "hex": "#D6D2D1"
+    },
+    {
+     "code": "phytonicblau-metallic",
+     "name": "Phytonicblau metallic",
+     "hex": "#08406D"
+    },
+    {
+     "code": "oxidgrau-metallic",
+     "name": "Oxidgrau metallic",
+     "hex": "#8F8A82"
+    },
+    {
+     "code": "cape-york-gruen-metallic",
+     "name": "Cape York Grün metallic",
+     "hex": "#637A79"
+    },
+    {
+     "code": "bmw-individual-tansanitblau-metallic",
+     "name": "BMW Individual Tansanitblau metallic",
+     "hex": "#0B1634"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 263,
+   "endbox": [
+    73,
+    0,
+    716,
+    263
+   ]
+  },
+  {
+   "id": "7er",
+   "marke": "BMW",
+   "name": "BMW 7er",
+   "modell": [
+    "7er",
+    "740",
+    "750",
+    "760",
+    "i7"
+   ],
+   "farben": [
+    [
+     "bmwindividualtwotonetansanitblauiimetallicmitspacesilbermetallic",
+     "bmw-individual-two-tone-tansanitblau-ii-metallic-mit-spacesilber-metallic"
+    ],
+    [
+     "twotonetansanitblauiimetallicmitspacesilber",
+     "bmw-individual-two-tone-tansanitblau-ii-metallic-mit-spacesilber-metallic"
+    ],
+    [
+     "bmwindividualfrozentanzanitebluemetallic",
+     "bmw-individual-frozen-tanzanite-blue-metallic"
+    ],
+    [
+     "bmwindividualfrozenspacesilvermetallic",
+     "bmw-individual-frozen-space-silver-metallic"
+    ],
+    [
+     "bmwindividualfrozendeepgreymetallic",
+     "bmw-individual-frozen-deep-grey-metallic"
+    ],
+    [
+     "bmwindividualtansanitblaumetallic",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "bmwindividualdravitgraumetallic",
+     "bmw-individual-dravitgrau-metallic"
+    ],
+    [
+     "vancouvergreenmetallic",
+     "vancouver-green-metallic"
+    ],
+    [
+     "mcarbonschwarzmetallic",
+     "m-carbonschwarz-metallic"
+    ],
+    [
+     "saphirschwarzmetallic",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "mbrooklyngraumetallic",
+     "m-brooklyn-grau-metallic"
+    ],
+    [
+     "mineralweissmetallic",
+     "mineralweiss-metallic"
+    ],
+    [
+     "aventurinrotmetallic",
+     "aventurinrot-metallic"
+    ],
+    [
+     "frozentanzaniteblue",
+     "bmw-individual-frozen-tanzanite-blue-metallic"
+    ],
+    [
+     "frozenspacesilver",
+     "bmw-individual-frozen-space-silver-metallic"
+    ],
+    [
+     "oxidgraumetallic",
+     "oxidgrau-metallic"
+    ],
+    [
+     "vancouvergreen",
+     "vancouver-green-metallic"
+    ],
+    [
+     "mcarbonschwarz",
+     "m-carbonschwarz-metallic"
+    ],
+    [
+     "frozendeepgrey",
+     "bmw-individual-frozen-deep-grey-metallic"
+    ],
+    [
+     "alpinweissuni",
+     "alpinweiss-uni"
+    ],
+    [
+     "saphirschwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "mbrooklyngrau",
+     "m-brooklyn-grau-metallic"
+    ],
+    [
+     "mineralweiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "aventurinrot",
+     "aventurinrot-metallic"
+    ],
+    [
+     "tansanitblau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "alpinweiss",
+     "alpinweiss-uni"
+    ],
+    [
+     "dravitgrau",
+     "bmw-individual-dravitgrau-metallic"
+    ],
+    [
+     "anthrazit",
+     "oxidgrau-metallic"
+    ],
+    [
+     "oxidgrau",
+     "oxidgrau-metallic"
+    ],
+    [
+     "schwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "silber",
+     "bmw-individual-two-tone-tansanitblau-ii-metallic-mit-spacesilber-metallic"
+    ],
+    [
+     "silver",
+     "bmw-individual-two-tone-tansanitblau-ii-metallic-mit-spacesilber-metallic"
+    ],
+    [
+     "black",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "white",
+     "mineralweiss-metallic"
+    ],
+    [
+     "grau",
+     "oxidgrau-metallic"
+    ],
+    [
+     "grey",
+     "oxidgrau-metallic"
+    ],
+    [
+     "gray",
+     "oxidgrau-metallic"
+    ],
+    [
+     "blau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "blue",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "rot",
+     "aventurinrot-metallic"
+    ],
+    [
+     "red",
+     "aventurinrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "alpinweiss-uni",
+    "saphirschwarz-metallic",
+    "vancouver-green-metallic",
+    "mineralweiss-metallic",
+    "oxidgrau-metallic",
+    "aventurinrot-metallic",
+    "m-carbonschwarz-metallic",
+    "m-brooklyn-grau-metallic",
+    "bmw-individual-dravitgrau-metallic",
+    "bmw-individual-tansanitblau-metallic",
+    "bmw-individual-frozen-deep-grey-metallic",
+    "bmw-individual-frozen-space-silver-metallic",
+    "bmw-individual-frozen-tanzanite-blue-metallic",
+    "bmw-individual-two-tone-tansanitblau-ii-metallic-mit-spacesilber-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "alpinweiss-uni",
+     "name": "Alpinweiß uni",
+     "hex": "#C4C0BF"
+    },
+    {
+     "code": "saphirschwarz-metallic",
+     "name": "Saphirschwarz metallic",
+     "hex": "#211F1D"
+    },
+    {
+     "code": "vancouver-green-metallic",
+     "name": "Vancouver Green metallic",
+     "hex": "#112825"
+    },
+    {
+     "code": "mineralweiss-metallic",
+     "name": "Mineralweiß metallic",
+     "hex": "#C3BCBA"
+    },
+    {
+     "code": "oxidgrau-metallic",
+     "name": "Oxidgrau metallic",
+     "hex": "#706F69"
+    },
+    {
+     "code": "aventurinrot-metallic",
+     "name": "Aventurinrot metallic",
+     "hex": "#4D1324"
+    },
+    {
+     "code": "m-carbonschwarz-metallic",
+     "name": "M Carbonschwarz metallic",
+     "hex": "#282425"
+    },
+    {
+     "code": "m-brooklyn-grau-metallic",
+     "name": "M Brooklyn Grau metallic",
+     "hex": "#7B7E7B"
+    },
+    {
+     "code": "bmw-individual-dravitgrau-metallic",
+     "name": "BMW Individual Dravitgrau metallic",
+     "hex": "#35393A"
+    },
+    {
+     "code": "bmw-individual-tansanitblau-metallic",
+     "name": "BMW Individual Tansanitblau metallic",
+     "hex": "#15202E"
+    },
+    {
+     "code": "bmw-individual-frozen-deep-grey-metallic",
+     "name": "BMW Individual Frozen Deep Grey metallic",
+     "hex": "#3E3831"
+    },
+    {
+     "code": "bmw-individual-frozen-space-silver-metallic",
+     "name": "BMW Individual Frozen Space Silver metallic",
+     "hex": "#605E5C"
+    },
+    {
+     "code": "bmw-individual-frozen-tanzanite-blue-metallic",
+     "name": "BMW Individual Frozen Tanzanite Blue metallic",
+     "hex": "#141827"
+    },
+    {
+     "code": "bmw-individual-two-tone-tansanitblau-ii-metallic-mit-spacesilber-metallic",
+     "name": "BMW Individual Two-Tone Tansanitblau II metallic mit Spacesilber metallic",
+     "hex": "#132030"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 262,
+   "endbox": [
+    65,
+    0,
+    737,
+    260
+   ]
+  },
+  {
+   "id": "x3",
+   "marke": "BMW",
+   "name": "BMW X3",
+   "modell": [
+    "x3"
+   ],
+   "farben": [
+    [
+     "bmwindividualfrozenpuregreymetallic",
+     "bmw-individual-frozen-pure-grey-metallic"
+    ],
+    [
+     "sophistograubrillanteffektmetallic",
+     "sophistograu-brillanteffekt-metallic"
+    ],
+    [
+     "bmwindividualtansanitblaumetallic",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "arcticracebluemetallic",
+     "arctic-race-blue-metallic"
+    ],
+    [
+     "skyscrapergraumetallic",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "saphirschwarzmetallic",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "mineralweissmetallic",
+     "mineralweiss-metallic"
+    ],
+    [
+     "dunegreymetallic",
+     "dune-grey-metallic"
+    ],
+    [
+     "fireredmetallic",
+     "fire-red-metallic"
+    ],
+    [
+     "skyscrapergrau",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "arcticraceblue",
+     "arctic-race-blue-metallic"
+    ],
+    [
+     "frozenpuregrey",
+     "bmw-individual-frozen-pure-grey-metallic"
+    ],
+    [
+     "alpinweissuni",
+     "alpinweiss-uni"
+    ],
+    [
+     "saphirschwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "mineralweiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "sophistograu",
+     "sophistograu-brillanteffekt-metallic"
+    ],
+    [
+     "tansanitblau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "alpinweiss",
+     "alpinweiss-uni"
+    ],
+    [
+     "anthrazit",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "dunegrey",
+     "dune-grey-metallic"
+    ],
+    [
+     "firered",
+     "fire-red-metallic"
+    ],
+    [
+     "schwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "black",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "white",
+     "mineralweiss-metallic"
+    ],
+    [
+     "grau",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "grey",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "gray",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "blau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "blue",
+     "bmw-individual-tansanitblau-metallic"
+    ]
+   ],
+   "lacke": [
+    "alpinweiss-uni",
+    "saphirschwarz-metallic",
+    "sophistograu-brillanteffekt-metallic",
+    "mineralweiss-metallic",
+    "arctic-race-blue-metallic",
+    "skyscraper-grau-metallic",
+    "fire-red-metallic",
+    "dune-grey-metallic",
+    "bmw-individual-tansanitblau-metallic",
+    "bmw-individual-frozen-pure-grey-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "alpinweiss-uni",
+     "name": "Alpinweiß uni",
+     "hex": "#CFCACC"
+    },
+    {
+     "code": "saphirschwarz-metallic",
+     "name": "Saphirschwarz metallic",
+     "hex": "#1A1816"
+    },
+    {
+     "code": "sophistograu-brillanteffekt-metallic",
+     "name": "Sophistograu Brillanteffekt metallic",
+     "hex": "#2A2622"
+    },
+    {
+     "code": "mineralweiss-metallic",
+     "name": "Mineralweiß metallic",
+     "hex": "#B5B1AE"
+    },
+    {
+     "code": "arctic-race-blue-metallic",
+     "name": "Arctic Race Blue metallic",
+     "hex": "#354854"
+    },
+    {
+     "code": "skyscraper-grau-metallic",
+     "name": "Skyscraper Grau metallic",
+     "hex": "#5B5C57"
+    },
+    {
+     "code": "fire-red-metallic",
+     "name": "Fire Red metallic",
+     "hex": "#83151C"
+    },
+    {
+     "code": "dune-grey-metallic",
+     "name": "Dune Grey metallic",
+     "hex": "#ACA7A0"
+    },
+    {
+     "code": "bmw-individual-tansanitblau-metallic",
+     "name": "BMW Individual Tansanitblau metallic",
+     "hex": "#161B25"
+    },
+    {
+     "code": "bmw-individual-frozen-pure-grey-metallic",
+     "name": "BMW Individual Frozen Pure Grey metallic",
+     "hex": "#5C5D58"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 310,
+   "endbox": [
+    64,
+    0,
+    729,
+    309
+   ]
+  },
+  {
+   "id": "x5",
+   "marke": "BMW",
+   "name": "BMW X5",
+   "modell": [
+    "x5"
+   ],
+   "farben": [
+    [
+     "bmwindividualfrozentanzanitebluemetallic",
+     "bmw-individual-frozen-tanzanite-blue-metallic"
+    ],
+    [
+     "bmwindividualfrozenspacesilvermetallic",
+     "bmw-individual-frozen-space-silver-metallic"
+    ],
+    [
+     "bmwindividualtansanitblaumetallic",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "bmwindividualdravitgraumetallic",
+     "bmw-individual-dravitgrau-metallic"
+    ],
+    [
+     "vancouvergreenmetallic",
+     "vancouver-green-metallic"
+    ],
+    [
+     "mcarbonschwarzmetallic",
+     "m-carbonschwarz-metallic"
+    ],
+    [
+     "saphirschwarzmetallic",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "mineralweissmetallic",
+     "mineralweiss-metallic"
+    ],
+    [
+     "spacesilbermetallic",
+     "spacesilber-metallic"
+    ],
+    [
+     "frozentanzaniteblue",
+     "bmw-individual-frozen-tanzanite-blue-metallic"
+    ],
+    [
+     "frozenspacesilver",
+     "bmw-individual-frozen-space-silver-metallic"
+    ],
+    [
+     "greypinemetallic",
+     "grey-pine-metallic"
+    ],
+    [
+     "vancouvergreen",
+     "vancouver-green-metallic"
+    ],
+    [
+     "mcarbonschwarz",
+     "m-carbonschwarz-metallic"
+    ],
+    [
+     "alpinweissuni",
+     "alpinweiss-uni"
+    ],
+    [
+     "saphirschwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "mineralweiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "tansanitblau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "spacesilber",
+     "spacesilber-metallic"
+    ],
+    [
+     "alpinweiss",
+     "alpinweiss-uni"
+    ],
+    [
+     "dravitgrau",
+     "bmw-individual-dravitgrau-metallic"
+    ],
+    [
+     "anthrazit",
+     "bmw-individual-dravitgrau-metallic"
+    ],
+    [
+     "greypine",
+     "grey-pine-metallic"
+    ],
+    [
+     "schwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "silber",
+     "spacesilber-metallic"
+    ],
+    [
+     "silver",
+     "spacesilber-metallic"
+    ],
+    [
+     "black",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "white",
+     "mineralweiss-metallic"
+    ],
+    [
+     "grau",
+     "bmw-individual-dravitgrau-metallic"
+    ],
+    [
+     "grey",
+     "bmw-individual-dravitgrau-metallic"
+    ],
+    [
+     "gray",
+     "bmw-individual-dravitgrau-metallic"
+    ],
+    [
+     "blau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "blue",
+     "bmw-individual-tansanitblau-metallic"
+    ]
+   ],
+   "lacke": [
+    "alpinweiss-uni",
+    "saphirschwarz-metallic",
+    "grey-pine-metallic",
+    "vancouver-green-metallic",
+    "mineralweiss-metallic",
+    "spacesilber-metallic",
+    "m-carbonschwarz-metallic",
+    "bmw-individual-dravitgrau-metallic",
+    "bmw-individual-tansanitblau-metallic",
+    "bmw-individual-frozen-tanzanite-blue-metallic",
+    "bmw-individual-frozen-space-silver-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "alpinweiss-uni",
+     "name": "Alpinweiß uni",
+     "hex": "#CAC7C8"
+    },
+    {
+     "code": "saphirschwarz-metallic",
+     "name": "Saphirschwarz metallic",
+     "hex": "#000002"
+    },
+    {
+     "code": "grey-pine-metallic",
+     "name": "Grey Pine metallic",
+     "hex": "#5C594C"
+    },
+    {
+     "code": "vancouver-green-metallic",
+     "name": "Vancouver Green metallic",
+     "hex": "#002524"
+    },
+    {
+     "code": "mineralweiss-metallic",
+     "name": "Mineralweiß metallic",
+     "hex": "#BBB7B6"
+    },
+    {
+     "code": "spacesilber-metallic",
+     "name": "Spacesilber metallic",
+     "hex": "#888984"
+    },
+    {
+     "code": "m-carbonschwarz-metallic",
+     "name": "M Carbonschwarz metallic",
+     "hex": "#000212"
+    },
+    {
+     "code": "bmw-individual-dravitgrau-metallic",
+     "name": "BMW Individual Dravitgrau metallic",
+     "hex": "#313131"
+    },
+    {
+     "code": "bmw-individual-tansanitblau-metallic",
+     "name": "BMW Individual Tansanitblau metallic",
+     "hex": "#01091D"
+    },
+    {
+     "code": "bmw-individual-frozen-tanzanite-blue-metallic",
+     "name": "BMW Individual Frozen Tanzanite Blue metallic",
+     "hex": "#1C2031"
+    },
+    {
+     "code": "bmw-individual-frozen-space-silver-metallic",
+     "name": "BMW Individual Frozen Space Silver metallic",
+     "hex": "#727473"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 311,
+   "endbox": [
+    66,
+    6,
+    738,
+    311
+   ]
+  },
+  {
+   "id": "x7",
+   "marke": "BMW",
+   "name": "BMW X7",
+   "modell": [
+    "x7"
+   ],
+   "farben": [
+    [
+     "bmwindividualfrozenpuregreymetallic",
+     "bmw-individual-frozen-pure-grey-metallic"
+    ],
+    [
+     "bmwindividualtansanitblaumetallic",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "bmwindividualdravitgraumetallic",
+     "bmw-individual-dravitgrau-metallic"
+    ],
+    [
+     "sparklingkupfergraumetallic",
+     "sparkling-kupfergrau-metallic"
+    ],
+    [
+     "blueridgemountainmetallic",
+     "blue-ridge-mountain-metallic"
+    ],
+    [
+     "skyscrapergraumetallic",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "saphirschwarzmetallic",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "mineralweissmetallic",
+     "mineralweiss-metallic"
+    ],
+    [
+     "aventurinrotmetallic",
+     "aventurinrot-metallic"
+    ],
+    [
+     "sparklingkupfergrau",
+     "sparkling-kupfergrau-metallic"
+    ],
+    [
+     "manhattanmetallic",
+     "manhattan-metallic"
+    ],
+    [
+     "blueridgemountain",
+     "blue-ridge-mountain-metallic"
+    ],
+    [
+     "skyscrapergrau",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "frozenpuregrey",
+     "bmw-individual-frozen-pure-grey-metallic"
+    ],
+    [
+     "alpinweissuni",
+     "alpinweiss-uni"
+    ],
+    [
+     "saphirschwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "mineralweiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "aventurinrot",
+     "aventurinrot-metallic"
+    ],
+    [
+     "tansanitblau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "alpinweiss",
+     "alpinweiss-uni"
+    ],
+    [
+     "dravitgrau",
+     "bmw-individual-dravitgrau-metallic"
+    ],
+    [
+     "manhattan",
+     "manhattan-metallic"
+    ],
+    [
+     "anthrazit",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "schwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "black",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "white",
+     "mineralweiss-metallic"
+    ],
+    [
+     "grau",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "grey",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "gray",
+     "skyscraper-grau-metallic"
+    ],
+    [
+     "blau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "blue",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "rot",
+     "aventurinrot-metallic"
+    ],
+    [
+     "red",
+     "aventurinrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "alpinweiss-uni",
+    "saphirschwarz-metallic",
+    "mineralweiss-metallic",
+    "blue-ridge-mountain-metallic",
+    "manhattan-metallic",
+    "skyscraper-grau-metallic",
+    "sparkling-kupfergrau-metallic",
+    "aventurinrot-metallic",
+    "bmw-individual-dravitgrau-metallic",
+    "bmw-individual-tansanitblau-metallic",
+    "bmw-individual-frozen-pure-grey-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "alpinweiss-uni",
+     "name": "Alpinweiß uni",
+     "hex": "#D7D8D5"
+    },
+    {
+     "code": "saphirschwarz-metallic",
+     "name": "Saphirschwarz metallic",
+     "hex": "#171815"
+    },
+    {
+     "code": "mineralweiss-metallic",
+     "name": "Mineralweiß metallic",
+     "hex": "#D0CECC"
+    },
+    {
+     "code": "blue-ridge-mountain-metallic",
+     "name": "Blue Ridge Mountain metallic",
+     "hex": "#425956"
+    },
+    {
+     "code": "manhattan-metallic",
+     "name": "Manhattan metallic",
+     "hex": "#454029"
+    },
+    {
+     "code": "skyscraper-grau-metallic",
+     "name": "Skyscraper Grau metallic",
+     "hex": "#595E58"
+    },
+    {
+     "code": "sparkling-kupfergrau-metallic",
+     "name": "Sparkling Kupfergrau metallic",
+     "hex": "#575853"
+    },
+    {
+     "code": "aventurinrot-metallic",
+     "name": "Aventurinrot metallic",
+     "hex": "#5F1819"
+    },
+    {
+     "code": "bmw-individual-dravitgrau-metallic",
+     "name": "BMW Individual Dravitgrau metallic",
+     "hex": "#2B302F"
+    },
+    {
+     "code": "bmw-individual-tansanitblau-metallic",
+     "name": "BMW Individual Tansanitblau metallic",
+     "hex": "#06173A"
+    },
+    {
+     "code": "bmw-individual-frozen-pure-grey-metallic",
+     "name": "BMW Individual Frozen Pure Grey metallic",
+     "hex": "#6C6D66"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 329,
+   "endbox": [
+    36,
+    11,
+    695,
+    329
+   ]
+  },
+  {
+   "id": "ix",
+   "marke": "BMW",
+   "name": "BMW iX",
+   "modell": [
+    "bmwix",
+    "ixxdrive"
+   ],
+   "farben": [
+    [
+     "sophistograubrillanteffektmetallic",
+     "sophistograu-brillanteffekt-metallic"
+    ],
+    [
+     "bmwindividualtansanitblaumetallic",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "bmwindividualstormbaymetallic",
+     "bmw-individual-storm-bay-metallic"
+    ],
+    [
+     "arcticracebluemetallic",
+     "arctic-race-blue-metallic"
+    ],
+    [
+     "saphirschwarzmetallic",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "aventurinrotmetallic",
+     "aventurinrot-metallic"
+    ],
+    [
+     "mineralweissmetallic",
+     "mineralweiss-metallic"
+    ],
+    [
+     "spacesilbermetallic",
+     "spacesilber-metallic"
+    ],
+    [
+     "dunegreymetallic",
+     "dune-grey-metallic"
+    ],
+    [
+     "arcticraceblue",
+     "arctic-race-blue-metallic"
+    ],
+    [
+     "alpinweissuni",
+     "alpinweiss-uni"
+    ],
+    [
+     "saphirschwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "mineralweiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "aventurinrot",
+     "aventurinrot-metallic"
+    ],
+    [
+     "sophistograu",
+     "sophistograu-brillanteffekt-metallic"
+    ],
+    [
+     "tansanitblau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "spacesilber",
+     "spacesilber-metallic"
+    ],
+    [
+     "alpinweiss",
+     "alpinweiss-uni"
+    ],
+    [
+     "anthrazit",
+     "sophistograu-brillanteffekt-metallic"
+    ],
+    [
+     "dunegrey",
+     "dune-grey-metallic"
+    ],
+    [
+     "stormbay",
+     "bmw-individual-storm-bay-metallic"
+    ],
+    [
+     "schwarz",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "silber",
+     "spacesilber-metallic"
+    ],
+    [
+     "silver",
+     "spacesilber-metallic"
+    ],
+    [
+     "black",
+     "saphirschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "mineralweiss-metallic"
+    ],
+    [
+     "white",
+     "mineralweiss-metallic"
+    ],
+    [
+     "grau",
+     "sophistograu-brillanteffekt-metallic"
+    ],
+    [
+     "grey",
+     "sophistograu-brillanteffekt-metallic"
+    ],
+    [
+     "gray",
+     "sophistograu-brillanteffekt-metallic"
+    ],
+    [
+     "blau",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "blue",
+     "bmw-individual-tansanitblau-metallic"
+    ],
+    [
+     "rot",
+     "aventurinrot-metallic"
+    ],
+    [
+     "red",
+     "aventurinrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "alpinweiss-uni",
+    "spacesilber-metallic",
+    "aventurinrot-metallic",
+    "mineralweiss-metallic",
+    "sophistograu-brillanteffekt-metallic",
+    "arctic-race-blue-metallic",
+    "saphirschwarz-metallic",
+    "dune-grey-metallic",
+    "bmw-individual-tansanitblau-metallic",
+    "bmw-individual-storm-bay-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "alpinweiss-uni",
+     "name": "Alpinweiß uni",
+     "hex": "#C1BDBC"
+    },
+    {
+     "code": "spacesilber-metallic",
+     "name": "Spacesilber metallic",
+     "hex": "#666A62"
+    },
+    {
+     "code": "aventurinrot-metallic",
+     "name": "Aventurinrot metallic",
+     "hex": "#310405"
+    },
+    {
+     "code": "mineralweiss-metallic",
+     "name": "Mineralweiß metallic",
+     "hex": "#B7B2AF"
+    },
+    {
+     "code": "sophistograu-brillanteffekt-metallic",
+     "name": "Sophistograu Brillanteffekt metallic",
+     "hex": "#191715"
+    },
+    {
+     "code": "arctic-race-blue-metallic",
+     "name": "Arctic Race Blue metallic",
+     "hex": "#232D37"
+    },
+    {
+     "code": "saphirschwarz-metallic",
+     "name": "Saphirschwarz metallic",
+     "hex": "#020204"
+    },
+    {
+     "code": "dune-grey-metallic",
+     "name": "Dune Grey metallic",
+     "hex": "#8D867B"
+    },
+    {
+     "code": "bmw-individual-tansanitblau-metallic",
+     "name": "BMW Individual Tansanitblau metallic",
+     "hex": "#010A1B"
+    },
+    {
+     "code": "bmw-individual-storm-bay-metallic",
+     "name": "BMW Individual Storm Bay metallic",
+     "hex": "#535856"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 302,
+   "endbox": [
+    72,
+    1,
+    724,
+    300
    ]
   }
+ ],
+ "breite": 800,
+ "hoehe": 317,
+ "endbox": [
+  43,
+  26,
+  656,
+  312
  ]
 }

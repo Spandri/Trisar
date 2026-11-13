@@ -1,0 +1,976 @@
+{
+ "_hinweis": "Mercedes-Pkw-Konfigurator 13.11.2026. Bildadresse = https://media.oneweb.mercedes-benz.com/images/dynamic/europe/DE/ + vorlage, {LACK} = 3 Zeichen je Lack, {POV} = BE000..BE350. In q '%' als %25 senden. BKGND=9 transparent.",
+ "c-klasse": {
+  "name": "Mercedes-Benz C-Klasse Limousine",
+  "modell": [
+   "cklasse",
+   "c200",
+   "c220",
+   "c300",
+   "c400"
+  ],
+  "vorlage": "206058/807/iris.webp?q=COSY-EU-100-1713d0VXq5WFng9jfZobxEnlqHI5QqqrQCPPnU2G{LACK}xm7skt0uBMBbB2rtHoApncpc5uoXFbC3MlgHzNT17O7j6wKJKVSzlCvqtW0YLRcdBmaxXfsKH1JN0o8wOjK8iZbVWG4FIqd6g9QRAbPDkE7KeUPiM6owAvqt20QLRclpCaxXqxXH1JR4B8wOxWYiZbMt54FI9FHg9jMuOHUYhoPMWbg762QCPkIJdJ8r8qYZ9V%RY3SNmUauF5&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR graphitgrau magno",
+    "Zfm"
+   ],
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "ZGt"
+   ],
+   [
+    "MANUFAKTUR alpingrau uni",
+    "kHl"
+   ],
+   [
+    "MANUFAKTUR patagonienrot bright",
+    "kpU"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "OpJ"
+   ],
+   [
+    "lavender silver metallic",
+    "eGL"
+   ],
+   [
+    "graphitgrau metallic",
+    "Zwz"
+   ],
+   [
+    "hightechsilber metallic",
+    "kRP"
+   ],
+   [
+    "spektralblau metallic",
+    "k4T"
+   ],
+   [
+    "moody sky grey metallic",
+    "kGz"
+   ],
+   [
+    "schwarz uni",
+    "2BT"
+   ],
+   [
+    "polarweiß uni",
+    "OBL"
+   ]
+  ]
+ },
+ "e-klasse": {
+  "name": "Mercedes-Benz E-Klasse Limousine",
+  "modell": [
+   "eklasse",
+   "e200",
+   "e220",
+   "e300",
+   "e400",
+   "e450"
+  ],
+  "vorlage": "214003/807_057/iris.webp?q=COSY-EU-100-1713d0VXq5WFqtyO67PobzIr3eWsrrCsdRRzwQZ{LACK}ZbMw3SGtGyRtsd1h9cUfwOuXGEuGdJ0l34lOB2Ng1bApjPoI5uVmIQC3qkWkzNRLNm7jxMohKVFsW%vq9JTyLRD3fYaxWrhrH1KBtn8wvVwoiZL%pM4FG4MTg90zZ6PDBLqSeWAa9tsd5c3cUfCX1XGEzJ3J0lcYfOB2XgcbApJt9I5u86IQC3iSwkzN4obm7j06fhKVBpN%vqAI%yLR5i6YaxC4prH1zcRn8wPQcoiZeIQM6oY2ulLXkzNeZbAMoaFI5OI59QCbQ4DkzI0gWm7QV8dhKknPf%vG27EyLYyPlYarYd2rHnOfpn8oKUuoQAOaEVUPB3AT2r9B8iZ348L6LlGlmUrokehUbzIgVfOnw&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "6ZH"
+   ],
+   [
+    "MANUFAKTUR alpingrau uni",
+    "U3I"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "Ukw"
+   ],
+   [
+    "verdesilber metallic",
+    "gZG"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "gk4"
+   ],
+   [
+    "nautikblau metallic",
+    "hkH"
+   ],
+   [
+    "samtbraun metallic",
+    "YVf"
+   ],
+   [
+    "graphitgrau metallic",
+    "6Tf"
+   ],
+   [
+    "hightechsilber metallic",
+    "UnR"
+   ],
+   [
+    "schwarz uni",
+    "Q9v"
+   ],
+   [
+    "polarweiß uni",
+    "g9p"
+   ]
+  ]
+ },
+ "e-klasse-t": {
+  "name": "Mercedes-Benz E-Klasse T-Modell",
+  "modell": [
+   "eklassetmodell",
+   "etmodell",
+   "eklassekombi",
+   "tmodell",
+   "tmodel",
+   "estate"
+  ],
+  "vorlage": "214203/807_057/iris.webp?q=COSY-EU-100-1713d0VXq5WFqtyO67PobzIr3eWsrrCsdRRzwQZ{LACK}ZbMw3SGtGyRtsd1h9cUfwOuXGEuGdJ0l34lOB2Ng1bApjPoI5uVmIQC3qkWkzNRLNm7jxMohKVFsW%vq9JTyLRD3fYaxWrhrH1KBtn8wvVwoiZL%pM4FG4MTg90zZ6PDBLqSeWAa9tsd5c3cUfCX1XGEzJ3J0lcYfOB2XgcbApJt9I5u84ZQC3iSQkzN4tZm7jgMIhKVBSE%vqAujyLR5QyYaxC4SrH1zgun8w7XxoiZekXM4FsQkTSMrp32aJm7jsFI5TMH9QCbQCDkzIkgWm7QBPdhKkqif%vmoeEyL0pKlYarYe2rHnrfpn8obEuoiMvG3Mk5bHlqGeAN56pnmAi4FNgiaSa202hGnMms%GI7QPqEboZ&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "6ZH"
+   ],
+   [
+    "MANUFAKTUR alpingrau uni",
+    "U3I"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "Ukw"
+   ],
+   [
+    "verdesilber metallic",
+    "gZG"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "gk4"
+   ],
+   [
+    "nautikblau metallic",
+    "hkH"
+   ],
+   [
+    "samtbraun metallic",
+    "YVf"
+   ],
+   [
+    "graphitgrau metallic",
+    "6Tf"
+   ],
+   [
+    "hightechsilber metallic",
+    "UnR"
+   ],
+   [
+    "schwarz uni",
+    "Q9v"
+   ],
+   [
+    "polarweiß uni",
+    "g9p"
+   ]
+  ]
+ },
+ "s-klasse": {
+  "name": "Mercedes-Benz S-Klasse",
+  "modell": [
+   "sklasse",
+   "s350",
+   "s400",
+   "s450",
+   "s500",
+   "s580"
+  ],
+  "vorlage": "223024/807_057/iris.webp?q=COSY-EU-100-1713d0VXq0SVng9jfZobxEnlqHI5QqqrQCPPnU2G{LACK}xm7skt0uBuibB2rQC6ApnkhS5uomUtC3Mt4HzNTcDn7j6XLeKVSJAmvqtOLzLRcbZ7axXI0yH1JQUs8wO%BmiZbyZJ4FIY3og9QrKBPDknvTeWmoO6sdhMbXUf%TGPGEyDEG0lYW1KB2rdw6ApnfD35uoEWtC3MlGIzNT27P7j6p4iKVSZVOvqtF2YLRc981axXDTKH1JW8s8wOdiMiZbf594FI83Og9QiArPDk3zoeWmNVMsdhj2TUf%ZvJGEyF870lY9kSB2rDmIApnWhi5uodUaC3MfGCzNTE787j6lK7KVS2vsvqtpLkLRcuZPaxX3FwH1JNUc8wOcwFiZbXPa4FIdF4g9Qfz7Psg8oTn1BKVSWlCvqtd2vLRcfpcaxXEAmH1Jl5H8wO2SLiZbpt54FIN3rg9QZNrPDkFRTeWm9GmsdhDbhUf%WuSGEyJL70lYOF%B2rp2tApnupG5uo3u4C3MN9BzNTjfQ7j6VrbKVfmDM5HbXkvmRPkU7DSevt6oxoCIClbNVEJ2bWydcHADjP&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR opalithweiß magno",
+    "eHL"
+   ],
+   [
+    "MANUFAKTUR kalaharigold metallic",
+    "ZvP"
+   ],
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "ZGt"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "kpU"
+   ],
+   [
+    "verdesilber metallic",
+    "OGm"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "OpJ"
+   ],
+   [
+    "nautikblau metallic",
+    "3pt"
+   ],
+   [
+    "samtbraun metallic",
+    "V4z"
+   ],
+   [
+    "graphitgrau metallic",
+    "Zwz"
+   ],
+   [
+    "hightechsilber metallic",
+    "kRP"
+   ],
+   [
+    "smaragdgrün metallic",
+    "kGL"
+   ],
+   [
+    "schwarz uni",
+    "2BT"
+   ],
+   [
+    "warmgrey uni",
+    "Vft"
+   ]
+  ]
+ },
+ "s-klasse-lang": {
+  "name": "Mercedes-Benz S-Klasse Lang",
+  "modell": [
+   "sklasselang",
+   "sklasselangversion",
+   "slang",
+   "350lang",
+   "400lang",
+   "450lang",
+   "500lang",
+   "580lang",
+   "langversion"
+  ],
+  "vorlage": "223124/807_057/iris.webp?q=COSY-EU-100-1713d0VXq0SVng9jfZobxEnlqHI5QqqrQCPPnU2G{LACK}xm7skt0uBuibB2rQC6ApnkhS5uomUtC3Mt4HzNTcDn7j6XLeKVSJAmvqtOLzLRcbZ7axXI0yH1JQUs8wO%BmiZbyZJ4FIY3og9QrKBPDknvTeWmoO6sdhMbXUf%TGPGEyDEG0lYW1KB2rdw6ApnfD35uoEWtC3MlGIzNT27P7j6p4iKVSZVOvqtFftLRc9praxXDiwH1JW6v8wOdiUiZbf4T4FIECDg9QiNbPDk45neWmN7MsdhjqTUf%Vp6GEyFLO0lY9iKB2rDmtApnWhQ5uod%4C3MfGHzNTE0A7j6lB7KVS2v4vqtpLvLRcuaGaxX3HhH1JN9s8wOjDFiZbV0J4FIJFDg9QOs8PDkEDPeWmlKvsGe4TSMZ5LRcfp7axXEuaH1Jl3J8wO2C%iZbpzi4FIucHg9Q3XzPDkVjoeWm9VosdhD1SUf%WB%GEydQy0lYfNcB2rbHvApnIDY5uo3uXC3MN3BzNTjNP7j6VW5KVSqlmvqtRoQLRl%d6ziQOha%1sh1vdcUaXtTwT7k7pQVR2buQfrEJiCdqs&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR nachtschwarz magno",
+    "2Hl"
+   ],
+   [
+    "MANUFAKTUR verdesilber magno",
+    "T4m"
+   ],
+   [
+    "MANUFAKTUR opalithweiß magno",
+    "eHL"
+   ],
+   [
+    "MANUFAKTUR kalaharigold magno",
+    "e4J"
+   ],
+   [
+    "MANUFAKTUR mysticblau metallic",
+    "2wP"
+   ],
+   [
+    "MANUFAKTUR graphit metallic",
+    "2Bz"
+   ],
+   [
+    "MANUFAKTUR siliziumgrau uni",
+    "OpT"
+   ],
+   [
+    "MANUFAKTUR oliv metallic",
+    "nHt"
+   ],
+   [
+    "MANUFAKTUR kalaharigold metallic",
+    "ZvP"
+   ],
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "ZGt"
+   ],
+   [
+    "MANUFAKTUR vintageblau uni",
+    "kw%"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "kpU"
+   ],
+   [
+    "verdesilber metallic",
+    "OGm"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "OpJ"
+   ],
+   [
+    "nautikblau metallic",
+    "3pt"
+   ],
+   [
+    "samtbraun metallic",
+    "V4z"
+   ],
+   [
+    "graphitgrau metallic",
+    "Zwz"
+   ],
+   [
+    "hightechsilber metallic",
+    "kRP"
+   ],
+   [
+    "smaragdgrün metallic",
+    "kGL"
+   ],
+   [
+    "MANUFAKTUR schwarz sparkling",
+    "kB%"
+   ],
+   [
+    "schwarz uni",
+    "2BT"
+   ],
+   [
+    "warmgrey uni",
+    "Vft"
+   ]
+  ]
+ },
+ "maybach-s": {
+  "name": "Mercedes-Maybach S-Klasse",
+  "modell": [
+   "maybachs",
+   "maybachsklasse",
+   "s580maybach",
+   "s680",
+   "maybach"
+  ],
+  "vorlage": "223977/807_057/iris.webp?q=COSY-EU-100-1713d0VXqrYVng9jfZobxEnlqHI5QqqrQCPPnU2G{LACK}xm7skt0uBuibB2rQC6ApnkhS5uomUtC3Mt4HzNTcDz7j6XWoKVSJasvqtO5hLRcbC1axXIHKH1JQ9v8wOkD8iZbmWT4FIhCog9Q%ABPDknzieWmo7rsdhMdkUf%TRtGEy6xM0lYSiKB2rt4JApnchO5uoX%kC3MJzBzNT2g87j6pP5KVSuVKvqt3fgLRcNEIaxXjuKH1JV3B8wOqNmiZbRPn4FIx70g9Q1K8PDkwvPeWmZ86sdhFUvUf%9G5GEyDK70lYjlTB2rVwrApnqDQ5uoR7XC3MxKCzNT1vV7j6wriKVSZnCvqtFLgLRc9a7axXDHtH1JW9Z8wOdAFiZbHuJ4FI8BYg9QuCnPDk3joeWmNx6sdhj2TUf%ZvJGEyFE60lY9lpB2rDCtApnWhc5uod%kC3MfygzNTE087j6lB6KVS2ATvqtpLgLRcuaLaxX3H0H1JN8%8wOjDUiZbVW94FIqdOg9QRAbPDkbzieWmI7esdhQdEUf%kBPGEyuLc0lY3H8B50scJtWKiZbpja4FIuV4g9Q3qQPDkNvneWmjLesdhVbgUf%qILGEyRge0lYw1tB2rEHIApnl8i5uo2FXC3Mp9HzNTufQ7j63L%KVSNGKvqtjotLRcV0xaxXq9YH1Jn0s8wOZBMiZbFZy4FI9FHg9QD9zPDkWjTeWmdx6sdhfbMUf%EGPGE1cqmP5Tnt0c2vtNIlyL0Y%kpke6eZTdEwoFTROxr5gqfv&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR nachtschwarz magno",
+    "2Hl"
+   ],
+   [
+    "MANUFAKTUR verdesilber magno",
+    "T4m"
+   ],
+   [
+    "MANUFAKTUR opalithweiß magno",
+    "eHL"
+   ],
+   [
+    "MANUFAKTUR kalaharigold magno",
+    "e4J"
+   ],
+   [
+    "MANUFAKTUR mysticblau metallic",
+    "2wP"
+   ],
+   [
+    "MANUFAKTUR graphit metallic",
+    "2Bz"
+   ],
+   [
+    "MANUFAKTUR siliziumgrau uni",
+    "OpT"
+   ],
+   [
+    "MANUFAKTUR oliv metallic",
+    "nHt"
+   ],
+   [
+    "MANUFAKTUR kalaharigold metallic",
+    "ZvP"
+   ],
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "ZGt"
+   ],
+   [
+    "MANUFAKTUR vintageblau uni",
+    "kw%"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "kpU"
+   ],
+   [
+    "verdesilber metallic",
+    "OGm"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "OpJ"
+   ],
+   [
+    "nautikblau metallic",
+    "3pt"
+   ],
+   [
+    "samtbraun metallic",
+    "V4z"
+   ],
+   [
+    "graphitgrau metallic",
+    "Zwz"
+   ],
+   [
+    "hightechsilber metallic",
+    "kRP"
+   ],
+   [
+    "smaragdgrün metallic",
+    "kGL"
+   ],
+   [
+    "MANUFAKTUR schwarz sparkling",
+    "kB%"
+   ],
+   [
+    "schwarz uni",
+    "2BT"
+   ],
+   [
+    "warmgrey uni",
+    "Vft"
+   ]
+  ]
+ },
+ "eqe": {
+  "name": "Mercedes-Benz EQE Limousine",
+  "modell": [
+   "eqe300",
+   "eqe350",
+   "eqe500",
+   "eqelimousine",
+   "eqe",
+   "eqe43",
+   "eqe53"
+  ],
+  "vorlage": "295111/807/iris.webp?q=COSY-EU-100-1713d0VXqaSFqtyO67PobzIr3eWsrrCsdRRzwQZ{LACK}ZbMw3SGtle9tsd2HVcUfpAfXGEu5YJ0lVYrOB2q8%bApRTyI5uGfuQC3aCRkzNHUum7jQGIhKVPTQ%vqAtlyLR53VYaxCrSrH1zgtn8w7XxoiZekXM4FsQkTSMrp32aJm7jGcohKVU0b%vq7vdyLRlAXYaxHahrH18B%n8520R%6d9lo24MG4JdwOoZ1qgqyfyzda8CD7dB3AF6h0HJ&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR graphitgrau magno",
+    "6OG"
+   ],
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "6ZH"
+   ],
+   [
+    "MANUFAKTUR alpingrau uni",
+    "U3I"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "Ukw"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "gk4"
+   ],
+   [
+    "graphitgrau metallic",
+    "6Tf"
+   ],
+   [
+    "sodalithblau metallic",
+    "69R"
+   ],
+   [
+    "hightechsilber metallic",
+    "UnR"
+   ],
+   [
+    "schwarz uni",
+    "Q9v"
+   ],
+   [
+    "polarweiß uni",
+    "g9p"
+   ]
+  ]
+ },
+ "eqs": {
+  "name": "Mercedes-Benz EQS Limousine",
+  "modell": [
+   "eqs450",
+   "eqs500",
+   "eqs580",
+   "eqslimousine",
+   "eqs",
+   "eqs53"
+  ],
+  "vorlage": "297113/807_057/iris.webp?q=COSY-EU-100-1713d0VXqaSFng9jfZobxEnlqHI5QqqrQCPPnU2G{LACK}xm7skt0uBuibB2rQC6ApnkhS5uomUtC3Mt4HzNTcNQ7j6XW7KVSJa4vqtOHzLRcb8GaxXIzyH1JQ8o8wOkD%iZbmWi4FIhdIg9Q%fzPDknz7eWmo7rsdhMdkUf%TRtGEy6x20lYSiKB2rt4JApnchO5uoX%kC3MJzBzNTORX7j6pWJKVSulRvqt32YLRcNpIaxXjzyH1JV8B8wOdB%iZbfZY4FIEF%g9QlqSPDk2eneWmpscsdhuvCUf%37mGEysxh0lYUFtB2rG47Apn18X5uowF5C3MZ9OzNTF0A7j69BkKVSD1QvqtWPzLRcuUraxX3TmH1JN7s8wOjKLiZbVvi4FIqLDg9QRPgPDkxe7eWm1sMsdhw2MUf%ZpzGEyFuy0lY93pB2rDNIApnWjY5uodHrC3MqeHzNTRsz7j6xUeKVS1sUvaKCkhQu4GEyZLh0lYw1tB2rE2rApnlpO5uo2ukC3MpKMzNTuvP7j63sPKVSNUbvqtjG1LRcVFhaxXrGeH1Jw0s8wOZw%iZbFZa4FI9FCg9QDN8PDkWU7eWmdOosdRSjQ4BoY6USEGqE7mhKU%mIlIgMg1oDdxrwoVXqyBijW7&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR nachtschwarz magno",
+    "2Hl"
+   ],
+   [
+    "MANUFAKTUR verdesilber magno",
+    "T4m"
+   ],
+   [
+    "MANUFAKTUR opalithweiß magno",
+    "eHL"
+   ],
+   [
+    "MANUFAKTUR kalaharigold magno",
+    "e4J"
+   ],
+   [
+    "MANUFAKTUR graphitgrau magno",
+    "Zfm"
+   ],
+   [
+    "MANUFAKTUR siliziumgrau uni",
+    "OpT"
+   ],
+   [
+    "MANUFAKTUR rubellitrot metallic",
+    "eIT"
+   ],
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "ZGt"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "kpU"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "OpJ"
+   ],
+   [
+    "nautikblau metallic",
+    "3pt"
+   ],
+   [
+    "samtbraun metallic",
+    "V4z"
+   ],
+   [
+    "graphitgrau metallic",
+    "Zwz"
+   ],
+   [
+    "sodalithblau metallic",
+    "ZBP"
+   ],
+   [
+    "hightechsilber metallic",
+    "kRP"
+   ],
+   [
+    "MANUFAKTUR schwarz sparkling",
+    "kB%"
+   ],
+   [
+    "schwarz uni",
+    "2BT"
+   ],
+   [
+    "polarweiß uni",
+    "OBL"
+   ],
+   [
+    "warmgrey uni",
+    "Vft"
+   ]
+  ]
+ },
+ "eqe-suv": {
+  "name": "Mercedes-Benz EQE SUV",
+  "modell": [
+   "eqesuv",
+   "eqe300suv",
+   "eqe350suv",
+   "eqe500suv"
+  ],
+  "vorlage": "294611/807/iris.webp?q=COSY-EU-100-1713d0VXqaSFqtyO67PobzIr3eWsrrCsdRRzwQZ{LACK}ZbMw3SGtlaWtsd2H%cUfpOkXGEubSJ0l3IJOB2NMcbApjtwI5ux4YQC31gFkzNwtnm7jZhIhKVFHw%vqCv%yLRz3RYaxPXWrH1eJ1n8ws8WoiZU71M4FGTjTg9oQZ6PDMLoSeWzKStsd7vVcUfKr1XGE4ywJ0lgIVOB2PWEbApetxI5usQJQC3Uv1kzNGLnm7j0afhKVBTN%vq8JTyLRiXJYnymdEWz6OB2gM%bAp4PtI5uB5uQC3ACFkzN5%6m7jdcDhKVvKQ%vGdeNQnF1WydaY7NSFqtyRV3H3k9kBF7v0wAFslUxnIeKS&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "6ZH"
+   ],
+   [
+    "MANUFAKTUR alpingrau uni",
+    "U3I"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "Ukw"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "gk4"
+   ],
+   [
+    "samtbraun metallic",
+    "YVf"
+   ],
+   [
+    "sodalithblau metallic",
+    "69R"
+   ],
+   [
+    "hightechsilber metallic",
+    "UnR"
+   ],
+   [
+    "schwarz uni",
+    "Q9v"
+   ],
+   [
+    "polarweiß uni",
+    "g9p"
+   ]
+  ]
+ },
+ "glc": {
+  "name": "Mercedes-Benz GLC",
+  "modell": [
+   "glc",
+   "glc200",
+   "glc220",
+   "glc300",
+   "glc400",
+   "glc43",
+   "glc63"
+  ],
+  "vorlage": "254602/807/iris.webp?q=COSY-EU-100-1713d0VXq5WFqtyO67PobzIr3eWsrrCsdRRzwQZ{LACK}ZbMw3SGtxX2tsd1ZpcUfwMuXGEuGdJ0l34xOB2NQObApjTXI5uV62QC3qkWkzNRonm7jZ6qhKVFKF%vq9UTyLRDGfYaxWoErH1dItn8wfQ2oiZEqpM4FlRjTg926n6PD87bSeWiwWtsd4oVcUfC%NXGEzyEJ0l7HfOB2KgFbApvPlI5uLQxQC3akWkzNHmxm7jQ63hKVk0Q%vqmIlyLRscWYaxU0YrH1GBln8w0Q3oiZBklM4FAs2Tg95bn6PDakqSeWHw9tsd8otcUfiM0XGE45jJ0lgChOB2PzObApe79I5usr2QC32M1kzNpTnm7juyIhKVHSM%vq8JTyLRiOXYax4JOroYhfld7SbApPTRI5ugecQC3AC3kzN5z9m7jCyjhKVzYt%vq7udyLRKX9YaxvgfrH1pJtn8wuhwoiZ4bXM4Fg4lTg9Pgn6PDe7oSeWsajtsLV79MOuljcVGfP9jFdhcfWF0FT3THuPsa28uKxvEOo7em&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR graphitgrau magno",
+    "6OG"
+   ],
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "6ZH"
+   ],
+   [
+    "MANUFAKTUR alpingrau uni",
+    "U3I"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "Ukw"
+   ],
+   [
+    "verdesilber metallic",
+    "gZG"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "gk4"
+   ],
+   [
+    "graphitgrau metallic",
+    "6Tf"
+   ],
+   [
+    "hightechsilber metallic",
+    "UnR"
+   ],
+   [
+    "spektralblau metallic",
+    "UVv"
+   ],
+   [
+    "schwarz uni",
+    "Q9v"
+   ],
+   [
+    "polarweiß uni",
+    "g9p"
+   ]
+  ]
+ },
+ "gle": {
+  "name": "Mercedes-Benz GLE",
+  "modell": [
+   "gle",
+   "gle300",
+   "gle350",
+   "gle400",
+   "gle450",
+   "gle580",
+   "gle53",
+   "gle63"
+  ],
+  "vorlage": "167132/807_057/iris.webp?q=COSY-EU-100-1713d0VXqaxFng9jfZobxEnlqHI5QqqrQCPPnU2G{LACK}xm7skt0uBuibB2rT4UApn6gn5uoSVoC3MtgIzNTOga7j6bjMKVSuVKvqt3HTLRcNGPaxXDGmH1JW8o8wOdimiZb2ui4FIp3rg9QRCSPDkxHPeWm18fsdhw2MUf%ZpJGEyFKh0lY3H8B50scJtWKiZb3YaxB0drH18JRn8wi8yoiZ45YM4FgTrTg735wrcldu637vzeS19Q6DF1s1n2nvligKfLlCVzWcY54I&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "ZGt"
+   ],
+   [
+    "MANUFAKTUR alpingrau uni",
+    "kHl"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "kpU"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "OpJ"
+   ],
+   [
+    "graphitgrau metallic",
+    "Zwz"
+   ],
+   [
+    "sodalithblau metallic",
+    "ZBP"
+   ],
+   [
+    "hightechsilber metallic",
+    "kRP"
+   ],
+   [
+    "schwarz uni",
+    "2BT"
+   ],
+   [
+    "polarweiß uni",
+    "OBL"
+   ],
+   [
+    "dark petrol uni",
+    "9GL"
+   ]
+  ]
+ },
+ "gls": {
+  "name": "Mercedes-Benz GLS",
+  "modell": [
+   "gls",
+   "gls350",
+   "gls400",
+   "gls450",
+   "gls580",
+   "gls600",
+   "gls63"
+  ],
+  "vorlage": "167932/807_057/iris.webp?q=COSY-EU-100-1713d0VXq0YFng9jfZobxEnlqHI5QqqrQCPPnU2G{LACK}xm7skt0uBuibB2rTwuApn6gG5uoS%vC3MtGIzNTc7n7j6Xx6KVSJsmvqtQq6LRcNRLaxXjH0H1JVBs8wOdB%iZbf4G4FIEg6g9QlPyPDk27deWmNVesdhjqTUf%ZvJGEyFAc0lY9P0B2rDeuApnW5i5uodVXC3MfqmzNTEio7j6xesKL75QmIpiUf%x6PDK7uSeWgwWtsdUhDcUfGU6XGE0aSJ0lBOtOBi1aftkV3xb1ig8KId2rbpldCdcqcgVGB4NPVHF8ukSa0Y&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "ZGt"
+   ],
+   [
+    "MANUFAKTUR alpingrau uni",
+    "kHl"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "kpU"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "OpJ"
+   ],
+   [
+    "graphitgrau metallic",
+    "Zwz"
+   ],
+   [
+    "sodalithblau metallic",
+    "ZBP"
+   ],
+   [
+    "hightechsilber metallic",
+    "kRP"
+   ],
+   [
+    "schwarz uni",
+    "2BT"
+   ],
+   [
+    "polarweiß uni",
+    "OBL"
+   ],
+   [
+    "dark petrol uni",
+    "9GL"
+   ]
+  ]
+ },
+ "g-klasse": {
+  "name": "Mercedes-Benz G-Klasse",
+  "modell": [
+   "gklasse",
+   "g450",
+   "g500",
+   "g580",
+   "g63"
+  ],
+  "vorlage": "465310/X26/iris.webp?q=COSY-EU-100-1713d0VXq0WFqtyO67PobzIr3eWsrrCsdRRzwQZ{LACK}ZbMw3SGtieWtsd5HDcUfS86XGE4bjJ0lg%fOB2znobQOcxwRs%M4F0kGTg97zp6PD4koSeWgnjtsdR8TcUfx9kXGE1DXJ0lxntOB21m5bApQiCI5gZ8lXhRjwQZteHUnUuoQ3pE7EJxJeRB5PVsRiD4Nhc8An&IMGT=W27&POV={POV}&BKGND=9&uni=m&cp=o1Yw6tbhjdvotoOJyaA8nQ",
+  "lacke": [
+   [
+    "MANUFAKTUR platin magno",
+    "Q3f"
+   ],
+   [
+    "MANUFAKTUR Monza grau magno",
+    "Q3B"
+   ],
+   [
+    "MANUFAKTUR nachtschwarz magno",
+    "Q3I"
+   ],
+   [
+    "MANUFAKTUR dunkeloliv magno",
+    "geB"
+   ],
+   [
+    "MANUFAKTUR citrinbraun magno",
+    "zVf"
+   ],
+   [
+    "MANUFAKTUR kupferorange magno",
+    "x3G"
+   ],
+   [
+    "MANUFAKTUR opalithweiß magno",
+    "x3p"
+   ],
+   [
+    "MANUFAKTUR kalaharigold magno",
+    "xV4"
+   ],
+   [
+    "MANUFAKTUR oliv magno",
+    "YTp"
+   ],
+   [
+    "MANUFAKTUR manganitgrau magno",
+    "YkH"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "gk4"
+   ],
+   [
+    "iridiumsilber metallic",
+    "YVH"
+   ],
+   [
+    "sodalithblau metallic",
+    "69R"
+   ],
+   [
+    "mojavesilber metallic",
+    "63p"
+   ],
+   [
+    "brilliantblau metallic",
+    "6kI"
+   ],
+   [
+    "smaragdgrün metallic",
+    "UZp"
+   ],
+   [
+    "selenitgrau metallic",
+    "UkR"
+   ],
+   [
+    "schwarz uni",
+    "Q9v"
+   ],
+   [
+    "polarweiß uni",
+    "g9p"
+   ],
+   [
+    "aquamint uni",
+    "v9f"
+   ],
+   [
+    "MANUFAKTUR sonnengelb uni",
+    "UOB"
+   ],
+   [
+    "MANUFAKTUR meerblau metallic",
+    "QnI"
+   ],
+   [
+    "MANUFAKTUR graphit metallic",
+    "Q9f"
+   ],
+   [
+    "MANUFAKTUR classicgrau uni",
+    "gnB"
+   ],
+   [
+    "MANUFAKTUR südseeblau metallic",
+    "geR"
+   ],
+   [
+    "MANUFAKTUR oliv metallic",
+    "z3H"
+   ],
+   [
+    "MANUFAKTUR wüstensand uni",
+    "teB"
+   ],
+   [
+    "MANUFAKTUR rubellitrot metallic",
+    "xev"
+   ],
+   [
+    "MANUFAKTUR travertinbeige metallic",
+    "xkw"
+   ],
+   [
+    "MANUFAKTUR tiefgrün uni",
+    "6nH"
+   ],
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "6ZH"
+   ],
+   [
+    "MANUFAKTUR dunkelblau uni",
+    "U2B"
+   ],
+   [
+    "MANUFAKTUR vintageblau uni",
+    "UTB"
+   ],
+   [
+    "MANUFAKTUR indiumgrau metallic",
+    "Uew"
+   ],
+   [
+    "MANUFAKTUR hyazinthrot metallic",
+    "UkI"
+   ],
+   [
+    "MANUFAKTUR brillantblau magno",
+    "x9B"
+   ],
+   [
+    "MANUFAKTUR hyazinthrot magno",
+    "6nw"
+   ]
+  ]
+ }
+}

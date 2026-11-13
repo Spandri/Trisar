@@ -8,6 +8,8 @@ struct KeineFahrtAnsicht: View {
     var oeffneFahrzeug: () -> Void
     var abmelden: () -> Void
     @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
+    /// Neu zeichnen, wenn der Fahrzeugkatalog (360-Grad-Bilder) vom Server nachlaedt.
+    @ObservedObject private var katalog = DrehKatalog.shared
     @EnvironmentObject private var anmeldung: Anmeldung
     @EnvironmentObject private var speicher: FahrtenSpeicher
     @EnvironmentObject private var nfc: NfcTag

@@ -1,67 +1,61 @@
 package de.trisar.dispo.stamm
 
 import android.content.Context
-import android.graphics.BitmapFactory
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import org.json.JSONArray
-import org.json.JSONObject
+import androidx.compose.foundation.background
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil3.compose.AsyncImage
+import de.trisar.kern.DrehBilder
+import de.trisar.kern.DrehInfo
 
 /**
- * Modelle und Lacke, fuer die die Fahrer-App eine 360-Grad-Ansicht hat (assets/fahrzeug-dreh/fahrzeug-dreh.json,
- * erzeugt mit werkzeuge/fahrzeugbilder/dreh-einbauen.py), wie admin/src/shared/fahrzeugDreh.js.
- * Beim Fahrzeug anlegen/bearbeiten als Vorschlaege fuer Marke & Modell und Farbe. Passen brand_model
- * und color, nimmt die Fahrer-App die Bilderreihe.
+ * Modelle und Lacke, fuer die es eine 360-Grad-Ansicht gibt, aus dem Katalog der Fahrer-App
+ * (DrehInfo im kern: vom Server fahrer.trisar.de/fahrzeug-dreh, gemerkt, Rueckfall assets), wie
+ * admin/src/shared/fahrzeugDreh.js. Beim Fahrzeug anlegen/bearbeiten als Vorschlaege fuer Marke & Modell
+ * und Farbe. Passen brand_model und color, nimmt die Fahrer-App die Bilderreihe.
+ * In Compose aufgerufen, rechnen alle Funktionen neu, sobald der Katalog vom Server da ist.
  */
 internal object FahrzeugDrehVorschlaege {
     data class Lack(val code: String, val name: String, val hex: Long)
     class Modell(val id: String, val name: String, val modell: List<String>, val farben: List<Pair<String, String>>, val lackliste: List<Lack>)
 
-    @Volatile private var modelle: List<Modell>? = null
+    // umgewandelte Liste je Katalog-Stand
+    @Volatile private var zuletzt: Pair<DrehInfo, List<Modell>>? = null
 
     fun modelle(ctx: Context): List<Modell> {
-        modelle?.let { return it }
-        val geladen = runCatching {
-            val j = JSONObject(ctx.assets.open("fahrzeug-dreh/fahrzeug-dreh.json").bufferedReader().use { it.readText() })
-            fun liste(a: JSONArray) = List(a.length()) { a.getString(it) }
-            val m = j.getJSONArray("modelle")
-            List(m.length()) { i ->
-                val o = m.getJSONObject(i)
-                val f = o.getJSONArray("farben")
-                val l = o.getJSONArray("lackliste")
-                Modell(
-                    id = o.getString("id"),
-                    name = o.getString("name"),
-                    modell = liste(o.getJSONArray("modell")),
-                    farben = List(f.length()) { k -> f.getJSONArray(k).let { it.getString(0) to it.getString(1) } },
-                    lackliste = List(l.length()) { k ->
-                        l.getJSONObject(k).let { Lack(it.getString("code"), it.getString("name"), it.getString("hex").removePrefix("#").toLong(16)) }
-                    },
-                )
-            }
-        }.getOrDefault(emptyList())
-        modelle = geladen
-        return geladen
+        val info = DrehInfo.laden(ctx) ?: return emptyList()
+        zuletzt?.let { (von, liste) -> if (von === info) return liste }
+        val liste = info.modelle.map { m ->
+            Modell(
+                id = m.id, name = m.name, modell = m.modell, farben = m.farben,
+                lackliste = m.lackliste.map { Lack(it.code, it.name, it.hex.removePrefix("#").toLongOrNull(16) ?: 0L) },
+            )
+        }
+        zuletzt = info to liste
+        return liste
     }
 
     /** klein, Umlaute ausgeschrieben, nur Buchstaben und Ziffern: "V-Klasse 250 d" -> "vklasse250d" */
-    fun glatt(s: String) = s.lowercase()
-        .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
-        .filter { it in 'a'..'z' || it in '0'..'9' }
+    fun glatt(s: String) = de.trisar.kern.DrehSatz.glatt(s)
 
+    /** Modell mit dem laengsten passenden Modellwort (gleiche Regel wie in der Fahrer-App). */
     fun modell(ctx: Context, markeModell: String): Modell? {
-        val m = glatt(markeModell)
-        if (m.isEmpty()) return null
-        return modelle(ctx).firstOrNull { x -> x.modell.any { m.contains(it) } }
+        val treffer = DrehInfo.laden(ctx)?.modellZu(markeModell) ?: return null
+        return modelle(ctx).firstOrNull { it.id == treffer.id }
     }
 
     /** Lack, zu dem die Farbe gehoert (gleiche Regel wie in der Fahrer-App). */
     fun lack(ctx: Context, markeModell: String, farbe: String): Lack? {
-        val m = modell(ctx, markeModell) ?: return null
-        val f = glatt(farbe)
-        if (f.isEmpty()) return null
-        val treffer = m.farben.firstOrNull { f.contains(it.first) } ?: return null
-        return m.lackliste.firstOrNull { it.code == treffer.second }
+        val m = DrehInfo.laden(ctx)?.modellZu(markeModell) ?: return null
+        val code = m.lackZu(farbe) ?: return null
+        return modell(ctx, markeModell)?.lackliste?.firstOrNull { it.code == code }
     }
 
     /** Jedes Wort der Eingabe kommt im Namen vor. Leere Eingabe: alle. */
@@ -77,14 +71,39 @@ internal object FahrzeugDrehVorschlaege {
         return m.lackliste.filter { (e.isEmpty() || glatt(it.name).contains(e)) && it.name != eingabe.trim() }
     }
 
-    /** Seitenbild (Front nach rechts) des passenden Lacks fuer Fahrzeugliste und Fahrzeug bearbeiten. */
-    private val seiten = mutableMapOf<String, ImageBitmap?>()
-    fun seitenBild(ctx: Context, markeModell: String, farbe: String): ImageBitmap? {
-        val m = modell(ctx, markeModell) ?: return null
-        val l = lack(ctx, markeModell, farbe) ?: return null
-        val datei = "fahrzeug-dreh/${m.id}-${l.code}-seite.webp"
-        return seiten.getOrPut(datei) {
-            runCatching { ctx.assets.open(datei).use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
-        }
+    /** Adresse des Seitenbilds (Front nach rechts) zu Modell und Lack, null wenn es keins gibt. */
+    fun seitenBildAdresse(ctx: Context, markeModell: String, farbe: String): String? {
+        val m = DrehInfo.laden(ctx)?.modellZu(markeModell) ?: return null
+        val code = m.lackZu(farbe) ?: return null
+        return "${DrehInfo.SERVER}${m.id}-$code-seite.webp"
     }
+}
+
+/**
+ * Seitenbild des passenden Lacks fuer Fahrzeugliste und Fahrzeug bearbeiten, vom Server mit Festplatten-Cache.
+ * Gibt es keins oder laedt es nicht (z. B. ohne Netz), steht dort ersatz (hochgeladenes Bild) mit demselben Platz.
+ */
+@Composable
+internal fun FahrzeugSeitenBild(
+    markeModell: String,
+    farbe: String,
+    modifier: Modifier,
+    hintergrund: Color = Color.Transparent,
+    ersatz: @Composable () -> Unit = {},
+) {
+    val ctx = LocalContext.current
+    val adresse = FahrzeugDrehVorschlaege.seitenBildAdresse(ctx, markeModell, farbe)
+    var kaputt by remember(adresse) { mutableStateOf(false) }
+    if (adresse == null || kaputt) {
+        ersatz()
+        return
+    }
+    AsyncImage(
+        model = adresse,
+        contentDescription = null,
+        imageLoader = DrehBilder.lader(ctx),
+        modifier = modifier.background(hintergrund),
+        contentScale = ContentScale.Fit,
+        onError = { kaputt = true },
+    )
 }

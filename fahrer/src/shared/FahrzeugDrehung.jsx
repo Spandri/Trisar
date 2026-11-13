@@ -22,18 +22,22 @@ const glatt = (s) => String(s || '').toLowerCase()
   .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
   .replace(/[^a-z0-9]/g, '');
 
-// Passender Bildsatz zu brand_model und color, sonst null.
+// Passender Bildsatz zu brand_model und color, sonst null. Beim Modell gewinnt das laengste passende
+// Modellwort ("sklasselang" vor "sklasse"), bei der Farbe das erste passende Farbwort (Liste nach Laenge).
 export function drehSatzFinden(info, vehicle) {
   if (!info || !vehicle) return null;
   const modell = glatt(vehicle.brand_model);
   const farbe = glatt(vehicle.color);
   if (!modell || !farbe) return null;
-  for (const m of info.modelle || []) {
-    if (!m.modell.some((w) => modell.includes(w))) continue;
-    const treffer = m.farben.find(([wort]) => farbe.includes(wort));
-    if (treffer && (m.lacke || []).includes(treffer[1])) return { info, modell: m.id, lack: treffer[1] };
+  let m = null; let laenge = 0;
+  for (const kandidat of info.modelle || []) {
+    for (const w of kandidat.modell || []) if (w.length > laenge && modell.includes(w)) { m = kandidat; laenge = w.length; }
   }
-  return null;
+  if (!m) return null;
+  const treffer = m.farben.find(([wort]) => farbe.includes(wort));
+  if (!treffer || !(m.lacke || []).includes(treffer[1])) return null;
+  // Bildgroesse und Endstellung je Modell (aeltere Liste: gemeinsame Werte)
+  return { info, modell: m.id, lack: treffer[1], breite: m.breite || info.breite, hoehe: m.hoehe || info.hoehe, endbox: m.endbox || info.endbox };
 }
 
 export function useDrehSatz(vehicle) {
@@ -52,7 +56,7 @@ export default function FahrzeugDrehung({ satz, alt = '', style, stehend = false
   const { info } = satz;
   const N = info.bilder;
   const START = info.start;
-  const [B0, B1, B2, B3] = info.endbox;
+  const [B0, B1, B2, B3] = satz.endbox;
   const buehneRef = useRef(null);
   const bildRef = useRef(null);
   const zustand = useRef({ pos: START, frame: -1, anim: 0, x0: null, p0: 0 });
@@ -74,9 +78,9 @@ export default function FahrzeugDrehung({ satz, alt = '', style, stehend = false
     const sE = Math.min(W / (B2 - B0), H / (B3 - B1));
     const xE = (W - (B2 - B0) * sE) / 2 - B0 * sE;
     const yE = (H - (B3 - B1) * sE) / 2 - B1 * sE;
-    const sA = Math.min(W / info.breite, H / info.hoehe);
-    const xA = (W - info.breite * sA) / 2;
-    const yA = (H - info.hoehe * sA) / 2;
+    const sA = Math.min(W / satz.breite, H / satz.hoehe);
+    const xA = (W - satz.breite * sA) / 2;
+    const yA = (H - satz.hoehe * sA) / 2;
     let w = Math.min(abstand(p) / 4, 1);
     w = w * w * (3 - 2 * w);
     const s = sE + (sA - sE) * w;
@@ -157,7 +161,7 @@ export default function FahrzeugDrehung({ satz, alt = '', style, stehend = false
         alt={alt}
         draggable={false}
         className="absolute left-0 top-0 pointer-events-none"
-        style={{ width: `${info.breite}px`, height: `${info.hoehe}px`, maxWidth: 'none', transformOrigin: '0 0' }}
+        style={{ width: `${satz.breite}px`, height: `${satz.hoehe}px`, maxWidth: 'none', transformOrigin: '0 0' }}
       />
     </div>
   );

@@ -6,7 +6,8 @@ struct FahrzeugAngaben: Equatable {
     var kennzeichen = ""
     var vin = ""
     var bild: URL?
-    /// 360-Grad-Satz (FahrzeugDrehung.swift), wenn Modell und Farbe passen. Ersetzt im Fahrzeugblock das Standbild.
+    /// 360-Grad-Satz (FahrzeugDrehung.swift), wenn Modell und Farbe zum Katalog (DrehKatalog) passen.
+    /// Ersetzt im Fahrzeugblock das Standbild, die Bilder kommen vom Server.
     var dreh: DrehSatz?
     var modell = ""
     var ausstattung = ""
@@ -130,6 +131,8 @@ struct FahrzeugKarte: View {
     /// Bild-Oberkante: Liste 63, „Keine Fahrt“ 55.57.
     var bildOben: CGFloat = 63
     @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
+    /// Neu zeichnen, wenn der Fahrzeugkatalog (360-Grad-Bilder) vom Server nachlaedt.
+    @ObservedObject private var katalog = DrehKatalog.shared
 
     @MainActor static func hoehe(_ f: FahrzeugZeile?, bildOben: CGFloat = 63) -> CGFloat {
         FahrzeugAngaben(f).kartenRaster(bildOben: bildOben).hoehe

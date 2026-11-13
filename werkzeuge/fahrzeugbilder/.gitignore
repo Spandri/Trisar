@@ -6,3 +6,7 @@ farben/
 *.webp
 *.html
 vorschau.svg
+freistellen-ordner
+ausgabe/
+*.log
+roh/

@@ -26,6 +26,8 @@ private struct FahrzeugInhalt: View {
     @State private var meldenOffen = false
     /// Neu zeichnen, wenn ein Fahrzeugbild nicht laedt (Karte/Block werden kuerzer).
     @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
+    /// Neu zeichnen, wenn der Fahrzeugkatalog (360-Grad-Bilder) vom Server nachlaedt.
+    @ObservedObject private var katalog = DrehKatalog.shared
 
     init(fahrerID: UUID, zurueck: @escaping () -> Void) {
         self.zurueck = zurueck

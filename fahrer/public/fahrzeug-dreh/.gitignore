@@ -1,0 +1,2 @@
+# Bilder liegen auf dem Server (werkzeuge/fahrzeugbilder-ausrollen.sh), nur die Liste ist in Git
+*.webp

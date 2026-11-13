@@ -1,55 +1,36 @@
-import Foundation
+import SwiftUI
 import UIKit
 
-/// Modelle und Lacke, fuer die die Fahrer-App eine 360-Grad-Ansicht hat (FahrzeugDreh/fahrzeug-dreh.json,
-/// erzeugt mit werkzeuge/fahrzeugbilder/dreh-einbauen.py), wie admin/src/shared/fahrzeugDreh.js.
+/// Modelle und Lacke, fuer die die Fahrer-App eine 360-Grad-Ansicht hat (Katalog fahrzeug-dreh.json vom
+/// Server, DrehKatalog in FahrzeugDrehung.swift), wie admin/src/shared/fahrzeugDreh.js.
 /// Beim Fahrzeug anlegen/bearbeiten als Vorschlaege fuer Marke & Modell und Farbe. Passen brand_model
 /// und color, nimmt die Fahrer-App die Bilderreihe.
+@MainActor
 enum FahrzeugDrehVorschlaege {
-    struct Lack: Decodable, Hashable { let code: String; let name: String; let hex: String }
-    struct Modell: Decodable {
-        let id: String
-        let name: String
-        let modell: [String]
-        let farben: [[String]]
-        let lackliste: [Lack]
-    }
-    private struct Info: Decodable { let modelle: [Modell] }
+    typealias Lack = DrehInfo.Lack
+    typealias Modell = DrehInfo.Modell
 
-    static let modelle: [Modell] = {
-        guard let url = Bundle.main.url(forResource: "fahrzeug-dreh", withExtension: "json"),
-              let daten = try? Data(contentsOf: url),
-              let info = try? JSONDecoder().decode(Info.self, from: daten) else { return [] }
-        return info.modelle
-    }()
+    static var modelle: [Modell] { DrehKatalog.shared.info?.modelle ?? [] }
 
-    /// klein, Umlaute ausgeschrieben, nur Buchstaben und Ziffern: "V-Klasse 250 d" -> "vklasse250d"
-    static func glatt(_ s: String) -> String {
-        let klein = s.lowercased()
-            .replacingOccurrences(of: "ä", with: "ae").replacingOccurrences(of: "ö", with: "oe")
-            .replacingOccurrences(of: "ü", with: "ue").replacingOccurrences(of: "ß", with: "ss")
-        return String(klein.unicodeScalars.filter { ("a"..."z").contains($0) || ("0"..."9").contains($0) }.map(Character.init))
-    }
+    static func glatt(_ s: String) -> String { DrehSatz.glatt(s) }
 
+    /// Modell mit dem laengsten passenden Modellwort (gleiche Regel wie in der Fahrer-App).
     static func modell(zu markeModell: String) -> Modell? {
-        let m = glatt(markeModell)
-        guard !m.isEmpty else { return nil }
-        return modelle.first { $0.modell.contains(where: { m.contains($0) }) }
+        DrehKatalog.shared.info?.modell(zu: markeModell)
     }
 
     /// Lack, zu dem die Farbe gehoert (gleiche Regel wie in der Fahrer-App).
     static func lack(markeModell: String, farbe: String) -> Lack? {
-        guard let m = modell(zu: markeModell) else { return nil }
-        let f = glatt(farbe)
-        guard !f.isEmpty, let treffer = m.farben.first(where: { $0.count == 2 && f.contains($0[0]) }) else { return nil }
-        return m.lackliste.first { $0.code == treffer[1] }
+        guard let info = DrehKatalog.shared.info, let m = info.modell(zu: markeModell),
+              let code = info.lack(m, farbe: farbe) else { return nil }
+        return (m.lackliste ?? []).first { $0.code == code }
     }
 
     /// Jedes Wort der Eingabe kommt im Namen vor. Leere Eingabe: alle.
     static func modellVorschlaege(_ eingabe: String) -> [String] {
         let woerter = eingabe.split(whereSeparator: \.isWhitespace).map { glatt(String($0)) }.filter { !$0.isEmpty }
         let roh = eingabe.trimmingCharacters(in: .whitespaces)
-        return modelle.map(\.name).filter { name in woerter.allSatisfy { glatt(name).contains($0) } && name != roh }
+        return modelle.compactMap(\.name).filter { name in woerter.allSatisfy { glatt(name).contains($0) } && name != roh }
     }
 
     /// Nur wenn das Modell bekannt ist, dann dessen Lacke.
@@ -57,18 +38,58 @@ enum FahrzeugDrehVorschlaege {
         guard let m = modell(zu: markeModell) else { return [] }
         let e = glatt(eingabe)
         let roh = eingabe.trimmingCharacters(in: .whitespaces)
-        return m.lackliste.filter { (e.isEmpty || glatt($0.name).contains(e)) && $0.name != roh }
+        return (m.lackliste ?? []).filter { (e.isEmpty || glatt($0.name).contains(e)) && $0.name != roh }
     }
 
-    /// Seitenbild (Front nach rechts) des passenden Lacks fuer Fahrzeugliste und Fahrzeug bearbeiten.
-    @MainActor private static var seiten: [String: UIImage] = [:]
-    @MainActor static func seitenBild(markeModell: String, farbe: String) -> UIImage? {
-        guard let m = modell(zu: markeModell), let l = lack(markeModell: markeModell, farbe: farbe) else { return nil }
-        let name = "\(m.id)-\(l.code)-seite"
-        if let b = seiten[name] { return b }
-        guard let url = Bundle.main.url(forResource: name, withExtension: "webp"),
-              let b = UIImage(contentsOfFile: url.path) else { return nil }
-        seiten[name] = b
-        return b
+    /// Dateiname des Seitenbilds (Front nach rechts) auf dem Server, wenn Modell und Farbe passen.
+    static func seitenName(markeModell: String, farbe: String) -> String? {
+        guard let info = DrehKatalog.shared.info, let m = info.modell(zu: markeModell),
+              let code = info.lack(m, farbe: farbe) else { return nil }
+        return "\(m.id)-\(code)-seite.webp"
+    }
+}
+
+/// Seitenbild des passenden Lacks fuer Fahrzeugliste und Fahrzeug bearbeiten, vom Server geladen
+/// (Cache wie die Drehbilder). Ohne passenden Satz oder wenn das Bild nicht laedt: ersatz
+/// (z. B. das hochgeladene Fahrzeugbild). Waehrend des Ladens leer.
+struct FahrzeugSeitenBild<Ersatz: View>: View {
+    let markeModell: String
+    let farbe: String
+    /// Grund hinter dem Seitenbild (Liste: weiss statt grauer Bildflaeche).
+    var grund: Color? = nil
+    @ViewBuilder var ersatz: () -> Ersatz
+
+    @ObservedObject private var katalog = DrehKatalog.shared
+    @State private var bild: UIImage?
+    @State private var geladenFuer: String?
+    @State private var fehlt = false
+
+    var body: some View {
+        let name = FahrzeugDrehVorschlaege.seitenName(markeModell: markeModell, farbe: farbe)
+        Group {
+            if let name {
+                if let bild, geladenFuer == name {
+                    ZStack {
+                        if let grund { grund }
+                        Image(uiImage: bild).resizable().scaledToFit()
+                    }
+                } else if fehlt && geladenFuer == name {
+                    ersatz()
+                } else {
+                    Color.clear
+                }
+            } else {
+                ersatz()
+            }
+        }
+        .task(id: name) {
+            guard let name else { return }
+            if geladenFuer != name { bild = nil; fehlt = false }
+            let b = await DrehBilder.shared.bild(name)
+            guard !Task.isCancelled else { return }
+            bild = b
+            fehlt = b == nil
+            geladenFuer = name
+        }
     }
 }

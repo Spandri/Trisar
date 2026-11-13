@@ -113,7 +113,9 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
     val versatz = 20f
     val angaben = FahrzeugAngaben.aus(fahrzeug, ausstattung)
     // Modell und Farbe passen zu einem 360-Grad-Satz: drehbares Auto statt Standbild.
-    val dreh = remember(angaben.modell, angaben.farbe) { DrehSatz.finden(ctx, angaben.modell, angaben.farbe) }
+    // Katalog als Schluessel: rechnet neu, sobald er vom Server nachgeladen ist.
+    val katalog = de.trisar.kern.DrehInfo.laden(ctx)
+    val dreh = remember(katalog, angaben.modell, angaben.farbe) { DrehSatz.finden(katalog, angaben.modell, angaben.farbe) }
     val raster = angaben.blockRaster(mitDreh = dreh != null)
     // Ohne Standort rueckt der Fahrzeugblock an die Stelle der Karte, darunter folgt alles
     // seiner Hoehe (die je nach vorhandenen Angaben schrumpft).

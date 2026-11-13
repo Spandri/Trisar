@@ -22,7 +22,10 @@ export const glatt = (s) => String(s || '').toLowerCase()
 export function drehModell(info, brandModel) {
   const m = glatt(brandModel);
   if (!info || !m) return null;
-  return (info.modelle || []).find((x) => x.modell.some((w) => m.includes(w))) || null;
+  // laengstes passendes Modellwort gewinnt ("sklasselang" vor "sklasse")
+  let treffer = null; let laenge = 0;
+  for (const x of info.modelle || []) for (const w of x.modell || []) if (w.length > laenge && m.includes(w)) { treffer = x; laenge = w.length; }
+  return treffer;
 }
 
 // Lack, zu dem color gehoert, sonst null.
