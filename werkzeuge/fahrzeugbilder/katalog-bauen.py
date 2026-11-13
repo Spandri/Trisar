@@ -32,11 +32,14 @@ AUDI = {  # Modellwoerter mit Marke davor, damit kurze Namen (q5, s5) nichts Fre
     "a5-limousine": ("Audi A5 Limousine", ["audia5", "audis5", "a5limousine"]),
     "a6-limousine": ("Audi A6 Limousine", ["audia6", "audis6", "a6limousine"]),
     "a6-avant": ("Audi A6 Avant", ["a6avant", "s6avant", "rs6"]),
-    "a6-sportback-e-tron": ("Audi A6 Sportback e-tron", ["a6etron", "s6etron", "a6sportbacketron", "avantetron"]),
+    "a6-sportback-e-tron": ("Audi A6 Sportback e-tron", ["a6etron", "s6etron", "a6sportbacketron"]),
+    "a6-avant-e-tron": ("Audi A6 Avant e-tron", ["avantetron", "a6avantetron", "s6avantetron"]),
+    "a8": ("Audi A8", ["audia8", "audis8", "a8l"]),
     "q5-suv": ("Audi Q5", ["audiq5", "audisq5", "q5suv"]),
     "q6-suv-e-tron": ("Audi Q6 e-tron", ["audiq6", "audisq6", "q6etron"]),
     "q7-suv": ("Audi Q7", ["audiq7", "audisq7", "q7suv"]),
     "q8-suv": ("Audi Q8", ["audiq8", "audisq8", "audirsq8", "q8suv"]),
+    "q9-suv": ("Audi Q9", ["audiq9", "audisq9", "q9suv"]),
 }
 VKLASSE_LACKE = {  # Code -> Name (aus dem Van-Konfigurator)
     "9197": "Obsidianschwarz metallic", "9134": "Bergkristallweiß metallic", "9922": "Hightechsilber metallic",
@@ -74,7 +77,7 @@ def kern(name):
     for p in ("manufaktur", "bmwindividual", "individual", "m"):
         if g.startswith(p) and len(g) > len(p) + 3 and p != "m":
             g = g[len(p):]
-    return re.sub(r"(metallic|uni|magno|bright|matt|brillanteffekt)+$", "", g)
+    return re.sub(r"(metallic|uni|magno|bright|matt|brillanteffekt|perleffekt)+$", "", g)
 
 
 def farbe_hex(pfad):
