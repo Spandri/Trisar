@@ -972,5 +972,81 @@
     "6nw"
    ]
   ]
+ },
+ "eqs-suv": {
+  "name": "Mercedes-Benz EQS SUV",
+  "modell": [
+   "eqssuv",
+   "eqs450suv",
+   "eqs500suv",
+   "eqs580suv",
+   "eqs4504matic"
+  ],
+  "vorlage": "296623/807/iris.png?q=COSY-EU-100-1713d0VXqaSFqtyO67PobzIr3eWsrrCsdRRzwQZ{LACK}ZbMw3SGtxa2tsd1JpcUfwFuXGEZT3J0l3YhOB2NB1bApjAlI5uVeuQC3qsFkzNRU6m7jxyohKV1YQ%vqwr%yLRZOmYaxFkhrH19mln8wDPfoiZWeoM4FdsFTg9fUk6PDpkmSeWue2tsd3vQcUfNLqXGEjaBJ0lVohOB2qM1bApRdwI5uxfDQC30CQkzNBUnm7jAGvhKV50E%vqCIdyLRzYXYaxPXWrH1eJ1n8wsOSoiZUilM4FG4fTg90v36PDBLqSeWAyItsd5ZxcUfCXNXGEzJXJ0l7OZOB2Kn%bApvYpI5uOo2QC3bsOkzN4TZm7jgemhKVPsW%vqeUDyLRsQfYaxU4drH1Gc%n8w7O3oiZK7lM4FvSlTg9Lx26PDarbSeWHnMtsd8otcUfiM0XGE4JSJ0lgOJOB2PbnbApe7RI5usKYQC3Uv3kzNGLKm7j0afhKVBHN%vqA6jyLRiO6Yax4bYrH1gIOn8wPbIoTnylpEvcQC3sMpkzNePZm7jC7jhKVzKW%vq7vlyLRKnRYaxvoJrH1LmOn8waoyoiZHQfM4F8QETg9iGu6PDVkbSeWseutsdUsTcUfGUyXGE0aSJ0lBHxOB2Ag%bAp5koI5gZ8lXhRjwQZzkIlbpuoQ3pE7EJxJeRB5PVsRiD4Nhc8An&BKGND=9&IMGT=P27&cp=U7lLKRUtPa6KAFr8s_ubHw&uni=m&POV={POV}",
+  "lacke": [
+   [
+    "MANUFAKTUR opalithweiß bright",
+    "6ZH"
+   ],
+   [
+    "MANUFAKTUR alpingrau uni",
+    "U3I"
+   ],
+   [
+    "MANUFAKTUR patagonienrot metallic",
+    "Ukw"
+   ],
+   [
+    "obsidianschwarz metallic",
+    "gk4"
+   ],
+   [
+    "samtbraun metallic",
+    "YVf"
+   ],
+   [
+    "sodalithblau metallic",
+    "69R"
+   ],
+   [
+    "hightechsilber metallic",
+    "UnR"
+   ],
+   [
+    "schwarz uni",
+    "Q9v"
+   ],
+   [
+    "polarweiß uni",
+    "g9p"
+   ],
+   [
+    "nautikblau metallic",
+    "hkH"
+   ]
+  ]
+ },
+ "vle": {
+  "name": "Mercedes-Benz VLE",
+  "modell": [
+   "vle",
+   "vle300",
+   "vle400"
+  ],
+  "vorlage": "449809/807_057/iris.png?q=COSY-EU-100-1713d0VXqjSaqtyO67PobzIr3eWsrrCsdRRzwQZ{LACK}GE1UHFm9mjP9QCHV2DkzOjpWm79XFdhKDJgf%vbq0EyLI9rlYaQMA2rHvF2pn86ZFuNpE0AG%R9QC%NjDd9iBmWfDCTFdhKMYGf%vTCNEyLzyClYa7zn2rHKw0pn8knLuoimIG3M4hb2NTg%rCj6Pw3zVSeZcFqts1Z9RcUSIPxXGHYg1J0xwKwOBbsIZbAIUgFI5QGB9QCk0NDkzgvZWm7P9FdhKEhyf%XsSz9p4HeEsZGK2esvqELKCrCDgDO4m%J8b4t0capFShV&BKGND=9&IMGT=P27&cp=U7lLKRUtPa6KAFr8s_ubHw&uni=m&POV={POV}",
+  "lacke": [
+   [
+    "Obsidianschwarz metallic",
+    "UOpJ"
+   ],
+   [
+    "Hightechsilber metallic",
+    "UkRP"
+   ],
+   [
+    "Graphitgrau metallic",
+    "YZwz"
+   ]
+  ]
  }
 }

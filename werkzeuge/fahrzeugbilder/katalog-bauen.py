@@ -4,6 +4,7 @@
 Quellen:
   konfigurator/mercedes-pkw.json   Mercedes-Pkw (Namen, Modellwoerter, Lacke) -> dreh-laden.py
   konfigurator/bmw/<modell>.json   BMW (Lacke)                                -> bmw-verarbeiten.py
+  konfigurator/audi/<modell>.json  Audi (Lacke, aus dem 3D-Stream)            -> audi-verarbeiten.py
   v-klasse-360/<code>/NN.webp      V-Klasse (aelterer Stand, wird nach ausgabe/ uebernommen)
 Je Modell eigene Bildgroesse und Endstellung (endbox = enger Ausschnitt um Bild 32).
 Farbwoerter: genaue Lacknamen zuerst, dann Kurzformen ohne MANUFAKTUR/metallic, dann allgemeine Woerter
@@ -26,6 +27,16 @@ BMW = {
     "x5": ("BMW X5", ["x5"]),
     "x7": ("BMW X7", ["x7"]),
     "ix": ("BMW iX", ["bmwix", "ixxdrive"]),
+}
+AUDI = {  # Modellwoerter mit Marke davor, damit kurze Namen (q5, s5) nichts Fremdes treffen
+    "a5-limousine": ("Audi A5 Limousine", ["audia5", "audis5", "a5limousine"]),
+    "a6-limousine": ("Audi A6 Limousine", ["audia6", "audis6", "a6limousine"]),
+    "a6-avant": ("Audi A6 Avant", ["a6avant", "s6avant", "rs6"]),
+    "a6-sportback-e-tron": ("Audi A6 Sportback e-tron", ["a6etron", "s6etron", "a6sportbacketron", "avantetron"]),
+    "q5-suv": ("Audi Q5", ["audiq5", "audisq5", "q5suv"]),
+    "q6-suv-e-tron": ("Audi Q6 e-tron", ["audiq6", "audisq6", "q6etron"]),
+    "q7-suv": ("Audi Q7", ["audiq7", "audisq7", "q7suv"]),
+    "q8-suv": ("Audi Q8", ["audiq8", "audisq8", "audirsq8", "q8suv"]),
 }
 VKLASSE_LACKE = {  # Code -> Name (aus dem Van-Konfigurator)
     "9197": "Obsidianschwarz metallic", "9134": "Bergkristallweiß metallic", "9922": "Hightechsilber metallic",
@@ -142,6 +153,13 @@ def main():
         if not os.path.exists(p):
             continue
         m = modell_eintrag(mid, "BMW", name, woerter, [l["name"] for l in json.load(open(p))])
+        if m: modelle.append(m)
+    audi_ordner = os.path.join(HIER, "konfigurator", "audi")
+    for mid, (name, woerter) in AUDI.items():
+        p = os.path.join(audi_ordner, f"{mid}.json")
+        if not os.path.exists(p):
+            continue
+        m = modell_eintrag(mid, "Audi", name, woerter, [l["name"] for l in json.load(open(p))])
         if m: modelle.append(m)
     # Kein Modellwort doppelt verschiedenen Modellen zuordnen
     gesehen = {}

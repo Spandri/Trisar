@@ -4078,6 +4078,330 @@
    ]
   },
   {
+   "id": "eqs-suv",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz EQS SUV",
+   "modell": [
+    "eqssuv",
+    "eqs450suv",
+    "eqs500suv",
+    "eqs580suv",
+    "eqs4504matic"
+   ],
+   "farben": [
+    [
+     "manufakturpatagonienrotmetallic",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "manufakturopalithweissbright",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "manufakturalpingrauuni",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "sodalithblaumetallic",
+     "sodalithblau-metallic"
+    ],
+    [
+     "nautikblaumetallic",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraunmetallic",
+     "samtbraun-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "polarweissuni",
+     "polarweiss-uni"
+    ],
+    [
+     "patagonienrot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "sodalithblau",
+     "sodalithblau-metallic"
+    ],
+    [
+     "opalithweiss",
+     "manufaktur-opalithweiss-bright"
+    ],
+    [
+     "schwarzuni",
+     "schwarz-uni"
+    ],
+    [
+     "polarweiss",
+     "polarweiss-uni"
+    ],
+    [
+     "nautikblau",
+     "nautikblau-metallic"
+    ],
+    [
+     "samtbraun",
+     "samtbraun-metallic"
+    ],
+    [
+     "alpingrau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "anthrazit",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "schwarz",
+     "schwarz-uni"
+    ],
+    [
+     "silber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "silver",
+     "hightechsilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "polarweiss-uni"
+    ],
+    [
+     "white",
+     "polarweiss-uni"
+    ],
+    [
+     "braun",
+     "samtbraun-metallic"
+    ],
+    [
+     "brown",
+     "samtbraun-metallic"
+    ],
+    [
+     "grau",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "grey",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "gray",
+     "manufaktur-alpingrau-uni"
+    ],
+    [
+     "blau",
+     "nautikblau-metallic"
+    ],
+    [
+     "blue",
+     "nautikblau-metallic"
+    ],
+    [
+     "rot",
+     "manufaktur-patagonienrot-metallic"
+    ],
+    [
+     "red",
+     "manufaktur-patagonienrot-metallic"
+    ]
+   ],
+   "lacke": [
+    "manufaktur-opalithweiss-bright",
+    "manufaktur-alpingrau-uni",
+    "manufaktur-patagonienrot-metallic",
+    "obsidianschwarz-metallic",
+    "samtbraun-metallic",
+    "sodalithblau-metallic",
+    "hightechsilber-metallic",
+    "schwarz-uni",
+    "polarweiss-uni",
+    "nautikblau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "manufaktur-opalithweiss-bright",
+     "name": "MANUFAKTUR opalithweiß bright",
+     "hex": "#D5D7D8"
+    },
+    {
+     "code": "manufaktur-alpingrau-uni",
+     "name": "MANUFAKTUR alpingrau uni",
+     "hex": "#666868"
+    },
+    {
+     "code": "manufaktur-patagonienrot-metallic",
+     "name": "MANUFAKTUR patagonienrot metallic",
+     "hex": "#AA1928"
+    },
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#0C0C0C"
+    },
+    {
+     "code": "samtbraun-metallic",
+     "name": "Samtbraun metallic",
+     "hex": "#9B9189"
+    },
+    {
+     "code": "sodalithblau-metallic",
+     "name": "Sodalithblau metallic",
+     "hex": "#3C567B"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#BDC2C9"
+    },
+    {
+     "code": "schwarz-uni",
+     "name": "Schwarz uni",
+     "hex": "#010101"
+    },
+    {
+     "code": "polarweiss-uni",
+     "name": "Polarweiß uni",
+     "hex": "#C9CBCD"
+    },
+    {
+     "code": "nautikblau-metallic",
+     "name": "Nautikblau metallic",
+     "hex": "#000000"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 343,
+   "endbox": [
+    27,
+    8,
+    682,
+    333
+   ]
+  },
+  {
+   "id": "vle",
+   "marke": "Mercedes-Benz",
+   "name": "Mercedes-Benz VLE",
+   "modell": [
+    "vle",
+    "vle300",
+    "vle400"
+   ],
+   "farben": [
+    [
+     "obsidianschwarzmetallic",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilbermetallic",
+     "hightechsilber-metallic"
+    ],
+    [
+     "graphitgraumetallic",
+     "graphitgrau-metallic"
+    ],
+    [
+     "obsidianschwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "hightechsilber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "graphitgrau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "anthrazit",
+     "graphitgrau-metallic"
+    ],
+    [
+     "schwarz",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "silber",
+     "hightechsilber-metallic"
+    ],
+    [
+     "silver",
+     "hightechsilber-metallic"
+    ],
+    [
+     "black",
+     "obsidianschwarz-metallic"
+    ],
+    [
+     "grau",
+     "graphitgrau-metallic"
+    ],
+    [
+     "grey",
+     "graphitgrau-metallic"
+    ],
+    [
+     "gray",
+     "graphitgrau-metallic"
+    ]
+   ],
+   "lacke": [
+    "obsidianschwarz-metallic",
+    "hightechsilber-metallic",
+    "graphitgrau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "obsidianschwarz-metallic",
+     "name": "Obsidianschwarz metallic",
+     "hex": "#181818"
+    },
+    {
+     "code": "hightechsilber-metallic",
+     "name": "Hightechsilber metallic",
+     "hex": "#B8BEC5"
+    },
+    {
+     "code": "graphitgrau-metallic",
+     "name": "Graphitgrau metallic",
+     "hex": "#444746"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 373,
+   "endbox": [
+    23,
+    22,
+    665,
+    361
+   ]
+  },
+  {
    "id": "5er",
    "marke": "BMW",
    "name": "BMW 5er Limousine",
@@ -5410,6 +5734,1736 @@
     1,
     724,
     300
+   ]
+  },
+  {
+   "id": "a5-limousine",
+   "marke": "Audi",
+   "name": "Audi A5 Limousine",
+   "modell": [
+    "audia5",
+    "audis5",
+    "a5limousine"
+   ],
+   "farben": [
+    [
+     "gletscherweissmetallic",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "daytonagrauperleffekt",
+     "daytonagrau-perleffekt"
+    ],
+    [
+     "firmamentblaumetallic",
+     "firmamentblau-metallic"
+    ],
+    [
+     "florettsilbermetallic",
+     "florettsilber-metallic"
+    ],
+    [
+     "mythosschwarzmetallic",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "grenadinerotmetallic",
+     "grenadinerot-metallic"
+    ],
+    [
+     "horizontblaumetallic",
+     "horizontblau-metallic"
+    ],
+    [
+     "plateaugraumetallic",
+     "plateaugrau-metallic"
+    ],
+    [
+     "ascariblaumetallic",
+     "ascariblau-metallic"
+    ],
+    [
+     "gletscherweiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "firmamentblau",
+     "firmamentblau-metallic"
+    ],
+    [
+     "florettsilber",
+     "florettsilber-metallic"
+    ],
+    [
+     "mythosschwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "grenadinerot",
+     "grenadinerot-metallic"
+    ],
+    [
+     "horizontblau",
+     "horizontblau-metallic"
+    ],
+    [
+     "arkonaweiss",
+     "arkonaweiss"
+    ],
+    [
+     "plateaugrau",
+     "plateaugrau-metallic"
+    ],
+    [
+     "ascariblau",
+     "ascariblau-metallic"
+    ],
+    [
+     "anthrazit",
+     "plateaugrau-metallic"
+    ],
+    [
+     "schwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "silber",
+     "florettsilber-metallic"
+    ],
+    [
+     "silver",
+     "florettsilber-metallic"
+    ],
+    [
+     "black",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "white",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "grau",
+     "plateaugrau-metallic"
+    ],
+    [
+     "grey",
+     "plateaugrau-metallic"
+    ],
+    [
+     "gray",
+     "plateaugrau-metallic"
+    ],
+    [
+     "blau",
+     "ascariblau-metallic"
+    ],
+    [
+     "blue",
+     "ascariblau-metallic"
+    ],
+    [
+     "rot",
+     "grenadinerot-metallic"
+    ],
+    [
+     "red",
+     "grenadinerot-metallic"
+    ]
+   ],
+   "lacke": [
+    "arkonaweiss",
+    "ascariblau-metallic",
+    "daytonagrau-perleffekt",
+    "firmamentblau-metallic",
+    "florettsilber-metallic",
+    "gletscherweiss-metallic",
+    "grenadinerot-metallic",
+    "horizontblau-metallic",
+    "mythosschwarz-metallic",
+    "plateaugrau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "arkonaweiss",
+     "name": "Arkonaweiß",
+     "hex": "#D3D3D3"
+    },
+    {
+     "code": "ascariblau-metallic",
+     "name": "Ascariblau Metallic",
+     "hex": "#022144"
+    },
+    {
+     "code": "daytonagrau-perleffekt",
+     "name": "Daytonagrau Perleffekt",
+     "hex": "#292B2F"
+    },
+    {
+     "code": "firmamentblau-metallic",
+     "name": "Firmamentblau Metallic",
+     "hex": "#131723"
+    },
+    {
+     "code": "florettsilber-metallic",
+     "name": "Florettsilber Metallic",
+     "hex": "#9E9DA6"
+    },
+    {
+     "code": "gletscherweiss-metallic",
+     "name": "Gletscherweiß Metallic",
+     "hex": "#DCDEDF"
+    },
+    {
+     "code": "grenadinerot-metallic",
+     "name": "Grenadinerot Metallic",
+     "hex": "#53010B"
+    },
+    {
+     "code": "horizontblau-metallic",
+     "name": "Horizontblau Metallic",
+     "hex": "#303E4C"
+    },
+    {
+     "code": "mythosschwarz-metallic",
+     "name": "Mythosschwarz Metallic",
+     "hex": "#101010"
+    },
+    {
+     "code": "plateaugrau-metallic",
+     "name": "Plateaugrau Metallic",
+     "hex": "#585453"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 273,
+   "endbox": [
+    40,
+    2,
+    680,
+    272
+   ]
+  },
+  {
+   "id": "a6-limousine",
+   "marke": "Audi",
+   "name": "Audi A6 Limousine",
+   "modell": [
+    "audia6",
+    "audis6",
+    "a6limousine"
+   ],
+   "farben": [
+    [
+     "mitternachtsgruenmetallic",
+     "mitternachtsgruen-metallic"
+    ],
+    [
+     "gletscherweissmetallic",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "daytonagrauperleffekt",
+     "daytonagrau-perleffekt"
+    ],
+    [
+     "firmamentblaumetallic",
+     "firmamentblau-metallic"
+    ],
+    [
+     "florettsilbermetallic",
+     "florettsilber-metallic"
+    ],
+    [
+     "mythosschwarzmetallic",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "grenadinerotmetallic",
+     "grenadinerot-metallic"
+    ],
+    [
+     "madeirabraunmetallic",
+     "madeirabraun-metallic"
+    ],
+    [
+     "plateaugraumetallic",
+     "plateaugrau-metallic"
+    ],
+    [
+     "ascariblaumetallic",
+     "ascariblau-metallic"
+    ],
+    [
+     "mitternachtsgruen",
+     "mitternachtsgruen-metallic"
+    ],
+    [
+     "gletscherweiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "firmamentblau",
+     "firmamentblau-metallic"
+    ],
+    [
+     "florettsilber",
+     "florettsilber-metallic"
+    ],
+    [
+     "mythosschwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "grenadinerot",
+     "grenadinerot-metallic"
+    ],
+    [
+     "madeirabraun",
+     "madeirabraun-metallic"
+    ],
+    [
+     "arkonaweiss",
+     "arkonaweiss"
+    ],
+    [
+     "plateaugrau",
+     "plateaugrau-metallic"
+    ],
+    [
+     "ascariblau",
+     "ascariblau-metallic"
+    ],
+    [
+     "anthrazit",
+     "plateaugrau-metallic"
+    ],
+    [
+     "schwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "silber",
+     "florettsilber-metallic"
+    ],
+    [
+     "silver",
+     "florettsilber-metallic"
+    ],
+    [
+     "black",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "white",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "gruen",
+     "mitternachtsgruen-metallic"
+    ],
+    [
+     "green",
+     "mitternachtsgruen-metallic"
+    ],
+    [
+     "braun",
+     "madeirabraun-metallic"
+    ],
+    [
+     "brown",
+     "madeirabraun-metallic"
+    ],
+    [
+     "grau",
+     "plateaugrau-metallic"
+    ],
+    [
+     "grey",
+     "plateaugrau-metallic"
+    ],
+    [
+     "gray",
+     "plateaugrau-metallic"
+    ],
+    [
+     "blau",
+     "ascariblau-metallic"
+    ],
+    [
+     "blue",
+     "ascariblau-metallic"
+    ],
+    [
+     "rot",
+     "grenadinerot-metallic"
+    ],
+    [
+     "red",
+     "grenadinerot-metallic"
+    ]
+   ],
+   "lacke": [
+    "arkonaweiss",
+    "ascariblau-metallic",
+    "daytonagrau-perleffekt",
+    "firmamentblau-metallic",
+    "florettsilber-metallic",
+    "gletscherweiss-metallic",
+    "grenadinerot-metallic",
+    "madeirabraun-metallic",
+    "mitternachtsgruen-metallic",
+    "mythosschwarz-metallic",
+    "plateaugrau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "arkonaweiss",
+     "name": "Arkonaweiß",
+     "hex": "#D2D2D2"
+    },
+    {
+     "code": "ascariblau-metallic",
+     "name": "Ascariblau Metallic",
+     "hex": "#0C203B"
+    },
+    {
+     "code": "daytonagrau-perleffekt",
+     "name": "Daytonagrau Perleffekt",
+     "hex": "#282A2E"
+    },
+    {
+     "code": "firmamentblau-metallic",
+     "name": "Firmamentblau Metallic",
+     "hex": "#161623"
+    },
+    {
+     "code": "florettsilber-metallic",
+     "name": "Florettsilber Metallic",
+     "hex": "#9C9AA4"
+    },
+    {
+     "code": "gletscherweiss-metallic",
+     "name": "Gletscherweiß Metallic",
+     "hex": "#DADCDE"
+    },
+    {
+     "code": "grenadinerot-metallic",
+     "name": "Grenadinerot Metallic",
+     "hex": "#450912"
+    },
+    {
+     "code": "madeirabraun-metallic",
+     "name": "Madeirabraun Metallic",
+     "hex": "#1D1314"
+    },
+    {
+     "code": "mitternachtsgruen-metallic",
+     "name": "Mitternachtsgrün Metallic",
+     "hex": "#0D1210"
+    },
+    {
+     "code": "mythosschwarz-metallic",
+     "name": "Mythosschwarz Metallic",
+     "hex": "#111111"
+    },
+    {
+     "code": "plateaugrau-metallic",
+     "name": "Plateaugrau Metallic",
+     "hex": "#555352"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 273,
+   "endbox": [
+    39,
+    1,
+    689,
+    272
+   ]
+  },
+  {
+   "id": "a6-avant",
+   "marke": "Audi",
+   "name": "Audi A6 Avant",
+   "modell": [
+    "a6avant",
+    "s6avant",
+    "rs6"
+   ],
+   "farben": [
+    [
+     "mitternachtsgruenmetallic",
+     "mitternachtsgruen-metallic"
+    ],
+    [
+     "gletscherweissmetallic",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "daytonagrauperleffekt",
+     "daytonagrau-perleffekt"
+    ],
+    [
+     "firmamentblaumetallic",
+     "firmamentblau-metallic"
+    ],
+    [
+     "florettsilbermetallic",
+     "florettsilber-metallic"
+    ],
+    [
+     "mythosschwarzmetallic",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "grenadinerotmetallic",
+     "grenadinerot-metallic"
+    ],
+    [
+     "madeirabraunmetallic",
+     "madeirabraun-metallic"
+    ],
+    [
+     "plateaugraumetallic",
+     "plateaugrau-metallic"
+    ],
+    [
+     "ascariblaumetallic",
+     "ascariblau-metallic"
+    ],
+    [
+     "mitternachtsgruen",
+     "mitternachtsgruen-metallic"
+    ],
+    [
+     "gletscherweiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "firmamentblau",
+     "firmamentblau-metallic"
+    ],
+    [
+     "florettsilber",
+     "florettsilber-metallic"
+    ],
+    [
+     "mythosschwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "grenadinerot",
+     "grenadinerot-metallic"
+    ],
+    [
+     "madeirabraun",
+     "madeirabraun-metallic"
+    ],
+    [
+     "arkonaweiss",
+     "arkonaweiss"
+    ],
+    [
+     "plateaugrau",
+     "plateaugrau-metallic"
+    ],
+    [
+     "ascariblau",
+     "ascariblau-metallic"
+    ],
+    [
+     "anthrazit",
+     "plateaugrau-metallic"
+    ],
+    [
+     "schwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "silber",
+     "florettsilber-metallic"
+    ],
+    [
+     "silver",
+     "florettsilber-metallic"
+    ],
+    [
+     "black",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "white",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "gruen",
+     "mitternachtsgruen-metallic"
+    ],
+    [
+     "green",
+     "mitternachtsgruen-metallic"
+    ],
+    [
+     "braun",
+     "madeirabraun-metallic"
+    ],
+    [
+     "brown",
+     "madeirabraun-metallic"
+    ],
+    [
+     "grau",
+     "plateaugrau-metallic"
+    ],
+    [
+     "grey",
+     "plateaugrau-metallic"
+    ],
+    [
+     "gray",
+     "plateaugrau-metallic"
+    ],
+    [
+     "blau",
+     "ascariblau-metallic"
+    ],
+    [
+     "blue",
+     "ascariblau-metallic"
+    ],
+    [
+     "rot",
+     "grenadinerot-metallic"
+    ],
+    [
+     "red",
+     "grenadinerot-metallic"
+    ]
+   ],
+   "lacke": [
+    "arkonaweiss",
+    "ascariblau-metallic",
+    "daytonagrau-perleffekt",
+    "firmamentblau-metallic",
+    "florettsilber-metallic",
+    "gletscherweiss-metallic",
+    "grenadinerot-metallic",
+    "madeirabraun-metallic",
+    "mitternachtsgruen-metallic",
+    "mythosschwarz-metallic",
+    "plateaugrau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "arkonaweiss",
+     "name": "Arkonaweiß",
+     "hex": "#D3D3D3"
+    },
+    {
+     "code": "ascariblau-metallic",
+     "name": "Ascariblau Metallic",
+     "hex": "#022144"
+    },
+    {
+     "code": "daytonagrau-perleffekt",
+     "name": "Daytonagrau Perleffekt",
+     "hex": "#282A2E"
+    },
+    {
+     "code": "firmamentblau-metallic",
+     "name": "Firmamentblau Metallic",
+     "hex": "#131725"
+    },
+    {
+     "code": "florettsilber-metallic",
+     "name": "Florettsilber Metallic",
+     "hex": "#9D9CA3"
+    },
+    {
+     "code": "gletscherweiss-metallic",
+     "name": "Gletscherweiß Metallic",
+     "hex": "#DADCDE"
+    },
+    {
+     "code": "grenadinerot-metallic",
+     "name": "Grenadinerot Metallic",
+     "hex": "#470810"
+    },
+    {
+     "code": "madeirabraun-metallic",
+     "name": "Madeirabraun Metallic",
+     "hex": "#1D1314"
+    },
+    {
+     "code": "mitternachtsgruen-metallic",
+     "name": "Mitternachtsgrün Metallic",
+     "hex": "#0E100F"
+    },
+    {
+     "code": "mythosschwarz-metallic",
+     "name": "Mythosschwarz Metallic",
+     "hex": "#111111"
+    },
+    {
+     "code": "plateaugrau-metallic",
+     "name": "Plateaugrau Metallic",
+     "hex": "#575352"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 278,
+   "endbox": [
+    39,
+    3,
+    690,
+    277
+   ]
+  },
+  {
+   "id": "a6-sportback-e-tron",
+   "marke": "Audi",
+   "name": "Audi A6 Sportback e-tron",
+   "modell": [
+    "a6etron",
+    "s6etron",
+    "a6sportbacketron",
+    "avantetron"
+   ],
+   "farben": [
+    [
+     "gletscherweissmetallic",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "daytonagrauperleffekt",
+     "daytonagrau-perleffekt"
+    ],
+    [
+     "mythosschwarzmetallic",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "malpeloblaumetallic",
+     "malpeloblau-metallic"
+    ],
+    [
+     "plasmablaumetallic",
+     "plasmablau-metallic"
+    ],
+    [
+     "taifungraumetallic",
+     "taifungrau-metallic"
+    ],
+    [
+     "siambeigemetallic",
+     "siambeige-metallic"
+    ],
+    [
+     "gletscherweiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "mythosschwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "malpeloblau",
+     "malpeloblau-metallic"
+    ],
+    [
+     "magnetgrau",
+     "magnetgrau"
+    ],
+    [
+     "plasmablau",
+     "plasmablau-metallic"
+    ],
+    [
+     "taifungrau",
+     "taifungrau-metallic"
+    ],
+    [
+     "siambeige",
+     "siambeige-metallic"
+    ],
+    [
+     "anthrazit",
+     "taifungrau-metallic"
+    ],
+    [
+     "schwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "black",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "white",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "beige",
+     "siambeige-metallic"
+    ],
+    [
+     "grau",
+     "taifungrau-metallic"
+    ],
+    [
+     "grey",
+     "taifungrau-metallic"
+    ],
+    [
+     "gray",
+     "taifungrau-metallic"
+    ],
+    [
+     "blau",
+     "plasmablau-metallic"
+    ],
+    [
+     "blue",
+     "plasmablau-metallic"
+    ]
+   ],
+   "lacke": [
+    "daytonagrau-perleffekt",
+    "gletscherweiss-metallic",
+    "magnetgrau",
+    "malpeloblau-metallic",
+    "mythosschwarz-metallic",
+    "plasmablau-metallic",
+    "siambeige-metallic",
+    "taifungrau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "daytonagrau-perleffekt",
+     "name": "Daytonagrau Perleffekt",
+     "hex": "#26282C"
+    },
+    {
+     "code": "gletscherweiss-metallic",
+     "name": "Gletscherweiß Metallic",
+     "hex": "#D4D9D9"
+    },
+    {
+     "code": "magnetgrau",
+     "name": "Magnetgrau",
+     "hex": "#242529"
+    },
+    {
+     "code": "malpeloblau-metallic",
+     "name": "Malpeloblau Metallic",
+     "hex": "#082834"
+    },
+    {
+     "code": "mythosschwarz-metallic",
+     "name": "Mythosschwarz Metallic",
+     "hex": "#111111"
+    },
+    {
+     "code": "plasmablau-metallic",
+     "name": "Plasmablau Metallic",
+     "hex": "#1C2532"
+    },
+    {
+     "code": "siambeige-metallic",
+     "name": "Siambeige Metallic",
+     "hex": "#9C9890"
+    },
+    {
+     "code": "taifungrau-metallic",
+     "name": "Taifungrau Metallic",
+     "hex": "#656768"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 282,
+   "endbox": [
+    36,
+    0,
+    693,
+    281
+   ]
+  },
+  {
+   "id": "q5-suv",
+   "marke": "Audi",
+   "name": "Audi Q5",
+   "modell": [
+    "audiq5",
+    "audisq5",
+    "q5suv"
+   ],
+   "farben": [
+    [
+     "gletscherweissmetallic",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "daytonagrauperleffekt",
+     "daytonagrau-perleffekt"
+    ],
+    [
+     "distriktgruenmetallic",
+     "distriktgruen-metallic"
+    ],
+    [
+     "florettsilbermetallic",
+     "florettsilber-metallic"
+    ],
+    [
+     "mythosschwarzmetallic",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "grenadinerotmetallic",
+     "grenadinerot-metallic"
+    ],
+    [
+     "navarrablaumetallic",
+     "navarrablau-metallic"
+    ],
+    [
+     "tamboragraumetallic",
+     "tamboragrau-metallic"
+    ],
+    [
+     "sakhirgoldmetallic",
+     "sakhirgold-metallic"
+    ],
+    [
+     "ultrablaumetallic",
+     "ultrablau-metallic"
+    ],
+    [
+     "gletscherweiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "distriktgruen",
+     "distriktgruen-metallic"
+    ],
+    [
+     "florettsilber",
+     "florettsilber-metallic"
+    ],
+    [
+     "mythosschwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "grenadinerot",
+     "grenadinerot-metallic"
+    ],
+    [
+     "arkonaweiss",
+     "arkonaweiss"
+    ],
+    [
+     "navarrablau",
+     "navarrablau-metallic"
+    ],
+    [
+     "tamboragrau",
+     "tamboragrau-metallic"
+    ],
+    [
+     "sakhirgold",
+     "sakhirgold-metallic"
+    ],
+    [
+     "ultrablau",
+     "ultrablau-metallic"
+    ],
+    [
+     "anthrazit",
+     "tamboragrau-metallic"
+    ],
+    [
+     "schwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "silber",
+     "florettsilber-metallic"
+    ],
+    [
+     "silver",
+     "florettsilber-metallic"
+    ],
+    [
+     "black",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "white",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "gruen",
+     "distriktgruen-metallic"
+    ],
+    [
+     "green",
+     "distriktgruen-metallic"
+    ],
+    [
+     "grau",
+     "tamboragrau-metallic"
+    ],
+    [
+     "grey",
+     "tamboragrau-metallic"
+    ],
+    [
+     "gray",
+     "tamboragrau-metallic"
+    ],
+    [
+     "blau",
+     "ultrablau-metallic"
+    ],
+    [
+     "blue",
+     "ultrablau-metallic"
+    ],
+    [
+     "gold",
+     "sakhirgold-metallic"
+    ],
+    [
+     "rot",
+     "grenadinerot-metallic"
+    ],
+    [
+     "red",
+     "grenadinerot-metallic"
+    ]
+   ],
+   "lacke": [
+    "arkonaweiss",
+    "daytonagrau-perleffekt",
+    "distriktgruen-metallic",
+    "florettsilber-metallic",
+    "gletscherweiss-metallic",
+    "grenadinerot-metallic",
+    "mythosschwarz-metallic",
+    "navarrablau-metallic",
+    "sakhirgold-metallic",
+    "tamboragrau-metallic",
+    "ultrablau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "arkonaweiss",
+     "name": "Arkonaweiß",
+     "hex": "#D3D3D3"
+    },
+    {
+     "code": "daytonagrau-perleffekt",
+     "name": "Daytonagrau Perleffekt",
+     "hex": "#282A2E"
+    },
+    {
+     "code": "distriktgruen-metallic",
+     "name": "Distriktgrün Metallic",
+     "hex": "#323B23"
+    },
+    {
+     "code": "florettsilber-metallic",
+     "name": "Florettsilber Metallic",
+     "hex": "#9C9AA4"
+    },
+    {
+     "code": "gletscherweiss-metallic",
+     "name": "Gletscherweiß Metallic",
+     "hex": "#D9DDDE"
+    },
+    {
+     "code": "grenadinerot-metallic",
+     "name": "Grenadinerot Metallic",
+     "hex": "#50010B"
+    },
+    {
+     "code": "mythosschwarz-metallic",
+     "name": "Mythosschwarz Metallic",
+     "hex": "#0F0F0F"
+    },
+    {
+     "code": "navarrablau-metallic",
+     "name": "Navarrablau Metallic",
+     "hex": "#05143A"
+    },
+    {
+     "code": "sakhirgold-metallic",
+     "name": "Sakhirgold Metallic",
+     "hex": "#A0855C"
+    },
+    {
+     "code": "tamboragrau-metallic",
+     "name": "Tamboragrau Metallic",
+     "hex": "#202427"
+    },
+    {
+     "code": "ultrablau-metallic",
+     "name": "Ultrablau Metallic",
+     "hex": "#0D1259"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 311,
+   "endbox": [
+    39,
+    4,
+    674,
+    309
+   ]
+  },
+  {
+   "id": "q6-suv-e-tron",
+   "marke": "Audi",
+   "name": "Audi Q6 e-tron",
+   "modell": [
+    "audiq6",
+    "audisq6",
+    "q6etron"
+   ],
+   "farben": [
+    [
+     "gletscherweissmetallic",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "daytonagrauperleffekt",
+     "daytonagrau-perleffekt"
+    ],
+    [
+     "manhattangraumetallic",
+     "manhattangrau-metallic"
+    ],
+    [
+     "mythosschwarzmetallic",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "ascariblaumetallic",
+     "ascariblau-metallic"
+    ],
+    [
+     "plasmablaumetallic",
+     "plasmablau-metallic"
+    ],
+    [
+     "gletscherweiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "manhattangrau",
+     "manhattangrau-metallic"
+    ],
+    [
+     "mythosschwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "magnetgrau",
+     "magnetgrau"
+    ],
+    [
+     "ascariblau",
+     "ascariblau-metallic"
+    ],
+    [
+     "plasmablau",
+     "plasmablau-metallic"
+    ],
+    [
+     "anthrazit",
+     "manhattangrau-metallic"
+    ],
+    [
+     "schwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "black",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "white",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "grau",
+     "manhattangrau-metallic"
+    ],
+    [
+     "grey",
+     "manhattangrau-metallic"
+    ],
+    [
+     "gray",
+     "manhattangrau-metallic"
+    ],
+    [
+     "blau",
+     "ascariblau-metallic"
+    ],
+    [
+     "blue",
+     "ascariblau-metallic"
+    ]
+   ],
+   "lacke": [
+    "ascariblau-metallic",
+    "daytonagrau-perleffekt",
+    "gletscherweiss-metallic",
+    "magnetgrau",
+    "manhattangrau-metallic",
+    "mythosschwarz-metallic",
+    "plasmablau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "ascariblau-metallic",
+     "name": "Ascariblau Metallic",
+     "hex": "#031E40"
+    },
+    {
+     "code": "daytonagrau-perleffekt",
+     "name": "Daytonagrau Perleffekt",
+     "hex": "#27292D"
+    },
+    {
+     "code": "gletscherweiss-metallic",
+     "name": "Gletscherweiß Metallic",
+     "hex": "#D9DDDE"
+    },
+    {
+     "code": "magnetgrau",
+     "name": "Magnetgrau",
+     "hex": "#25262A"
+    },
+    {
+     "code": "manhattangrau-metallic",
+     "name": "Manhattangrau Metallic",
+     "hex": "#181A1E"
+    },
+    {
+     "code": "mythosschwarz-metallic",
+     "name": "Mythosschwarz Metallic",
+     "hex": "#0F0F0F"
+    },
+    {
+     "code": "plasmablau-metallic",
+     "name": "Plasmablau Metallic",
+     "hex": "#1B2634"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 314,
+   "endbox": [
+    42,
+    5,
+    684,
+    313
+   ]
+  },
+  {
+   "id": "q7-suv",
+   "marke": "Audi",
+   "name": "Audi Q7",
+   "modell": [
+    "audiq7",
+    "audisq7",
+    "q7suv"
+   ],
+   "farben": [
+    [
+     "mitternachtsgruenmetallic",
+     "mitternachtsgruen-metallic"
+    ],
+    [
+     "gletscherweissmetallic",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "satellitsilbermetallic",
+     "satellitsilber-metallic"
+    ],
+    [
+     "daytonagrauperleffekt",
+     "daytonagrau-perleffekt"
+    ],
+    [
+     "mythosschwarzmetallic",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "agavengruenmetallic",
+     "agavengruen-metallic"
+    ],
+    [
+     "alopiasblaumetallic",
+     "alopiasblau-metallic"
+    ],
+    [
+     "waitomoblaumetallic",
+     "waitomoblau-metallic"
+    ],
+    [
+     "merapigraumetallic",
+     "merapigrau-metallic"
+    ],
+    [
+     "mitternachtsgruen",
+     "mitternachtsgruen-metallic"
+    ],
+    [
+     "gletscherweiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "satellitsilber",
+     "satellitsilber-metallic"
+    ],
+    [
+     "mythosschwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "carraraweiss",
+     "carraraweiss"
+    ],
+    [
+     "agavengruen",
+     "agavengruen-metallic"
+    ],
+    [
+     "alopiasblau",
+     "alopiasblau-metallic"
+    ],
+    [
+     "waitomoblau",
+     "waitomoblau-metallic"
+    ],
+    [
+     "merapigrau",
+     "merapigrau-metallic"
+    ],
+    [
+     "anthrazit",
+     "merapigrau-metallic"
+    ],
+    [
+     "schwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "silber",
+     "satellitsilber-metallic"
+    ],
+    [
+     "silver",
+     "satellitsilber-metallic"
+    ],
+    [
+     "black",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "white",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "gruen",
+     "agavengruen-metallic"
+    ],
+    [
+     "green",
+     "agavengruen-metallic"
+    ],
+    [
+     "grau",
+     "merapigrau-metallic"
+    ],
+    [
+     "grey",
+     "merapigrau-metallic"
+    ],
+    [
+     "gray",
+     "merapigrau-metallic"
+    ],
+    [
+     "blau",
+     "alopiasblau-metallic"
+    ],
+    [
+     "blue",
+     "alopiasblau-metallic"
+    ]
+   ],
+   "lacke": [
+    "agavengruen-metallic",
+    "alopiasblau-metallic",
+    "carraraweiss",
+    "daytonagrau-perleffekt",
+    "gletscherweiss-metallic",
+    "merapigrau-metallic",
+    "mitternachtsgruen-metallic",
+    "mythosschwarz-metallic",
+    "satellitsilber-metallic",
+    "waitomoblau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "agavengruen-metallic",
+     "name": "Agavengrün Metallic",
+     "hex": "#2B403B"
+    },
+    {
+     "code": "alopiasblau-metallic",
+     "name": "Alopiasblau Metallic",
+     "hex": "#17212E"
+    },
+    {
+     "code": "carraraweiss",
+     "name": "Carraraweiß",
+     "hex": "#D7D5D3"
+    },
+    {
+     "code": "daytonagrau-perleffekt",
+     "name": "Daytonagrau Perleffekt",
+     "hex": "#2B2C30"
+    },
+    {
+     "code": "gletscherweiss-metallic",
+     "name": "Gletscherweiß Metallic",
+     "hex": "#DDDFE0"
+    },
+    {
+     "code": "merapigrau-metallic",
+     "name": "Merapigrau Metallic",
+     "hex": "#1B1F24"
+    },
+    {
+     "code": "mitternachtsgruen-metallic",
+     "name": "Mitternachtsgrün Metallic",
+     "hex": "#0A0E0D"
+    },
+    {
+     "code": "mythosschwarz-metallic",
+     "name": "Mythosschwarz Metallic",
+     "hex": "#0E0E0E"
+    },
+    {
+     "code": "satellitsilber-metallic",
+     "name": "Satellitsilber Metallic",
+     "hex": "#BCC7CA"
+    },
+    {
+     "code": "waitomoblau-metallic",
+     "name": "Waitomoblau Metallic",
+     "hex": "#0E1221"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 328,
+   "endbox": [
+    38,
+    12,
+    690,
+    326
+   ]
+  },
+  {
+   "id": "q8-suv",
+   "marke": "Audi",
+   "name": "Audi Q8",
+   "modell": [
+    "audiq8",
+    "audisq8",
+    "audirsq8",
+    "q8suv"
+   ],
+   "farben": [
+    [
+     "tamarindenbraunmetallic",
+     "tamarindenbraun-metallic"
+    ],
+    [
+     "gletscherweissmetallic",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "satellitsilbermetallic",
+     "satellitsilber-metallic"
+    ],
+    [
+     "daytonagrauperleffekt",
+     "daytonagrau-perleffekt"
+    ],
+    [
+     "mythosschwarzmetallic",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "vikunjabeigemetallic",
+     "vikunjabeige-metallic"
+    ],
+    [
+     "samuraigraumetallic",
+     "samuraigrau-metallic"
+    ],
+    [
+     "waitomoblaumetallic",
+     "waitomoblau-metallic"
+    ],
+    [
+     "ascariblaumetallic",
+     "ascariblau-metallic"
+    ],
+    [
+     "sakhirgoldmetallic",
+     "sakhirgold-metallic"
+    ],
+    [
+     "chilirotmetallic",
+     "chilirot-metallic"
+    ],
+    [
+     "tamarindenbraun",
+     "tamarindenbraun-metallic"
+    ],
+    [
+     "gletscherweiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "satellitsilber",
+     "satellitsilber-metallic"
+    ],
+    [
+     "mythosschwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "carraraweiss",
+     "carraraweiss"
+    ],
+    [
+     "vikunjabeige",
+     "vikunjabeige-metallic"
+    ],
+    [
+     "samuraigrau",
+     "samuraigrau-metallic"
+    ],
+    [
+     "waitomoblau",
+     "waitomoblau-metallic"
+    ],
+    [
+     "ascariblau",
+     "ascariblau-metallic"
+    ],
+    [
+     "sakhirgold",
+     "sakhirgold-metallic"
+    ],
+    [
+     "anthrazit",
+     "samuraigrau-metallic"
+    ],
+    [
+     "chilirot",
+     "chilirot-metallic"
+    ],
+    [
+     "schwarz",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "silber",
+     "satellitsilber-metallic"
+    ],
+    [
+     "silver",
+     "satellitsilber-metallic"
+    ],
+    [
+     "black",
+     "mythosschwarz-metallic"
+    ],
+    [
+     "weiss",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "white",
+     "gletscherweiss-metallic"
+    ],
+    [
+     "braun",
+     "tamarindenbraun-metallic"
+    ],
+    [
+     "brown",
+     "tamarindenbraun-metallic"
+    ],
+    [
+     "beige",
+     "vikunjabeige-metallic"
+    ],
+    [
+     "grau",
+     "samuraigrau-metallic"
+    ],
+    [
+     "grey",
+     "samuraigrau-metallic"
+    ],
+    [
+     "gray",
+     "samuraigrau-metallic"
+    ],
+    [
+     "blau",
+     "ascariblau-metallic"
+    ],
+    [
+     "blue",
+     "ascariblau-metallic"
+    ],
+    [
+     "gold",
+     "sakhirgold-metallic"
+    ],
+    [
+     "rot",
+     "chilirot-metallic"
+    ],
+    [
+     "red",
+     "chilirot-metallic"
+    ]
+   ],
+   "lacke": [
+    "ascariblau-metallic",
+    "carraraweiss",
+    "chilirot-metallic",
+    "daytonagrau-perleffekt",
+    "gletscherweiss-metallic",
+    "mythosschwarz-metallic",
+    "sakhirgold-metallic",
+    "samuraigrau-metallic",
+    "satellitsilber-metallic",
+    "tamarindenbraun-metallic",
+    "vikunjabeige-metallic",
+    "waitomoblau-metallic"
+   ],
+   "lackliste": [
+    {
+     "code": "ascariblau-metallic",
+     "name": "Ascariblau Metallic",
+     "hex": "#031F43"
+    },
+    {
+     "code": "carraraweiss",
+     "name": "Carraraweiß",
+     "hex": "#D6D3D2"
+    },
+    {
+     "code": "chilirot-metallic",
+     "name": "Chilirot Metallic",
+     "hex": "#930018"
+    },
+    {
+     "code": "daytonagrau-perleffekt",
+     "name": "Daytonagrau Perleffekt",
+     "hex": "#292B2F"
+    },
+    {
+     "code": "gletscherweiss-metallic",
+     "name": "Gletscherweiß Metallic",
+     "hex": "#DADCDE"
+    },
+    {
+     "code": "mythosschwarz-metallic",
+     "name": "Mythosschwarz Metallic",
+     "hex": "#0F0F0F"
+    },
+    {
+     "code": "sakhirgold-metallic",
+     "name": "Sakhirgold Metallic",
+     "hex": "#A38659"
+    },
+    {
+     "code": "samuraigrau-metallic",
+     "name": "Samuraigrau Metallic",
+     "hex": "#464548"
+    },
+    {
+     "code": "satellitsilber-metallic",
+     "name": "Satellitsilber Metallic",
+     "hex": "#B8C5C5"
+    },
+    {
+     "code": "tamarindenbraun-metallic",
+     "name": "Tamarindenbraun Metallic",
+     "hex": "#120E0D"
+    },
+    {
+     "code": "vikunjabeige-metallic",
+     "name": "Vikunjabeige Metallic",
+     "hex": "#CBCAC3"
+    },
+    {
+     "code": "waitomoblau-metallic",
+     "name": "Waitomoblau Metallic",
+     "hex": "#0D1520"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 308,
+   "endbox": [
+    40,
+    5,
+    689,
+    306
    ]
   }
  ],
