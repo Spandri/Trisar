@@ -54,7 +54,7 @@ struct FahrzeugAngaben: Equatable {
         var r = KartenRaster(hoehe: 0)
         var y: CGFloat = 52
         if !vin.isEmpty { r.vin = 51.97; y = 68 }
-        if bild != nil { r.bild = bildOben; y = bildOben + 114.91 }
+        if bild != nil || dreh != nil { r.bild = bildOben; y = bildOben + 114.91 }
         if hatKacheln { r.kacheln = y + 17.65; r.hoehe = y + 17.65 + 52 + 20.35 } else { r.hoehe = y + 16 }
         return r
     }
@@ -149,7 +149,10 @@ struct FahrzeugKarte: View {
                 .padding(.horizontal, 12)
                 .platz(0, 15.29, 362, 36.68, .top)
 
-            if let oben = r.bild, let url = a.bild {
+            // 360-Grad-Satz: Auto schraeg vorne links, ohne Drehung (dreht nur auf der Fahrzeugseite).
+            if let oben = r.bild, let dreh = a.dreh {
+                FahrzeugDrehung(satz: dreh, stehend: true).platz(20.5, oben, 321, 114.91)
+            } else if let oben = r.bild, let url = a.bild {
                 FahrzeugBild(url: url).platz(63.9, oben, 234.53, 114.91)
             }
 

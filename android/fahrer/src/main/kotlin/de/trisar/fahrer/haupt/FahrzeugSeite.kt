@@ -48,6 +48,8 @@ import coil3.toBitmap
 import de.trisar.kern.FahrzeugBild
 import de.trisar.kern.FahrzeugAngaben
 import de.trisar.kern.FahrzeugFoto
+import de.trisar.kern.DrehSatz
+import de.trisar.kern.FahrzeugDrehung
 import de.trisar.kern.FahrzeugKacheln
 import de.trisar.kern.FahrzeugTest
 import de.trisar.kern.StandortChip

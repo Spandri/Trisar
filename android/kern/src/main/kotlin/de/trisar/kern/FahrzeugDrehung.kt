@@ -1,4 +1,4 @@
-package de.trisar.fahrer.haupt
+package de.trisar.kern
 
 import android.content.Context
 import android.graphics.BitmapFactory
@@ -36,6 +36,8 @@ import kotlin.math.roundToInt
  * werkzeuge/fahrzeugbilder/dreh-einbauen.py), wie FahrzeugDrehung.jsx der Web-App.
  * Beim Oeffnen dreht sich das Auto einmal und bleibt schraeg vorne links stehen (Bild 32, eng
  * zugeschnitten wie das Standbild). Von Hand gedreht bleibt es dort, wo der Fahrer loslaesst.
+ * Mit stehend: nur Bild 32 wie das Standbild (Startseiten-Karte), ohne Drehen und Wischen.
+ * Bilder liegen nur in der Fahrer-App (assets), die Dispo hat nur die Liste: dort findet finden() nichts.
  */
 
 /** Inhalt von fahrzeug-dreh.json */
@@ -52,10 +54,18 @@ class DrehInfo(
     companion object {
         @Volatile private var geladen: DrehInfo? = null
         @Volatile private var versucht = false
+        @Volatile private var dateien: Set<String> = emptySet()
+
+        /** Gibt es das Bild in den Assets? (Dispo: nein) */
+        fun hatBild(ctx: Context, datei: String): Boolean {
+            laden(ctx)
+            return datei.removePrefix("fahrzeug-dreh/") in dateien
+        }
 
         fun laden(ctx: Context): DrehInfo? {
             if (versucht) return geladen
             versucht = true
+            dateien = runCatching { ctx.assets.list("fahrzeug-dreh")?.toSet() }.getOrNull() ?: emptySet()
             geladen = runCatching {
                 val j = JSONObject(ctx.assets.open("fahrzeug-dreh/fahrzeug-dreh.json").bufferedReader().use { it.readText() })
                 fun liste(a: org.json.JSONArray) = List(a.length()) { a.getString(it) }
@@ -102,7 +112,9 @@ data class DrehSatz(val modell: String, val lack: String) {
             for (satz in info.modelle) {
                 if (satz.modell.none { m.contains(it) }) continue
                 val treffer = satz.farben.firstOrNull { f.contains(it.first) } ?: continue
-                if (treffer.second in satz.lacke) return DrehSatz(satz.id, treffer.second)
+                if (treffer.second !in satz.lacke) continue
+                val gefunden = DrehSatz(satz.id, treffer.second)
+                return if (DrehInfo.hatBild(ctx, gefunden.datei(info.start))) gefunden else null
             }
             return null
         }
@@ -110,7 +122,7 @@ data class DrehSatz(val modell: String, val lack: String) {
 }
 
 @Composable
-fun FahrzeugDrehung(satz: DrehSatz, modifier: Modifier = Modifier) {
+fun FahrzeugDrehung(satz: DrehSatz, modifier: Modifier = Modifier, stehend: Boolean = false) {
     val ctx = LocalContext.current
     val info = remember { DrehInfo.laden(ctx) } ?: return
     val n = info.bilder
@@ -139,11 +151,13 @@ fun FahrzeugDrehung(satz: DrehSatz, modifier: Modifier = Modifier) {
 
     LaunchedEffect(satz) {
         // erst alle Bilder laden, dann einmal drehen (sonst ruckelt die erste Runde)
-        val geladen = withContext(Dispatchers.IO) {
-            (0 until n).mapNotNull { i ->
-                runCatching { ctx.assets.open(satz.datei(i)).use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
-            }
+        fun bild(i: Int) = runCatching { ctx.assets.open(satz.datei(i)).use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
+        if (stehend) {
+            // nur das Standbild, keine Drehung
+            withContext(Dispatchers.IO) { bild(info.start) }?.let { b -> bilder = List(n) { b } }
+            return@LaunchedEffect
         }
+        val geladen = withContext(Dispatchers.IO) { (0 until n).mapNotNull { bild(it) } }
         if (geladen.size == n) {
             bilder = geladen
             drehen()
@@ -153,7 +167,8 @@ fun FahrzeugDrehung(satz: DrehSatz, modifier: Modifier = Modifier) {
     Canvas(
         modifier
             .clipToBounds()
-            .pointerInput(satz) {
+            .pointerInput(satz, stehend) {
+                if (stehend) return@pointerInput
                 var start = 0f
                 var weg = 0f
                 detectHorizontalDragGestures(

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ColorBadge, EnergyBadge, FuelBadge, SeatBadge } from './vehicleBadges';
 import { useI18n } from '../i18n';
 import { fahrzeugAngaben, hatKacheln, kartenRaster, istObdQuelle, standortAlter } from './fahrzeugAngaben';
+import FahrzeugDrehung, { useDrehSatz } from './FahrzeugDrehung';
 
 // Bausteine fuer Fahrzeugkarte und Fahrzeug-Seite (nur Angaben mit Wert).
 
@@ -63,7 +64,9 @@ export function StandortChip({ quelle, erfasst, className = '', style }) {
 export function FahrzeugKarte({ vehicle, titel, bildOben = 63, top, onClick, onHoehe, className = '', ...rest }) {
   const a = fahrzeugAngaben(vehicle);
   const [kaputtesBild, setKaputtesBild] = useState('');
-  const raster = kartenRaster(a, { bildOben, bildDa: Boolean(a.bild) && kaputtesBild !== a.bild });
+  // Modell und Farbe passen zu einem 360-Grad-Satz: Auto schraeg vorne links, ohne Drehung.
+  const drehSatz = useDrehSatz(vehicle);
+  const raster = kartenRaster(a, { bildOben, bildDa: Boolean(drehSatz) || (Boolean(a.bild) && kaputtesBild !== a.bild) });
   useEffect(() => { onHoehe?.(raster.hoehe); }, [raster.hoehe, onHoehe]);
   return (
     <div
@@ -85,7 +88,9 @@ export function FahrzeugKarte({ vehicle, titel, bildOben = 63, top, onClick, onH
           <span className="text-[rgba(28,28,29,0.15)] tracking-[2px]">{a.vin}</span>
         </p>
       ) : null}
-      {raster.bild !== undefined ? (
+      {raster.bild !== undefined && drehSatz ? (
+        <FahrzeugDrehung satz={drehSatz} alt={titel} stehend style={{ left: '20.5px', top: `${raster.bild}px`, width: '321px', height: '114.91px' }} />
+      ) : raster.bild !== undefined ? (
         <FahrzeugBild
           src={a.bild}
           alt={titel}

@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 // 360-Grad-Ansicht des Fahrzeugs aus 36 Einzelbildern (public/fahrzeug-dreh, erzeugt mit
 // werkzeuge/fahrzeugbilder/dreh-einbauen.py). Beim Oeffnen dreht sich das Auto einmal und bleibt
 // schraeg vorne links stehen (Bild 32, eng zugeschnitten wie das Standbild). Von Hand gedreht bleibt
-// es dort, wo der Fahrer loslaesst.
+// es dort, wo der Fahrer loslaesst. Mit stehend: nur Bild 32 wie das Standbild (Startseiten-Karte).
 
 const BASIS = `${import.meta.env.BASE_URL || '/'}fahrzeug-dreh/`;
 let infoVersprechen = null;
@@ -48,7 +48,7 @@ export function useDrehSatz(vehicle) {
 
 const bildAdresse = (satz, i) => `${BASIS}${satz.modell}-${satz.lack}-${String(i).padStart(2, '0')}.webp`;
 
-export default function FahrzeugDrehung({ satz, alt = '', style }) {
+export default function FahrzeugDrehung({ satz, alt = '', style, stehend = false }) {
   const { info } = satz;
   const N = info.bilder;
   const START = info.start;
@@ -107,13 +107,13 @@ export default function FahrzeugDrehung({ satz, alt = '', style }) {
     zeig(z.pos);
     // erst alle Bilder laden, dann einmal drehen (sonst ruckelt die erste Runde)
     let aktiv = true;
-    const laden = Array.from({ length: N }, (_, i) => new Promise((fertig) => {
+    const laden = stehend ? [] : Array.from({ length: N }, (_, i) => new Promise((fertig) => {
       const im = new Image();
       im.onload = fertig;
       im.onerror = fertig;
       im.src = bildAdresse(satz, i);
     }));
-    Promise.all(laden).then(() => { if (aktiv) drehen(); });
+    if (!stehend) Promise.all(laden).then(() => { if (aktiv) drehen(); });
     const neu = () => zeig(zustand.current.pos);
     window.addEventListener('resize', neu);
     return () => { aktiv = false; cancelAnimationFrame(z.anim); window.removeEventListener('resize', neu); };
@@ -121,6 +121,7 @@ export default function FahrzeugDrehung({ satz, alt = '', style }) {
   }, [satz.modell, satz.lack]);
 
   const runter = (e) => {
+    if (stehend) return;
     const z = zustand.current;
     cancelAnimationFrame(z.anim);
     z.x0 = e.clientX;
@@ -143,8 +144,8 @@ export default function FahrzeugDrehung({ satz, alt = '', style }) {
   return (
     <div
       ref={buehneRef}
-      className="absolute overflow-hidden select-none cursor-grab active:cursor-grabbing"
-      style={{ touchAction: 'pan-y', ...style }}
+      className={`absolute overflow-hidden select-none${stehend ? '' : ' cursor-grab active:cursor-grabbing'}`}
+      style={{ touchAction: 'pan-y', ...(stehend ? { pointerEvents: 'none' } : null), ...style }}
       onPointerDown={runter}
       onPointerMove={ziehen}
       onPointerUp={los}

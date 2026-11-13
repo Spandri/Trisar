@@ -5,6 +5,7 @@ import UIKit
 /// werkzeuge/fahrzeugbilder/dreh-einbauen.py), wie FahrzeugDrehung.jsx der Web-App.
 /// Beim Oeffnen dreht sich das Auto einmal und bleibt schraeg vorne links stehen (Bild 32, eng
 /// zugeschnitten wie das Standbild). Von Hand gedreht bleibt es dort, wo der Fahrer loslaesst.
+/// Mit stehend: nur Bild 32 wie das Standbild (Startseiten-Karte), ohne Drehen und Wischen.
 
 /// Inhalt von fahrzeug-dreh.json
 struct DrehInfo: Decodable {
@@ -48,21 +49,26 @@ struct DrehSatz: Equatable {
         for satz in info.modelle where satz.modell.contains(where: { m.contains($0) }) {
             if let treffer = satz.farben.first(where: { $0.count == 2 && f.contains($0[0]) }),
                satz.lacke.contains(treffer[1]) {
-                return DrehSatz(modell: satz.id, lack: treffer[1])
+                let gefunden = DrehSatz(modell: satz.id, lack: treffer[1])
+                // Bilder liegen nur in der Fahrer-App, die Dispo hat nur die Liste.
+                guard Bundle.main.url(forResource: gefunden.name(info.start), withExtension: "webp") != nil else { return nil }
+                return gefunden
             }
         }
         return nil
     }
 
+    func name(_ i: Int) -> String { "\(modell)-\(lack)-\(String(format: "%02d", i))" }
+
     func bild(_ i: Int) -> UIImage? {
-        let name = "\(modell)-\(lack)-\(String(format: "%02d", i))"
-        guard let url = Bundle.main.url(forResource: name, withExtension: "webp") else { return nil }
+        guard let url = Bundle.main.url(forResource: name(i), withExtension: "webp") else { return nil }
         return UIImage(contentsOfFile: url.path)
     }
 }
 
 struct FahrzeugDrehung: View {
     let satz: DrehSatz
+    var stehend = false
     private let info = DrehInfo.geladen
 
     @State private var bilder: [UIImage] = []
@@ -92,6 +98,7 @@ struct FahrzeugDrehung: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 6)
                 .onChanged { g in
+                    if stehend { return }
                     if ziehStart == nil {
                         guard abs(g.translation.width) > abs(g.translation.height) else { return }
                         drehAufgabe?.cancel()
@@ -107,7 +114,9 @@ struct FahrzeugDrehung: View {
         )
         .task(id: satz) { await laden() }
         .onDisappear { drehAufgabe?.cancel() }
-        .accessibilityLabel("Fahrzeug, zum Drehen wischen")
+        .allowsHitTesting(!stehend)
+        .accessibilityLabel(stehend ? "Fahrzeug" : "Fahrzeug, zum Drehen wischen")
+        // stehend (Startseiten-Karte): Tippen geht an die Karte
     }
 
     /// Endstellung: Bild 32 fuellt die Flaeche. Beim Drehen herauszoomen, damit Seite und Heck ganz zu sehen sind.
@@ -131,6 +140,13 @@ struct FahrzeugDrehung: View {
         guard let info else { return }
         pos = Double(info.start)
         let s = satz
+        if stehend {
+            // nur das Standbild, keine Drehung
+            if let b = s.bild(info.start)?.preparingForDisplay() {
+                bilder = Array(repeating: b, count: info.bilder)
+            }
+            return
+        }
         let geladen = await Task.detached(priority: .userInitiated) {
             (0..<info.bilder).compactMap { s.bild($0)?.preparingForDisplay() }
         }.value

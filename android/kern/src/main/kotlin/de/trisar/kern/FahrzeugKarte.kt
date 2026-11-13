@@ -147,11 +147,11 @@ data class FahrzeugAngaben(
     data class BlockRaster(val vin: Float?, val bild: Float?, val modell: Float?, val ausstattung: Float?, val kacheln: Float?, val hoehe: Float)
 
     /** Startseiten-Karte (362 breit). Mit allem 268 hoch. */
-    fun kartenRaster(bildOben: Float = 63f): KartenRaster {
+    fun kartenRaster(bildOben: Float = 63f, mitDreh: Boolean = false): KartenRaster {
         var y = 52f
         var v: Float? = null; var b: Float? = null
         if (vin.isNotEmpty()) { v = 51.97f; y = 68f }
-        if (bild != null) { b = bildOben; y = bildOben + 114.91f }
+        if (bild != null || mitDreh) { b = bildOben; y = bildOben + 114.91f }
         return if (hatKacheln) KartenRaster(v, b, y + 17.65f, y + 17.65f + 52f + 20.35f) else KartenRaster(v, b, null, y + 16f)
     }
 
@@ -183,7 +183,11 @@ data class FahrzeugAngaben(
 }
 
 /** Hoehe der Startseiten-Karte fuer die Listen darunter. */
-fun fahrzeugKartenHoehe(f: FahrzeugZeile?, bildOben: Float = 63f) = FahrzeugAngaben.aus(f).kartenRaster(bildOben).hoehe
+fun fahrzeugKartenHoehe(f: FahrzeugZeile?, bildOben: Float = 63f, ctx: android.content.Context? = null): Float {
+    val a = FahrzeugAngaben.aus(f)
+    val dreh = ctx?.let { DrehSatz.finden(it, a.modell, a.farbe) }
+    return a.kartenRaster(bildOben, mitDreh = dreh != null).hoehe
+}
 
 /** Fahrzeugfoto ohne Platzhalter. Laedt es nicht, verschwindet es (und der Platz dafuer). */
 @Composable
@@ -203,11 +207,15 @@ fun FahrzeugFoto(adresse: String, modifier: Modifier) {
 @Composable
 fun FahrzeugKarte(fahrzeug: FahrzeugZeile?, titel: String, modifier: Modifier = Modifier, bildOben: Float = 63f) {
     val a = FahrzeugAngaben.aus(fahrzeug)
-    val r = a.kartenRaster(bildOben)
+    // Modell und Farbe passen zu einem 360-Grad-Satz: Auto schraeg vorne links, ohne Drehung.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val dreh = androidx.compose.runtime.remember(a.modell, a.farbe) { DrehSatz.finden(ctx, a.modell, a.farbe) }
+    val r = a.kartenRaster(bildOben, mitDreh = dreh != null)
     Box(modifier.size(362.dp, r.hoehe.dp).background(Color.White)) {
         SchrumpfText(titel, grotesk(30f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 338f,
             Modifier.platz(12f, 15.29f, 338f, 36.68f))
-        if (r.bild != null && a.bild != null) FahrzeugFoto(a.bild, Modifier.platz(63.9f, r.bild, 234.53f, 114.91f))
+        if (r.bild != null && dreh != null) FahrzeugDrehung(dreh, Modifier.platz(20.5f, r.bild, 321f, 114.91f), stehend = true)
+        else if (r.bild != null && a.bild != null) FahrzeugFoto(a.bild, Modifier.platz(63.9f, r.bild, 234.53f, 114.91f))
         if (r.vin != null) VinZeile(a.vin, Modifier.platz(0f, r.vin, 362f))
         if (r.kacheln != null) FahrzeugKacheln(a, Modifier.platz(0f, r.kacheln, 362f))
     }

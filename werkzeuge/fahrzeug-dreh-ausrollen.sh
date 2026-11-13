@@ -3,7 +3,8 @@
 #   bash werkzeuge/fahrzeug-dreh-ausrollen.sh
 #
 # Was kommt mit:
-# 1. Web-Fahrer-App: Fahrzeugseite dreht die V-Klasse (FahrzeugDrehung.jsx, VehicleView.jsx)
+# 1. Web-Fahrer-App: Fahrzeugseite dreht die V-Klasse (FahrzeugDrehung.jsx, VehicleView.jsx),
+#    Startseiten-Karte zeigt sie stehend (FahrzeugKarte.jsx)
 #    plus die Bilder public/fahrzeug-dreh (11 Lacke x 36 Ansichten, ca. 12 MB)
 # 2. Web-Dispo: Fahrzeug anlegen/bearbeiten schlaegt "Mercedes-Benz V-Klasse" und die Lacke vor
 #
@@ -23,6 +24,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 git -C "$HIER" archive HEAD \
   fahrer/public/fahrzeug-dreh fahrer/src/shared/FahrzeugDrehung.jsx fahrer/src/features/fahrer/views/VehicleView.jsx \
+  fahrer/src/shared/FahrzeugKarte.jsx \
   admin/public/fahrzeug-dreh admin/src/shared/fahrzeugDreh.js admin/src/components/views/FahrzeugErstellenView.jsx \
   | tar -x -C "$TMP"
 
