@@ -60,6 +60,8 @@ targets:
       - ../ios-fahrer/TrisarFahrer/Ansichten/FahrzeugKarte.swift
       # FahrzeugKarte kennt den 360-Grad-Satz (DrehSatz). Katalog und Bilder kommen vom Server (DrehKatalog, DrehBilder).
       - ../ios-fahrer/TrisarFahrer/Ansichten/FahrzeugDrehung.swift
+      # Schadensstelle am drehbaren Auto (Ansicht mit Punkt im Schadensbericht)
+      - ../ios-fahrer/TrisarFahrer/Ansichten/FahrzeugForm.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/KarteAnsicht.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/SupportAnsicht.swift
     dependencies:

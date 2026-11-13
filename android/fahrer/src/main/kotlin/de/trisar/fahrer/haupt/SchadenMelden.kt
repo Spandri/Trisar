@@ -9,6 +9,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,17 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.graphics.ImageBitmap
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.roundToInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,7 +76,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import de.trisar.kern.DrehBilder
+import de.trisar.kern.DrehSatz
+import de.trisar.kern.FahrzeugForm
 import de.trisar.kern.Farbe
+import de.trisar.kern.FormSpeicher
+import de.trisar.kern.drehBildRahmen
+import de.trisar.kern.drehBildZeichnen
+import de.trisar.kern.schadenMarke
 import de.trisar.kern.FussleisteUnten
 import de.trisar.kern.Icon
 import de.trisar.kern.ZurueckKnopf
@@ -100,8 +119,17 @@ private val BAUTEILE = listOf(
  * Fotos ueber die Kamera des Systems oder die Galerie, wie im Web auf dem Handy.
  */
 @Composable
-internal fun SchadenMeldenSeite(schliessen: () -> Unit, melden: suspend (String, String, List<Bitmap>, kotlinx.serialization.json.JsonObject?) -> Boolean) {
+internal fun SchadenMeldenSeite(
+    satz: DrehSatz? = null,
+    schliessen: () -> Unit,
+    melden: suspend (String, String, List<Bitmap>, kotlinx.serialization.json.JsonObject?) -> Boolean,
+) {
     val ctx = LocalContext.current
+    // Drehbares Auto, wenn es fuer das Modell eine Form gibt, sonst die Aufsicht wie bisher
+    var form by remember { mutableStateOf<FahrzeugForm?>(null) }
+    LaunchedEffect(satz?.modell) { form = satz?.let { FormSpeicher.form(ctx, it) } }
+    val mitDreh = satz != null && form != null
+    var marke by remember { mutableStateOf<DrehMarke?>(null) }
     val bereich = rememberCoroutineScope()
     val fokus = LocalFocusManager.current
     val feld = remember { FocusRequester() }
@@ -150,9 +178,9 @@ internal fun SchadenMeldenSeite(schliessen: () -> Unit, melden: suspend (String,
             ZurueckKnopf(Modifier.platz(20f, 60f), schliessen)
             Text("Schaden melden", style = grotesk(42f, 700, zeilenHoehe = 42f, abstand = -0.5f, farbe = Farbe.lime), modifier = Modifier.platz(20f, 122f, 362f))
 
-            // Foto
-            Block(186f, 150f) {
-                Box(Modifier.size(362.dp, 110.dp).background(Color.White).clipToBounds().tippen { quelleWaehlen = true }, contentAlignment = Alignment.Center) {
+            // Foto (mit drehbarem Auto 30 flacher, dafuer Stelle groesser)
+            Block(186f, if (mitDreh) 120f else 150f) {
+                Box(Modifier.size(362.dp, if (mitDreh) 80.dp else 110.dp).background(Color.White).clipToBounds().tippen { quelleWaehlen = true }, contentAlignment = Alignment.Center) {
                     if (fotos.isEmpty()) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             KameraZeichen(Modifier.size(34.dp, 28.dp))
@@ -171,20 +199,30 @@ internal fun SchadenMeldenSeite(schliessen: () -> Unit, melden: suspend (String,
             }
 
             // Stelle
-            Block(348f, 300f) {
-                Column(Modifier.size(362.dp, 260.dp).background(Color.White).padding(16.dp)) {
+            Block(if (mitDreh) 318f else 348f, if (mitDreh) 330f else 300f) {
+                Column(Modifier.size(362.dp, if (mitDreh) 290.dp else 260.dp).background(Color.White).padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Stelle", style = grotesk(15f, 700, abstand = -0.5f, farbe = hex(0xDDDCDC)))
                         Spacer(Modifier.weight(1f))
-                        Text(stelleName.ifEmpty { "Auf dem Fahrzeug antippen" }, style = grotesk(14f, 700, abstand = -0.5f, farbe = hex(0x1D1C1C)))
+                        Text(stelleName.ifEmpty { if (mitDreh) "Auto drehen, auf die Stelle tippen" else "Auf dem Fahrzeug antippen" }, style = grotesk(14f, 700, abstand = -0.5f, farbe = hex(0x1D1C1C)))
                     }
                     Box(Modifier.padding(top = 8.dp).fillMaxWidth().height(1.dp).background(hex(0xDDDCDC)))
-                    Box(Modifier.fillMaxWidth().height((FELD_HOEHE + 8f).dp), contentAlignment = Alignment.BottomCenter) {
-                        WagenAufsicht(punkt) { punkt = it }
+                    val f = form
+                    if (satz != null && f != null) {
+                        DrehStelle(satz, f, marke, Modifier.padding(top = 6.dp)) { m ->
+                            marke = m
+                            val a = f.aufsicht(m.p)
+                            val (zeile, seite) = f.bereich(m.p)
+                            punkt = Punkt(a.x, a.y, zeile, seite)
+                        }
+                    } else {
+                        Box(Modifier.fillMaxWidth().height((FELD_HOEHE + 8f).dp), contentAlignment = Alignment.BottomCenter) {
+                            WagenAufsicht(punkt) { punkt = it }
+                        }
                     }
                     // Weicher Auslauf rechts: zeigt, dass weitere Bauteile folgen.
                     Row(
-                        Modifier.padding(top = 16.dp).fillMaxWidth()
+                        Modifier.padding(top = if (mitDreh) 10.dp else 16.dp).fillMaxWidth()
                             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                             .drawWithContent {
                                 drawContent()
@@ -237,6 +275,16 @@ internal fun SchadenMeldenSeite(schliessen: () -> Unit, melden: suspend (String,
                                 put("x", kotlinx.serialization.json.JsonPrimitive(p.x.toDouble()))
                                 put("y", kotlinx.serialization.json.JsonPrimitive(p.y.toDouble()))
                                 bauteil?.let { put("bauteil", kotlinx.serialization.json.JsonPrimitive(it)) }
+                                // Mit drehbarem Auto dazu Modell, Ansicht, Bildpunkt im Drehbild und Punkt am Auto (mm)
+                                val m = marke
+                                if (mitDreh && m != null && satz != null) {
+                                    put("modell", kotlinx.serialization.json.JsonPrimitive(satz.modell))
+                                    put("ansicht", kotlinx.serialization.json.JsonPrimitive(m.ansicht))
+                                    put("bild", kotlinx.serialization.json.JsonArray(listOf(m.bild.x, m.bild.y).map {
+                                        kotlinx.serialization.json.JsonPrimitive((it * 10).roundToInt() / 10.0)
+                                    }))
+                                    put("p", kotlinx.serialization.json.JsonArray(m.p.map { kotlinx.serialization.json.JsonPrimitive((it * 1000).roundToInt()) }))
+                                }
                             }
                         }
                         bereich.launch { melden(stelleName, text, fotos, genau); sendet = false }
@@ -328,6 +376,120 @@ private fun WagenAufsicht(punkt: Punkt?, setzen: (Punkt) -> Unit) {
                 drawCircle(schwarz, 17f, Offset(x, y), style = Stroke(2.5f))
                 drawCircle(schwarz, 5f, Offset(x, y))
             }
+        }
+    }
+}
+
+/** Am drehbaren Auto gesetzte Marke: Ansicht, Bildpunkt im Drehbild, Punkt am Auto (m) */
+internal data class DrehMarke(val ansicht: Int, val bild: Offset, val p: DoubleArray)
+
+/**
+ * Drehbares Auto zum Markieren, wie DrehStelle in SchadenMelden.jsx. Der Punkt sitzt auf der Karosserie
+ * und dreht mit, solange die Stelle zu sehen ist. Ist sie verdeckt, blendet er aus, "Zur Markierung"
+ * dreht zurueck. Wischen dreht, Tippen markiert, Pfeile drehen um 40 Grad.
+ */
+@Composable
+private fun DrehStelle(satz: DrehSatz, form: FahrzeugForm, marke: DrehMarke?, modifier: Modifier = Modifier, markieren: (DrehMarke) -> Unit) {
+    val ctx = LocalContext.current
+    val n = satz.bilder
+    var bilder by remember(satz) { mutableStateOf<List<ImageBitmap>>(emptyList()) }
+    var pos by remember(satz) { mutableFloatStateOf((marke?.ansicht ?: satz.start).toFloat()) }
+    val scope = rememberCoroutineScope()
+    var drehJob by remember { mutableStateOf<Job?>(null) }
+    val k = ((pos.roundToInt() % n) + n) % n
+    val sicht = marke?.let { m -> if (m.ansicht == k) m.bild else form.sichtbar(m.p, k) }
+
+    LaunchedEffect(satz) {
+        val geladen = coroutineScope { (0 until n).map { i -> async { DrehBilder.bild(ctx, satz.adresse(i)) } }.awaitAll() }
+        if (geladen.all { it != null }) bilder = geladen.map { it!! }
+    }
+
+    fun drehenNach(ziel: Int) {
+        drehJob?.cancel()
+        val von = pos
+        var d = ((ziel - von.roundToInt()) % n + n) % n
+        if (d > n / 2) d -= n
+        val nach = von.roundToInt() + d.toFloat()
+        val dauer = (220 + abs(d) * 30) * 1_000_000f
+        drehJob = scope.launch {
+            val t0 = withFrameNanos { it }
+            while (true) {
+                val t = withFrameNanos { it }
+                val q = min((t - t0) / dauer, 1f)
+                pos = von + (nach - von) * (1f - (1f - q).pow(3))
+                if (q >= 1f) break
+            }
+        }
+    }
+
+    Column(modifier.fillMaxWidth()) {
+        Canvas(
+            Modifier.fillMaxWidth().height(140.dp).clipToBounds()
+                .pointerInput(satz, form) {
+                    var start = 0f
+                    var weg = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { drehJob?.cancel(); start = pos; weg = 0f },
+                        onDragEnd = { pos = pos.roundToInt().toFloat() },
+                        onDragCancel = { pos = pos.roundToInt().toFloat() },
+                    ) { aenderung, dx ->
+                        aenderung.consume()
+                        weg += dx / density
+                        pos = start + weg / 9f
+                    }
+                }
+                .pointerInput(satz, form) {
+                    detectTapGestures { ort ->
+                        // Tippen: Strahl durch den Bildpunkt, erster Treffer auf dem Auto
+                        val r = drehBildRahmen(satz, size.width.toFloat(), size.height.toFloat())
+                        val u = (ort.x - r.left) / r.width * satz.breite
+                        val v = (ort.y - r.top) / r.height * satz.hoehe
+                        val ansicht = ((pos.roundToInt() % n) + n) % n
+                        form.treffen(ansicht, u.toDouble(), v.toDouble())?.let { markieren(DrehMarke(ansicht, Offset(u, v), it)) }
+                    }
+                },
+        ) {
+            if (bilder.size != n) return@Canvas
+            val r = drehBildRahmen(satz, size.width, size.height)
+            drehBildZeichnen(bilder[k], r)
+            sicht?.let { s -> schadenMarke(Offset(r.left + s.x / satz.breite * r.width, r.top + s.y / satz.hoehe * r.height)) }
+        }
+        Row(Modifier.padding(top = 6.dp).fillMaxWidth().height(30.dp), verticalAlignment = Alignment.CenterVertically) {
+            DrehPfeil(links = true) { drehenNach(k - 4) }
+            Column(Modifier.weight(1f).padding(horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(FahrzeugForm.ansichtName(k), style = grotesk(12f, 700, abstand = -0.3f, farbe = hex(0x1D1C1C)), maxLines = 1)
+                if (marke != null && sicht == null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Von hier nicht zu sehen", style = grotesk(10f, farbe = hex(0x9A9A9A)), maxLines = 1)
+                        Box(Modifier.height(16.dp).background(hex(0xE3F754)).tippen { drehenNach(marke.ansicht) }.padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.Center) {
+                            Text("Zur Markierung", style = grotesk(10f, 700, farbe = Color.Black), maxLines = 1)
+                        }
+                    }
+                } else {
+                    val hinweis = when {
+                        marke == null -> "Wischen oder Pfeile zum Drehen"
+                        marke.ansicht == k -> "Erneut tippen verschiebt den Punkt"
+                        else -> "Punkt dreht mit"
+                    }
+                    Text(hinweis, style = grotesk(10f, farbe = hex(0x9A9A9A)), maxLines = 1)
+                }
+            }
+            DrehPfeil(links = false) { drehenNach(k + 4) }
+        }
+    }
+}
+
+@Composable
+private fun DrehPfeil(links: Boolean, aktion: () -> Unit) {
+    Box(Modifier.size(40.dp, 30.dp).background(Color.White).border(1.dp, hex(0xDDDCDC)).tippen(aktion), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(9.dp, 14.dp)) {
+            val s = size.width / 9f
+            val p = Path().apply {
+                if (links) { moveTo(7.5f * s, 1.5f * s); lineTo(2f * s, 7f * s); lineTo(7.5f * s, 12.5f * s) }
+                else { moveTo(1.5f * s, 1.5f * s); lineTo(7f * s, 7f * s); lineTo(1.5f * s, 12.5f * s) }
+            }
+            drawPath(p, hex(0x1D1C1C), style = Stroke(2.2f * s))
         }
     }
 }

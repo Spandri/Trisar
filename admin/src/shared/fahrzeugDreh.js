@@ -62,3 +62,21 @@ export function seitenBild(info, brandModel, color) {
   const lack = drehLack(modell, color);
   return modell && lack ? `${import.meta.env.BASE_URL || '/'}fahrzeug-dreh/${modell.id}-${lack.code}-seite.webp` : '';
 }
+
+// Schaden am drehbaren Auto markiert (Fahrer-App, vehicle_damages.stelle mit modell/ansicht/bild):
+// Ansicht des Fahrzeugs mit Bildpunkt, sonst null. Die 36 Ansichten liegen nur beim Fahrer-Server.
+const DREH_SERVER = 'https://fahrer.trisar.de/fahrzeug-dreh/';
+export function schadenAnsicht(info, brandModel, color, stelle) {
+  const modell = drehModell(info, brandModel);
+  const lack = drehLack(modell, color);
+  if (!modell || !lack || !stelle || stelle.modell !== modell.id) return null;
+  const k = Number(stelle.ansicht);
+  if (!Number.isInteger(k) || !Array.isArray(stelle.bild) || stelle.bild.length !== 2) return null;
+  return {
+    src: `${DREH_SERVER}${modell.id}-${lack.code}-${String(k).padStart(2, '0')}.webp`,
+    breite: modell.breite || info.breite,
+    hoehe: modell.hoehe || info.hoehe,
+    u: Number(stelle.bild[0]),
+    v: Number(stelle.bild[1]),
+  };
+}

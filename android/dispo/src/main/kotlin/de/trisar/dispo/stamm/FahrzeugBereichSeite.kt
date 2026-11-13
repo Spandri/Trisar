@@ -88,9 +88,11 @@ private sealed interface FahrzeugSeite {
 @Composable
 internal fun FahrzeugBereichSeite(zeigen: (DispoZiel) -> Unit) {
     var seite by remember { mutableStateOf<FahrzeugSeite>(FahrzeugSeite.Liste) }
+    // Ausserhalb von key(seite): nach Fahrzeug/Filter/Zurueck steht die Liste wieder an derselben Stelle.
+    val listenScroll = androidx.compose.foundation.rememberScrollState()
     androidx.compose.runtime.key(seite) {
         when (val s = seite) {
-            FahrzeugSeite.Liste -> FahrzeugListeSeite(zeigen, filterOeffnen = { seite = FahrzeugSeite.Filter },
+            FahrzeugSeite.Liste -> FahrzeugListeSeite(zeigen, listenScroll, filterOeffnen = { seite = FahrzeugSeite.Filter },
                 erstellen = { seite = FahrzeugSeite.Erstellen }, bearbeiten = { seite = FahrzeugSeite.Bearbeiten(it) })
             FahrzeugSeite.Filter -> FahrzeugFilterSeite { seite = FahrzeugSeite.Liste }
             FahrzeugSeite.Erstellen -> FahrzeugFormularSeite(null) { seite = FahrzeugSeite.Liste }
@@ -106,6 +108,7 @@ internal fun FahrzeugBereichSeite(zeigen: (DispoZiel) -> Unit) {
 @Composable
 private fun FahrzeugListeSeite(
     zeigen: (DispoZiel) -> Unit,
+    listenScroll: androidx.compose.foundation.ScrollState,
     filterOeffnen: () -> Unit,
     erstellen: () -> Unit,
     bearbeiten: (StammFahrzeug) -> Unit,
@@ -147,7 +150,7 @@ private fun FahrzeugListeSeite(
     val listenHoehe = bloecke.sum() + max(0, bloecke.size - 1) * 12f
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        Leinwand(874f, listeOben + listenHoehe + 157f) { rahmen ->
+        Leinwand(874f, listeOben + listenHoehe + 157f, scroll = listenScroll) { rahmen ->
             DispoHintergrund(Modifier.platz(0f, 0f, 402f, rahmen))
             ZurueckKnopf(Modifier.platz(20f, 60f)) { zeigen(DispoZiel.START) }
             Box(Modifier.platz(332f, 60f, 50f, 50f).tippen(filterOeffnen)) {
@@ -664,7 +667,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
                     Text("Fahrzeug löschen", style = grotesk(16f, 500, farbe = hex(0xFF3B30)))
                 }
                 val dichte = androidx.compose.ui.platform.LocalDensity.current
-                SchadensBerichtDispo(fid, Modifier.platz(20f, 898f + trackerVersatz + fahrerVersatz, 362f)
+                SchadensBerichtDispo(fid, de.trisar.kern.DrehSatz.finden(ctx, markeModell, farbe), Modifier.platz(20f, 898f + trackerVersatz + fahrerVersatz, 362f)
                     .then(Modifier.onSizeChanged { schadenHoehe = with(dichte) { it.height.toDp().value } }))
             }
 
@@ -749,7 +752,7 @@ private suspend fun fzFahrerZuweisen(fahrzeugID: String, neuID: String) {
 
 /** Gemeldete Schaeden wie SchadensBerichtDispo in iOS. Tipp auf ein Foto zeigt es gross. */
 @Composable
-private fun SchadensBerichtDispo(fahrzeugID: String, modifier: Modifier) {
+private fun SchadensBerichtDispo(fahrzeugID: String, satz: de.trisar.kern.DrehSatz?, modifier: Modifier) {
     var schaeden by remember { mutableStateOf<List<JsonObject>>(emptyList()) }
     var geladen by remember { mutableStateOf(false) }
     var gross by remember { mutableStateOf<String?>(null) }
@@ -803,7 +806,9 @@ private fun SchadensBerichtDispo(fahrzeugID: String, modifier: Modifier) {
                     Text(text(s, "description"), style = grotesk(14f, 700, abstand = -0.5f, farbe = dunkel))
                 }
                 val stelle = s["stelle"] as? JsonObject
-                de.trisar.kern.FahrzeugSkizze.punkt(stelle)?.let { p ->
+                // Am drehbaren Auto markiert: Ansicht mit Punkt, sonst die Aufsicht
+                if (satz != null && stelle != null && de.trisar.kern.stellePasst(stelle, satz)) de.trisar.kern.StelleAnsicht(satz, stelle)
+                else de.trisar.kern.FahrzeugSkizze.punkt(stelle)?.let { p ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         de.trisar.kern.FahrzeugSkizzeAnsicht(p, 110f)
                         if (de.trisar.kern.FahrzeugSkizze.geschaetzt(stelle)) Text("ungefähre Stelle", style = grotesk(9f, 400, farbe = grau))

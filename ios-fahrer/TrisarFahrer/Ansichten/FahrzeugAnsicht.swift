@@ -103,7 +103,7 @@ private struct FahrzeugInhalt: View {
         .task { await daten.starten(fahrzeugID: speicher.fahrzeug?.id) }
         .onDisappear { Task { await daten.beenden() } }
         .webVollbild(isPresented: $meldenOffen) {
-            SchadenMeldenAnsicht(schliessen: { meldenOffen = false }) { stelle, beschreibung, fotos, genau in
+            SchadenMeldenAnsicht(satz: FahrzeugAngaben(speicher.fahrzeug).dreh, schliessen: { meldenOffen = false }) { stelle, beschreibung, fotos, genau in
                 let ok = await daten.melden(stelle: stelle, beschreibung: beschreibung, fotos: fotos, genau: genau)
                 if ok { meldenOffen = false }
                 return ok
@@ -188,6 +188,7 @@ private struct FahrzeugInhalt: View {
 
     private var schadensBericht: some View {
         let schaeden = daten.schaeden
+        let satz = FahrzeugAngaben(speicher.fahrzeug).dreh
         return VStack(alignment: .leading, spacing: 0) {
             Text("Schadensbericht").grotesk(15, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0xDDDCDC))
                 .padding(.bottom, 10)
@@ -202,7 +203,10 @@ private struct FahrzeugInhalt: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        if let p = s.punkt { FahrzeugSkizze.Ansicht(punkt: p, hoehe: 96) }
+                        // Am drehbaren Auto markiert: Ansicht mit Punkt, sonst die Aufsicht
+                        if StelleAnsicht.passt(s.genau, satz), let satz, let g = s.genau, let k = g.ansicht, let b = g.bildPunkt {
+                            StelleAnsicht(satz: satz, ansicht: k, bild: b)
+                        } else if let p = s.punkt { FahrzeugSkizze.Ansicht(punkt: p, hoehe: 96) }
                     }
                     .padding(.bottom, 10)
                     if !s.bilder.isEmpty {

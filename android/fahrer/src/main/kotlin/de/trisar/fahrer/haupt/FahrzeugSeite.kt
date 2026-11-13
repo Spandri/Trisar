@@ -157,14 +157,14 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (telemetrie.isNotEmpty() && !FahrzeugTest.nurKennzeichen) TelemetrieBlock(telemetrie, ereignisse, stand)
-                SchadensBericht(schaeden) { meldenOffen = true }
+                SchadensBericht(schaeden, dreh) { meldenOffen = true }
             }
         }
         FussleisteUnten()
 
         if (meldenOffen) {
             Vollbild {
-                SchadenMeldenSeite(schliessen = { meldenOffen = false }) { stelle, beschreibung, fotos, genau ->
+                SchadenMeldenSeite(satz = dreh, schliessen = { meldenOffen = false }) { stelle, beschreibung, fotos, genau ->
                     val ok = daten.melden(stelle, beschreibung, fotos, genau)
                     if (ok) meldenOffen = false
                     ok
@@ -232,7 +232,7 @@ private fun TelemetrieBlock(zeilen: List<FahrzeugDaten.TelemetrieZeile>, ereigni
 
 /** Schadensbericht mit Liste und „Schaden melden“. */
 @Composable
-private fun SchadensBericht(schaeden: List<FahrzeugDaten.Schaden>, melden: () -> Unit) {
+private fun SchadensBericht(schaeden: List<FahrzeugDaten.Schaden>, satz: DrehSatz? = null, melden: () -> Unit) {
     Column(Modifier.width(353.dp).background(Color.White).padding(29.dp)) {
         Text("Schadensbericht", style = grotesk(15f, 700, abstand = -0.5f, farbe = hex(0xDDDCDC)), modifier = Modifier.padding(bottom = 10.dp))
         Box(Modifier.padding(bottom = 10.dp).fillMaxWidth().height(1.dp).background(hex(0xDDDCDC)))
@@ -244,7 +244,9 @@ private fun SchadensBericht(schaeden: List<FahrzeugDaten.Schaden>, melden: () ->
                         Text(s.stelle, style = grotesk(10f, 700, abstand = -0.5f, farbe = hex(0x1D1C1C)), modifier = Modifier.padding(bottom = 5.dp))
                         Text(s.beschreibung, style = grotesk(14f, 700, abstand = -0.5f, farbe = hex(0x1D1C1C)))
                     }
-                    s.punkt?.let { de.trisar.kern.FahrzeugSkizzeAnsicht(it, 96f) }
+                    // Am drehbaren Auto markiert: Ansicht mit Punkt, sonst die Aufsicht
+                    if (satz != null && s.genau != null && de.trisar.kern.stellePasst(s.genau, satz)) de.trisar.kern.StelleAnsicht(satz, s.genau)
+                    else s.punkt?.let { de.trisar.kern.FahrzeugSkizzeAnsicht(it, 96f) }
                 }
                 if (s.bilder.isNotEmpty()) {
                     Row(Modifier.padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {

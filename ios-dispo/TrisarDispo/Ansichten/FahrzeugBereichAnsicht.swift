@@ -411,7 +411,7 @@ struct FahrzeugFormularSeite: View {
                     .disabled(speichert)
                     .platz(20, 830 + versatz, 362, 48)
 
-                    SchadensBerichtDispo(fahrzeugID: id)
+                    SchadensBerichtDispo(fahrzeugID: id, satz: DrehSatz.finden(modell: markeModell, farbe: farbe))
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { schadenHoehe = $0 }
                         .platz(20, 898 + versatz, 362, nil)
                 }
@@ -785,6 +785,8 @@ struct FahrzeugFormularSeite: View {
 /// Fotos oeffnen sich gross im Browser.
 struct SchadensBerichtDispo: View {
     let fahrzeugID: String
+    /// Bildsatz des Fahrzeugs: am drehbaren Auto markierte Schaeden zeigen die Ansicht mit Punkt
+    var satz: DrehSatz? = nil
     @State private var schaeden: [Schaden] = []
     @State private var geladen = false
     @State private var namen: [String: String] = [:]
@@ -839,7 +841,9 @@ struct SchadensBerichtDispo: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        if let st = s.stelle {
+                        if StelleAnsicht.passt(s.stelle, satz), let satz, let st = s.stelle, let k = st.ansicht, let b = st.bildPunkt {
+                            StelleAnsicht(satz: satz, ansicht: k, bild: b)
+                        } else if let st = s.stelle {
                             VStack(spacing: 4) {
                                 FahrzeugSkizze.Ansicht(punkt: st.punkt, hoehe: 110)
                                 if st.geschaetzt == true {

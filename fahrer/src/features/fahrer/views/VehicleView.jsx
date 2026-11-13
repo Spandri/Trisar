@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import SchadenMelden, { WagenAufsicht } from './SchadenMelden';
+import SchadenMelden, { WagenAufsicht, StelleAnsicht } from './SchadenMelden';
+import { passtZuSatz } from '../../../shared/fahrzeugForm';
 import FahrzeugTelemetrie from './FahrzeugTelemetrie';
 import TrisarFooter from '../../../components/ui/TrisarFooter';
 import { USER_LOCATION_DOT_URL } from '../../../shared/ui/icons';
@@ -160,7 +161,7 @@ const datumKurz = (wert) => {
   return `${teile[2]}.${teile[1]}.${teile[0].slice(2)}`;
 };
 
-const SchadensBericht = ({ damages = [], onMelden, blockRef, oben = 771 }) => {
+const SchadensBericht = ({ damages = [], onMelden, blockRef, oben = 771, satz = null }) => {
   const { t } = useI18n();
   const sampleDamages = [
     {
@@ -225,7 +226,11 @@ const SchadensBericht = ({ damages = [], onMelden, blockRef, oben = 771 }) => {
             </div>
             {/* Genaue Stelle auf dem Auto. Alte Meldungen kennen nur den Bereich,
                 dort steht der Punkt in dessen Mitte und "ungefaehre Stelle" darunter. */}
-            {Number.isFinite(damage.stelle?.x) && Number.isFinite(damage.stelle?.y) ? (
+            {passtZuSatz(damage.stelle, satz) ? (
+              <div className="mb-[10px]">
+                <StelleAnsicht satz={satz} stelle={damage.stelle} />
+              </div>
+            ) : Number.isFinite(damage.stelle?.x) && Number.isFinite(damage.stelle?.y) ? (
               <div className="flex flex-col items-center mb-[10px]">
                 <WagenAufsicht punkt={damage.stelle} hoehe={110} />
                 {damage.stelle.geschaetzt ? (
@@ -280,6 +285,8 @@ export default function VehicleView({ setView, vehicle, damages, onAddDamage, st
       : null);
   const [scale, setScale] = useState(1);
   const [meldenOffen, setMeldenOffen] = useState(false);
+  // Bildsatz des Fahrzeugs: Schaden melden am drehbaren Auto, Bericht zeigt die Ansicht mit Punkt
+  const drehSatz = useDrehSatz(vehicle);
   // Mit jedem gemeldeten Schaden waechst der Bericht. Die Seite misst ihn und
   // wird entsprechend laenger, damit der Meldeknopf nie unter den Rand rutscht.
   const berichtRef = useRef(null);
@@ -364,6 +371,7 @@ export default function VehicleView({ setView, vehicle, damages, onAddDamage, st
               damages={damages}
               blockRef={berichtRef}
               oben={berichtOben}
+              satz={drehSatz}
               onMelden={() => setMeldenOffen(true)}
             />
           </div>
@@ -376,6 +384,7 @@ export default function VehicleView({ setView, vehicle, damages, onAddDamage, st
     <TrisarFooter className="fixed left-0 right-0 bottom-0 h-10 bg-black z-30" />
     {meldenOffen ? (
       <SchadenMelden
+        satz={drehSatz}
         onClose={() => setMeldenOffen(false)}
         onConfirm={({ stelle, beschreibung, fotos, genau }) => {
           onAddDamage?.(stelle, beschreibung, fotos, genau);

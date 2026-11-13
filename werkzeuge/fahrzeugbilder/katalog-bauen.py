@@ -133,9 +133,16 @@ def modell_eintrag(mid, marke, name, woerter, lacknamen):
                                         "metallic" not in glatt(l["name"]), len(l["name"])))
             farben.setdefault(wort, passend[0]["code"])
     farben = sorted(farben.items(), key=lambda kv: -len(kv[0]))
-    return {"id": mid, "marke": marke, "name": name, "modell": woerter, "farben": [list(x) for x in farben],
-            "lacke": [l["code"] for l in liste], "lackliste": liste,
-            "breite": ende.width, "hoehe": ende.height, "endbox": endbox}
+    eintrag = {"id": mid, "marke": marke, "name": name, "modell": woerter, "farben": [list(x) for x in farben],
+               "lacke": [l["code"] for l in liste], "lackliste": liste,
+               "breite": ende.width, "hoehe": ende.height, "endbox": endbox}
+    # Unsichtbare Form fuer "Schaden melden" (form-bauen.py), Volumen selbst in <mid>-form.bin
+    pf = os.path.join(AUSGABE, f"{mid}-form.json")
+    if os.path.exists(pf) and os.path.exists(os.path.join(AUSGABE, f"{mid}-form.bin")):
+        f = json.load(open(pf))
+        if f["bild"] == [ende.width, ende.height]:
+            eintrag["form"] = {k: f[k] for k in ("kamera", "o", "schritt", "n", "grenzen", "laeufe")}
+    return eintrag
 
 
 def main():

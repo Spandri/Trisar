@@ -83,6 +83,8 @@ class DrehInfo(
         val breite: Float,
         val hoehe: Float,
         val endbox: List<Float>,
+        /** Unsichtbare Form fuer "Schaden melden" (FahrzeugForm), Volumen in <id>-form.bin */
+        val form: FormInfo? = null,
     ) {
         /** Lack-Code zur Farbe (Freitext): erstes Farbwort, das vorkommt und dessen Code es als Bilder gibt. */
         fun lackZu(farbe: String): String? {
@@ -205,6 +207,7 @@ class DrehInfo(
                         breite = m.optDouble("breite", breite.toDouble()).toFloat(),
                         hoehe = m.optDouble("hoehe", hoehe.toDouble()).toFloat(),
                         endbox = box(m.optJSONArray("endbox")) ?: endbox,
+                        form = FormInfo.lesen(m.optJSONObject("form")),
                     )
                 },
             )
@@ -245,6 +248,7 @@ data class DrehSatz(
     val breite: Float,
     val hoehe: Float,
     val endbox: List<Float>,
+    val form: FormInfo? = null,
 ) {
     fun datei(i: Int) = "$modell-$lack-${i.toString().padStart(2, '0')}.webp"
     fun adresse(i: Int) = DrehInfo.SERVER + datei(i)
@@ -262,7 +266,7 @@ data class DrehSatz(
             if (info == null) return null
             val m = info.modellZu(modell) ?: return null
             val lack = m.lackZu(farbe) ?: return null
-            return DrehSatz(m.id, lack, info.bilder, info.start, m.breite, m.hoehe, m.endbox)
+            return DrehSatz(m.id, lack, info.bilder, info.start, m.breite, m.hoehe, m.endbox, m.form)
         }
     }
 }

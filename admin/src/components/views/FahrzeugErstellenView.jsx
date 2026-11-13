@@ -3,7 +3,7 @@ import BackCircleButton from '../ui/BackCircleButton';
 import TrisarFooter from '../ui/TrisarFooter';
 import { hasSupabaseAdminConfig, supabase, supabaseAdmin } from '../../services/supabase';
 import { useI18n } from '../../i18n';
-import { drehInfoLaden, drehModell, drehLack, modellVorschlaege, farbVorschlaege, seitenBild } from '../../shared/fahrzeugDreh';
+import { drehInfoLaden, drehModell, drehLack, modellVorschlaege, farbVorschlaege, seitenBild, schadenAnsicht } from '../../shared/fahrzeugDreh';
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 913;
@@ -94,9 +94,29 @@ function FahrzeugSkizze({ stelle, hoehe = 110 }) {
   );
 }
 
+// Am drehbaren Auto markiert: das Auto in der Ansicht, in der markiert wurde, mit Punkt (150 x 70).
+function SchadenAnsichtBild({ ansicht, breite = 150, hoehe = 70 }) {
+  const a = ansicht.breite / ansicht.hoehe;
+  const w = Math.min(breite, hoehe * a);
+  const h = w / a;
+  const x = (breite - w) / 2 + (ansicht.u / ansicht.breite) * w;
+  const y = (hoehe - h) / 2 + (ansicht.v / ansicht.hoehe) * h;
+  return (
+    <div className="relative shrink-0" style={{ width: `${breite}px`, height: `${hoehe}px` }}>
+      <img src={ansicht.src} alt="" className="absolute" style={{ left: `${(breite - w) / 2}px`, top: `${(hoehe - h) / 2}px`, width: `${w}px`, height: `${h}px` }} />
+      <div
+        className="absolute rounded-full pointer-events-none"
+        style={{ left: `${x - 9}px`, top: `${y - 9}px`, width: '18px', height: '18px', border: '2px solid #ff2d2d', background: 'rgba(255,45,45,0.25)' }}
+      >
+        <div className="absolute rounded-full" style={{ left: '50%', top: '50%', width: '6px', height: '6px', margin: '-3px', background: '#ff2d2d' }} />
+      </div>
+    </div>
+  );
+}
+
 // Schadensbericht wie in der Fahrer-App (VehicleView), fuer die Dispo nur zum Lesen.
 // Fotos oeffnen sich gross in einem neuen Tab.
-function SchadensBericht({ schaeden, blockRef, top }) {
+function SchadensBericht({ schaeden, blockRef, top, drehInfo = null, brandModel = '', color = '' }) {
   return (
     <div ref={blockRef} className="absolute left-5 w-[362px] bg-white p-[24px]" style={{ top: `${top}px` }}>
       <h3 className="text-[#1d1c1c] text-[18px] font-bold tracking-[-0.5px] mb-[10px]">
@@ -107,6 +127,7 @@ function SchadensBericht({ schaeden, blockRef, top }) {
         <div className="text-[#71717b] text-[14px] tracking-[-0.5px]">Keine Schäden gemeldet.</div>
       )}
       {schaeden.map((schaden, index) => {
+        const ansicht = schadenAnsicht(drehInfo, brandModel, color, schaden.stelle);
         const bilder = (schaden.image_urls?.length ? schaden.image_urls : [schaden.image_url]).filter((u) => u && !String(u).startsWith('blob:'));
         return (
           <div key={schaden.id || index} className="mb-[10px]">
@@ -123,7 +144,7 @@ function SchadensBericht({ schaeden, blockRef, top }) {
                 <div className="text-[#1d1c1c] text-[11px] font-bold tracking-[-0.5px] mb-[4px] uppercase">{schaden.part_name || ''}</div>
                 <div className="text-[#1d1c1c] text-[14px] font-bold tracking-[-0.5px] whitespace-pre-wrap">{schaden.description}</div>
               </div>
-              {schaden.stelle ? <FahrzeugSkizze stelle={schaden.stelle} /> : null}
+              {ansicht ? <SchadenAnsichtBild ansicht={ansicht} /> : schaden.stelle ? <FahrzeugSkizze stelle={schaden.stelle} /> : null}
             </div>
             {bilder.length > 0 && (
               <div className="flex gap-[4px] mb-[10px]">
@@ -660,7 +681,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
             )}
 
             {isEditMode && (
-              <SchadensBericht schaeden={schaeden} blockRef={schadenRef} top={882 + trackerVersatz} />
+              <SchadensBericht schaeden={schaeden} blockRef={schadenRef} top={882 + trackerVersatz} drehInfo={drehInfo} brandModel={brandModel} color={color} />
             )}
 
             {/* Vorschlaege wie beim Start einer Fahrt: Antippen uebernimmt den Namen */}

@@ -48,7 +48,9 @@ data class Ort(val lat: Double, val lng: Double)
  */
 class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, private val bereich: CoroutineScope) {
     data class Schaden(val id: String, val datum: String, val stelle: String, val beschreibung: String, val bilder: List<String>,
-        val punkt: androidx.compose.ui.geometry.Offset? = null)
+        val punkt: androidx.compose.ui.geometry.Offset? = null,
+        /** ganze gespeicherte Stelle (mit Ansicht und Bildpunkt, wenn am drehbaren Auto markiert) */
+        val genau: kotlinx.serialization.json.JsonObject? = null)
     data class TelemetrieZeile(val id: String, val titel: String, val wert: String, val warnung: Boolean)
     data class Ereignis(val id: String, val zeit: String, val text: String)
 
@@ -163,7 +165,7 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
             val bilder = (if (!z.image_urls.isNullOrEmpty()) z.image_urls else listOfNotNull(z.image_url))
                 .filter { it.isNotEmpty() && !it.startsWith("blob:") }
             Schaden(z.id, datumKurz(z.report_date.orEmpty()), z.part_name.orEmpty(), z.description.orEmpty(), bilder,
-                de.trisar.kern.FahrzeugSkizze.punkt(z.stelle))
+                de.trisar.kern.FahrzeugSkizze.punkt(z.stelle), z.stelle)
         }
     }
 

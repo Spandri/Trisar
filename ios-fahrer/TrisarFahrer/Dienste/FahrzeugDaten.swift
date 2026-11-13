@@ -14,6 +14,8 @@ final class FahrzeugDaten: ObservableObject {
         let beschreibung: String
         let bilder: [String]
         var punkt: CGPoint? = nil
+        /// ganze gespeicherte Stelle (mit Ansicht und Bildpunkt, wenn am drehbaren Auto markiert)
+        var genau: SchadenStelle? = nil
     }
 
     struct TelemetrieZeile: Identifiable, Equatable {
@@ -142,7 +144,7 @@ final class FahrzeugDaten: ObservableObject {
             let bilder = (z.image_urls?.isEmpty == false ? z.image_urls! : [z.image_url].compactMap { $0 })
                 .filter { !$0.isEmpty && !$0.hasPrefix("blob:") }
             return Schaden(id: z.id, datum: Self.datumKurz(z.report_date ?? ""), stelle: z.part_name ?? "",
-                           beschreibung: z.description ?? "", bilder: bilder, punkt: z.stelle?.punkt)
+                           beschreibung: z.description ?? "", bilder: bilder, punkt: z.stelle?.punkt, genau: z.stelle)
         }
     }
 

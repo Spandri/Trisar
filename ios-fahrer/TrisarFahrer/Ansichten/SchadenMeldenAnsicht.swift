@@ -6,6 +6,8 @@ import UIKit
 /// Aufsicht des Wagens plus Bauteil, Notiz, Abschicken. Die Bildauswahl macht das System
 /// (Kamera oder Mediathek), so wie im Web auf dem Handy.
 struct SchadenMeldenAnsicht: View {
+    /// Bildsatz des Fahrzeugs: mit Form drehbares Auto statt Aufsicht
+    var satz: DrehSatz? = nil
     var schliessen: () -> Void
     /// Stelle ("VL – Felge"), Beschreibung, Fotos. Liefert true bei Erfolg.
     var melden: (String, String, [UIImage], SchadenStelle?) async -> Bool
@@ -20,6 +22,10 @@ struct SchadenMeldenAnsicht: View {
     @State private var auswahl: [PhotosPickerItem] = []
     @State private var sendet = false
     @FocusState private var fokus: Bool
+    @State private var form: FahrzeugForm?
+    @State private var marke: DrehStelle.Marke?
+
+    private var mitDreh: Bool { satz != nil && form != nil }
 
     struct Punkt: Equatable { let x: CGFloat; let y: CGFloat; let zeile: String; let seite: String }
 
@@ -52,8 +58,8 @@ struct SchadenMeldenAnsicht: View {
                 WebText(text: "Schaden melden", groesse: 42, gewicht: .bold, zeilenHoehe: 42, abstand: -0.5, farbe: Farbe.lime.ui)
                     .platz(20, 122, 362, nil)
 
-                // Foto
-                block(oben: 186, hoehe: 150) {
+                // Foto (mit drehbarem Auto 30 flacher, dafuer Stelle groesser)
+                block(oben: 186, hoehe: mitDreh ? 120 : 150) {
                     Button { quelleWaehlen = true } label: {
                         ZStack {
                             Color.white
@@ -71,7 +77,7 @@ struct SchadenMeldenAnsicht: View {
                                 }
                             }
                         }
-                        .frame(width: 362, height: 110)
+                        .frame(width: 362, height: mitDreh ? 80 : 110)
                         .clipped()
                     }
                     .buttonStyle(.web)
@@ -87,18 +93,27 @@ struct SchadenMeldenAnsicht: View {
                 }
 
                 // Stelle
-                block(oben: 348, hoehe: 300) {
+                block(oben: mitDreh ? 318 : 348, hoehe: mitDreh ? 330 : 300) {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(alignment: .firstTextBaseline) {
                             Text("Stelle").grotesk(15, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0xDDDCDC))
                             Spacer()
-                            Text(stelleName.isEmpty ? "Auf dem Fahrzeug antippen" : stelleName)
+                            Text(stelleName.isEmpty ? (mitDreh ? "Auto drehen, auf die Stelle tippen" : "Auf dem Fahrzeug antippen") : stelleName)
                                 .grotesk(14, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1D1C1C))
                         }
                         Rectangle().fill(Color(hex: 0xDDDCDC)).frame(height: 1).padding(.top, 8)
-                        wagenAufsicht
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .frame(height: Self.feldHoehe + 8, alignment: .bottom)
+                        if let satz, let form {
+                            DrehStelle(satz: satz, form: form, marke: marke) { m in
+                                marke = m
+                                let a = form.aufsicht(m.p), b = form.bereich(m.p)
+                                punkt = Punkt(x: a.x, y: a.y, zeile: b.zeile, seite: b.seite)
+                            }
+                            .padding(.top, 6)
+                        } else {
+                            wagenAufsicht
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .frame(height: Self.feldHoehe + 8, alignment: .bottom)
+                        }
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 6) {
                                 ForEach(Self.bauteile, id: \.0) { b in
@@ -116,10 +131,10 @@ struct SchadenMeldenAnsicht: View {
                         // Weicher Auslauf rechts: zeigt, dass weitere Bauteile folgen.
                         .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.9),
                                                      .init(color: .clear, location: 1)], startPoint: .leading, endPoint: .trailing))
-                        .padding(.top, 16)
+                        .padding(.top, mitDreh ? 10 : 16)
                     }
                     .padding(16)
-                    .frame(width: 362, height: 260, alignment: .topLeading)
+                    .frame(width: 362, height: mitDreh ? 290 : 260, alignment: .topLeading)
                     .background(Color.white)
                 }
 
@@ -143,8 +158,18 @@ struct SchadenMeldenAnsicht: View {
                     fokus = false
                     sendet = true
                     Task {
-                        _ = await melden(stelleName, text, fotos,
-                                         punkt.map { SchadenStelle(x: Double($0.x), y: Double($0.y), bauteil: bauteil) })
+                        // Mit drehbarem Auto dazu Modell, Ansicht, Bildpunkt im Drehbild und Punkt am Auto (mm)
+                        let genau = punkt.map { p -> SchadenStelle in
+                            var s = SchadenStelle(x: Double(p.x), y: Double(p.y), bauteil: bauteil)
+                            if mitDreh, let m = marke, let satz {
+                                s.modell = satz.modell
+                                s.ansicht = m.ansicht
+                                s.bild = [(Double(m.bild.x) * 10).rounded() / 10, (Double(m.bild.y) * 10).rounded() / 10]
+                                s.p = m.p.map { Int(($0 * 1000).rounded()) }
+                            }
+                            return s
+                        }
+                        _ = await melden(stelleName, text, fotos, genau)
                         sendet = false
                     }
                 } label: {
@@ -165,6 +190,9 @@ struct SchadenMeldenAnsicht: View {
             }
         }
         .overlay { if !fokus { FussleisteUnten() } }
+        .task(id: satz?.modell) {
+            if let satz { form = await FormSpeicher.shared.form(satz) }
+        }
         .confirmationDialog("Foto", isPresented: $quelleWaehlen) {
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                 Button("Foto aufnehmen") { kameraOffen = true }
@@ -222,6 +250,140 @@ struct SchadenMeldenAnsicht: View {
             let seite = x <= Self.wagen.width / 3 ? "links" : (x <= Self.wagen.width * 2 / 3 ? "mitte" : "rechts")
             punkt = Punkt(x: x, y: y, zeile: zeile, seite: seite)
         })
+    }
+}
+
+/// Drehbares Auto zum Markieren, wie DrehStelle in SchadenMelden.jsx. Der Punkt sitzt auf der Karosserie
+/// und dreht mit, solange die Stelle zu sehen ist. Ist sie verdeckt, blendet er aus, "Zur Markierung"
+/// dreht zurueck. Wischen dreht, Tippen markiert, Pfeile drehen um 40 Grad.
+struct DrehStelle: View {
+    struct Marke: Equatable { let ansicht: Int; let bild: CGPoint; let p: [Double] }
+
+    let satz: DrehSatz
+    let form: FahrzeugForm
+    let marke: Marke?
+    let markieren: (Marke) -> Void
+
+    @State private var bilder: [UIImage] = []
+    @State private var pos: Double = 32
+    @State private var ziehStart: Double?
+    @State private var drehAufgabe: Task<Void, Never>?
+    @State private var gestartet = false
+
+    private var k: Int { let n = satz.bilder; return ((Int(pos.rounded()) % n) + n) % n }
+
+    var body: some View {
+        let sicht: CGPoint? = marke.flatMap { m in m.ansicht == k ? m.bild : form.sichtbar(m.p, k) }
+        VStack(spacing: 6) {
+            GeometryReader { geo in
+                let r = drehBildRahmen(satz, geo.size)
+                ZStack(alignment: .topLeading) {
+                    if bilder.count == satz.bilder {
+                        Image(uiImage: bilder[k]).resizable().frame(width: r.width, height: r.height).offset(x: r.minX, y: r.minY)
+                    }
+                    if let s = sicht {
+                        SchadenMarke().position(x: r.minX + s.x / satz.breite * r.width, y: r.minY + s.y / satz.hoehe * r.height)
+                    }
+                }
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { g in
+                            if ziehStart == nil {
+                                guard abs(g.translation.width) > 6 else { return }
+                                drehAufgabe?.cancel()
+                                ziehStart = pos
+                            }
+                            if let start = ziehStart { pos = start + Double(g.translation.width) / 9 }
+                        }
+                        .onEnded { g in
+                            if ziehStart != nil {
+                                pos = pos.rounded()
+                                ziehStart = nil
+                                return
+                            }
+                            // Tippen: Strahl durch den Bildpunkt, erster Treffer auf dem Auto
+                            let u = (g.location.x - r.minX) / r.width * satz.breite
+                            let v = (g.location.y - r.minY) / r.height * satz.hoehe
+                            let ansicht = k
+                            if let p = form.treffen(ansicht, Double(u), Double(v)) {
+                                markieren(Marke(ansicht: ansicht, bild: CGPoint(x: u, y: v), p: p))
+                            }
+                        }
+                )
+            }
+            .frame(height: 140)
+            .clipped()
+
+            HStack(spacing: 0) {
+                pfeil(links: true) { drehenNach(k - 4) }
+                Spacer(minLength: 6)
+                VStack(spacing: 1) {
+                    Text(FahrzeugForm.ansichtName(k)).grotesk(12, .bold, abstand: -0.3).foregroundStyle(Color(hex: 0x1D1C1C))
+                    if let m = marke, sicht == nil {
+                        HStack(spacing: 6) {
+                            Text("Von hier nicht zu sehen").grotesk(10).foregroundStyle(Color(hex: 0x9A9A9A))
+                            Button { drehenNach(m.ansicht) } label: {
+                                Text("Zur Markierung").grotesk(10, .bold).foregroundStyle(.black)
+                                    .padding(.horizontal, 8).frame(height: 16).background(Color(hex: 0xE3F754))
+                            }
+                            .buttonStyle(.web)
+                        }
+                    } else {
+                        Text(marke == nil ? "Wischen oder Pfeile zum Drehen"
+                             : (marke?.ansicht == k ? "Erneut tippen verschiebt den Punkt" : "Punkt dreht mit"))
+                            .grotesk(10).foregroundStyle(Color(hex: 0x9A9A9A))
+                    }
+                }
+                .lineLimit(1)
+                Spacer(minLength: 6)
+                pfeil(links: false) { drehenNach(k + 4) }
+            }
+            .frame(height: 30)
+        }
+        .task(id: satz) {
+            if !gestartet { pos = Double(marke?.ansicht ?? satz.start); gestartet = true }
+            let s = satz
+            let geladen = await withTaskGroup(of: (Int, UIImage?).self) { gruppe in
+                for i in 0..<s.bilder { gruppe.addTask { (i, await s.bild(i)) } }
+                var liste = [UIImage?](repeating: nil, count: s.bilder)
+                for await (i, b) in gruppe { liste[i] = b }
+                return liste.compactMap { $0 }
+            }
+            if !Task.isCancelled, geladen.count == s.bilder { bilder = geladen }
+        }
+        .onDisappear { drehAufgabe?.cancel() }
+    }
+
+    private func pfeil(links: Bool, aktion: @escaping () -> Void) -> some View {
+        Button(action: aktion) {
+            Image(systemName: links ? "chevron.left" : "chevron.right")
+                .font(.system(size: 13, weight: .bold)).foregroundStyle(Color(hex: 0x1D1C1C))
+                .frame(width: 40, height: 30)
+                .overlay(Rectangle().strokeBorder(Color(hex: 0xDDDCDC), lineWidth: 1))
+        }
+        .buttonStyle(.web)
+        .accessibilityLabel(links ? "Nach links drehen" : "Nach rechts drehen")
+    }
+
+    private func drehenNach(_ ziel: Int) {
+        drehAufgabe?.cancel()
+        let n = satz.bilder
+        let von = pos
+        var d = ((ziel - Int(von.rounded())) % n + n) % n
+        if d > n / 2 { d -= n }
+        let nach = von.rounded() + Double(d)
+        let dauer = 0.22 + Double(abs(d)) * 0.03
+        drehAufgabe = Task { @MainActor in
+            let t0 = Date()
+            while !Task.isCancelled {
+                let q = min(Date().timeIntervalSince(t0) / dauer, 1)
+                pos = von + (nach - von) * (1 - pow(1 - q, 3))
+                if q >= 1 { break }
+                try? await Task.sleep(nanoseconds: 16_000_000)
+            }
+        }
     }
 }
 

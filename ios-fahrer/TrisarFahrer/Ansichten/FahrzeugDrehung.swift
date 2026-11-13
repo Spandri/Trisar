@@ -22,6 +22,18 @@ struct DrehInfo: Decodable, Equatable {
         var breite: CGFloat?
         var hoehe: CGFloat?
         var endbox: [CGFloat]?
+        /// Unsichtbare Form fuer "Schaden melden" (FahrzeugForm), Volumen in <id>-form.bin
+        var form: FormInfo?
+    }
+    /// Kamera des Drehtellers und Raster der Form (werkzeuge/fahrzeugbilder/form-bauen.py)
+    struct FormInfo: Decodable, Equatable {
+        struct Kamera: Decodable, Equatable { let s: Double; let D: Double; let phi: Double; let cx: Double; let cy: Double; let h0: Double }
+        let kamera: Kamera
+        let o: [Double]
+        let schritt: Double
+        let n: [Int]
+        let grenzen: [Double]
+        let laeufe: Int
     }
     let bilder: Int
     let start: Int
@@ -157,6 +169,7 @@ struct DrehSatz: Equatable {
     let breite: CGFloat
     let hoehe: CGFloat
     let endbox: [CGFloat]
+    var form: DrehInfo.FormInfo? = nil
 
     /// klein, Umlaute ausgeschrieben, nur Buchstaben und Ziffern: "V-Klasse 250 d" -> "vklasse250d"
     static func glatt(_ s: String) -> String {
@@ -174,7 +187,7 @@ struct DrehSatz: Equatable {
         guard let breite = m.breite ?? info.breite, let hoehe = m.hoehe ?? info.hoehe,
               let endbox = m.endbox ?? info.endbox, endbox.count == 4, info.bilder > 0 else { return nil }
         return DrehSatz(modell: m.id, lack: lack, bilder: info.bilder, start: info.start,
-                        breite: breite, hoehe: hoehe, endbox: endbox)
+                        breite: breite, hoehe: hoehe, endbox: endbox, form: m.form)
     }
 
     func name(_ i: Int) -> String { "\(modell)-\(lack)-\(String(format: "%02d", i)).webp" }

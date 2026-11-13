@@ -57,5 +57,11 @@ struct SchadenStelle: Codable, Equatable {
     let y: Double
     var bauteil: String?
     var geschaetzt: Bool?
+    /// Am drehbaren Auto markiert: Modell, Ansicht (0..35), Bildpunkt im Drehbild, Punkt am Auto (mm)
+    var modell: String?
+    var ansicht: Int?
+    var bild: [Double]?
+    var p: [Int]?
+    var bildPunkt: CGPoint? { bild.flatMap { $0.count == 2 ? CGPoint(x: $0[0], y: $0[1]) : nil } }
     var punkt: CGPoint { CGPoint(x: x, y: y) }
 }
