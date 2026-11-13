@@ -5,6 +5,7 @@ import { supabase, supabaseAdmin } from '../../services/supabase';
 import { ColorBadge, EnergyBadge, FuelBadge, SeatBadge, demoFillPercent } from '../../shared/vehicleBadges';
 import { DEMO_MODE } from '../../datenquelle';
 import { useI18n } from '../../i18n';
+import { drehInfoLaden, seitenBild } from '../../shared/fahrzeugDreh';
 import { useFahrerMarkierung } from '../../shared/fahrerMarkierung';
 import MarkierungsVermerk from '../ui/MarkierungsVermerk';
 
@@ -97,6 +98,9 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
   const searchTerm = String(filters?.search || '');
   const setSearchTerm = (value) => onChangeFilters((prev) => ({ ...(prev || {}), search: value }));
   const [vehicles, setVehicles] = useState(() => fahrzeugZwischenspeicher);
+  // V-Klasse mit bekanntem Lack: Seitenbild aus den Fahrer-App-Bildern statt hochgeladenem Bild.
+  const [drehInfo, setDrehInfo] = useState(null);
+  useEffect(() => { let aktiv = true; drehInfoLaden().then((i) => { if (aktiv) setDrehInfo(i); }); return () => { aktiv = false; }; }, []);
   const [loadingVehicles, setLoadingVehicles] = useState(() => fahrzeugZwischenspeicher.length === 0);
   const [vehiclesError, setVehiclesError] = useState('');
   const gradientStyle = useMemo(
@@ -339,7 +343,7 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
                 plate={vehicle.plate}
                 vin={vehicle.vinLabel}
                 color={vehicle.color}
-                imageUrl={vehicle.imageUrl}
+                imageUrl={seitenBild(drehInfo, vehicle.brandModel, vehicle.color) || vehicle.imageUrl}
                 seatCount={vehicle.seatCount}
                 fuelType={vehicle.fuel_type}
                 fillPercent={vehicle.batteryFuelPercent}

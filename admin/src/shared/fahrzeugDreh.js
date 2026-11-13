@@ -52,3 +52,10 @@ export function farbVorschlaege(info, brandModel, eingabe) {
     .filter((l) => !e || glatt(l.name).includes(e))
     .filter((l) => l.name !== String(eingabe || '').trim());
 }
+
+// Seitenbild (Front nach rechts) des passenden Lacks fuer Fahrzeugliste und Fahrzeug bearbeiten, sonst ''.
+export function seitenBild(info, brandModel, color) {
+  const modell = drehModell(info, brandModel);
+  const lack = drehLack(modell, color);
+  return modell && lack ? `${import.meta.env.BASE_URL || '/'}fahrzeug-dreh/${modell.id}-${lack.code}-seite.webp` : '';
+}

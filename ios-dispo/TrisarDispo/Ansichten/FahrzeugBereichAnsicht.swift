@@ -172,7 +172,11 @@ struct FahrzeugListenKarte: View {
         ZStack(alignment: .topLeading) {
             Color.white
             Color(hex: 0xECECEC).platz(6, 38, 150, 74)
-            if !fahrzeug.imageUrl.isEmpty {
+            // V-Klasse mit bekanntem Lack: Seitenbild aus den Fahrer-App-Bildern statt hochgeladenem Bild.
+            if let seite = FahrzeugDrehVorschlaege.seitenBild(markeModell: fahrzeug.brandModel, farbe: fahrzeug.color) {
+                Color.white.platz(6, 38, 150, 74)
+                Image(uiImage: seite).resizable().scaledToFit().platz(6, 38, 150, 74)
+            } else if !fahrzeug.imageUrl.isEmpty {
                 StammBild(quelle: fahrzeug.imageUrl).platz(6, 38, 150, 74)
             }
             (Text("VIN  ").bold() + Text(fahrzeug.vinLabel).kerning(2))
@@ -652,7 +656,13 @@ struct FahrzeugFormularSeite: View {
             }
             .buttonStyle(.web)
             .padding(.leading, 16).padding(.trailing, 48)
-            if !bildURL.isEmpty {
+            // Seitenbild der V-Klasse in diesem Lack steht vor einem hochgeladenen Bild.
+            if let seite = FahrzeugDrehVorschlaege.seitenBild(markeModell: markeModell, farbe: farbe) {
+                Image(uiImage: seite).resizable().scaledToFit().frame(width: 64, height: 40)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 44)
+                    .allowsHitTesting(false)
+            } else if !bildURL.isEmpty {
                 StammBild(quelle: bildURL).frame(width: 64, height: 40)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.trailing, 44)

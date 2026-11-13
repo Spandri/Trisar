@@ -1,6 +1,9 @@
 package de.trisar.dispo.stamm
 
 import android.content.Context
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -12,7 +15,7 @@ import org.json.JSONObject
  */
 internal object FahrzeugDrehVorschlaege {
     data class Lack(val code: String, val name: String, val hex: Long)
-    class Modell(val name: String, val modell: List<String>, val farben: List<Pair<String, String>>, val lackliste: List<Lack>)
+    class Modell(val id: String, val name: String, val modell: List<String>, val farben: List<Pair<String, String>>, val lackliste: List<Lack>)
 
     @Volatile private var modelle: List<Modell>? = null
 
@@ -27,6 +30,7 @@ internal object FahrzeugDrehVorschlaege {
                 val f = o.getJSONArray("farben")
                 val l = o.getJSONArray("lackliste")
                 Modell(
+                    id = o.getString("id"),
                     name = o.getString("name"),
                     modell = liste(o.getJSONArray("modell")),
                     farben = List(f.length()) { k -> f.getJSONArray(k).let { it.getString(0) to it.getString(1) } },
@@ -71,5 +75,16 @@ internal object FahrzeugDrehVorschlaege {
         val m = modell(ctx, markeModell) ?: return emptyList()
         val e = glatt(eingabe)
         return m.lackliste.filter { (e.isEmpty() || glatt(it.name).contains(e)) && it.name != eingabe.trim() }
+    }
+
+    /** Seitenbild (Front nach rechts) des passenden Lacks fuer Fahrzeugliste und Fahrzeug bearbeiten. */
+    private val seiten = mutableMapOf<String, ImageBitmap?>()
+    fun seitenBild(ctx: Context, markeModell: String, farbe: String): ImageBitmap? {
+        val m = modell(ctx, markeModell) ?: return null
+        val l = lack(ctx, markeModell, farbe) ?: return null
+        val datei = "fahrzeug-dreh/${m.id}-${l.code}-seite.webp"
+        return seiten.getOrPut(datei) {
+            runCatching { ctx.assets.open(datei).use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }.getOrNull()
+        }
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Modelle und Lacke, fuer die die Fahrer-App eine 360-Grad-Ansicht hat (FahrzeugDreh/fahrzeug-dreh.json,
 /// erzeugt mit werkzeuge/fahrzeugbilder/dreh-einbauen.py), wie admin/src/shared/fahrzeugDreh.js.
@@ -7,6 +8,7 @@ import Foundation
 enum FahrzeugDrehVorschlaege {
     struct Lack: Decodable, Hashable { let code: String; let name: String; let hex: String }
     struct Modell: Decodable {
+        let id: String
         let name: String
         let modell: [String]
         let farben: [[String]]
@@ -56,5 +58,17 @@ enum FahrzeugDrehVorschlaege {
         let e = glatt(eingabe)
         let roh = eingabe.trimmingCharacters(in: .whitespaces)
         return m.lackliste.filter { (e.isEmpty || glatt($0.name).contains(e)) && $0.name != roh }
+    }
+
+    /// Seitenbild (Front nach rechts) des passenden Lacks fuer Fahrzeugliste und Fahrzeug bearbeiten.
+    @MainActor private static var seiten: [String: UIImage] = [:]
+    @MainActor static func seitenBild(markeModell: String, farbe: String) -> UIImage? {
+        guard let m = modell(zu: markeModell), let l = lack(markeModell: markeModell, farbe: farbe) else { return nil }
+        let name = "\(m.id)-\(l.code)-seite"
+        if let b = seiten[name] { return b }
+        guard let url = Bundle.main.url(forResource: name, withExtension: "webp"),
+              let b = UIImage(contentsOfFile: url.path) else { return nil }
+        seiten[name] = b
+        return b
     }
 }

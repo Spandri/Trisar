@@ -3,7 +3,7 @@ import BackCircleButton from '../ui/BackCircleButton';
 import TrisarFooter from '../ui/TrisarFooter';
 import { hasSupabaseAdminConfig, supabase, supabaseAdmin } from '../../services/supabase';
 import { useI18n } from '../../i18n';
-import { drehInfoLaden, drehModell, drehLack, modellVorschlaege, farbVorschlaege } from '../../shared/fahrzeugDreh';
+import { drehInfoLaden, drehModell, drehLack, modellVorschlaege, farbVorschlaege, seitenBild } from '../../shared/fahrzeugDreh';
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 913;
@@ -172,6 +172,8 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   const modellListe = vorschlagFeld === 'modell' ? modellVorschlaege(drehInfo, brandModel) : [];
   const farbListe = vorschlagFeld === 'farbe' ? farbVorschlaege(drehInfo, brandModel, color) : [];
   const gewaehlterLack = drehLack(drehModell(drehInfo, brandModel), color);
+  // Seitenbild der V-Klasse in diesem Lack: steht im Bildfeld, solange kein eigenes Bild hochgeladen ist.
+  const seite = seitenBild(drehInfo, brandModel, color);
   const feldVerlassen = (feld) => window.setTimeout(() => setVorschlagFeld((f) => (f === feld ? null : f)), 120);
 
   const brandModelRef = useRef(null);
@@ -536,8 +538,8 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
               >
                 {imageUrl ? t('erstellen.vehicleImageChange') : t('erstellen.vehicleImageUpload')}
               </button>
-              {imageUrl ? (
-                <img src={imageUrl} alt="" className="absolute right-11 top-1/2 -translate-y-1/2 h-[40px] w-[64px] object-contain" />
+              {imageUrl || seite ? (
+                <img src={seite || imageUrl} alt="" className="absolute right-11 top-1/2 -translate-y-1/2 h-[40px] w-[64px] object-contain" />
               ) : null}
               <button
                 type="button"

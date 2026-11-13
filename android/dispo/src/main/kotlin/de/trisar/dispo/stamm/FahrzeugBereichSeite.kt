@@ -198,7 +198,12 @@ private fun FahrzeugListeSeite(
 private fun FahrzeugListenKarte(fahrzeug: StammFahrzeug, modifier: Modifier) {
     Box(modifier.size(362.dp, 128.dp).background(Color.White).clipToBounds()) {
         Box(Modifier.platz(6f, 38f, 150f, 74f).background(hex(0xECECEC)))
-        if (fahrzeug.imageUrl.isNotEmpty()) StammBild(fahrzeug.imageUrl, Modifier.platz(6f, 38f, 150f, 74f))
+        // V-Klasse mit bekanntem Lack: Seitenbild aus den Fahrer-App-Bildern statt hochgeladenem Bild.
+        val seite = FahrzeugDrehVorschlaege.seitenBild(androidx.compose.ui.platform.LocalContext.current, fahrzeug.brandModel, fahrzeug.color)
+        if (seite != null) {
+            Box(Modifier.platz(6f, 38f, 150f, 74f).background(Color.White))
+            androidx.compose.foundation.Image(seite, null, Modifier.platz(6f, 38f, 150f, 74f), contentScale = ContentScale.Fit)
+        } else if (fahrzeug.imageUrl.isNotEmpty()) StammBild(fahrzeug.imageUrl, Modifier.platz(6f, 38f, 150f, 74f))
         Box(Modifier.platz(0f, 10f, 362f), contentAlignment = Alignment.TopCenter) {
             Text(buildAnnotatedString {
                 withStyle(SpanStyle(fontWeight = FontWeight(700))) { append("VIN  ") }
@@ -564,7 +569,11 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
                     Text(if (bildURL.isEmpty()) "Fahrzeugbild hochladen" else "Fahrzeugbild ändern",
                         style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x8A9728)), maxLines = 1)
                 }
-                if (bildURL.isNotEmpty()) {
+                // Seitenbild der V-Klasse in diesem Lack steht vor einem hochgeladenen Bild.
+                val seite = FahrzeugDrehVorschlaege.seitenBild(ctxDreh, markeModell, farbe)
+                if (seite != null) {
+                    androidx.compose.foundation.Image(seite, null, Modifier.align(Alignment.CenterEnd).padding(end = 44.dp).size(64.dp, 40.dp), contentScale = ContentScale.Fit)
+                } else if (bildURL.isNotEmpty()) {
                     StammBild(bildURL, Modifier.align(Alignment.CenterEnd).padding(end = 44.dp).size(64.dp, 40.dp))
                 }
                 Box(Modifier.align(Alignment.CenterEnd).size(34.dp, 44.dp).tippen { if (bildURL.isEmpty()) bildWaehlen() else bildURL = "" },

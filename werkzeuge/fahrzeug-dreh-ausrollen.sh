@@ -7,6 +7,7 @@
 #    Startseiten-Karte zeigt sie stehend (FahrzeugKarte.jsx)
 #    plus die Bilder public/fahrzeug-dreh (11 Lacke x 36 Ansichten, ca. 12 MB)
 # 2. Web-Dispo: Fahrzeug anlegen/bearbeiten schlaegt "Mercedes-Benz V-Klasse" und die Lacke vor
+#    und zeigt die V-Klasse in Fahrzeugliste und Bildfeld als Seitenbild (FahrzeugeView.jsx)
 #
 # Kopiert den committeten Stand (git HEAD), nicht die Arbeitskopie: offene Aenderungen
 # anderer Arbeiten an denselben Dateien kommen so nicht mit.
@@ -26,6 +27,7 @@ git -C "$HIER" archive HEAD \
   fahrer/public/fahrzeug-dreh fahrer/src/shared/FahrzeugDrehung.jsx fahrer/src/features/fahrer/views/VehicleView.jsx \
   fahrer/src/shared/FahrzeugKarte.jsx \
   admin/public/fahrzeug-dreh admin/src/shared/fahrzeugDreh.js admin/src/components/views/FahrzeugErstellenView.jsx \
+  admin/src/components/views/FahrzeugeView.jsx \
   | tar -x -C "$TMP"
 
 ausrollen() { # app (fahrer|admin), container

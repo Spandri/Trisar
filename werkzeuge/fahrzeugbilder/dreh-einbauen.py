@@ -21,13 +21,15 @@ ZIELE = [
     os.path.join(TRISAR, "ios-fahrer", "TrisarFahrer", "FahrzeugDreh"),
     os.path.join(TRISAR, "android", "fahrer", "src", "main", "assets", "fahrzeug-dreh"),
 ]
-# Dispo (Web, iOS, Android) braucht nur fahrzeug-dreh.json: Vorschlaege fuer Modell und Farbe beim Fahrzeug anlegen.
+# Dispo (Web, iOS, Android) braucht fahrzeug-dreh.json (Vorschlaege fuer Modell und Farbe beim Fahrzeug anlegen)
+# und je Lack ein Seitenbild <modell>-<code>-seite.webp (Fahrzeugliste und Fahrzeug bearbeiten).
 NUR_INFO = [
     os.path.join(TRISAR, "admin", "public", "fahrzeug-dreh"),
     os.path.join(TRISAR, "ios-dispo", "TrisarDispo", "FahrzeugDreh"),
     os.path.join(TRISAR, "android", "dispo", "src", "main", "assets", "fahrzeug-dreh"),
 ]
 N, START = 36, 32
+SEITE = 27  # BE270: reine Seitenansicht, Front nach links (wie die uebrigen Fahrzeugbilder der Dispo)
 
 MODELLE = [{
     "id": "v-klasse",
@@ -74,7 +76,7 @@ def main():
         m["lacke"] = codes
         # nur Lacke vorschlagen, fuer die es Bilder gibt
         m["lackliste"] = [l for l in m["lackliste"] if l["code"] in codes]
-    info = {"bilder": N, "start": START, "breite": ende.width, "hoehe": ende.height, "endbox": endbox, "modelle": MODELLE}
+    info = {"bilder": N, "start": START, "seite": SEITE, "breite": ende.width, "hoehe": ende.height, "endbox": endbox, "modelle": MODELLE}
     for ziel in ZIELE:
         if os.path.isdir(ziel):
             shutil.rmtree(ziel)
@@ -85,11 +87,21 @@ def main():
         with open(os.path.join(ziel, "fahrzeug-dreh.json"), "w") as f:
             json.dump(info, f, ensure_ascii=False, indent=1)
         print(os.path.relpath(ziel, TRISAR), len(codes), "Lacke")
+    # Seitenbild eng um das Auto zugeschnitten (mit Schatten), je Lack
+    seiten = {}
+    for code in codes:
+        b = Image.open(os.path.join(quelle, code, f"{SEITE:02d}.webp"))
+        k = b.getchannel("A").point(lambda a: 255 if a > 4 else 0).getbbox()
+        seiten[code] = b.crop((max(k[0] - 4, 0), max(k[1] - 4, 0), min(k[2] + 4, b.width), min(k[3] + 4, b.height)))
     for ziel in NUR_INFO:
-        os.makedirs(ziel, exist_ok=True)
+        if os.path.isdir(ziel):
+            shutil.rmtree(ziel)
+        os.makedirs(ziel)
         with open(os.path.join(ziel, "fahrzeug-dreh.json"), "w") as f:
             json.dump(info, f, ensure_ascii=False, indent=1)
-        print(os.path.relpath(ziel, TRISAR), "nur Info")
+        for code, bild in seiten.items():
+            bild.save(os.path.join(ziel, f"v-klasse-{code}-seite.webp"), quality=85, method=6)
+        print(os.path.relpath(ziel, TRISAR), "Info + Seitenbilder")
 
 
 main()
