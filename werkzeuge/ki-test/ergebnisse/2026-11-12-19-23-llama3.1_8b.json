@@ -1,0 +1,101 @@
+[
+  {
+    "fall": "Schick eine Fahrt fuer jetzt",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Schick Stefano Spandri eine Fahrt von Kreillerstraße 210 zur Erner Straße 5 für jetzt",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: heute, Do 12.11. um 19:25, Kreillerstraße 210 → Erner Straße 5, Fahrer Stefano Spandri.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-12",
+      "startZeit": "19:25",
+      "start": "Kreillerstraße 210",
+      "ziel": "Erner Straße 5",
+      "fahrgaeste": "",
+      "fahrerNamen": "Stefano Spandri",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 190
+  },
+  {
+    "fall": "Schicke eine Fahrt fuer morgen",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Schicke Stefano Spandri eine Fahrt für morgen 10:30 Uhr vom Hotel Bayerischer Hof zur Messe mit dem Gast Weber",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Fr 13.11. um 10:30, Hotel Bayerischer Hof → Messe München, Gast Weber, Fahrer Stefano Spandri.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "10:30",
+      "start": "Hotel Bayerischer Hof",
+      "ziel": "Messe München",
+      "fahrgaeste": "Weber",
+      "fahrerNamen": "Stefano Spandri",
+      "fahrtId": "",
+      "startOrtId": "o1",
+      "zielOrtId": "o5"
+    },
+    "ms": 39
+  },
+  {
+    "fall": "Fahrt Fahrer von nach",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Fahrt Stefano von Brudermühlstraße 2, 81371 München zu Ernastraße 5 81829 München",
+    "ok": false,
+    "fehler": [
+      "Art rueckfrage, erwartet fahrt_buchen",
+      "start \"\", erwartet \"Brudermühlstraße 2\"",
+      "ziel \"\", erwartet \"Ernastraße 5\"",
+      "fahrerNamen \"\", erwartet \"Stefano\""
+    ],
+    "art": "rueckfrage",
+    "antwort": "Es tut mir leid, aber ich habe keine Informationen über eine Fahrt von Stefano von Brudermühlstraße 2, 81371 München zu Ernastraße 5 81829 München. Die im Datenbestand enthaltenen Fahrten von Stefano sind:\n\n* 2026-11-12 10:30 | Von: Hotel Bayerischer Hof | Nach: Flughafen München Terminal 2\n* 2026-11-12 14:00 | Von: Flughafen München Terminal 1 | Nach: Messe München\n\nKann ich Ihnen helfen, eine dieser Fahrten zu buchen oder weitere Informationen zu erhalten?",
+    "felder": {},
+    "ms": 12244
+  },
+  {
+    "fall": "Wo sind die markierten",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Wo sind die drei gerade",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Marvin Keller: kein Standort vorhanden (kein Signal von App oder Tracker). Gerade keine Fahrt, heute keine weitere.\nStefano Spandri ist am Hotel Bayerischer Hof, Promenadeplatz 2-6, 80333 München (Signal gerade eben). Gerade keine Fahrt, heute keine weitere.\nTim Schedler ist am Hauptbahnhof München, Bayerstraße 10a, 80335 München (Signal gerade eben). Aktuelle Fahrt: 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten (noch nicht gestartet).",
+    "felder": {},
+    "ms": 27
+  },
+  {
+    "fall": "Pause eingetragen",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Hat Stefano morgen eine Pause eingetragen?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Nein, in den Daten ist nichts über eine Pause von Stefano für morgen eingetragen.",
+    "felder": {},
+    "ms": 3477
+  },
+  {
+    "fall": "Zwei Fahrer anlegen",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "kannst du fahrer Fertel garlo erstellen und fahrer Marvin hallo",
+    "ok": false,
+    "fehler": [
+      "Antwort ohne \"Marvin Hallo\""
+    ],
+    "art": "antwort",
+    "antwort": "Neuer Fahrer: Fertel Garlo\nBenutzername: fertel.garlo\nPasswort: erzeuge ich beim Speichern\n\nSoll ich den Fahrer so anlegen? Mit „ja“ speichere ich ihn. Ändern kannst du vorher noch, z. B. „Benutzername mmuster“ oder „Nummer 14“.",
+    "felder": {},
+    "ms": 2
+  }
+]

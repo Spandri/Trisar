@@ -1,0 +1,126 @@
+[
+  {
+    "fall": "Fahrt mit Standby davor, dann ja",
+    "gruppe": "Standby",
+    "schritt": 1,
+    "frage": "Buche Tim morgen um 14:30 vom Flughafen München Terminal 2 zum Bayerischer Hof, davor dort Standby ab 10:00 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Fr 13.11. um 14:30, Flughafen München Terminal 2 → Hotel Bayerischer Hof, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?\n\nDazu Standby: Flughafen München Terminal 2, 13.11. 10:00–14:30, Tim Schedler.\nMit „ja“ lege ich den Standby an, die Fahrt buchst du wie immer über die Karte.",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "14:30",
+      "start": "Flughafen München Terminal 2",
+      "ziel": "Hotel Bayerischer Hof",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "o4",
+      "zielOrtId": "o1"
+    },
+    "ms": 171
+  },
+  {
+    "fall": "Fahrt mit Standby davor, dann ja",
+    "gruppe": "Standby",
+    "schritt": 2,
+    "frage": "ja",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Standby angelegt: Flughafen München Terminal 2, 13.11. 10:00–14:30. Tim Schedler bekommt die Anfrage.",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Standby ohne Fahrer fragt nach",
+    "gruppe": "Standby",
+    "schritt": 1,
+    "frage": "Buche morgen um 16 Uhr eine Fahrt von der Messe zum Hauptbahnhof, vorher Standby an der Messe ab 12 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Fr 13.11. um 16:00, Messe München → Hauptbahnhof München, noch ohne Fahrer.\nSoll ich die Fahrt so buchen?\n\nDazu Standby: Messe München, 13.11. 12:00–16:00.\nFür den Standby fehlt noch welcher Fahrer. Sag es mir, z. B. „Tim“.",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "16:00",
+      "start": "Messe München",
+      "ziel": "Hauptbahnhof München",
+      "fahrgaeste": "",
+      "fahrerNamen": "",
+      "fahrtId": "",
+      "startOrtId": "o5",
+      "zielOrtId": "o2"
+    },
+    "ms": 30
+  },
+  {
+    "fall": "Standby ohne Fahrer fragt nach",
+    "gruppe": "Standby",
+    "schritt": 2,
+    "frage": "Marvin",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Standby: Messe München, 13.11. 12:00–16:00, Marvin Keller.\nMit „ja“ lege ich den Standby an, die Fahrt buchst du wie immer über die Karte.",
+    "felder": {},
+    "ms": 1
+  },
+  {
+    "fall": "Standby ohne Fahrer fragt nach",
+    "gruppe": "Standby",
+    "schritt": 3,
+    "frage": "nein",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Okay, kein Standby angelegt.",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Standby wie getippt mit Flug",
+    "gruppe": "Standby",
+    "schritt": 1,
+    "frage": "Buche Tim morgen vom Flughafen München Terminal 2 zum Hotel Vier Jahreszeiten, der Flug LH2471 landet um 15:10 und davor dort standby von ab 10:00 uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Fr 13.11. um 15:10, Flughafen München Terminal 2 → Hotel Vier Jahreszeiten, Flug LH2471, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?\n\nDazu Standby: Flughafen München Terminal 2, 13.11. 10:00–15:10, Tim Schedler.\nMit „ja“ lege ich den Standby an, die Fahrt buchst du wie immer über die Karte.",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "15:10",
+      "start": "Flughafen München Terminal 2",
+      "ziel": "Hotel Vier Jahreszeiten",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "o4",
+      "zielOrtId": "o6"
+    },
+    "ms": 22
+  },
+  {
+    "fall": "Standby mit eigener Endzeit",
+    "gruppe": "Standby",
+    "schritt": 1,
+    "frage": "Buche Anna morgen 18 Uhr vom Hotel Vier Jahreszeiten zur Messe, davor Standby von 15 bis 17:30",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Fr 13.11. um 18:00, Hotel Vier Jahreszeiten → Messe München, Fahrer Anna Berger.\nSoll ich die Fahrt so buchen?\n\nDazu Standby: Hotel Vier Jahreszeiten, 13.11. 15:00–17:30, Anna Berger.\nMit „ja“ lege ich den Standby an, die Fahrt buchst du wie immer über die Karte.",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "18:00",
+      "start": "Hotel Vier Jahreszeiten",
+      "ziel": "Messe München",
+      "fahrgaeste": "",
+      "fahrerNamen": "Anna Berger",
+      "fahrtId": "",
+      "startOrtId": "o6",
+      "zielOrtId": "o5"
+    },
+    "ms": 30
+  }
+]

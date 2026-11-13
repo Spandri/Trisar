@@ -171,6 +171,24 @@ internal object AutoText {
     fun abholung(f: Fahrt) = FahrtAdresse.fuerNavigation(f.abholName, f.abholAdresse, f.abholOrtID != null)
     fun ziel(f: Fahrt) = FahrtAdresse.fuerNavigation(f.zielName, f.zielAdresse, f.zielOrtID != null)
 
+    /** Naechster angenommener Dienst mit Treffpunkt, dessen Start noch kommt (heute oder spaeter). */
+    fun naechsterTreffpunkt(dienste: List<DienstAnfrage>): DienstAnfrage? {
+        val jetzt = LocalDateTime.now()
+        return dienste.filter { d ->
+            d.treffpunkt != null && d.status.orEmpty().lowercase() in setOf("accepted", "assigned", "approved")
+        }.mapNotNull { d ->
+            val tag = runCatching { LocalDate.parse(d.service_date.orEmpty().take(10)) }.getOrNull() ?: return@mapNotNull null
+            val zeit = runCatching { LocalTime.parse(d.service_start_time.orEmpty().take(5)) }.getOrNull()
+            // Ohne Startzeit gilt der ganze Tag, sonst bis 30 Minuten nach Dienststart zeigen.
+            val ab = if (zeit != null) LocalDateTime.of(tag, zeit).plusMinutes(30) else tag.plusDays(1).atStartOfDay()
+            if (ab.isBefore(jetzt)) null else (d to ab)
+        }.minByOrNull { it.second }?.first
+    }
+
+    /** Ziel fuer die Navigation: Koordinaten des Treffpunkts, sonst seine Adresse. */
+    fun treffpunktZiel(tp: de.trisar.kern.DienstTreffpunkt): String =
+        tp.punkt?.let { "${it.lat},${it.lng}" } ?: tp.adresse.ifEmpty { tp.name }
+
     fun dienstZeit(d: DienstAnfrage): String =
         listOfNotNull(d.service_start_time?.take(5), d.service_end_time?.take(5)).joinToString("–")
 
@@ -222,9 +240,11 @@ internal class FahrtenListeAuto(ctx: CarContext, private val sitzung: TrisarAuto
             .filter { it.fahrtDatum >= heute || AutoText.unterwegs(it) || AutoText.beimGast(it) }
             .sortedWith(compareBy({ it.fahrtDatum }, { it.etd }))
         val dienste = s.dienstAnfragen.value.filter { it.status.orEmpty().equals("pending", true) }
+        // Naechster angenommener Dienststart mit Treffpunkt (dienst_treffpunkt), noch nicht vorbei.
+        val treffDienst = AutoText.naechsterTreffpunkt(s.dienstAnfragen.value)
         var frei = AutoText.grenze(carContext, ConstraintManager.CONTENT_LIMIT_TYPE_LIST, 6)
         val b = ListTemplate.Builder().setTitle("TRISAR").setHeaderAction(Action.APP_ICON)
-        if (fahrten.isEmpty() && dienste.isEmpty()) {
+        if (fahrten.isEmpty() && dienste.isEmpty() && treffDienst == null) {
             return b.setSingleList(ItemList.Builder().setNoItemsMessage("Keine Fahrten. Neue Fahrten erscheinen hier von selbst.").build()).build()
         }
         // Dienstanfragen zuerst, damit sie bei voller Liste nicht wegfallen.
@@ -236,6 +256,16 @@ internal class FahrtenListeAuto(ctx: CarContext, private val sitzung: TrisarAuto
                 .build()
         }
         frei -= dienstZeilen.size
+        // Dienststart mit Treffpunkt: "Dienststart 07:00 – Bayrischer Hof", Antippen navigiert zum Treffpunkt.
+        val treffZeile = treffDienst?.takeIf { frei > 0 }?.let { d ->
+            val tp = d.treffpunkt!!
+            val zeile = Row.Builder()
+                .setTitle("Dienststart ${d.service_start_time.orEmpty().take(5)} – ${tp.name.ifEmpty { "Treffpunkt" }}".trim())
+                .addText(listOf(Datum.tagEtikett(d.service_date.orEmpty()), tp.notiz.ifEmpty { tp.adresse }).filter { it.isNotEmpty() }.joinToString(" · "))
+            if (AutoText.treffpunktZiel(tp).isNotEmpty()) zeile.setOnClickListener { AutoAktion.zumTreffpunkt(carContext, tp) }
+            zeile.build()
+        }
+        if (treffZeile != null) frei -= 1
         val gezeigt = fahrten.take(maxOf(0, frei))
         val tage = gezeigt.map { it.fahrtDatum }.distinct()
         for (tag in tage) {
@@ -243,8 +273,9 @@ internal class FahrtenListeAuto(ctx: CarContext, private val sitzung: TrisarAuto
             gezeigt.filter { it.fahrtDatum == tag }.forEach { f -> liste.addItem(fahrtZeile(f)) }
             b.addSectionedList(SectionedItemList.create(liste.build(), Datum.tagEtikett(tag)))
         }
-        if (dienstZeilen.isNotEmpty()) {
+        if (dienstZeilen.isNotEmpty() || treffZeile != null) {
             val liste = ItemList.Builder()
+            treffZeile?.let { liste.addItem(it) }
             dienstZeilen.forEach { liste.addItem(it) }
             b.addSectionedList(SectionedItemList.create(liste.build(), "Dienst"))
         }
@@ -377,6 +408,17 @@ internal object AutoAktion {
             val ok = sitzung.speicher.antwortenJetzt(f, annehmen)
             CarToast.makeText(ctx, if (!ok) "Hat nicht geklappt. Bitte am Handy prüfen." else if (annehmen) "Fahrt angenommen" else "Fahrt abgelehnt",
                 CarToast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Karten-App des Autos zum Treffpunkt beim Dienststart (gleicher Weg wie bei Fahrten). */
+    fun zumTreffpunkt(ctx: CarContext, tp: de.trisar.kern.DienstTreffpunkt) {
+        val ziel = AutoText.treffpunktZiel(tp)
+        if (ziel.isBlank()) return
+        try {
+            ctx.startCarApp(Intent(CarContext.ACTION_NAVIGATE, Uri.parse("geo:0,0?q=" + Uri.encode(ziel))))
+        } catch (e: Exception) {
+            CarToast.makeText(ctx, "Keine Navigations-App gefunden.", CarToast.LENGTH_LONG).show()
         }
     }
 

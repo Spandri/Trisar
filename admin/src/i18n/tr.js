@@ -340,6 +340,7 @@ export default {
   "fahrt.saving": "Kaydediliyor ...",
   "fahrt.start": "Kalkış",
   "fahrt.startZeit": "Kalkış saati",
+  "fahrt.startZeitraum": "Kalkış aralığı",
   "fahrt.statusBeendet": "tamamlandı",
   "fahrt.statusOffen": "açık",
   "fahrt.statusStoniert": "iptal",

@@ -35,6 +35,10 @@ export class SpeicherDb {
         this.schreibLog.push({ tabelle: 'auth.users', art: 'insert', daten: { id, email: daten?.email } });
         return { data: { user: { id } }, error: null };
       },
+      updateUserById: async (id: string, daten: any) => {
+        this.schreibLog.push({ tabelle: 'auth.users', art: 'update', daten: { id, passwort: Boolean(daten?.password) } });
+        return { data: { user: { id } }, error: null };
+      },
       deleteUser: async (id: string) => {
         this.schreibLog.push({ tabelle: 'auth.users', art: 'delete', daten: { id } });
         return { data: null, error: null };

@@ -1,4 +1,5 @@
 import SwiftUI
+import MapKit
 
 /// Apple-Watch-App der TRISAR Fahrer-App. Drei Seiten zum Durchwischen:
 /// Naechste Fahrt (mit Annehmen/Ablehnen), alle Fahrten, Dienst und Ortung.
@@ -264,6 +265,24 @@ struct DienstSeite: View {
                                 ZeitWert(titel: "Start", wert: dienst.start)
                                 ZeitWert(titel: "Ende", wert: dienst.ende)
                             }
+                            // Treffpunkt beim Dienststart, darunter die Notiz gekuerzt.
+                            if let ort = dienst.treffpunkt {
+                                // Antippen oeffnet Karten auf der Uhr mit dem Treffpunkt (wie Navigation in der App).
+                                Button { treffpunktOeffnen(dienst) } label: {
+                                    Label(ort, systemImage: "mappin.and.ellipse")
+                                        .font(.grotesk(13, .bold))
+                                        .foregroundStyle(.white)
+                                        .lineLimit(2)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            if let notiz = dienst.treffpunktNotiz {
+                                Text(notiz)
+                                    .font(.grotesk(11, .medium))
+                                    .foregroundStyle(UhrFarbe.grau)
+                                    .lineLimit(3)
+                            }
                             if dienst.offen {
                                 LimeKnopf(text: "Annehmen", arbeitet: verbindung.arbeitetID == dienst.id) {
                                     verbindung.dienstAntworten(dienst, annehmen: true)
@@ -299,4 +318,12 @@ struct ZeitWert: View {
                 .foregroundStyle(wert == nil ? UhrFarbe.grau : .white)
         }
     }
+}
+
+/// Treffpunkt beim Dienststart in Karten auf der Uhr oeffnen (Koordinaten aus dem iPhone-Stand).
+@MainActor func treffpunktOeffnen(_ d: UhrDienst) {
+    guard let lat = d.treffpunktLat, let lng = d.treffpunktLng else { return }
+    let ziel = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng)))
+    ziel.name = d.treffpunkt
+    ziel.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
 }

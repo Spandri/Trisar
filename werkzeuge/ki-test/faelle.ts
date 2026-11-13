@@ -40,6 +40,7 @@ export const faelle = (): Fall[] => {
   const morgen = tagBerlin(1);
   const uebermorgen = tagBerlin(2);
   const freitag = naechsterWochentag(5);
+  const samstag = naechsterWochentag(6);
   const ein = (name: string, gruppe: string, frage: string, erwartet: Erwartung, markiert?: string[]): Fall =>
     ({ name, gruppe, schritte: [{ frage, erwartet, markiert }] });
 
@@ -317,6 +318,190 @@ export const faelle = (): Fall[] => {
     ein('Konflikt: kann X übernehmen', 'Neu', 'Kann Marvin die Fahrt um 18 Uhr übernehmen?', { art: 'antwort', enthaelt: ['ja', 'Marvin'] }),
     ein('Fahrervorschlag', 'Neu', 'Wer kann die offene Fahrt um 18 Uhr übernehmen?', { art: 'antwort', enthaelt: ['Marvin', 'Anna', 'Tim'] }),
 
+    // --- Absicht: Fahrt gegen Dienst, Dienst loeschen, mehrere Tage, alle Fahrer, Namenslisten (ki_protokoll 12.11.) ---
+    ein('Neue Fahrt mit Start/Ende-Woertern ist kein Dienst', 'Absicht',
+      'Neue Fahrt Stefano am Samstag um 11:58 Start in Offenburg am Bahnhof, Ende in München Möhlstr 31',
+      { art: ['fahrt_buchen', 'booking_needs_clarification'], nicht: ['Dienst'], vorschlag: { datum: samstag, startZeit: '11:58' } }),
+    ein('Fahrt mit Start am Ort und Ziel', 'Absicht', 'Fahrt für Tim morgen um 9 Uhr, Start am Hauptbahnhof München, Ziel Flughafen München',
+      { art: ['fahrt_buchen', 'booking_needs_clarification'], nicht: ['Dienst'] }),
+    ein('Schick Fahrer eine Fahrt vom Hotel zur Arena mit Gast', 'Absicht',
+      'Schicke Stefano Spandri eine Fahrt für morgen 10:30 Uhr vom Hotel Bayerischer Hof zur Allianz Arena mit dem Gast Uli Hoeneß',
+      { art: ['fahrt_buchen', 'booking_needs_clarification'], nicht: ['kann keine'], vorschlag: { datum: morgen, startZeit: '10:30' } }),
+    ein('Schick Fahrer eine Fahrt fuer jetzt', 'Absicht', 'Schick Stefano Spandri eine Fahrt von Kreillerstraße 210 zur Erner Straße 5 für jetzt',
+      { art: ['fahrt_buchen', 'booking_needs_clarification'], nicht: ['kann keine'] }),
+    ein('Ausdruecklich Dienststart bleibt Start', 'Absicht', 'Neuer Dienststart für heute 22:00 für Stefano',
+      { art: 'dienst_vorschlag', vorschlag: { start: '22:00', ende: null }, nicht: ['als Dienstende', 'Pause'] }),
+    ein('Start mit Uhrzeit ist Dienst', 'Absicht', 'Start morgen um 7 für Tim',
+      { art: 'dienst_vorschlag', vorschlag: { start: '07:00', datum: morgen } }),
+    ein('Tippfehler dienstart', 'Absicht', 'Schick Marvin dienstart für 9:00 Uhr morgen',
+      { art: 'dienst_vorschlag', vorschlag: { start: '09:00', datum: morgen, fahrer: 'Marvin' } }),
+    ein('Alle Fahrer Dienstbeginn', 'Absicht', 'Für alle Fahrer Dienstbeginn um 10:45 morgen am Flughafen Salzburg',
+      { art: 'dienst_vorschlag', vorschlag: { start: '10:45', datum: morgen, fahrer: 'Tim' }, enthaelt: ['alle 4 Fahrer'] }),
+    { name: 'Zwei Tage in einer Nachricht, dann ja', gruppe: 'Absicht', schritte: [
+      { frage: 'Neuer Dienststart für heute 22:00 und morgen 7:30 für Tim',
+        erwartet: { art: 'antwort', enthaelt: ['2 Dienste', '22:00', '07:30', 'ja'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['heute: gesendet', 'morgen: gesendet'] } },
+    ] },
+    { name: 'Dienstende loeschen, dann ja', gruppe: 'Absicht', schritte: [
+      { frage: 'Lösch das Dienstende für morgen bei Anna', erwartet: { art: 'antwort', enthaelt: ['Anna Berger', '07:00–15:00', 'Dienstende entfernen'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Dienstende entfernt', 'erledigt'] } },
+      { frage: 'Hat Anna morgen Dienst?', erwartet: { art: 'antwort', enthaelt: ['07:00'], nicht: ['15:00'] } },
+    ] },
+    { name: 'Dienst absagen, dann nein', gruppe: 'Absicht', schritte: [
+      { frage: 'Dienst von Anna morgen absagen', erwartet: { art: 'antwort', enthaelt: ['ganzen Dienst löschen'] } },
+      { frage: 'nein', erwartet: { art: 'antwort', enthaelt: ['nichts geändert'] } },
+    ] },
+    { name: 'Dienststart von gestern loeschen (Tippfehler dienstart)', gruppe: 'Absicht', schritte: [
+      { frage: 'Lösche dienstart von Stefano von gestern', erwartet: { art: 'antwort', enthaelt: ['gestern', '22:00–23:30', 'Dienststart entfernen'], nicht: ['heute'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Dienststart entfernt', 'gestern'] } },
+    ] },
+    ein('Dienst letzten Freitag abfragen', 'Absicht', 'Hatte Stefano gestern Dienst?', { art: 'antwort', enthaelt: ['22:00'] }),
+    ein('Pause loeschen', 'Absicht', 'Pause von Anna morgen löschen', { art: 'antwort', enthaelt: ['Pausen entfernen'] }),
+    ein('Feierabend loeschen ohne Ende, nie Fahrer loeschen', 'Absicht', 'Lösche Stefanos Feierabend heute',
+      { art: 'antwort', enthaelt: ['kein Dienstende'], nicht: ['endgültig'] }),
+    { name: 'Namensliste ohne Auftrag, dann ja', gruppe: 'Absicht', schritte: [
+      { frage: 'Marvin Bendrix  Gregor Müller  Konrad Skurej', erwartet: { art: 'antwort', enthaelt: ['als neue Fahrer anlegen'] } },
+      { karten: true, frage: 'ja', erwartet: { art: 'antwort', karten: ['fahrer_proposal', 'fahrer_proposal', 'fahrer_proposal'] } },
+    ] },
+    ein('Fahrt mit allen Fahrern', 'Absicht', 'Erstelle eine Fahrt mit allen Fahrern morgen um 11:30 vom Flughafen Salzburg zum Herbert von Karajan Platz in Salzburg',
+      { art: 'fahrt_buchen', enthaelt: ['alle 4 Fahrer'], vorschlag: { fahrerNamen: 'Anna Berger' } }),
+    // Ein Fahrzeug je Fahrer (Stefano, Tim, Anna haben eins, Marvin nicht).
+    { name: 'Allen Fahrern ein Fahrzeug, Karten', gruppe: 'Absicht', schritte: [
+      { karten: true, frage: 'Erstelle allen Fahrern ein Fahrzeug. Alles Mercedes V Klasse',
+        erwartet: { art: 'antwort', karten: ['fahrzeug_proposal'], enthaelt: ['Marvin Keller', 'schon ein Fahrzeug'] } },
+    ] },
+    { name: 'Allen Fahrern auch mit Fahrzeug', gruppe: 'Absicht', schritte: [
+      { karten: true, frage: 'Erstelle allen Fahrern ein Fahrzeug Mercedes V-Klasse, auch die mit Fahrzeug',
+        erwartet: { art: 'antwort', karten: ['fahrzeug_proposal', 'fahrzeug_proposal', 'fahrzeug_proposal', 'fahrzeug_proposal'], enthaelt: ['4 Fahrzeuge'] } },
+    ] },
+    { name: 'Fahrzeug fuer einen Fahrer ohne Karten, dann ja', gruppe: 'Absicht', schritte: [
+      { frage: 'Neues Fahrzeug BMW X5 für Marvin, Kennzeichen M-TR 150', erwartet: { art: 'antwort', enthaelt: ['BMW X5', 'Fahrer: Marvin Keller', 'M-TR 150'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Angelegt', 'für Marvin Keller'] } },
+      { frage: 'Welches Auto fährt Marvin?', erwartet: { art: 'antwort', enthaelt: ['M-TR 150'] } },
+    ] },
+    ein('Jedem Fahrer ohne Modell fragt nach', 'Absicht', 'Kannst du für jeden Fahrer ein Fahrzeug erstellen',
+      { art: 'antwort', enthaelt: ['Marke und welches Modell'] }),
+    // Dienststart/Dienstende-Grenzfaelle (werkzeuge/ki-test/dienst-grenzfaelle.ts).
+    ein('Dienststart und Dienstende mit nackten Zahlen', 'Absicht', 'Dienststart 7 und Dienstende 16 für Tim morgen',
+      { art: 'dienst_vorschlag', vorschlag: { start: '07:00', ende: '16:00' } }),
+    ein('Ende vor Start genannt', 'Absicht', 'Tim morgen Ende 16 Start 7', { art: 'dienst_vorschlag', vorschlag: { start: '07:00', ende: '16:00' } }),
+    ein('Name und Uhrzeit ist Dienststart', 'Absicht', 'Tim kommt morgen um 7', { art: 'dienst_vorschlag', vorschlag: { start: '07:00', ende: null } }),
+    ein('bis Uhrzeit ist Dienstende', 'Absicht', 'Tim morgen bis 16 Uhr', { art: 'dienst_vorschlag', vorschlag: { start: null, ende: '16:00' } }),
+    ein('Uhrzeit mitten im Dienst fragt nach', 'Absicht', 'Anna morgen 12 Uhr', { art: ['antwort', 'rueckfrage'], enthaelt: ['mitten im Dienst'] }),
+    ein('Ende in Ort ist kein Dienst', 'Absicht', 'Ende in München für Tim morgen 9 Uhr', { art: ['fahrt_buchen', 'booking_needs_clarification', 'rueckfrage', 'antwort'], nicht: ['Dienststart'] }),
+    // Fehlgriffe aus werkzeuge/ki-test/abdeckung.ts (13.11.)
+    ein('Nachricht mit Uhrzeit ist kein Dienst', 'Fehlgriff', 'Schreib allen Fahrern: Morgen Treffpunkt 7 Uhr Halle B', { art: ['antwort', 'rueckfrage'], nicht: ['Dienststart'] }),
+    ein('Kunde BMW ist kein Fahrzeug', 'Fehlgriff', 'Leg den Kunden BMW Group an', { art: 'antwort', enthaelt: ['Kunden'], nicht: ['Fahrzeug, prüfe'] }),
+    ein('Gast anlegen fragt nach', 'Fehlgriff', 'Leg den Gast Uli Hoeneß an, Telefon 0170 1234567', { art: 'antwort', enthaelt: ['Neuer Gast'] }),
+    ein('Telefon eines Gastes', 'Fehlgriff', 'Welche Telefonnummer hat Julia Weber?', { art: 'antwort', enthaelt: ['+49 170 333'] }),
+    ein('Firma eines Gastes', 'Fehlgriff', 'Bei welcher Firma ist Julia Weber?', { art: 'antwort', enthaelt: ['BMW Group'] }),
+    ein('Telefon eines Fahrers bleibt Fahrer', 'Fehlgriff', 'Welche Telefonnummer hat Tim?', { art: 'antwort', enthaelt: ['+49 151 2'] }),
+    ein('Standbys anzeigen', 'Fehlgriff', 'Welche Standbys gibt es morgen?', { art: 'antwort', enthaelt: ['Kongress', '10:00–18:00', 'Tim Schedler'] }),
+    { name: 'Standby fuer einen Fahrer loeschen, dann ja', gruppe: 'Fehlgriff', schritte: [
+      { frage: 'Lösch den Standby von Tim morgen', erwartet: { art: 'antwort', enthaelt: ['Tim Schedler aus dem Standby', 'anderen bleiben'], nicht: ['Es fehlt'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['aus dem Standby raus'] } },
+      { frage: 'Welche Standbys gibt es morgen?', erwartet: { art: 'antwort', enthaelt: ['Marvin Keller'], nicht: ['Tim Schedler'] } },
+    ] },
+    { name: 'Standby verschieben, dann ja', gruppe: 'Fehlgriff', schritte: [
+      { frage: 'Verschieb den Standby von Tim morgen auf 12 bis 20 Uhr', erwartet: { art: 'antwort', enthaelt: ['12:00–20:00', 'ändern'], nicht: ['Es fehlt'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['jetzt 12:00–20:00'] } },
+    ] },
+    { name: 'Dienste fuer ganze Woche, dann ja', gruppe: 'Fehlgriff', schritte: [
+      { frage: 'Plan die Dienste für nächste Woche, jeden Tag 7 bis 15 für Tim', erwartet: { art: 'antwort', enthaelt: ['7 Dienste', 'Tim Schedler', '07:00', '15:00', 'ja'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['gesendet'], nicht: ['nicht gesendet'] } },
+      { frage: 'Lösch alle Dienste von Tim nächste Woche', erwartet: { art: 'antwort', enthaelt: ['ganzen Dienst löschen'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Dienst gelöscht', 'erledigt'] } },
+    ] },
+    ein('Dienste werktags', 'Fehlgriff', 'Tim nächste Woche werktags 8 bis 16', { art: 'antwort', enthaelt: ['5 Dienste'] }),
+    ein('Notiz an Fahrt ist keine Gaeste-Frage', 'Fehlgriff', 'Gib der Fahrt von Herrn Engel die Notiz Kindersitz', { art: ['antwort', 'rueckfrage', 'fahrt_aendern'], nicht: ['keine besonderen Hinweise'] }),
+    ein('Wer hat morgen Dienst', 'Fehlgriff', 'Wer hat morgen Dienst?', { art: 'antwort', enthaelt: ['Anna Berger', '07:00–15:00'], nicht: ['Tim'] }),
+    // --- Steuern: alles, was die Dispo kann (werkzeuge/ki-test/abdeckung.ts) ---
+    { name: 'Fahrt stornieren, dann rueckgaengig', gruppe: 'Steuern', schritte: [
+      { frage: 'Storniere die Fahrt von Herrn Engel', erwartet: { art: 'antwort', enthaelt: ['10:30', 'Horst Engel', 'stornieren?'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Storniert'] } },
+      { frage: 'Mach das rückgängig', erwartet: { art: 'antwort', enthaelt: ['Rückgängig gemacht'] } },
+    ] },
+    { name: 'Fahrt loeschen braucht loeschen', gruppe: 'Steuern', schritte: [
+      { frage: 'Lösche die Fahrt von Julia Weber endgültig', erwartet: { art: 'antwort', enthaelt: ['endgültig löschen', '„löschen“'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['„löschen“'] } },
+      { frage: 'löschen', erwartet: { art: 'antwort', enthaelt: ['Gelöscht'] } },
+    ] },
+    { name: 'Fahrt erledigt', gruppe: 'Steuern', schritte: [
+      { frage: 'Markiere die Fahrt von Herrn Engel als erledigt', erwartet: { art: 'antwort', enthaelt: ['als erledigt markieren'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Erledigt'] } },
+    ] },
+    { name: 'Fahrt kopieren', gruppe: 'Steuern', schritte: [
+      { frage: 'Kopiere die Fahrt von Herrn Engel auf übermorgen', erwartet: { art: 'antwort', enthaelt: ['kopieren', 'ohne Fahrer'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Kopiert'] } },
+    ] },
+    { name: 'Notiz an Fahrt', gruppe: 'Steuern', schritte: [
+      { frage: 'Gib der Fahrt von Herrn Engel die Notiz Kindersitz', erwartet: { art: 'antwort', enthaelt: ['„Kindersitz“'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Notiz gespeichert'] } },
+    ] },
+    ein('Fahrt mehrdeutig fragt nach', 'Steuern', 'Storniere die Fahrt von Stefano', { art: 'antwort', enthaelt: ['Mehrere Fahrten'] }),
+    { name: 'Nachricht an alle', gruppe: 'Steuern', schritte: [
+      { frage: 'Schreib allen Fahrern: Morgen Treffpunkt 7 Uhr Halle B', erwartet: { art: 'antwort', enthaelt: ['alle 4 Fahrer', 'Treffpunkt 7 Uhr Halle B'], nicht: ['Dienststart'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Gesendet'] } },
+    ] },
+    ein('Nachricht an einen', 'Steuern', 'Schick Tim eine Nachricht, dass er sich melden soll', { art: 'antwort', einesVon: ['melde', 'melden'], enthaelt: ['Tim Schedler'] }),
+    { name: 'Telefon Fahrer aendern, dann rueckgaengig', gruppe: 'Steuern', schritte: [
+      { frage: 'Ändere die Telefonnummer von Tim auf 0151 555666', erwartet: { art: 'antwort', enthaelt: ['Tim Schedler', '0151 555666'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Gespeichert'] } },
+      { frage: 'Welche Telefonnummer hat Tim?', erwartet: { art: 'antwort', enthaelt: ['0151 555666'] } },
+      { frage: 'rückgängig', erwartet: { art: 'antwort', enthaelt: ['Rückgängig gemacht'] } },
+      { frage: 'Welche Telefonnummer hat Tim?', erwartet: { art: 'antwort', enthaelt: ['+49 151 2'] } },
+    ] },
+    ein('Fahrernummer', 'Steuern', 'Gib Marvin die Fahrernummer 20', { art: 'antwort', enthaelt: ['Fahrernummer 20'] }),
+    ein('Fahrernummer belegt', 'Steuern', 'Gib Marvin die Fahrernummer 113', { art: 'antwort', enthaelt: ['hat schon Tim'] }),
+    ein('Flagge', 'Steuern', 'Markier Tim mit einer roten Flagge', { art: 'antwort', enthaelt: ['Flagge 2 (Pink)'] }),
+    ein('Passwort', 'Steuern', 'Setz das Passwort von Tim zurück', { art: 'antwort', enthaelt: ['neues Passwort erzeugen', 'abgemeldet'] }),
+    ein('Passwort alle verweigert', 'Steuern', 'Setz das Passwort von allen Fahrern zurück', { art: 'antwort', enthaelt: ['nur einzeln'] }),
+    ein('Kennzeichen aendern', 'Steuern', 'Ändere das Kennzeichen von M-TR 101 auf M-TR 111', { art: 'antwort', enthaelt: ['M-TR 111', 'BMW 7er'] }),
+    ein('Reichweite', 'Steuern', 'Wie viel Reichweite hat M-TR 102 noch?', { art: 'antwort', enthaelt: ['312 km', '54 %'] }),
+    ein('Tracker-Stufe', 'Steuern', 'Stell alle Tracker auf fein', { art: 'antwort', enthaelt: ['Stufe fein', 'Datenvolumen'] }),
+    { name: 'Gast anlegen', gruppe: 'Steuern', schritte: [
+      { frage: 'Leg den Gast Uli Hoeneß an, Telefon 0170 1234567', erwartet: { art: 'antwort', enthaelt: ['Uli Hoeneß', '0170 1234567'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Gast angelegt'] } },
+      { frage: 'Welche Telefonnummer hat Uli Hoeneß?', erwartet: { art: 'antwort', enthaelt: ['0170 1234567'] } },
+    ] },
+    ein('Gast Telefon aendern', 'Steuern', 'Ändere die Telefonnummer von Julia Weber auf 0171 999888', { art: 'antwort', enthaelt: ['Julia Weber', '0171 999888'] }),
+    ein('Stundenzettel bestaetigen', 'Steuern', 'Bestätige den Stundenzettel von Marvin', { art: 'antwort', enthaelt: ['Marvin Keller', '6:30 h', 'bestätige'] }),
+    ein('Stunden-Export zeigt Weg', 'Steuern', 'Exportiere die Stunden vom Oktober', { art: 'antwort', enthaelt: ['Export'] }),
+    ein('Wie viele Fahrer', 'Steuern', 'Wie viele Fahrer brauche ich heute?', { art: 'antwort', enthaelt: ['gleichzeitig'] }),
+    ein('Hilfe', 'Steuern', 'Was kannst du alles?', { art: 'antwort', enthaelt: ['stornieren', 'rückgängig'] }),
+    ein('Rueckgaengig ohne Aenderung', 'Steuern', 'Mach das rückgängig', { art: 'antwort', enthaelt: ['nichts geändert'] }),
+    ein('Verspaetete Fahrten', 'Steuern', 'Welche Fahrten sind heute verspätet?', { art: 'antwort', einesVon: ['Verspätet', 'keine Fahrt verspätet'] }),
+    ein('Freie Fahrzeuge', 'Steuern', 'Welches Fahrzeug ist gerade frei?', { art: 'antwort', einesVon: ['Keinem Fahrer zugeordnet', 'Alle Fahrzeuge sind'] }),
+    ein('Fahrten eines Kunden', 'Steuern', 'Welche Fahrten hatte der Kunde BMW diesen Monat?', { art: 'antwort', enthaelt: ['Julia Weber'] }),
+    ein('Nachricht mit dass', 'Steuern', 'Schick Tim eine Nachricht, dass er pünktlich sein soll', { art: 'antwort', enthaelt: ['Tim Schedler', 'pünktlich'] }),
+    ein('Nachricht an mit Doppelpunkt', 'Steuern', 'Schicke eine Nachricht an Stefano: beeil dich bitte', { art: 'antwort', enthaelt: ['Stefano Spandri', 'beeil dich bitte'] }),
+    { name: 'Nachricht ohne Empfaenger, dann Name', gruppe: 'Steuern', schritte: [
+      { frage: 'Schreib eine Nachricht: Treffpunkt Halle B', erwartet: { art: 'antwort', enthaelt: ['An wen', 'Treffpunkt Halle B'] } },
+      { frage: 'Stefano', erwartet: { art: 'antwort', enthaelt: ['Push an Stefano Spandri', 'Treffpunkt Halle B'] } },
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Gesendet'] } },
+    ] },
+    { name: 'Nachricht ohne Text, dann Text', gruppe: 'Steuern', schritte: [
+      { frage: 'Schick Tim eine Nachricht', erwartet: { art: ['antwort', 'rueckfrage'], enthaelt: ['Was soll', 'Tim Schedler'] } },
+      { frage: 'Bitte zum Terminal 2 kommen', erwartet: { art: 'antwort', enthaelt: ['Push an Tim Schedler', 'Terminal 2'] } },
+    ] },
+    ein('Namensliste bekannter Fahrer', 'Absicht', 'Tim Schedler Anna Berger', { art: 'antwort', enthaelt: ['schon Fahrer'] }),
+    // --- Frei formuliert: Felder liest das Modell (verstehen.ts befehlAusFeldern), nur mit --verstehen sinnvoll ---
+    ein('Frei: halb 8 morgen', 'Frei', 'tim soll morgen um halb acht anfangen', { art: 'dienst_vorschlag', vorschlag: { start: '07:30', datum: morgen, fahrer: 'Tim' } }),
+    ein('Frei: viertel nach sechs', 'Frei', 'Marvin übermorgen viertel nach sechs bis halb drei', { art: 'dienst_vorschlag', vorschlag: { start: '06:15', ende: '14:30', datum: uebermorgen } }),
+    ein('Frei: Feierabend jetzt', 'Frei', 'Tim kann jetzt nach Hause gehen', { art: 'dienst_vorschlag', vorschlag: { start: null } }),
+    ein('Frei: Schicht mit Pause', 'Frei', 'Tim morgen Schicht 7 bis 16, Mittagspause 12 bis halb eins', { art: 'dienst_vorschlag', vorschlag: { start: '07:00', ende: '16:00', pausen: '12:00-12:30' } }),
+    ein('Frei: Wochentag', 'Frei', 'Anna arbeitet nächsten Montag von 9 bis 17', { art: 'dienst_vorschlag', vorschlag: { start: '09:00', ende: '17:00', fahrer: 'Anna' } }),
+    { name: 'Frei: Dienst von gestern weg', gruppe: 'Frei', schritte: [
+      { frage: 'stefanos schicht gestern war doch nicht, bitte raus damit', erwartet: { art: 'antwort', enthaelt: ['gestern', 'Dienst löschen'] } },
+    ] },
+    ein('Frei: nur Dienstende weg', 'Frei', 'bei Anna morgen das Ende rausnehmen, die bleibt offen', { art: 'antwort', enthaelt: ['Anna Berger', 'Dienstende entfernen'] }),
+    ein('Frei: Pause weg', 'Frei', 'Anna braucht morgen keine Pause', { art: 'antwort', enthaelt: ['Pausen entfernen'] }),
+    ein('Frei: Standby anzeigen', 'Frei', 'wer steht morgen alles auf standby?', { art: 'antwort', enthaelt: ['Kongress'] }),
+    ein('Frei: Standby verschieben', 'Frei', 'den standby morgen bitte erst ab 12 und dafür bis 20', { art: 'antwort', enthaelt: ['12:00–20:00'] }),
+    ein('Frei: Fahrt absagen', 'Frei', 'Herr Engel hat abgesagt, die Fahrt um halb elf fällt weg', { art: 'antwort', enthaelt: ['Horst Engel', 'stornieren?'] }),
+    ein('Frei: Fahrt erledigt', 'Frei', 'Engel ist abgeliefert, kannst die Fahrt abhaken', { art: 'antwort', enthaelt: ['als erledigt markieren'] }),
+    ein('Frei: Fahrt kopieren', 'Frei', 'die Fahrt von Frau Weber brauch ich nächsten Montag nochmal genauso', { art: 'antwort', enthaelt: ['kopieren', 'Julia Weber'] }),
+    ein('Frei: Notiz', 'Frei', 'bei der Engel-Fahrt bitte vermerken: Gast hat zwei Koffer', { art: 'antwort', enthaelt: ['zwei Koffer'] }),
     // --- Gespräche über mehrere Schritte ---
     { name: 'Liste, dann zweite verschieben', gruppe: 'Gespräch', schritte: [
       { frage: 'Welche Fahrten hat Stefano heute?', erwartet: { art: 'antwort', enthaelt: ['10:30'] } },

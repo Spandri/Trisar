@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -136,6 +138,8 @@ private fun FormularInhalt(
     val zeilenHoehe = 56f
 
     var werte by remember { mutableStateOf(vorlage?.werte ?: geladen?.werte ?: FahrtFormularWerte()) }
+    // Start Zeitraum (13.11.): Tipp auf "Start Zeit" macht daraus von - bis.
+    var zeitraum by remember { mutableStateOf(werte.startZeitBis.isNotEmpty()) }
     var notiz by remember { mutableStateOf(vorlage?.notiz ?: geladen?.notiz ?: "") }
     // Ohne Vorlage: auf der Karte markierte Fahrer sind schon eingetragen (fahrerMarkierung im Web).
     var fahrerNamen by remember {
@@ -564,11 +568,39 @@ private fun FormularInhalt(
                     }
                 }
                 // Startzeit
-                FormularZeile(t("fahrt.startZeit"), werte.startZeit, Modifier.platz(20f, 274f, 362f, 56f), zuruecksetzen = { werte = werte.copy(startZeit = "") }) {
-                    ZeilenWert(FahrtText.uhrzeit(werte.startZeit, "")) {
+                FormularZeile(
+                    t(if (zeitraum) "fahrt.startZeitraum" else "fahrt.startZeit"), werte.startZeit + werte.startZeitBis,
+                    Modifier.platz(20f, 274f, 362f, 56f),
+                    zuruecksetzen = { werte = werte.copy(startZeit = "", startZeitBis = "") },
+                    beschriftungAktion = {
+                        // Umschalten: aus dem Zeitraum wird wieder eine Zeit (Ende faellt weg).
+                        fokusManager.clearFocus()
+                        if (zeitraum) werte = werte.copy(startZeitBis = "")
+                        zeitraum = !zeitraum
+                    },
+                ) {
+                    val startWaehlen = {
                         fokusManager.clearFocus()
                         if (FahrtText.uhrzeit(werte.startZeit, "").isEmpty()) werte = werte.copy(startZeit = FahrtText.jetztUhr())
                         zeitWaehlen(ctx, FahrtText.minuten(werte.startZeit)) { werte = werte.copy(startZeit = it) }
+                    }
+                    if (zeitraum) {
+                        // timeRange: zwei Zeiten von - bis im selben Feld.
+                        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Feste Breite je Zeit, Strich direkt dazwischen (wie Web), Rest bleibt frei.
+                            Box(Modifier.width(52.dp).fillMaxHeight()) { ZeilenWert(FahrtText.uhrzeit(werte.startZeit, ""), startWaehlen) }
+                            Text("–", style = css(16f, farbe = LIME.copy(alpha = 0.5f)))
+                            Box(Modifier.width(52.dp).fillMaxHeight()) {
+                                ZeilenWert(FahrtText.uhrzeit(werte.startZeitBis, "")) {
+                                    fokusManager.clearFocus()
+                                    // Ende bleibt leer, bis es gewaehlt wird. Der Waehler startet beim Start.
+                                    zeitWaehlen(ctx, FahrtText.minuten(werte.startZeitBis) ?: FahrtText.minuten(werte.startZeit)) { werte = werte.copy(startZeitBis = it) }
+                                }
+                            }
+                            Spacer(Modifier.weight(1f))
+                        }
+                    } else {
+                        ZeilenWert(FahrtText.uhrzeit(werte.startZeit, ""), startWaehlen)
                     }
                 }
                 // Start

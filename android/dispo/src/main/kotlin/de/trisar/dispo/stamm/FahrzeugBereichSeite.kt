@@ -423,14 +423,17 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
     var fahrerListe by remember { mutableStateOf(emptyList<FzFahrerWahl>()) }
     var fahrerStand by remember { mutableStateOf(0) }
     var fahrerOffen by remember { mutableStateOf(false) }
+    // Beim Neuanlegen: gewaehlter Fahrer, wird nach dem Speichern gesetzt (wie Fahrzeug beim Fahrer).
+    var neuFahrer by remember { mutableStateOf("") }
     androidx.compose.runtime.LaunchedEffect(fahrzeug?.id, fahrerStand) {
-        if (fahrzeug?.id.isNullOrEmpty()) return@LaunchedEffect
         fahrerListe = runCatching { fzFahrerLaden() }.getOrElse { fahrerListe }
     }
     val zugewiesen = fahrerListe.firstOrNull { it.vehicleId == fahrzeug?.id }
+    val fahrerAnzeige = if (bearbeiten) zugewiesen else fahrerListe.firstOrNull { it.id == neuFahrer }
     fun fahrerZuweisen(neuID: String) {
-        val vid = fahrzeug?.id ?: return
         fahrerOffen = false
+        val vid = fahrzeug?.id
+        if (vid.isNullOrEmpty()) { neuFahrer = neuID; return }
         scope.launch {
             rueckmeldung = try {
                 fzFahrerZuweisen(vid, neuID)
@@ -453,7 +456,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
     fun bildWaehlen() = bildWahl.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
 
     fun leeren() {
-        markeModell = ""; variante = ""; vin = ""; kennzeichen = ""; farbe = ""; sitze = ""; kraftstoff = ""; bildURL = ""
+        markeModell = ""; variante = ""; vin = ""; kennzeichen = ""; farbe = ""; sitze = ""; kraftstoff = ""; bildURL = ""; neuFahrer = ""
     }
 
     /** saveVehicle: Pflicht ist Marke & Modell, Sitze nur als ganze Zahl, leere Felder als null. */
@@ -481,9 +484,16 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
         val id = if (bearbeiten) fahrzeug?.id else null
         scope.launch {
             try {
-                FahrzeugeDienst.speichern(inhalt, id)
+                val gespeichert = FahrzeugeDienst.speichern(inhalt, id)
                 if (id != null && trackerWahl != trackerStart) FahrzeugeDienst.trackerZuordnen(id, trackerWahl)
                 rueckmeldung = if (id != null) "Fahrzeug erfolgreich aktualisiert." else "Fahrzeug erfolgreich erstellt."
+                val neuID = gespeichert?.text("id").orEmpty()
+                if (id == null && neuFahrer.isNotEmpty() && neuID.isNotEmpty()) {
+                    try { fzFahrerZuweisen(neuID, neuFahrer) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+                        rueckmeldung = "Fahrzeug erfolgreich erstellt. Fahrer nicht gespeichert: ${dbMeldung(e)}"
+                    }
+                    fahrerStand++
+                }
                 if (id != null) {
                     delay(200)
                     zurListe()
@@ -502,8 +512,8 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
 
     var schadenHoehe by remember { mutableStateOf(0f) }
     val trackerVersatz = if (bearbeiten && tracker.isNotEmpty()) 136f else 0f
-    // Fahrer-Zeile (nur Bearbeiten) unter Bild bzw. Tracker, alles darunter 68 tiefer.
-    val fahrerVersatz = if (bearbeiten) 68f else 0f
+    // Fahrer-Zeile (auch beim Neuanlegen) unter Bild bzw. Tracker, alles darunter 68 tiefer.
+    val fahrerVersatz = 68f
     val fahrerY = 682f + trackerVersatz
     val aktivitaet = NfcTagDienst.activity(ctx)
     DisposableEffect(Unit) { onDispose { aktivitaet?.let { NfcTagDienst.stoppen(it) } } }
@@ -609,11 +619,11 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
                 }
             }
 
-            if (bearbeiten) {
-                val mitKnopf = zugewiesen != null && fahrerOeffnen != null
+            run {
+                val mitKnopf = bearbeiten && zugewiesen != null && fahrerOeffnen != null
                 Box(Modifier.platz(20f, fahrerY, if (mitKnopf) 271f else 362f, 56f).border(2.dp, LIME).tippen { fokus.clearFocus(); fahrerOffen = true },
                     contentAlignment = Alignment.CenterStart) {
-                    Text(zugewiesen?.name ?: "Kein Fahrer", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x8A9728)), maxLines = 1,
+                    Text(fahrerAnzeige?.name ?: "Kein Fahrer", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x8A9728)), maxLines = 1,
                         modifier = Modifier.padding(start = 16.dp, end = 36.dp))
                     Icon("Arrow-kurz_Trisar_Icons_01_Lime", Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(10.dp, 13.dp).rotate(90f))
                     DropdownMenu(fahrerOffen, { fahrerOffen = false }, Modifier.background(hex(0x1E1E1E))) {

@@ -340,6 +340,7 @@ export default {
   "fahrt.saving": "Enregistrement ...",
   "fahrt.start": "Départ",
   "fahrt.startZeit": "Heure de départ",
+  "fahrt.startZeitraum": "Plage de départ",
   "fahrt.statusBeendet": "terminée",
   "fahrt.statusOffen": "ouverte",
   "fahrt.statusStoniert": "annulée",

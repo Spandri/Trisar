@@ -19,7 +19,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "55"
+    CURRENT_PROJECT_VERSION: "57"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
@@ -35,10 +35,16 @@ targets:
       - path: ../ios-fahrer/TrisarFahrer/Schrift
         buildPhase: resources
       - ../ios-fahrer/TrisarFahrer/App/Konfig.swift
+      - ../ios-fahrer/TrisarFahrer/App/StartVideo.swift
+      - path: ../ios-fahrer/TrisarFahrer/App/startvideo.mp4
+        buildPhase: resources
+      - ../ios-fahrer/TrisarFahrer/App/LaunchScreen.storyboard
       - ../ios-fahrer/TrisarFahrer/Dienste/Backend.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Anmeldung.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Push.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Fahrten.swift
+      # Treffpunkt und Notiz beim Dienststart (Fahrten.swift haengt ihn an den Dienst).
+      - ../ios-fahrer/TrisarFahrer/Dienste/DienstTreffpunkt.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Orte.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Chat.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/FahrtDetails.swift
@@ -81,7 +87,8 @@ targets:
       properties:
         NFCReaderUsageDescription: NFC-Tags an den OBD-Trackern beschreiben und auslesen.
         CFBundleDisplayName: TRISAR Dispo
-        UILaunchScreen: {}
+        # Erstes Bild des Startvideos, damit es ohne Schwarz in die Animation geht.
+        UILaunchStoryboardName: LaunchScreen
         UIUserInterfaceStyle: Dark
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

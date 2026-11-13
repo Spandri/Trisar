@@ -13,6 +13,7 @@ import { RideCard, TagTrenner, getRideDriverEntries } from './AnkuenfteView';
 import FahrerDienste, { dienstAbschnittHoehe } from './FahrerDienste';
 import { StundenKarte, hatStundenKarte, useDispoStunden } from './FahrerStundenKarten';
 import { ExportKnopf, alleStundenExportieren } from './StundenExport';
+import { ortIconUrl, useOrte } from '../../shared/orte';
 
 const HINTERGRUND = {
   background: 'radial-gradient(ellipse 141.42% 102.21% at 0% 0%, #0048cf 0%, #00369b 11.415%, #002468 22.83%, #001b4e 28.537%, #001234 34.244%, #00091a 39.952%, #00050d 42.805%, #000000 45.659%, #000000 83.626%, #000000 100%)',
@@ -40,6 +41,46 @@ const GRAU = '#868687';
 const DIENST_STATUS = ['accepted', 'assigned', 'approved'];
 
 // Zeile wie im Verlauf der Fahrer-App: Rahmen und Text in einer Farbe.
+// Dienststart mit Treffpunkt und Notiz (dienst_treffpunkt), wie die Karte in der Fahrer-App
+// (Figma 2908-12498): Lime-Rahmen, Icon-Kachel 44 und Ort, darunter die Notiz grau.
+const DienstStartMitOrt = ({ zeit, tp }) => {
+  const { orte } = useOrte();
+  const eigener = tp?.ort_id ? orte.find((o) => String(o.id) === String(tp.ort_id)) : null;
+  return (
+    <div className="w-full px-4 pt-[14px] pb-[12px] border" style={{ borderColor: LIME }}>
+      <div className="text-2xl font-bold leading-6 tracking-wide font-['Space_Grotesk']" style={{ color: LIME }}>{`Dienststart ${zeit}`}</div>
+      {tp?.name ? (
+        <div className="mt-[8px] -ml-[4px] flex items-center gap-[20px]">
+          <span className="w-[44px] h-[44px] bg-[#242525] rounded-[12px] flex items-center justify-center shrink-0">
+            <img src={ortIconUrl(eigener?.icon || 'pin')} alt="" className="w-[24px] h-[24px] object-contain" />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-white text-[18px] leading-[20px] font-bold tracking-[-0.5px] font-['Space_Grotesk']">{tp.name}</span>
+            {tp.adresse && tp.adresse !== tp.name ? <span className="block truncate text-[13px] font-medium text-white/50">{tp.adresse}</span> : null}
+          </span>
+        </div>
+      ) : null}
+      {tp?.notiz ? (
+        <div className="mt-[10px] text-[15px] leading-[19px] font-bold tracking-[-0.3px] font-['Space_Grotesk'] whitespace-pre-line" style={{ color: GRAU }}>{tp.notiz}</div>
+      ) : null}
+    </div>
+  );
+};
+
+// Treffpunkte der gezeigten Dienste (eine Abfrage fuer alle IDs).
+const useTreffpunkte = (ids) => {
+  const [je, setJe] = useState({});
+  const schluessel = ids.filter(Boolean).sort().join(',');
+  useEffect(() => {
+    let aktiv = true;
+    if (DEMO_MODE || !schluessel) return () => { aktiv = false; };
+    supabase.from('dienst_treffpunkt').select('dienst_id, ort_id, name, adresse, notiz').in('dienst_id', schluessel.split(','))
+      .then(({ data }) => { if (aktiv) setJe(Object.fromEntries((data || []).map((x) => [x.dienst_id, x]))); }, () => {});
+    return () => { aktiv = false; };
+  }, [schluessel]);
+  return je;
+};
+
 const StatusZeile = ({ text, farbe }) => (
   <div className="w-full h-12 px-4 flex items-center border" style={{ borderColor: farbe }}>
     <span className="text-2xl font-bold leading-6 tracking-wide font-['Space_Grotesk']" style={{ color: farbe }}>{text}</span>
@@ -82,6 +123,7 @@ const zuEditDaten = (ride) => {
     sourceView: 'fahrerAnsicht',
     datum: String(ride.date || '').slice(0, 10),
     startZeit: String(ride.startZeit || ride.time?.new || ride.time?.time || ride.time?.original || ''),
+    startZeitBis: String(ride.startZeitBis || ''),
     start: String(ride.start || ''),
     ziel: String(ride.ziel || ''),
     konvoi: ride.konvoi || '',
@@ -129,6 +171,7 @@ export default function FahrerAnsichtView({ driver, rides = [], onBack, onRideSe
     })),
     ...kommende,
   ], [stunden.eintraege, kommende]);
+  const treffpunktJe = useTreffpunkte(dienste.map((d) => d.id));
 
   // Ablauf ab gestern. Aeltere Tage nur, solange dort Stunden noch nicht bestaetigt sind.
   const tage = useMemo(() => {
@@ -200,7 +243,9 @@ export default function FahrerAnsichtView({ driver, rides = [], onBack, onRideSe
     ].sort((a, b) => a.m - b.m);
     return (
       <div key={d.id} className="flex flex-col gap-3">
-        <StatusZeile text={`Dienststart ${d.beginn || '--:--'}`} farbe={LIME} />
+        {treffpunktJe[d.id]
+          ? <DienstStartMitOrt zeit={d.beginn || '--:--'} tp={treffpunktJe[d.id]} />
+          : <StatusZeile text={`Dienststart ${d.beginn || '--:--'}`} farbe={LIME} />}
         {zeilen.map((z) => (z.art === 'fahrt' ? fahrtKarte(z.ride, z.key) : <StatusZeile key={z.key} text={z.text} farbe={GRAU} />))}
         <StatusZeile text={`Dienstende ${d.ende || '--:--'}`} farbe={ROT} />
       </div>

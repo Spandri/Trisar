@@ -16,6 +16,8 @@ struct FahrtZeiten: Equatable {
     var ankunftOriginal = ""
     var ankunftNeu = ""
     var ankunftZeit = ""
+    /// Start Zeitraum (13.11.): Ende des Zeitraums, nur bei Abfahrtszeiten gezeigt ("14:00–14:30").
+    var bis = ""
 }
 
 /// Eine Fahrt fuer die Listen, Felder wie das Mapping in loadRidesFromDb.
@@ -48,8 +50,14 @@ struct DispoFahrt: Identifiable, Equatable {
     var jobStatus: String
     /// Alle Fahrer der Fahrt (jobs.driver_id und Kolonne), fuer die Mehrfachauswahl.
     var fahrerIds: [String] = []
+    /// Start Zeitraum: Ende (jobs.etd_bis), leer = feste Startzeit.
+    var startZeitBis = ""
 
     var archiviert: Bool { ["archived", "cancelled"].contains(jobStatus) }
+
+    /// Zu spaet fuer Warnungen (CarPlay, Uhr): mit Start Zeitraum nur, wenn das Ende (etd_bis) vorbei ist
+    /// (verzugMinuten zaehlt dann ab etd_bis). Eine geaenderte Zugzeit allein ist im Zeitraum nicht zu spaet.
+    var zuSpaet: Bool { verspaetet && (startZeitBis.isEmpty || verzugMinuten > 0) }
 }
 
 /// Filter der Fahrtenliste (fahrtenFilter in App.jsx).
@@ -179,6 +187,8 @@ final class DispoFahrtenSpeicher: ObservableObject {
 
     private static let spaltenBasis = "id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins"
     private static let spaltenVarianten = [
+        // Start Zeitraum (13.11.): etd_bis = Ende des Zeitraums.
+        "\(spaltenBasis), ai_booked, flight_number, train_number, etd_bis",
         "\(spaltenBasis), ai_booked, flight_number, train_number",
         "\(spaltenBasis), flight_number, train_number",
         "\(spaltenBasis), ai_booked, train_number",
@@ -204,7 +214,8 @@ final class DispoFahrtenSpeicher: ObservableObject {
                 } catch {
                     letzterFehler = error
                     let text = Self.text(error)
-                    let fehlendeSpalte = Self.passt(text, #"column .*flight_number|could not find the ['"]?flight_number['"]? column"#)
+                    let fehlendeSpalte = Self.passt(text, #"column .*etd_bis|could not find the ['"]?etd_bis['"]? column"#)
+                        || Self.passt(text, #"column .*flight_number|could not find the ['"]?flight_number['"]? column"#)
                         || Self.passt(text, #"column .*ai_booked|could not find the ['"]?ai_booked['"]? column"#)
                         || Self.passt(text, #"column .*train_planned_time|column .*train_predicted_time|could not find the ['"]?train_planned_time['"]? column|could not find the ['"]?train_predicted_time['"]? column"#)
                         || Self.passt(text, #"column .*ext_flight_payload|column .*ext_flight_last_sync_at|could not find the ['"]?ext_flight_payload['"]? column|could not find the ['"]?ext_flight_last_sync_at['"]? column"#)
@@ -438,8 +449,16 @@ final class DispoFahrtenSpeicher: ObservableObject {
             let datum = W.tagWert(W.t(job["ride_date"]), ersatz: heute)
             let geplantMin = W.minuten(!originalEtd.isEmpty ? originalEtd : etd)
             let jetztMin = W.minuten(jetztUhr)
-            let verschieben = datum == heute && offen && geplantMin != nil && jetztMin != nil && jetztMin! > geplantMin!
-            let verzug = verschieben ? max(0, jetztMin! - geplantMin!) : 0
+            // Start Zeitraum (13.11.): verspaetet erst nach dem Ende des Zeitraums (spaetAbMinutes im Web).
+            // Ende vor dem Anfang = naechster Tag (+1440).
+            let etdBis = W.uhr(W.t(job["etd_bis"]))
+            let bisMin = W.minuten(etdBis)
+            let spaetAb: Int? = {
+                guard let b = bisMin, let g = geplantMin else { return geplantMin }
+                return b < g ? b + 1440 : b
+            }()
+            let verschieben = datum == heute && offen && spaetAb != nil && jetztMin != nil && jetztMin! > spaetAb!
+            let verzug = verschieben ? max(0, jetztMin! - spaetAb!) : 0
             let wirksameEtd = verschieben ? jetztUhr : (!etd.isEmpty ? etd : originalEtd)
             let mitVerkehr = W.zahl(job["ext_route_duration_in_traffic_mins"]) ?? 0
             let ohneVerkehr = W.zahl(job["ext_route_duration_mins"]) ?? 0
@@ -463,6 +482,7 @@ final class DispoFahrtenSpeicher: ObservableObject {
             zeiten.ankunftOriginal = ankunftOriginal
             zeiten.ankunftNeu = ankunftNeu
             zeiten.ankunftZeit = ankunftNeu
+            zeiten.bis = etdBis
 
             return DispoFahrt(
                 id: jobID,
@@ -490,7 +510,8 @@ final class DispoFahrtenSpeicher: ObservableObject {
                 datum: datum,
                 bestaetigt: antworten.contains("accepted"),
                 jobStatus: jobStatus,
-                fahrerIds: Array(Set([fahrerID] + zeilen.map(\.fahrer) + zusammen.map(\.id))).filter { !$0.isEmpty }
+                fahrerIds: Array(Set([fahrerID] + zeilen.map(\.fahrer) + zusammen.map(\.id))).filter { !$0.isEmpty },
+                startZeitBis: etdBis
             )
         }
     }
@@ -604,7 +625,7 @@ final class DispoFahrtenSpeicher: ObservableObject {
                                konvoi: fahrt.konvoi, notiz: fahrt.notiz, notizen: fahrt.notizen, kiGebucht: fahrt.kiGebucht,
                                zeiten: fahrt.zeiten, verzugMinuten: fahrt.verzugMinuten, verspaetet: fahrt.verspaetet,
                                ohneFahrerVariante: fahrt.ohneFahrerVariante, datum: fahrt.datum, bestaetigt: fahrt.bestaetigt,
-                               jobStatus: fahrt.jobStatus, fahrerIds: fahrt.fahrerIds)
+                               jobStatus: fahrt.jobStatus, fahrerIds: fahrt.fahrerIds, startZeitBis: fahrt.startZeitBis)
             if let i = fahrten.firstIndex(where: { $0.id == fahrt.id }) { fahrten.insert(lokal, at: i + 1) }
             else { fahrten.insert(lokal, at: 0) }
             spaeterLaden(1200)

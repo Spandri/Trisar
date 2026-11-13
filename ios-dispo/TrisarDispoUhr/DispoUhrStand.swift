@@ -30,7 +30,7 @@ struct DispoUhrFahrer: Codable, Identifiable, Hashable {
     var nachName: String? = nil
     var dienststart: String? = nil
     var dienstende: String? = nil
-    /// Flagge der Dispo (flagge1 Cyan, flagge2 Violett, flagge3 Koenigsblau), nil = keine.
+    /// Flagge der Dispo (flagge1 Cyan, flagge2 Pink, flagge3 Koenigsblau), nil = keine.
     var flagge: String? = nil
 
     /// Kann eine Fahrt uebernehmen: frei oder inaktiv (keine laufende Fahrt).

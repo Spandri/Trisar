@@ -342,6 +342,8 @@ struct FahrtenListeDispo: View {
         let abfahrt = !mitStandort && f.aktuellerStatus != "unterwegs"
         let alt = f.zeiten
         z.status = minutenEtikett(f)
+        // Start Zeitraum nur, wenn die grosse Zeit die Abfahrt ist.
+        z.bis = abfahrt ? alt.bis : ""
         if f.verspaetet {
             z.original = (abfahrt ? W.erste(alt.original, alt.zeit, alt.neu, ziel) : W.erste(alt.ankunftOriginal, alt.original, ziel)) ?? "--:--"
             z.neu = (abfahrt ? W.erste(alt.neu, alt.zeit, alt.original, ziel) : W.erste(alt.ankunftNeu, alt.ankunftZeit, alt.neu, ziel)) ?? "--:--"
@@ -653,12 +655,12 @@ struct DispoFahrtKarte: View {
                 if !zeiten.status.isEmpty {
                     Text(zeiten.status).font(.grotesk(16, .bold)).foregroundStyle(statusFarbe).cssZeile(16, 20)
                 }
-                Text(zeiten.neu).font(.grotesk(16)).foregroundStyle(statusFarbe).cssZeile(16, 20)
+                Text(zeiten.neu + bisText).font(.grotesk(16)).foregroundStyle(statusFarbe).cssZeile(16, 20)
             } else {
                 if !zeiten.status.isEmpty {
                     Text(zeiten.status).font(.grotesk(16, .bold)).foregroundStyle(statusFarbe).cssZeile(16, 20)
                 }
-                Text(zeiten.zeit).font(.grotesk(16)).foregroundStyle(statusFarbe).cssZeile(16, 20)
+                Text(zeiten.zeit + bisText).font(.grotesk(16)).foregroundStyle(statusFarbe).cssZeile(16, 20)
             }
             if let zusatz {
                 Text(zusatz).font(.grotesk(12, .medium)).foregroundStyle(textFarbe).opacity(0.6)
@@ -668,6 +670,9 @@ struct DispoFahrtKarte: View {
         .multilineTextAlignment(.trailing)
         .fixedSize()
     }
+
+    /// Start Zeitraum hinter der Zeit ("14:00–14:30"), leer bei fester Startzeit.
+    private var bisText: String { zeiten.bis.isEmpty ? "" : "–\(zeiten.bis)" }
 
     /// Losfahr- bzw. Ankunftszeit klein unter der grossen Zeit.
     private var zusatz: String? {

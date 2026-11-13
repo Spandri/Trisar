@@ -11,6 +11,9 @@ import { supabase } from '../../services/supabase';
 import ZeitRad from '../ui/ZeitRad';
 import { dienstBestandLaden, pausenText } from '../../shared/dienstBestand';
 import { reihenfolgeFehler } from '../../shared/zeitReihenfolge';
+import OrtVorschlag from '../ui/OrtVorschlag';
+import { orteZurEingabe, ortIconUrl, useOrte } from '../../shared/orte';
+import { treffpunktSchluessel } from '../../shared/dienstTreffpunkt';
 
 const LIME = '#E3F654';
 const GRUEN = '#59BE80';
@@ -225,6 +228,83 @@ function Beschriftung({ text, an }) {
   );
 }
 
+
+// Treffpunkt (Feld mit eigenen Orten und Adressvorschlaegen wie beim Standby) und Notiz an den Fahrer.
+function TreffpunktFelder({ treffpunkt, onTreffpunkt, notiz, onNotiz, onFetchPlaceSuggestions }) {
+  const { orte } = useOrte();
+  const [offen, setOffen] = useState(false);
+  const [vorschlaege, setVorschlaege] = useState([]);
+  const timer = useRef(null);
+  const seq = useRef(0);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const tippen = (text) => {
+    onTreffpunkt({ text, ortId: '' });
+    clearTimeout(timer.current);
+    const q = text.trim();
+    if (!q) { setVorschlaege([]); return; }
+    setOffen(true);
+    const n = seq.current + 1;
+    seq.current = n;
+    timer.current = setTimeout(async () => {
+      const liste = await onFetchPlaceSuggestions(q);
+      if (seq.current === n) setVorschlaege(liste || []);
+    }, 250);
+  };
+  const eigene = treffpunkt.ortId ? [] : orteZurEingabe(orte, treffpunkt.text);
+  const eigenerOrt = treffpunkt.ortId ? orte.find((o) => String(o.id) === String(treffpunkt.ortId)) : null;
+  return (
+    <div className="mt-[12px] relative">
+      <div className="h-[56px] rounded-[12px] flex items-center gap-[10px] pl-[12px] pr-[6px]" style={{ background: KACHEL }}>
+        {eigenerOrt ? <img src={ortIconUrl(eigenerOrt.icon)} alt="" className="w-[24px] h-[24px] object-contain shrink-0" /> : null}
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-medium leading-[14px] text-white/60">Treffpunkt beim Dienststart</div>
+          <input
+            value={treffpunkt.text}
+            onChange={(e) => tippen(e.target.value)}
+            onFocus={() => setOffen(true)}
+            onBlur={() => setTimeout(() => setOffen(false), 150)}
+            placeholder="Ort oder Adresse"
+            data-tutorial="dienst-treffpunkt"
+            className="w-full bg-transparent outline-none text-[15px] font-bold leading-[20px] text-white placeholder:text-white/30"
+          />
+        </div>
+        {treffpunkt.text ? (
+          <button type="button" onClick={() => { onTreffpunkt({ text: '', ortId: '' }); setVorschlaege([]); }} className="w-[36px] h-[36px] text-[20px] text-white/60" aria-label="Treffpunkt entfernen">×</button>
+        ) : null}
+      </div>
+      {offen && (eigene.length > 0 || vorschlaege.length > 0) ? (
+        <div className="absolute left-0 right-0 max-h-[180px] overflow-y-auto rounded-2xl border border-[#4a4f22] bg-[#151607] z-[130]" style={{ top: '60px' }}>
+          {eigene.map((o) => (
+            <OrtVorschlag key={`ort-${o.id}`} ort={o} onWaehlen={(g) => { onTreffpunkt({ text: g.name, ortId: g.id }); setVorschlaege([]); setOffen(false); }} />
+          ))}
+          {vorschlaege.map((v, i) => (
+            <button
+              key={`v-${i}-${v}`}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onTreffpunkt({ text: v, ortId: '' }); setVorschlaege([]); setOffen(false); }}
+              className="w-full px-3 py-3 text-left text-[13px] font-medium border-b last:border-b-0 border-[#2a2d15]"
+              style={{ color: LIME }}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-[6px] rounded-[12px] px-[12px] pt-[8px] pb-[10px]" style={{ background: KACHEL }}>
+        <div className="text-[11px] font-medium leading-[14px] text-white/60">Notiz an Fahrer</div>
+        <textarea
+          value={notiz}
+          onChange={(e) => onNotiz?.(e.target.value)}
+          rows={2}
+          placeholder="z. B. Schild mitnehmen"
+          data-tutorial="dienst-notiz"
+          className="w-full bg-transparent outline-none resize-none text-[15px] font-bold leading-[20px] text-white placeholder:text-white/30"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function DienstePlanenBlatt({
   t,
   anzahl,
@@ -236,6 +316,10 @@ export default function DienstePlanenBlatt({
   pausen, onPausen, // [{ von, bis }] als HH:MM, optional
   fahrerIds = [],   // ausgewaehlte Fahrer, fuer die Punkte im Kalender
   bestand = null, onBestand = () => {}, // vorhandener Dienst (ein Fahrer, ein Tag), vorausgefuellt
+  // Treffpunkt beim Dienststart ({ text, ortId } wie der Standby-Ort) und Notiz an den Fahrer (13.11.).
+  treffpunkt = { text: '', ortId: '' }, onTreffpunkt = null,
+  notiz = '', onNotiz = null,
+  onFetchPlaceSuggestions = async () => [],
   vorlagen,
   fehler,
   speichert,
@@ -267,8 +351,10 @@ export default function DienstePlanenBlatt({
       onBestand(b);
       if (b) {
         onStart(b.start); onEnde(b.ende); onPausen?.(b.pausen);
+        onTreffpunkt?.(b.treffpunkt || { text: '', ortId: '' }); onNotiz?.(b.notiz || '');
       } else if (hatteBestand.current) {
         onStart(''); onEnde(''); onPausen?.([]);
+        onTreffpunkt?.({ text: '', ortId: '' }); onNotiz?.('');
       }
       hatteBestand.current = Boolean(b);
       setFeld(null);
@@ -282,7 +368,9 @@ export default function DienstePlanenBlatt({
   const zStart = feldZustand(bestand, 'start', start);
   const zEnde = feldZustand(bestand, 'ende', ende);
   const zPausen = feldZustand(bestand, 'pausen', liste);
-  const unveraendert = Boolean(bestand) && zStart !== 'neu' && zEnde !== 'neu' && zPausen !== 'neu';
+  const treffpunktNeu = Boolean(onTreffpunkt) && treffpunktSchluessel(treffpunkt, notiz)
+    !== treffpunktSchluessel(bestand?.treffpunkt, bestand?.notiz);
+  const unveraendert = Boolean(bestand) && zStart !== 'neu' && zEnde !== 'neu' && zPausen !== 'neu' && !treffpunktNeu;
   // × bei vorausgefuellten Feldern: zurueck auf den gesendeten Stand. Gesendetes selbst bleibt.
   const startZurueck = bestand?.start ? (zStart === 'neu' ? () => { onStart(bestand.start); setFeld(null); } : null) : () => { onStart(''); setFeld(null); };
   const endeZurueck = bestand?.ende ? (zEnde === 'neu' ? () => { onEnde(bestand.ende); setFeld(null); } : null) : () => { onEnde(''); setFeld(null); };
@@ -433,6 +521,17 @@ export default function DienstePlanenBlatt({
             </div>
           )}
         </div>
+
+        {/* Treffpunkt und Notiz beim Dienststart: nur mit Dienststart (eigener Ort oder Adresse). */}
+        {onTreffpunkt && (start || bestand?.start) ? (
+          <TreffpunktFelder
+            treffpunkt={treffpunkt}
+            onTreffpunkt={onTreffpunkt}
+            notiz={notiz}
+            onNotiz={onNotiz}
+            onFetchPlaceSuggestions={onFetchPlaceSuggestions}
+          />
+        ) : null}
       </div>
 
       {/* Vorlagen */}

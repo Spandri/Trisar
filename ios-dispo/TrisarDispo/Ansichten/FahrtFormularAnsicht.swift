@@ -117,6 +117,9 @@ private struct FahrtFormularInhalt: View {
 
     @State private var datumOffen = false
     @State private var zeitOffen = false
+    /// Start Zeitraum (13.11.): Tipp auf "Start Zeit" macht daraus von - bis.
+    @State private var zeitraum: Bool
+    @State private var bisOffen = false
     @State private var meldung: String?
     @State private var stornoFrage = false
     @State private var tastatur: CGFloat = 0
@@ -138,6 +141,7 @@ private struct FahrtFormularInhalt: View {
         self.zurueck = zurueck
         self.zeigen = zeigen
         _werte = State(initialValue: vorlage?.werte ?? geladen?.werte ?? FahrtFormularWerte())
+        _zeitraum = State(initialValue: !FahrtText.uhrzeit((vorlage?.werte ?? geladen?.werte)?.startZeitBis, "").isEmpty)
         _notiz = State(initialValue: vorlage?.notiz ?? geladen?.notiz ?? "")
         var fahrer = vorlage?.fahrerNamen ?? geladen?.fahrerNamen ?? []
         // Neue Fahrt ohne Vorlage: auf der Karte markierte Fahrer sind schon eingetragen.
@@ -382,20 +386,49 @@ private struct FahrtFormularInhalt: View {
     }
 
     private var zeitZeile: some View {
-        FormularZeile(beschriftung: t("fahrt.startZeit"), wert: werte.startZeit, zuruecksetzen: { werte.startZeit = "" }) {
-            Button {
-                fokus = nil
-                if FahrtText.uhrzeit(werte.startZeit, "").isEmpty { werte.startZeit = FahrtText.jetztUhr() }
-                zeitOffen = true
-            } label: { ZeilenWert(text: FahrtText.uhrzeit(werte.startZeit, "")) }
-            .buttonStyle(.web)
-            .popover(isPresented: $zeitOffen) {
-                DatePicker("", selection: zeitBindung, displayedComponents: .hourAndMinute)
-                    .datePickerStyle(.wheel).labelsHidden()
-                    .environment(\.locale, Locale(identifier: "de_DE"))
-                    .frame(width: 260).padding(8)
-                    .presentationCompactAdaptation(.popover)
+        FormularZeile(beschriftung: t(zeitraum ? "fahrt.startZeitraum" : "fahrt.startZeit"), wert: werte.startZeit,
+                      beschriftungAktion: {
+                          // Umschalten: aus dem Zeitraum wird wieder eine Zeit (Ende faellt weg).
+                          fokus = nil
+                          if zeitraum { werte.startZeitBis = "" }
+                          zeitraum.toggle()
+                      },
+                      zuruecksetzen: { werte.startZeit = ""; werte.startZeitBis = "" }) {
+            if zeitraum {
+                HStack(spacing: 8) {
+                    // Feste Breite je Zeit, Strich direkt dazwischen (wie Web), Rest bleibt frei.
+                    zeitKnopf(werte.startZeit, offen: $zeitOffen, bindung: zeitBindung) {
+                        if FahrtText.uhrzeit(werte.startZeit, "").isEmpty { werte.startZeit = FahrtText.jetztUhr() }
+                    }
+                    .frame(width: 52, alignment: .leading)
+                    Text("–").font(.grotesk(16)).foregroundStyle(formularLime.opacity(0.5))
+                    // Ende bleibt leer, bis es gewaehlt wird (wie Web und Android). Das Rad startet beim Start.
+                    zeitKnopf(werte.startZeitBis, offen: $bisOffen, bindung: bisBindung) {}
+                        .frame(width: 52, alignment: .leading)
+                    Spacer(minLength: 0)
+                }
+            } else {
+                zeitKnopf(werte.startZeit, offen: $zeitOffen, bindung: zeitBindung) {
+                    if FahrtText.uhrzeit(werte.startZeit, "").isEmpty { werte.startZeit = FahrtText.jetztUhr() }
+                }
             }
+        }
+    }
+
+    /// Uhrzeit-Feld in der Zeile: Tipp oeffnet das Rad als Popover.
+    private func zeitKnopf(_ wert: String, offen: Binding<Bool>, bindung: Binding<Date>, vorher: @escaping () -> Void) -> some View {
+        Button {
+            fokus = nil
+            vorher()
+            offen.wrappedValue = true
+        } label: { ZeilenWert(text: FahrtText.uhrzeit(wert, "")) }
+        .buttonStyle(.web)
+        .popover(isPresented: offen) {
+            DatePicker("", selection: bindung, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel).labelsHidden()
+                .environment(\.locale, Locale(identifier: "de_DE"))
+                .frame(width: 260).padding(8)
+                .presentationCompactAdaptation(.popover)
         }
     }
 
@@ -419,6 +452,16 @@ private struct FahrtFormularInhalt: View {
         }, set: { neu in
             let k = Calendar.current.dateComponents([.hour, .minute], from: neu)
             werte.startZeit = String(format: "%02d:%02d", k.hour ?? 0, k.minute ?? 0)
+        })
+    }
+
+    private var bisBindung: Binding<Date> {
+        Binding(get: {
+            guard let m = FahrtText.minuten(werte.startZeitBis) ?? FahrtText.minuten(werte.startZeit) else { return Date() }
+            return Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: Date()) ?? Date()
+        }, set: { neu in
+            let k = Calendar.current.dateComponents([.hour, .minute], from: neu)
+            werte.startZeitBis = String(format: "%02d:%02d", k.hour ?? 0, k.minute ?? 0)
         })
     }
 

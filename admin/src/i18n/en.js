@@ -354,6 +354,7 @@ export default {
   "fahrt.saving": "Saving ...",
   "fahrt.start": "Start",
   "fahrt.startZeit": "Start time",
+  "fahrt.startZeitraum": "Start window",
   "fahrt.statusBeendet": "finished",
   "fahrt.statusOffen": "open",
   "fahrt.statusStoniert": "cancelled",

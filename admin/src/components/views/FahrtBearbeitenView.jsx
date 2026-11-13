@@ -50,6 +50,7 @@ const normalizeGuestRows = (values = []) => {
 const EMPTY_FORM_VALUES = {
   datum: '',
   startZeit: '',
+  startZeitBis: '',
   start: '',
   ziel: '',
   startOrtId: '',
@@ -73,6 +74,7 @@ export function buildInitialFormValues(initialData = {}) {
     ...EMPTY_FORM_VALUES,
     datum: normalizeFieldValue(initialData.datum || initialData.date || initialData.rideDate),
     startZeit: normalizeFieldValue(initialData.startZeit),
+    startZeitBis: normalizeFieldValue(initialData.startZeitBis),
     // Fahrt mit eigenem Ort: im Feld steht der Ortsname, die gespeicherte Adresse bleibt dahinter.
     start: normalizeFieldValue(initialData.startOrtId ? (initialData.startOrtName || initialData.start) : initialData.start),
     ziel: normalizeFieldValue(initialData.zielOrtId ? (initialData.zielOrtName || initialData.ziel) : initialData.ziel),
@@ -134,6 +136,10 @@ function FormRow({
   etaIndicator = null,
   rightAction = null,
   marker,
+  // Start Zeitraum (13.11.): Tipp auf die Beschriftung schaltet um, zweite Zeit im selben Feld.
+  onLabelClick = null,
+  value2 = '',
+  onChange2 = null,
 }) {
   const { t, locale } = useI18n();
   const normalizedValue = String(value || '').trim().toLowerCase();
@@ -150,13 +156,48 @@ function FormRow({
     >
       <div className="relative flex-1 self-stretch p-1 flex justify-start items-center">
         <div className={`flex-1 self-stretch px-3 ${etaIndicator?.text ? 'pr-16' : 'pr-10'} flex justify-start items-center gap-4 min-w-0`}>
-          <div
-            className="shrink-0 opacity-50 text-[16px] font-medium leading-6 tracking-[0.5px]"
-            style={{ color: GREEN, fontFamily: 'Space Grotesk' }}
-          >
-            {label}
-          </div>
-          {mode === 'select' ? (
+          {onLabelClick ? (
+            <button
+              type="button"
+              onClick={onLabelClick}
+              className="shrink-0 opacity-50 text-[16px] font-medium leading-6 tracking-[0.5px] underline decoration-dotted underline-offset-4 bg-transparent border-none p-0"
+              style={{ color: GREEN, fontFamily: 'Space Grotesk' }}
+            >
+              {label}
+            </button>
+          ) : (
+            <div
+              className="shrink-0 opacity-50 text-[16px] font-medium leading-6 tracking-[0.5px]"
+              style={{ color: GREEN, fontFamily: 'Space Grotesk' }}
+            >
+              {label}
+            </div>
+          )}
+          {mode === 'timeRange' ? (
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <input
+                data-tutorial={marker}
+                type="time"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                step="60"
+                className="flex-1 min-w-0 bg-transparent border-none outline-none text-[16px] font-medium leading-6 tracking-[0.5px]"
+                style={{ color: GREEN, fontFamily: 'Space Grotesk' }}
+                lang={locale}
+              />
+              <span className="opacity-50 text-[16px]" style={{ color: GREEN, fontFamily: 'Space Grotesk' }}>–</span>
+              <input
+                data-tutorial={marker ? `${marker}-bis` : undefined}
+                type="time"
+                value={value2}
+                onChange={(e) => onChange2?.(e.target.value)}
+                step="60"
+                className="flex-1 min-w-0 bg-transparent border-none outline-none text-[16px] font-medium leading-6 tracking-[0.5px]"
+                style={{ color: GREEN, fontFamily: 'Space Grotesk' }}
+                lang={locale}
+              />
+            </div>
+          ) : mode === 'select' ? (
             <input
               data-tutorial={marker}
               value={value}
@@ -325,6 +366,8 @@ export default function FahrtBearbeitenView({
   const [fahrerNamen, setFahrerNamen] = useState(() => buildInitialDriverNames(initialData || {}));
   const [fahrgaesteNamen, setFahrgaesteNamen] = useState(() => buildInitialGuestNames(initialData || {}));
   const [formValues, setFormValues] = useState(() => buildInitialFormValues(initialData || {}));
+  // Start Zeitraum (13.11.): Tipp auf "Start Zeit" macht daraus von - bis.
+  const [zeitraum, setZeitraum] = useState(() => Boolean(initialData?.startZeitBis));
   // Risiko je Fahrt (nur an den Tagen, die die Engine gerechnet hat)
   const risikoDaten = useRisikoDaten();
   const [risikoHoehe, setRisikoHoehe] = useState(0);
@@ -372,6 +415,7 @@ export default function FahrtBearbeitenView({
     setFahrerNamen(buildInitialDriverNames(initialData || {}));
     setFahrgaesteNamen(buildInitialGuestNames(initialData || {}));
     setFormValues(buildInitialFormValues(initialData || {}));
+    setZeitraum(Boolean(initialData?.startZeitBis));
     stopps.zuruecksetzen(initialData?.zwischenstopps || []);
     setFlightEtaIndicator({ text: '', colorClass: 'text-[#808080]' });
     setFlightValidationState({ status: 'empty', etaLabel: '', valid: false, startLocation: '' });
@@ -841,11 +885,18 @@ export default function FahrtBearbeitenView({
 
           <FormRow
             top={274}
-            label={t('fahrt.startZeit')}
+            label={zeitraum ? t('fahrt.startZeitraum') : t('fahrt.startZeit')}
+            onLabelClick={() => {
+              // Umschalten: aus dem Zeitraum wird wieder eine Zeit (Ende faellt weg).
+              if (zeitraum) updateField('startZeitBis', '');
+              setZeitraum((an) => !an);
+            }}
             value={formValues.startZeit}
             onChange={(value) => updateField('startZeit', value)}
-            onReset={() => updateField('startZeit', '')}
-            mode="time"
+            value2={formValues.startZeitBis}
+            onChange2={(value) => updateField('startZeitBis', value)}
+            onReset={() => { updateField('startZeit', ''); updateField('startZeitBis', ''); }}
+            mode={zeitraum ? 'timeRange' : 'time'}
             marker="feld-zeit"
           />
 

@@ -505,13 +505,7 @@ struct KiAssistentAnsicht: View {
                 .frame(minHeight: 48)
                 .background(RoundedRectangle(cornerRadius: 20).fill(Color(hex: 0x242425)))
                 .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color(hex: 0x3F3F46), lineWidth: 1))
-                .onChange(of: eingabe) { alt, neu in
-                    // Enter schickt ab wie im Web (keydown Enter ohne Shift).
-                    if neu.hasSuffix("\n") && neu.count == alt.count + 1 {
-                        eingabe = String(neu.dropLast())
-                        senden()
-                    }
-                }
+                // Enter macht eine neue Zeile wie im Web, gesendet wird mit dem Pfeil.
             KiAktionen(bearbeitet: bearbeiteteID != nil, sendenAktiv: hatEingabe && !sendet,
                        abbrechen: { bearbeiteteID = nil; eingabe = "" },
                        senden: senden)
@@ -906,8 +900,9 @@ private struct KiAnlegenKarte: View {
                                 farbe: UIColor.black.withAlphaComponent(0.8))
                             .padding(.trailing, 86)
                     }
-                    WebText(text: art == "fahrer" ? "Neuer Fahrer" : "Neues Fahrzeug", groesse: 16, gewicht: .bold,
-                            zeilenHoehe: 24, farbe: .black)
+                    WebText(text: art == "fahrer" ? "Neuer Fahrer"
+                                : (daten["fahrerName"].isEmpty ? "Neues Fahrzeug" : "Neues Fahrzeug für \(daten["fahrerName"])"),
+                            groesse: 16, gewicht: .bold, zeilenHoehe: 24, farbe: .black)
                     if !daten["fehler"].isEmpty {
                         WebText(text: daten["fehler"], groesse: 11, gewicht: .bold, zeilenHoehe: 16, farbe: UIColor(hex: 0xD23A2E))
                             .padding(.top, -2)
@@ -933,6 +928,22 @@ private struct KiAnlegenKarte: View {
                                               : feld == "sitze" ? .numberPad : .default)
                                 .padding(.horizontal, 8).frame(height: 36)
                                 .overlay(Rectangle().strokeBorder(Color.black.opacity(0.2), lineWidth: 1))
+                        }
+                    }
+                    // Fahrzeug je Fahrer: Zuordnung beim Bestaetigen, hier abwaehlbar.
+                    if art == "fahrzeug" && !daten["fahrerId"].isEmpty {
+                        HStack {
+                            Text("Fahrer: \(daten["fahrerName"])").font(.grotesk(11, .bold)).foregroundStyle(.black.opacity(0.8))
+                            Spacer()
+                            Button {
+                                aendern("fahrerId", "")
+                                aendern("fahrerName", "")
+                            } label: {
+                                Text("Ohne Fahrer").font(.grotesk(11, .bold)).foregroundStyle(.black)
+                                    .padding(.horizontal, 12).frame(height: 32)
+                                    .overlay(Rectangle().strokeBorder(Color.black.opacity(0.3), lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }

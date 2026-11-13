@@ -21,7 +21,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.1"
-    CURRENT_PROJECT_VERSION: "41"
+    CURRENT_PROJECT_VERSION: "44"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     # App-ID, die Widget-Erweiterung haengt .widget an. aufs-iphone.sh setzt sie auf de.trisar.fahrer.dev.
@@ -69,7 +69,8 @@ targets:
       properties:
         NFCReaderUsageDescription: NFC-Tag am Tracker lesen, um dich mit dem Fahrzeug zu verbinden.
         CFBundleDisplayName: TRISAR
-        UILaunchScreen: {}
+        # Erstes Bild des Startvideos, damit es ohne Schwarz in die Animation geht.
+        UILaunchStoryboardName: LaunchScreen
         UIUserInterfaceStyle: Dark
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

@@ -32,6 +32,13 @@ struct DispoKarteAnsicht: View {
     /// Mehrfachauswahl (Kaestchen oben rechts) und ihr Erklaertext beim Einschalten.
     @ObservedObject private var markierung = FahrerMarkierung.geteilt
     @State private var erklaerungSichtbar = false
+    /// Eigener Bereich (13.11.): mit dem Finger frei zeichnen, "Karte" zoomt dann darauf.
+    @ObservedObject private var bereich = KartenBereich.geteilt
+    @State private var kartenZugang = KartenZugang()
+    @State private var bereichZeichnen = false
+    @State private var zugPfad: [CGPoint] = []
+    @State private var zugLaeuft = false
+    @State private var bereichFehler = ""
 
     // Masse im Web-Raster (NAV_BLOCK_OFFSET_PX, SHEET_MAX_TOP_GAP_PX, SHEET_PEEK_PX).
     static let blattUnten: CGFloat = 120
@@ -105,9 +112,12 @@ struct DispoKarteAnsicht: View {
                     rasterHoehe: rasterHoehe, massstab: s, einpassenSignal: einpassen,
                     waehlen: fahrerTippen, leerTippen: auswahlAufheben, abseits: abseitsGemeldet,
                     orte: orte.orte, gewaehlterOrt: gewaehlterOrt, ortWaehlen: { gewaehlterOrt = $0 },
-                    markiert: kartenAuswahl && markierung.aktiv ? Set(markierung.ids) : nil
+                    markiert: kartenAuswahl && markierung.aktiv ? Set(markierung.ids) : nil,
+                    bereich: bereich.punkte, zugang: kartenZugang
                 )
                 .frame(width: geo.size.width, height: geo.size.height)
+
+                if bereichZeichnen { zeichenFlaeche.frame(width: geo.size.width, height: geo.size.height) }
 
                 oberflaeche(rasterHoehe: rasterHoehe, blattMax: blattMax)
                     .frame(width: 402, height: rasterHoehe, alignment: .topLeading)
@@ -138,6 +148,7 @@ struct DispoKarteAnsicht: View {
         .background(Color(hex: 0x0E0E0E).ignoresSafeArea())
         .task { await daten.starten() }
         .task { await orte.beobachten() }
+        .task { await bereich.laden() }
         .onDisappear {
             Task { await daten.beenden() }
             Task { await orte.beenden() }
@@ -199,6 +210,26 @@ struct DispoKarteAnsicht: View {
                 .platz(402 - 80 - 50, 60, 50, 50)
                 .zIndex(31)
 
+            bereichKnopf
+                .platz(402 - 140 - 50, 60, 50, 50)
+                .zIndex(33)
+
+            if bereichZeichnen {
+                bereichLeiste
+                    .platz(20, rasterHoehe - 154 - 56, 362, 56)
+                    .zIndex(33)
+            }
+            if !bereichFehler.isEmpty {
+                WebText(text: bereichFehler, groesse: 12, gewicht: .medium, zeilenHoehe: 12 * 1.35, farbe: UIColor(hex: 0xFF8E8E))
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .frame(width: 362, alignment: .leading)
+                    .background(Color(hex: 0x171717))
+                    .overlay(Rectangle().stroke(Color(hex: 0xFF8E8E), lineWidth: 1))
+                    .onTapGesture { bereichFehler = "" }
+                    .platz(20, 120, 362, nil)
+                    .zIndex(34)
+            }
+
             if erklaerungSichtbar {
                 AuswahlErklaerung { erklaerungSichtbar = false }
                     .platz(0, 0, 402, rasterHoehe)
@@ -217,14 +248,14 @@ struct DispoKarteAnsicht: View {
             if kartenAuswahl {
                 FlaggenKnoepfe(ids: markierung.ids,
                                flaggeVon: { id in daten.fahrer.first { $0.id == id }?.flagge },
-                               wahl: flaggeWaehlen)
-                    .platz(402 - 28 - 35, 134, 35, 111)
+                               wahl: flaggeWaehlen, groesse: 44)
+                    .platz(402 - 24 - 44, 134, 44, 144)
                     .zIndex(31)
             } else if !benutzteFlaggen.isEmpty {
                 // Ausserhalb der Auswahl bleiben die benutzten Flaggen rechts unter der Statusleiste und filtern die Karte.
                 FlaggenKnoepfe(ids: [], flaggeVon: { _ in nil }, wahl: { id in if let id { if flaggenFilter.contains(id) { flaggenFilter.remove(id) } else { flaggenFilter.insert(id) } } },
-                               nur: benutzteFlaggen, aktiv: flaggenFilter, filtern: true)
-                    .platz(402 - 28 - 35, 196, 35, CGFloat(benutzteFlaggen.count) * 38 - 3)
+                               nur: benutzteFlaggen, aktiv: flaggenFilter, filtern: true, groesse: 44)
+                    .platz(402 - 24 - 44, 196, 44, CGFloat(benutzteFlaggen.count) * 50 - 6)
                     .zIndex(31)
             }
             if !flaggenFehler.isEmpty {
@@ -260,6 +291,106 @@ struct DispoKarteAnsicht: View {
 
     /// Mehrfachauswahl (Figma Koordinator_Screen_Map): Lime-Kreis, leeres Kaestchen = aus, mit Haken = an,
     /// unten rechts die Zahl der Markierten.
+    // MARK: Eigener Bereich
+
+    /// Pinsel-Kreis: Lime ohne Bereich, rot beim Zeichnen und solange ein Bereich gespeichert ist.
+    private var bereichKnopf: some View {
+        Button {
+            if bereichZeichnen { bereichSchliessen() } else { bereichZeichnen = true }
+        } label: {
+            ZStack {
+                Circle().fill(Color(hex: bereichZeichnen || bereich.punkte != nil ? 0xFF6F63 : 0xE3F654))
+                Circle().strokeBorder(.black, lineWidth: 2)
+                Image("Bereich_Kreis_Trisar_Icons_01").resizable().frame(width: 34, height: 34)
+            }
+            .frame(width: 50, height: 50)
+        }
+        .buttonStyle(.web)
+        .accessibilityLabel("Bereich zeichnen")
+    }
+
+    private var zugGross: Bool {
+        guard zugPfad.count >= 3 else { return false }
+        let xs = zugPfad.map(\.x), ys = zugPfad.map(\.y)
+        return (xs.max()! - xs.min()!) > 30 && (ys.max()! - ys.min()!) > 30
+    }
+
+    /// Flaeche ueber der Karte: Finger zieht die Linie, beim Loslassen schliesst sie sich.
+    private var zeichenFlaeche: some View {
+        ZStack {
+            Color.black.opacity(0.001)
+            if zugPfad.count >= 2 {
+                let form = Path { p in
+                    p.addLines(zugPfad)
+                    if !zugLaeuft { p.closeSubpath() }
+                }
+                if !zugLaeuft { form.fill(Color(hex: 0xE3F654).opacity(0.10)) }
+                form.stroke(Color(hex: 0xE3F654), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            }
+        }
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                .onChanged { w in
+                    if !zugLaeuft { zugLaeuft = true; zugPfad = [w.location] } else { zugPfad.append(w.location) }
+                }
+                .onEnded { _ in zugLaeuft = false }
+        )
+    }
+
+    /// Unten: rotes X (loescht den Bereich, ohne Bereich nur schliessen) und Lime-Haken (speichern).
+    private var bereichLeiste: some View {
+        HStack(spacing: 0) {
+            Button { if bereich.punkte != nil { bereichLoeschen() } else { bereichSchliessen() } } label: {
+                ZStack {
+                    Circle().fill(Color(hex: 0xFF6F63))
+                    Circle().strokeBorder(.black, lineWidth: 2)
+                    Image("Schliessen_Trisar_Icons_01").resizable().frame(width: 22, height: 22)
+                }
+                .frame(width: 56, height: 56)
+            }
+            .buttonStyle(.web)
+            .accessibilityLabel(bereich.punkte != nil ? "Bereich löschen" : "Abbrechen")
+            Spacer(minLength: 0)
+            Button { if zugGross { bereichSpeichern() } else { bereichSchliessen() } } label: {
+                ZStack {
+                    Circle().fill(Color(hex: 0xE3F654))
+                    Circle().strokeBorder(.black, lineWidth: 2)
+                    Image("Auswahl_Haken").resizable().frame(width: 22, height: 25).padding(.bottom, 3)
+                }
+                .frame(width: 56, height: 56)
+                .opacity(!zugGross && bereich.punkte == nil ? 0.4 : 1)
+            }
+            .buttonStyle(.web)
+            .disabled(!zugGross && bereich.punkte == nil)
+            .accessibilityLabel("Bereich speichern")
+        }
+    }
+
+    private func bereichSchliessen() {
+        bereichZeichnen = false
+        zugPfad = []
+        zugLaeuft = false
+    }
+
+    private func bereichSpeichern() {
+        let k = kartenZugang.koordinaten(KartenBereich.ausduennen(zugPfad))
+        bereichSchliessen()
+        Task {
+            let fehler = await bereich.speichern(k)
+            bereichFehler = fehler.map { "Bereich nicht gespeichert: \($0)" } ?? ""
+            einpassen += 1
+        }
+    }
+
+    private func bereichLoeschen() {
+        bereichSchliessen()
+        Task {
+            let fehler = await bereich.loeschen()
+            bereichFehler = fehler.map { "Bereich nicht gelöscht: \($0)" } ?? ""
+        }
+    }
+
     private var auswahlKnopf: some View {
         Button(action: auswahlUmschalten) {
             ZStack {

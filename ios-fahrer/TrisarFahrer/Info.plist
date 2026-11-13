@@ -60,8 +60,8 @@
 		<string>location</string>
 		<string>remote-notification</string>
 	</array>
-	<key>UILaunchScreen</key>
-	<dict/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

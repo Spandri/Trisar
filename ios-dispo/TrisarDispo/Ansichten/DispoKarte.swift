@@ -27,6 +27,10 @@ struct DispoKarte: UIViewRepresentable {
     var ortWaehlen: (UUID?) -> Void = { _ in }
     /// Mehrfachauswahl an: diese Fahrer normal, alle anderen blass, markierte nie in Gruppen. Nil = aus.
     var markiert: Set<String>? = nil
+    /// Eigener Bereich der Dispo (13.11.): duenne Lime-Linie, "Karte" in der Leiste zoomt darauf.
+    var bereich: [CLLocationCoordinate2D]? = nil
+    /// Zugriff auf die Karte zum Umrechnen der gezeichneten Punkte.
+    var zugang: KartenZugang? = nil
 
     static let stil = URL(string: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json")!
     private static let kameraSchluessel = "admin_karten_camera_v1"
@@ -58,6 +62,7 @@ struct DispoKarte: UIViewRepresentable {
         }
         karte.addGestureRecognizer(tipp)
         context.coordinator.karte = karte
+        zugang?.karte = karte
         return karte
     }
 
@@ -80,6 +85,7 @@ struct DispoKarte: UIViewRepresentable {
         private var letzteAuswahl: String?
         private var letzteMarkierung: Set<String>?
         private var einpassenSignal = 0
+        private var letzterBereich: [CLLocationCoordinate2D]?
 
         // Route: Teile (Anfahrt, Fahrt) je mit noch zu fahrender und schon gefahrener Linie.
         private struct Teil { let art: String; let pfad: [CLLocationCoordinate2D]; var schild: KartenRoutenPunkt? }
@@ -99,6 +105,11 @@ struct DispoKarte: UIViewRepresentable {
 
         func setzen(_ neu: DispoKarte) {
             stand = neu
+            let bereichNeu = neu.bereich.map { $0.map { [$0.latitude, $0.longitude] } }
+            if bereichNeu != letzterBereich.map({ $0.map { [$0.latitude, $0.longitude] } }) {
+                letzterBereich = neu.bereich
+                bereichZeichnen()
+            }
             if neu.einpassenSignal != einpassenSignal {
                 einpassenSignal = neu.einpassenSignal
                 eingepasstFuer = ""
@@ -128,6 +139,7 @@ struct DispoKarte: UIViewRepresentable {
             stilGeladen = true
             routenSchluessel = ""
             routeAbgleichen()
+            bereichZeichnen()
             fortschrittAktualisieren()
             kreiseZeichnen()
         }
@@ -415,8 +427,20 @@ struct DispoKarte: UIViewRepresentable {
 
         /// fitAllDriverMarkers: oben bleiben Zurueck, Filter und Statusleiste frei.
         private func alleEinpassen() {
+            if let b = letzterBereich, b.count >= 3 {
+                einpassen(b, oben: 200, rechts: 24, unten: 190, links: 24)
+                return
+            }
             // Nicht naeher als ein Stadtviertel (Web: ALLE_FAHRER_MAX_ZOOM).
             einpassen(letzteListe.map(\.ort), oben: 200, rechts: 24, unten: 190, links: 24, maxZoom: 13.5)
+        }
+
+        /// Umriss des eigenen Bereichs: geschlossene Lime-Linie, 2 breit.
+        private func bereichZeichnen() {
+            guard stilGeladen, let stil = karte?.style else { return }
+            var pfad = letzterBereich ?? []
+            if pfad.count >= 3, let erster = pfad.first { pfad.append(erster) } else { pfad = [] }
+            linie(stil, "trisar-bereich", pfad, UIColor(hex: 0xE3F654), 2, gestrichelt: false, deckung: 1)
         }
 
         /// fitRouteBounds: unten Leiste + Blatt, oben so viel, wie die Hoehe hergibt.
@@ -807,4 +831,81 @@ private final class DauerSchild: MLNAnnotationView {
         isUserInteractionEnabled = false
     }
     required init?(coder: NSCoder) { fatalError() }
+}
+
+
+/// Zugriff auf die MapLibre-Karte von aussen (Bereich zeichnen: Bildschirmpunkte in Koordinaten).
+final class KartenZugang {
+    weak var karte: MLNMapView?
+
+    func koordinaten(_ punkte: [CGPoint]) -> [CLLocationCoordinate2D] {
+        guard let karte else { return [] }
+        return punkte.map { karte.convert($0, toCoordinateFrom: karte) }
+    }
+}
+
+/// Eigener Kartenbereich der Dispo (13.11.), persoenlich in public.dispo_kartenbereich, wie kartenBereich.js im Web.
+@MainActor
+final class KartenBereich: ObservableObject {
+    static let geteilt = KartenBereich()
+    @Published private(set) var punkte: [CLLocationCoordinate2D]?
+    private static let schluessel = "trisar_kartenbereich_v1"
+
+    private struct Zeile: Codable { let punkte: [[Double]] }
+    private struct Schreiben: Encodable { let user_id: String; let punkte: [[Double]]; let aktualisiert: String }
+
+    private init() {
+        if let w = UserDefaults.standard.array(forKey: Self.schluessel) as? [[Double]] { punkte = Self.aus(w) }
+    }
+
+    /// [[lng, lat]] wie im Web.
+    private static func aus(_ w: [[Double]]) -> [CLLocationCoordinate2D]? {
+        let k = w.filter { $0.count >= 2 }.map { CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) }
+        return k.count >= 3 ? k : nil
+    }
+    private static func roh(_ k: [CLLocationCoordinate2D]) -> [[Double]] {
+        k.map { [($0.longitude * 1e6).rounded() / 1e6, ($0.latitude * 1e6).rounded() / 1e6] }
+    }
+    private func merken(_ k: [CLLocationCoordinate2D]?) {
+        punkte = k
+        if let k { UserDefaults.standard.set(Self.roh(k), forKey: Self.schluessel) } else { UserDefaults.standard.removeObject(forKey: Self.schluessel) }
+    }
+
+    func laden() async {
+        guard let id = Backend.client.auth.currentUser?.id.uuidString.lowercased() else { return }
+        guard let zeilen: [Zeile] = try? await Backend.client.from("dispo_kartenbereich").select("punkte")
+            .eq("user_id", value: id).execute().value else { return }
+        merken(zeilen.first.flatMap { Self.aus($0.punkte) })
+    }
+
+    /// Gibt eine Fehlermeldung zurueck oder nil.
+    func speichern(_ k: [CLLocationCoordinate2D]) async -> String? {
+        guard k.count >= 3 else { return "Bereich zu klein." }
+        merken(k)
+        guard let id = Backend.client.auth.currentUser?.id.uuidString.lowercased() else { return "Nicht angemeldet." }
+        do {
+            try await Backend.client.from("dispo_kartenbereich")
+                .upsert(Schreiben(user_id: id, punkte: Self.roh(k), aktualisiert: ISO8601DateFormatter().string(from: Date())), onConflict: "user_id")
+                .execute()
+            return nil
+        } catch { return error.localizedDescription }
+    }
+
+    func loeschen() async -> String? {
+        merken(nil)
+        guard let id = Backend.client.auth.currentUser?.id.uuidString.lowercased() else { return nil }
+        do {
+            try await Backend.client.from("dispo_kartenbereich").delete().eq("user_id", value: id).execute()
+            return nil
+        } catch { return error.localizedDescription }
+    }
+
+    /// Bildschirmpunkte ausduennen: naeher als `abstand` faellt weg, hoechstens `max` bleiben.
+    static func ausduennen(_ pfad: [CGPoint], abstand: CGFloat = 6, max: Int = 240) -> [CGPoint] {
+        var aus: [CGPoint] = []
+        for p in pfad where aus.last.map({ hypot(p.x - $0.x, p.y - $0.y) >= abstand }) ?? true { aus.append(p) }
+        guard aus.count > max else { return aus }
+        let schritt = Double(aus.count) / Double(max)
+        return (0..<max).map { aus[Int(Double($0) * schritt)] }
+    }
 }

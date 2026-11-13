@@ -3,6 +3,7 @@
 // Die Statusregel (Radien) rechnet die DB, nicht die App.
 // Fehlt die Tabelle (Demo, Migration noch nicht da), bleibt die Liste leer.
 import { supabase } from './supabase/client';
+import { ortIconGrau } from './ortIcons';
 
 const ORT_ICON_GRAU = {
   pin: '/icon/_Icon_Grau/Pin_Nav_Trisar_Icons_01_grau.svg',
@@ -47,6 +48,7 @@ export const ortNachId = (id) => {
 };
 
 // Icon eines Orts (grau, wie in der Fahrt). Ohne Ort: null, dann gilt das Textmuster.
-export const ortIconUrl = (icon) => (icon ? ORT_ICON_GRAU[icon] || ORT_ICON_GRAU.pin : null);
+// Bekannte alte Schluessel wie bisher, alle anderen aus der vollen Icon-Liste (ortIcons.js).
+export const ortIconUrl = (icon) => (icon ? ORT_ICON_GRAU[icon] || ortIconGrau(icon) || ORT_ICON_GRAU.pin : null);
 
 export const ortIconFuer = (location) => (location?.ortId ? ortIconUrl(location.ortIcon || 'pin') : null);

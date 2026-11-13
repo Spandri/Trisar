@@ -1,4 +1,4 @@
-// Flaggen an Fahrern (Figma Koordinator_Screen_Map 2832:12528): drei Flaggen in Cyan, Violett und Koenigsblau
+// Flaggen an Fahrern (Figma Koordinator_Screen_Map 2832:12528): drei Flaggen in Cyan, Pink und Koenigsblau
 // (die Farben aus dem Figma waren neben den Fahrerfarben schlecht lesbar). In der Datenbank neutral flagge1..3.
 // Die Dispo waehlt Fahrer aus (Karte oder Alle Fahrer) und tippt eine Flagge an. Sie fuellt sich,
 // sobald alle Ausgewaehlten sie tragen. Erneut tippen nimmt sie wieder weg.
@@ -9,7 +9,7 @@ const ORDNER = '/icon/_Icon_Flaggen';
 
 export const FLAGGEN = [
   { id: 'flagge1', name: 'Flagge 1 (Cyan)', farbe: '#00D5FF', umriss: `${ORDNER}/Flagge_1.svg`, voll: `${ORDNER}/Flagge_1_Voll.svg` },
-  { id: 'flagge2', name: 'Flagge 2 (Violett)', farbe: '#8A2BFF', umriss: `${ORDNER}/Flagge_2.svg`, voll: `${ORDNER}/Flagge_2_Voll.svg` },
+  { id: 'flagge2', name: 'Flagge 2 (Pink)', farbe: '#FF2E9A', umriss: `${ORDNER}/Flagge_2.svg`, voll: `${ORDNER}/Flagge_2_Voll.svg` },
   { id: 'flagge3', name: 'Flagge 3 (Königsblau)', farbe: '#1B2FD6', umriss: `${ORDNER}/Flagge_3.svg`, voll: `${ORDNER}/Flagge_3_Voll.svg` },
 ];
 // Duenne schwarze Umrandung fuer Flaggen auf farbigem Grund (Fahrerkarte, Marker). Vier Schatten ohne Weichzeichner.

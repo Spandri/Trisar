@@ -39,6 +39,8 @@ data class FahrtZeiten(
     val ankunftOriginal: String = "",
     val ankunftNeu: String = "",
     val ankunftZeit: String = "",
+    /** Start Zeitraum (13.11.): Ende (jobs.etd_bis), angezeigt als "14:00–14:30". Leer = feste Startzeit. */
+    val bis: String = "",
 )
 
 /** Eine Fahrt fuer die Listen, Felder wie das Mapping in loadRidesFromDb. */
@@ -50,6 +52,8 @@ data class DispoFahrt(
     val startOrt: String,
     val zielOrt: String,
     val startZeit: String,
+    /** Start Zeitraum: Ende (jobs.etd_bis), leer = feste Startzeit. */
+    val startZeitBis: String = "",
     val fahrerNamen: List<String>,
     val fahrerAntworten: List<String>,
     val anonymeGaeste: Int,
@@ -188,6 +192,8 @@ object DispoFahrtenSpeicher {
 
     private const val SPALTEN_BASIS = "id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins"
     private val spaltenVarianten = listOf(
+        // Start Zeitraum (13.11.): etd_bis = Ende des Zeitraums.
+        "$SPALTEN_BASIS, ai_booked, flight_number, train_number, etd_bis",
         "$SPALTEN_BASIS, ai_booked, flight_number, train_number",
         "$SPALTEN_BASIS, flight_number, train_number",
         "$SPALTEN_BASIS, ai_booked, train_number",
@@ -214,7 +220,8 @@ object DispoFahrtenSpeicher {
                 } catch (e: Exception) {
                     letzterFehler = e
                     val text = fehlerText(e)
-                    val fehlendeSpalte = passt(text, """column .*flight_number|could not find the ['"]?flight_number['"]? column""")
+                    val fehlendeSpalte = passt(text, """column .*etd_bis|could not find the ['"]?etd_bis['"]? column""")
+                        || passt(text, """column .*flight_number|could not find the ['"]?flight_number['"]? column""")
                         || passt(text, """column .*ai_booked|could not find the ['"]?ai_booked['"]? column""")
                         || passt(text, """column .*train_planned_time|column .*train_predicted_time|could not find the ['"]?train_planned_time['"]? column|could not find the ['"]?train_predicted_time['"]? column""")
                         || passt(text, """column .*ext_flight_payload|column .*ext_flight_last_sync_at|could not find the ['"]?ext_flight_payload['"]? column|could not find the ['"]?ext_flight_last_sync_at['"]? column""")
@@ -452,8 +459,13 @@ object DispoFahrtenSpeicher {
             val datum = W.tagWert(W.t(job["ride_date"]), heute)
             val geplantMin = W.minuten(originalEtd.ifEmpty { etd })
             val jetztMin = W.minuten(jetztUhr)
-            val verschieben = datum == heute && offen && geplantMin != null && jetztMin != null && jetztMin > geplantMin
-            val verzug = if (verschieben) maxOf(0, jetztMin!! - geplantMin!!) else 0
+            // Start Zeitraum (13.11.): verspaetet erst nach dem Ende des Zeitraums, nicht schon nach dem Anfang.
+            // Ende vor dem Anfang = naechster Tag (+1440). Ohne etd_bis wie bisher ab der Planzeit.
+            val etdBis = W.uhr(W.t(job["etd_bis"]))
+            val bisMin = W.minuten(etdBis)
+            val spaetAb = if (bisMin != null && geplantMin != null) (if (bisMin < geplantMin) bisMin + 1440 else bisMin) else geplantMin
+            val verschieben = datum == heute && offen && spaetAb != null && jetztMin != null && jetztMin > spaetAb
+            val verzug = if (verschieben) maxOf(0, jetztMin!! - spaetAb!!) else 0
             val wirksameEtd = if (verschieben) jetztUhr else etd.ifEmpty { originalEtd }
             val mitVerkehr = W.zahl(job["ext_route_duration_in_traffic_mins"]) ?: 0.0
             val ohneVerkehr = W.zahl(job["ext_route_duration_mins"]) ?: 0.0
@@ -470,6 +482,7 @@ object DispoFahrtenSpeicher {
             zeiten = if (verspaetet) zeiten.copy(original = W.erste(originalEtd, wirksameEtd) ?: "--:--", neu = W.erste(wirksameEtd, originalEtd) ?: "--:--")
             else zeiten.copy(zeit = W.erste(wirksameEtd) ?: "--:--")
             zeiten = zeiten.copy(ankunftOriginal = ankunftOriginal, ankunftNeu = ankunftNeu, ankunftZeit = ankunftNeu)
+            zeiten = zeiten.copy(bis = etdBis)
 
             DispoFahrt(
                 id = jobID,
@@ -480,6 +493,7 @@ object DispoFahrtenSpeicher {
                 startOrt = startWert,
                 zielOrt = zielWert,
                 startZeit = W.erste(wirksameEtd, originalEtd) ?: "--:--",
+                startZeitBis = etdBis,
                 fahrerNamen = if (hatFahrer) etiketten else listOf(""),
                 fahrerAntworten = if (hatFahrer) antworten else emptyList(),
                 anonymeGaeste = anonym,

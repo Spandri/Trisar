@@ -340,6 +340,7 @@ export default {
   "fahrt.saving": "Salvataggio...",
   "fahrt.start": "Partenza",
   "fahrt.startZeit": "Ora partenza",
+  "fahrt.startZeitraum": "Fascia partenza",
   "fahrt.statusBeendet": "conclusa",
   "fahrt.statusOffen": "aperta",
   "fahrt.statusStoniert": "annullata",

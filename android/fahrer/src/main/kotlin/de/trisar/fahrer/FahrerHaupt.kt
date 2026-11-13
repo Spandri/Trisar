@@ -48,6 +48,8 @@ private sealed interface Seite {
     data object Fahrzeug : Seite
     data object Support : Seite
     data class Fahrt(val id: String) : Seite
+    /** Dienststart mit Treffpunkt und Notiz (13.11.), Ansicht wie eine Fahrt. */
+    data class Dienst(val id: String) : Seite
 }
 
 /** Unterseiten des Profils (wie setView in der Web-App: profilFahrer -> verlauf / settingsFahrer / ansprechpartner). */
@@ -158,6 +160,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                 when (seite) {
                     null -> seite = Seite.Support
                     Seite.Profil -> profilSeite = ProfilUnterseite.SUPPORT
+                    is Seite.Dienst -> seite = Seite.Support
                     else -> {}
                 }
             }
@@ -193,6 +196,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                 oeffneFahrzeug = { seite = Seite.Fahrzeug },
                 oeffneFahrt = { seite = Seite.Fahrt(it.id) },
                 fahrerID = fahrerID,
+                oeffneDienst = { seite = Seite.Dienst(it.id) },
                 stundenBearbeiten = { stundenBearbeiten = it },
                 stundenAblehnen = { stundenAblehnen = it },
             )
@@ -219,6 +223,12 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
             }
             Seite.Fahrzeug -> Vollbild { FahrzeugSeite(fahrerID, fahrzeug) { seite = null } }
             Seite.Support -> Vollbild { SupportSeite { seite = null } }
+            is Seite.Dienst -> {
+                // Aktueller Stand aus dem Speicher (Treffpunkt live), Dienst weg: zurueck zur Liste.
+                val dienst = anfragen.firstOrNull { it.id == aktuell.id }
+                if (dienst == null) LaunchedEffect(aktuell.id) { seite = null }
+                else Vollbild { de.trisar.fahrer.fahrt.DienstStartSeite(dienst) { seite = null } }
+            }
             is Seite.Fahrt -> Vollbild {
                 FahrtSeite(aktuell.id, fahrerID) {
                     seite = null

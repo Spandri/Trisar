@@ -177,7 +177,9 @@ const AnlegenPreviewCard = ({ art, daten, offen, onUmschalten, onAendern }) => {
       <button type="button" onClick={onUmschalten} className="block text-left w-full">
         <div className="pr-[86px] text-[24px] leading-[26px] font-bold font-['Space_Grotesk'] break-words">{titel}</div>
         <div className="mt-[5px] pr-[86px] text-xs leading-4 font-medium font-['Space_Grotesk'] opacity-80 break-words">{zeile}</div>
-        <div className="mt-[5px] text-base leading-6 font-bold font-['Space_Grotesk']">{art === 'fahrer' ? 'Neuer Fahrer' : 'Neues Fahrzeug'}</div>
+        <div className="mt-[5px] text-base leading-6 font-bold font-['Space_Grotesk'] break-words">
+          {art === 'fahrer' ? 'Neuer Fahrer' : d.fahrerName ? `Neues Fahrzeug für ${d.fahrerName}` : 'Neues Fahrzeug'}
+        </div>
         {d.fehler ? <div className="mt-[3px] text-[11px] leading-4 font-bold font-['Space_Grotesk'] text-[#d23a2e]">{d.fehler}</div> : null}
         <div className="absolute right-4 top-[18px] text-right text-[11px] font-bold font-['Space_Grotesk'] opacity-60">{offen ? 'Fertig' : 'Bearbeiten'}</div>
       </button>
@@ -193,6 +195,18 @@ const AnlegenPreviewCard = ({ art, daten, offen, onUmschalten, onAendern }) => {
               />
             </label>
           ))}
+          {art === 'fahrzeug' && d.fahrerId ? (
+            <div className="flex items-center justify-between text-[11px] font-bold font-['Space_Grotesk']">
+              <span className="opacity-80">Fahrer: {d.fahrerName}</span>
+              <button
+                type="button"
+                onClick={() => onAendern({ ...d, fahrerId: '', fahrerName: '', fehler: '' })}
+                className="h-8 px-3 border border-black/30"
+              >
+                Ohne Fahrer
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -1223,7 +1237,8 @@ export default function KiAssistentView({
             }}
             onBlur={() => setIsInputFocused(false)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              // Enter macht eine neue Zeile. Senden mit dem Pfeil oder Cmd/Strg+Enter.
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
                 handleSend();
               }

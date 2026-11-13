@@ -81,6 +81,8 @@ internal data class KartenStand(
     val ortGewaehlt: String? = null,
     /** Mehrfachauswahl an: markierte Fahrer normal, alle anderen blass. null = aus. */
     val markiert: Set<String>? = null,
+    /** Eigener Bereich der Dispo (13.11.): duenne Lime-Linie, "Karte" in der Leiste zoomt darauf. */
+    val bereich: List<KartenPunkt>? = null,
 )
 
 /**
@@ -99,6 +101,8 @@ internal fun DispoKarte(
     abseits: (KartenPunkt) -> Unit,
     /** Tipp auf einen eigenen Ort: Kreise ein- oder ausblenden. */
     ortTippen: (String) -> Unit = {},
+    /** Gibt die Steuerung heraus (Bereich zeichnen: Bildschirmpunkte in Koordinaten). */
+    steuerung: (KartenSteuerung) -> Unit = {},
 ) {
     val dichte = LocalDensity.current.density
     val s = remember { KartenSteuerung() }
@@ -137,7 +141,7 @@ internal fun DispoKarte(
         KartenEbene(s, stand, waehlen, ortTippen)
     }
 
-    SideEffect { s.setzen(stand) }
+    SideEffect { s.setzen(stand); steuerung(s) }
 }
 
 /** Pins, Gruppen, Abholort, Ziel und Dauer-Schilder ueber der Karte. */
@@ -323,6 +327,7 @@ internal class KartenSteuerung {
     private var letzteBlattHoehe = -1f
     private var letzterFortschritt = ""
     private var ortKreisSchluessel = ""
+    private var bereichSchluessel: String? = null
 
     companion object {
         private const val KAMERA = "admin_karten_camera_v1"
@@ -359,6 +364,7 @@ internal class KartenSteuerung {
             m.setStyle(Style.Builder().fromUri(Konfig.KARTEN_STIL)) {
                 stilGeladen = true
                 ortKreisSchluessel = ""
+                bereichSchluessel = null
                 routenSchluessel = ""
                 letzterFortschritt = ""
                 setzen(stand)
@@ -377,6 +383,7 @@ internal class KartenSteuerung {
         }
         routeAbgleichen()
         ortKreiseAbgleichen()
+        bereichAbgleichen()
         val g = neu.gewaehlt
         val fk = "${g?.id}|${g?.lat}|${g?.lng}|$routenSchluessel"
         if (fk != letzterFortschritt) {
@@ -457,6 +464,7 @@ internal class KartenSteuerung {
 
     /** fitAllDriverMarkers: oben bleiben Zurueck, Filter und Statusleiste frei. */
     private fun alleEinpassen() {
+        stand.bereich?.takeIf { it.size >= 3 }?.let { einpassen(it, 200f, 24f, 190f, 24f); return }
         // Nicht naeher als ein Stadtviertel (Web: ALLE_FAHRER_MAX_ZOOM).
         einpassen(stand.fahrer.map { it.ort }, 200f, 24f, 190f, 24f, maxZoom = 13.5)
     }
@@ -484,6 +492,25 @@ internal class KartenSteuerung {
             val k = karte ?: return@postDelayed
             if (k.cameraPosition.zoom <= vorher + 0.5) k.animateCamera(CameraUpdateFactory.zoomTo(min(20.0, vorher + 2)), 300)
         }, 800)
+    }
+
+    // MARK: Eigener Bereich
+
+    /** Umriss des eigenen Bereichs: geschlossene Lime-Linie, 2 breit. */
+    private fun bereichAbgleichen() {
+        val stil = karte?.style ?: return
+        if (!stilGeladen) return
+        val b = stand.bereich?.takeIf { it.size >= 3 }
+        val schluessel = b?.joinToString(";") { "${it.lat},${it.lng}" } ?: ""
+        if (schluessel == bereichSchluessel) return
+        bereichSchluessel = schluessel
+        linie(stil, "dk-bereich", if (b != null) b + b.first() else emptyList(), 0xE3F654, 2f, false, 1f)
+    }
+
+    /** Bildschirmpunkte (Pixel der Karte) in Koordinaten. */
+    fun koordinaten(punkte: List<androidx.compose.ui.geometry.Offset>): List<KartenPunkt> {
+        val proj = karte?.projection ?: return emptyList()
+        return punkte.map { val ll = proj.fromScreenLocation(android.graphics.PointF(it.x, it.y)); KartenPunkt(ll.latitude, ll.longitude) }
     }
 
     // MARK: Route

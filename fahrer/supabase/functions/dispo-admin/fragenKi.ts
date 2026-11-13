@@ -5,7 +5,7 @@
 // Dazu gespraechsFahrer: der Fahrer, um den es gerade ging ("Dann schick Dienststart fuer 9 Uhr").
 
 // deno-lint-ignore-file no-explicit-any
-import { datumAusText, genannteFahrer, jetztBerlin, normal, plusTage, tagLesbar } from './dienst.ts';
+import { alleFahrer, datumAusText, genannteFahrer, jetztBerlin, normal, plusTage, tagLesbar } from './dienst.ts';
 
 type Fahrer = { id: string; name: string };
 const FRIST_MS = 20 * 60 * 1000;
@@ -53,15 +53,28 @@ export const dienstFrage = async (admin: any, frage: string, kontext: any): Prom
   const pause = /\bpause/.test(text);
   const anfang = /\b(faengt|fangt|beginnt|anfang\w*|dienstbeginn|dienststart|startet)\b/.test(text);
   const ende = /\b(feierabend|hoert|hort|dienstende|endet|schluss)\b/.test(text);
-  if (!pause && !anfang && !ende) return null;
+  // "Hat Anna morgen Dienst?", "Arbeitet Tim heute?": ganzer Dienst des Tages.
+  const allgemein = /\b(dienst|dienste|schicht|arbeitet|arbeiten)\b/.test(text);
+  if (!pause && !anfang && !ende && !allgemein) return null;
   if (/\bfahrt\b/.test(text)) return null;
   const genannt = await genannteFahrer(admin, text);
-  const fahrer = genannt.length ? genannt : await gespraechsFahrer(admin, kontext, text);
+  // "Wer hat morgen Dienst?": alle Fahrer, nur die mit Dienst nennen. "Wer ist gerade im Dienst" beantwortet kiKern.
+  const werAlle = !genannt.length && /^\s*wer\b/.test(text) && !/\b(gerade|jetzt|aktuell|momentan)\b/.test(text);
+  const fahrer = genannt.length ? genannt : werAlle ? await alleFahrer(admin) : await gespraechsFahrer(admin, kontext, text);
   if (!fahrer.length) return null;
   const { datum: heute } = jetztBerlin();
   const datum = datumAusText(text, heute);
   const tag = tagLesbar(datum, heute);
   const { neueste, pausen } = await dienstLaden(admin, fahrer.map((f) => f.id), datum);
+  if (werAlle) {
+    const mit = fahrer.filter((f) => neueste.get(f.id));
+    if (!mit.length) return `${tag.replace(/^./, (c) => c.toUpperCase())} hat niemand Dienst eingetragen.`;
+    return `${tag.replace(/^./, (c) => c.toUpperCase())} Dienst (${mit.length}):\n${mit.map((f) => {
+      const d = neueste.get(f.id);
+      const p = pausenText(pausen.get(String(d.id)) || []);
+      return `- ${f.name}: ${hm(d.service_start_time) || '?'}–${hm(d.service_end_time) || 'offen'}${p ? `, Pause ${p}` : ''}${String(d.status) === 'accepted' ? '' : ' (noch nicht bestätigt)'}`;
+    }).join('\n')}`;
+  }
   return fahrer.map((f) => {
     const d = neueste.get(f.id);
     if (!d) return `${f.name} hat ${tag} keinen Dienst eingetragen.`;

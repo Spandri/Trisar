@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Durchsichtiges Symbol: blendet das App-Icon im System-Startbildschirm (ab Android 12) aus,
+     damit nur Schwarz kommt und danach direkt Startbild und Startvideo (StartVideo.kt). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <size android:width="1dp" android:height="1dp" />
+</shape>

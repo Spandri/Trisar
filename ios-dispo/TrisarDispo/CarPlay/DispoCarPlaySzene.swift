@@ -431,7 +431,7 @@ struct DispoCarPlayStand {
                 .compactMap(zeit).first
             return DispoCarPlayFahrt(id: f.id, zeit: String(f.startZeit.prefix(5)), von: f.startOrt, nach: f.zielOrt,
                                      fahrer: f.ohneFahrerVariante ? "" : f.fahrer, gast: f.name, status: statusText(f.jobStatus),
-                                     verspaetet: f.verspaetet, ankunft: ankunft)
+                                     verspaetet: f.zuSpaet, ankunft: ankunft)
         }
         let alleFahrten = heuteFahrten.map(fahrt)
         // Naechste: laufende und alles ab einer halben Stunde vor jetzt.
@@ -506,7 +506,8 @@ struct DispoCarPlayStand {
             warnungen.append(DispoCarPlayWarnung(id: "ohne-\(f.id)", art: .ohneFahrer, titel: "Ohne Fahrer \(String(f.startZeit.prefix(5)))",
                                                  detail: "\(f.startOrt) nach \(f.zielOrt)", fahrtID: f.id, fahrerID: nil))
         }
-        for f in heuteFahrten where f.verspaetet && !f.ohneFahrerVariante {
+        // Start Zeitraum: zu spaet erst nach dem Ende des Zeitraums (zuSpaet statt verspaetet).
+        for f in heuteFahrten where f.zuSpaet && !f.ohneFahrerVariante {
             warnungen.append(DispoCarPlayWarnung(id: "spaet-\(f.id)", art: .zuSpaet, titel: "Zu spät \(String(f.startZeit.prefix(5)))",
                                                  detail: "\(f.fahrer) zu \(f.startOrt)", fahrtID: f.id, fahrerID: nil))
         }

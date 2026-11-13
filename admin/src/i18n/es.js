@@ -340,6 +340,7 @@ export default {
   "fahrt.saving": "Guardando ...",
   "fahrt.start": "Origen",
   "fahrt.startZeit": "Hora inicio",
+  "fahrt.startZeitraum": "Franja de inicio",
   "fahrt.statusBeendet": "finalizado",
   "fahrt.statusOffen": "pendiente",
   "fahrt.statusStoniert": "cancelado",

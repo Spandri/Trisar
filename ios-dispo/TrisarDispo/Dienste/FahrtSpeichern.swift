@@ -5,6 +5,8 @@ import Supabase
 struct FahrtFormularWerte: Equatable {
     var datum = ""
     var startZeit = ""
+    /// Start Zeitraum (13.11.): Ende des Zeitraums (jobs.etd_bis), leer = feste Startzeit.
+    var startZeitBis = ""
     var start = ""
     var ziel = ""
     var flugnummer = ""
@@ -35,6 +37,8 @@ struct GeladeneFahrt: Equatable {
     var aiBooked: Bool
     /// jobs.pickup_ort_id / dropoff_ort_id gibt es in der Datenbank (Migration da).
     var mitOrtSpalten = false
+    /// jobs.etd_bis gibt es in der Datenbank (Migration Start Zeitraum da).
+    var mitBisSpalte = false
 }
 
 /// payload an onCreateRide / onSave.
@@ -188,6 +192,7 @@ enum FahrtSpeichern {
     private struct Kolonne: Decodable { let id: UUID; let name: String? }
     private struct Notiz: Decodable { let note_text: String?; let author_name: String? }
     private struct ArchivZeile: Decodable { let job_id: UUID? }
+    private struct BisZeile: Decodable { let etd_bis: String? }
 
     private static func nummerText(_ w: AnyJSON?) -> String {
         switch w {
@@ -298,8 +303,21 @@ enum FahrtSpeichern {
         let jetzt = FahrtText.jetztUhr()
         let geplantUhr = original.isEmpty ? etd : original
         var wirksameUhr = etd.isEmpty ? original : etd
+        // Start Zeitraum: eigene Abfrage, fehlt die Spalte noch, bleibt es eine feste Startzeit.
+        var mitBisSpalte = false
+        var startZeitBis = ""
+        if let b: BisZeile = try? await c.from("jobs").select("etd_bis").eq("id", value: id).single().execute().value {
+            mitBisSpalte = true
+            startZeitBis = FahrtText.uhrzeit(b.etd_bis, "")
+        }
+        // Mit Zeitraum erst nach dessen Ende auf jetzt (Ende vor dem Anfang = naechster Tag), wie die Liste.
+        let spaetAb: Int? = {
+            guard let g = FahrtText.minuten(geplantUhr) else { return nil }
+            guard let b = FahrtText.minuten(startZeitBis) else { return g }
+            return b < g ? b + 1440 : b
+        }()
         if tag == FahrtText.heute(), offenArtig.contains(jobStatus),
-           let g = FahrtText.minuten(geplantUhr), let n = FahrtText.minuten(jetzt), n > g {
+           let g = spaetAb, let n = FahrtText.minuten(jetzt), n > g {
             wirksameUhr = jetzt
         }
         let startZeit = wirksameUhr.isEmpty ? (original.isEmpty ? "--:--" : original) : wirksameUhr
@@ -337,10 +355,13 @@ enum FahrtSpeichern {
             werte.zielOrtID = o
             werte.zielOrtAdresse = FahrtText.getrimmt(job.dropoff_address ?? "")
         }
-        return GeladeneFahrt(id: job.id, werte: werte, fahrerNamen: namen.isEmpty ? [""] : namen,
+        werte.startZeitBis = startZeitBis
+        var ergebnis = GeladeneFahrt(id: job.id, werte: werte, fahrerNamen: namen.isEmpty ? [""] : namen,
                              zwischenstopps: job.zwischenstopps ?? [], mitStoppSpalte: mitStoppSpalte,
                              fahrgaeste: wirksam.joined(separator: ", "), notiz: dispoText, aiBooked: aiBooked,
                              mitOrtSpalten: mitOrtSpalten)
+        ergebnis.mitBisSpalte = mitBisSpalte
+        return ergebnis
     }
 
     // MARK: Gemeinsame Vorbereitung (Pruefungen vor dem Schreiben)
@@ -356,6 +377,8 @@ enum FahrtSpeichern {
         var zwischenstopps: [String]
         var tag: String
         var startZeit: String
+        /// Ende des Start Zeitraums, leer = feste Startzeit.
+        var startZeitBis: String
         var kolonne: String
         var fahrerNamen: [String]
         var gaeste: [String]
@@ -377,6 +400,8 @@ enum FahrtSpeichern {
         let tag = FahrtText.fahrtDatum(e.werte.datum)
         if tag.isEmpty { return .failure(.text(FahrtText.tr("app.datumUngueltig"))) }
         var startZeit = FahrtText.uhrzeit(e.werte.startZeit, "")
+        // Start Zeitraum nur mit Startzeit (wie im Web: startZeit && startZeitBis).
+        let startZeitBis = startZeit.isEmpty ? "" : FahrtText.uhrzeit(e.werte.startZeitBis, "")
         let flugNr = FahrtText.nummer(e.werte.flugnummer), zugNr = FahrtText.nummer(e.werte.zugnummer)
         if !flugNr.isEmpty && !zugNr.isEmpty { return .failure(.text(FahrtText.tr("app.nurFlugOderZug"))) }
         let hinweis = FahrtText.getrimmt(e.flugZielFlughafen)
@@ -400,7 +425,7 @@ enum FahrtSpeichern {
             startOrtID: startOrt ? e.werte.startOrtID : nil,
             zielOrtID: zielOrt ? e.werte.zielOrtID : nil,
             zwischenstopps: e.zwischenstopps.map(FahrtText.getrimmt).filter { !$0.isEmpty },
-            tag: tag, startZeit: startZeit,
+            tag: tag, startZeit: startZeit, startZeitBis: startZeitBis,
             kolonne: FahrtText.getrimmt(e.werte.konvoi),
             fahrerNamen: FahrtText.fahrerNamenListe(e.fahrerNamen),
             gaeste: FahrtText.gaesteTeilen(e.fahrgaeste),
@@ -421,7 +446,8 @@ enum FahrtSpeichern {
 
     /// Gemeinsame Spalten von insertPayload / updatePayload.
     private static func jobSpalten(_ v: Vorbereitet, status: String, kolonne: UUID?, fahrer: UUID?, aiBooked: Bool,
-                                   mitOrtSpalten: Bool = false, mitStoppSpalte: Bool = false) -> [String: AnyJSON] {
+                                   mitOrtSpalten: Bool = false, mitStoppSpalte: Bool = false,
+                                   mitBisSpalte: Bool = false) -> [String: AnyJSON] {
         let jetzt = Datum.iso(Date())
         var zeile: [String: AnyJSON] = [
             "pickup_name": .string(v.start),
@@ -452,6 +478,10 @@ enum FahrtSpeichern {
         }
         if mitStoppSpalte || !v.zwischenstopps.isEmpty {
             zeile["zwischenstopps"] = .array(v.zwischenstopps.map(AnyJSON.string))
+        }
+        // Start Zeitraum: beim Anlegen nur wenn gesetzt, beim Aendern immer (leer = null, feste Startzeit).
+        if mitBisSpalte || !v.startZeitBis.isEmpty {
+            zeile["etd_bis"] = text(v.startZeitBis)
         }
         return zeile
     }
@@ -566,7 +596,8 @@ enum FahrtSpeichern {
             let zuordnung = kolonnenSync ? fahrerIDs : (fahrerNeu.map { [$0] } ?? [])
 
             var zeile = jobSpalten(v, status: naechster, kolonne: kolonne, fahrer: fahrerNeu, aiBooked: geladen.aiBooked,
-                                   mitOrtSpalten: geladen.mitOrtSpalten, mitStoppSpalte: geladen.mitStoppSpalte)
+                                   mitOrtSpalten: geladen.mitOrtSpalten, mitStoppSpalte: geladen.mitStoppSpalte,
+                                   mitBisSpalte: geladen.mitBisSpalte)
             if neuAnfragen {
                 zeile["driver_response_status"] = "pending"
                 zeile["driver_responded_at"] = .null

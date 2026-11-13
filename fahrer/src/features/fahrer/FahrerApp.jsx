@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { kurzAdresse } from '../../shared/adresseKurz';
 import { orteLaden, ortNachId } from '../../shared/orte';
+import { treffpunktAusZeile } from '../../shared/dienstTreffpunkt';
+import DienstStartDetail from './views/DienstStartDetail';
 import { fahrtRoutenPunkte } from '../../shared/utils/routenPunkt';
 import { SUPABASE_FUNCTIONS } from '../../shared/supabase/functions';
 import { supabase } from '../../shared/supabase/client';
@@ -1558,6 +1560,8 @@ const FahrerApp = () => {
     });
   }, []);
   const [selectedJob, setSelectedJob] = useState(null);
+  // Angetippter Dienststart mit Treffpunkt (Ansicht wie eine Fahrt: Karte, Ort, Notiz).
+  const [dienstAnsichtId, setDienstAnsichtId] = useState(null);
   const [_showAddModal, setShowAddModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [session, setSession] = useState(null);
@@ -2552,6 +2556,8 @@ const FahrerApp = () => {
             trainNumber: dbJob.train_number || null,
             rideDate: getRideDateFromJob(dbJob),
             etd: dbJob.etd ? dbJob.etd.substring(0, 5) : '12:00',
+            // Start Zeitraum (13.11.): Ende des Zeitraums, null = feste Zeit.
+            etdBis: dbJob.etd_bis ? dbJob.etd_bis.substring(0, 5) : null,
             originalEtd: dbJob.original_etd ? dbJob.original_etd.substring(0, 5) : null,
             flight: dbJob.flight_number || dbJob.train_number || 'STADTFAHRT',
             flightOrigin: dbJob.flight_origin || flightSummary?.departureAirport || null,
@@ -2632,15 +2638,19 @@ const FahrerApp = () => {
         // Zeilen der Anfrage (nur was sich geaendert hat) und die Pausen-Zeilen zwischen den Fahrten.
         const anfragenRoh = Array.isArray(serviceRequestsResult?.data) ? serviceRequestsResult.data : [];
         const anfrageIds = anfragenRoh.map((r) => r.id).filter(Boolean);
-        const [{ data: pausenZeilen }, { data: aenderungen }] = anfrageIds.length && !DEMO_MODE
+        const [{ data: pausenZeilen }, { data: aenderungen }, { data: treffpunkte }] = anfrageIds.length && !DEMO_MODE
           ? await Promise.all([
             supabase.from('dienst_pausen').select('dienst_id,pausen').in('dienst_id', anfrageIds).then((r) => (r.error ? { data: [] } : r)),
             supabase.from('dienst_aenderung').select('dienst_id,vorher').in('dienst_id', anfrageIds).then((r) => (r.error ? { data: [] } : r)),
+            // Treffpunkt und Notiz beim Dienststart (fehlt die Tabelle noch, bleibt es leer).
+            supabase.from('dienst_treffpunkt').select('dienst_id,ort_id,name,adresse,lat,lng,notiz,aktualisiert').in('dienst_id', anfrageIds).then((r) => (r.error ? { data: [] } : r)),
           ])
-          : [{ data: [] }, { data: [] }];
+          : [{ data: [] }, { data: [] }, { data: [] }];
         const pausenJe = new Map((pausenZeilen || []).map((z) => [z.dienst_id, z.pausen || []]));
         const vorherJe = new Map((aenderungen || []).map((z) => [z.dienst_id, z.vorher]));
-        setServiceRequests(anfragenRoh.map((r) => ({ ...r, pausen: pausenJe.get(r.id) || [], vorher: vorherJe.get(r.id) || null })));
+        const treffpunktJe = new Map((treffpunkte || []).map((z) => [z.dienst_id, treffpunktAusZeile(z)]));
+        if ((treffpunkte || []).some((z) => z.ort_id)) await orteLaden((treffpunkte || []).map((z) => z.ort_id));
+        setServiceRequests(anfragenRoh.map((r) => ({ ...r, pausen: pausenJe.get(r.id) || [], vorher: vorherJe.get(r.id) || null, treffpunkt: treffpunktJe.get(r.id) || treffpunktAusZeile(r.treffpunkt) || null })));
         setSelectedJob((prev) => {
           if (!prev?.id) return prev;
           const refreshed = nextJobs.find((job) => job.id === prev.id);
@@ -2692,6 +2702,10 @@ const FahrerApp = () => {
         fetchProfileAndJobs();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_service_requests', filter: `driver_id=eq.${driverId}` }, () => {
+        fetchProfileAndJobs();
+      })
+      // Treffpunkt und Notiz (RLS: nur die eigenen Dienste).
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dienst_treffpunkt' }, () => {
         fetchProfileAndJobs();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_live_locations', filter: `driver_id=eq.${driverId}` }, (payload) => {
@@ -3736,11 +3750,16 @@ await supabase.auth.signOut({ scope: 'local' });
       case 'list':
         return jobs && jobs.length === 0 && !dienstSichtbar
           ? noTripsScreen
-          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} standbys={standbyListe} onStandbyAntworten={standbyAntworten} onStandbyMelden={standbyMelden} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} />;
+          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} standbys={standbyListe} onStandbyAntworten={standbyAntworten} onStandbyMelden={standbyMelden} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} onOpenDienst={(request) => { setDienstAnsichtId(request?.id || null); setView('dienstStart'); }} />;
       case 'vehicle':
         return <VehicleView setView={setView} vehicle={currentVehicle} damages={vehicleDamages} onAddDamage={addVehicleDamage} standort={fahrzeugStandort} driverId={session?.user?.id || null} />;
       case 'details':
         return renderDetailsSheet();
+      case 'dienstStart': {
+        const dienst = (Array.isArray(serviceRequests) ? serviceRequests : []).find((r) => String(r?.id) === String(dienstAnsichtId));
+        if (!dienst) return noTripsScreen;
+        return <DienstStartDetail dienst={dienst} standort={fahrzeugStandort} setView={setView} />;
+      }
       case 'chat':
         return <ChatView setView={setView} activeChat={activeChat} messages={messages} setMessages={setMessages} currentUserId={session?.user?.id} />;
       case 'chatList':
@@ -3762,7 +3781,7 @@ await supabase.auth.signOut({ scope: 'local' });
       default:
         return jobs && jobs.length === 0 && !dienstSichtbar
           ? noTripsScreen
-          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} standbys={standbyListe} onStandbyAntworten={standbyAntworten} onStandbyMelden={standbyMelden} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} />;
+          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} standbys={standbyListe} onStandbyAntworten={standbyAntworten} onStandbyMelden={standbyMelden} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} onOpenDienst={(request) => { setDienstAnsichtId(request?.id || null); setView('dienstStart'); }} />;
     }
   };
 

@@ -8,6 +8,8 @@ struct FahrtenListeAnsicht: View {
     var oeffneProfil: () -> Void
     var oeffneFahrzeug: () -> Void
     var oeffneFahrt: (Fahrt) -> Void
+    /// Dienststart mit Treffpunkt antippen: Karte und Notiz wie bei einer Fahrt (DienstStartAnsicht).
+    var oeffneDienst: (DienstAnfrage) -> Void = { _ in }
 
     @State private var ablehnenFahrt: Fahrt?
     @ObservedObject private var stunden = StundenSpeicher.shared
@@ -32,9 +34,14 @@ struct FahrtenListeAnsicht: View {
     private let dienstAbstand: CGFloat = 12
     private let dienstListe: CGFloat = 48
     /// Angenommener Dienst (12.11.): wie im Verlauf je eine Zeile Dienststart (vor den Fahrten) und
-    /// Dienstende (danach). Ist die Uhrzeit vorbei, verschwindet die Zeile (steht dann im Verlauf).
+    /// Dienstende (danach). Beide bleiben stehen, bis die Stundenerfassung des Tages kommt (13.11.),
+    /// danach ist der Tag abgeschlossen. Ohne Stundenerfassung: bis die Endzeit vorbei ist.
     private let dienstZeile: CGFloat = 48
+    /// Dienststart mit Treffpunkt: Karte wie Figma 2908-12498 (Zeile + Icon-Kachel 44 + Ortsname), 102 hoch.
+    private let dienstStartOrt: CGFloat = 102
     @State private var jetzt = Date()
+    /// Dienste, fuer die nach dem Ende schon einmal die Stunden neu geholt wurden.
+    @State private var stundenNachgeladen: Set<UUID> = []
     private let takt = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -59,7 +66,14 @@ struct FahrtenListeAnsicht: View {
                 }
 
                 ForEach(raster.dienste, id: \.schluessel) { eintrag in
-                    if eintrag.art == "start" {
+                    if eintrag.art == "start", let tp = eintrag.anfrage.treffpunkt {
+                        // Dienststart mit Treffpunkt: antippen oeffnet Karte und Notiz wie bei einer Fahrt.
+                        Button { oeffneDienst(eintrag.anfrage) } label: {
+                            DienstStartKarte(zeit: String((eintrag.anfrage.service_start_time ?? "").prefix(5)), treffpunkt: tp)
+                        }
+                        .buttonStyle(.web)
+                        .platz(20, versatz + eintrag.oben, 362, tp.hatOrt ? dienstStartOrt : dienstZeile)
+                    } else if eintrag.art == "start" {
                         VerlaufRahmenZeile(text: "Dienststart \(String((eintrag.anfrage.service_start_time ?? "").prefix(5)))", farbe: Color(hex: 0xE3F654))
                             .platz(20, versatz + eintrag.oben, 362, dienstZeile)
                     } else if eintrag.art == "ende" {
@@ -70,7 +84,8 @@ struct FahrtenListeAnsicht: View {
                         VerlaufRahmenZeile(text: z.text, farbe: z.farbe)
                             .platz(20, versatz + eintrag.oben, 362, dienstZeile)
                     } else {
-                    DienstKarte(anfrage: eintrag.anfrage, beschaeftigt: speicher.dienstArbeitetID == eintrag.anfrage.id) { annehmen in
+                    DienstKarte(anfrage: eintrag.anfrage, beschaeftigt: speicher.dienstArbeitetID == eintrag.anfrage.id,
+                                oeffnen: { oeffneDienst(eintrag.anfrage) }) { annehmen in
                         Task { await speicher.dienstAntworten(eintrag.anfrage, annehmen: annehmen) }
                     }
                     .platz(20, versatz + eintrag.oben, 362, nil)
@@ -106,7 +121,7 @@ struct FahrtenListeAnsicht: View {
             }
         }
         .overlay { FussleisteUnten() }
-        .onReceive(takt) { jetzt = $0 }
+        .onReceive(takt) { jetzt = $0; stundenNachladen() }
         .modifier(StundenAktionen(bearbeiten: $stundenBearbeiten, ablehnen: $stundenAblehnen))
         .overlay(alignment: .top) { fehlerHinweis }
         .webVollbild(item: $ablehnenFahrt) { fahrt in
@@ -175,7 +190,7 @@ struct FahrtenListeAnsicht: View {
             let anfragen = alle.filter { !$0.angenommen }
             for (i, anfrage) in anfragen.enumerated() {
                 r.dienste.append((anfrage, cursor, "karte", anfrage.id.uuidString, nil))
-                cursor += AnfrageZeile.kartenHoehe(AnfrageZeile.zeilen(anfrage)) + knopfAbstand + knopfHoehe
+                cursor += DienstKarte.hoehe(anfrage) + knopfAbstand + knopfHoehe
                 if i < anfragen.count - 1 { cursor += dienstAbstand }
             }
             if !anfragen.isEmpty { cursor += dienstListe }
@@ -185,7 +200,7 @@ struct FahrtenListeAnsicht: View {
             }
             for anfrage in alle where anfrage.angenommen && zeigeStart(anfrage) {
                 r.dienste.append((anfrage, cursor, "start", anfrage.id.uuidString + "-start", nil))
-                cursor += dienstZeile + kartenAbstand
+                cursor += (anfrage.treffpunkt?.hatOrt == true ? dienstStartOrt : dienstZeile) + kartenAbstand
             }
             // Pausen des angenommenen Dienstes warten, bis ihre Uhrzeit zwischen den Fahrten dran ist.
             var pausenWarte = alle.filter(\.angenommen)
@@ -227,13 +242,27 @@ struct FahrtenListeAnsicht: View {
         let ende = Stunden.zeitpunkt(tag, String((a.service_end_time ?? "").prefix(5)), nach: start) // Nachtdienst
         return (start, ende)
     }
+    /// Tag offen, bis die Stundenkarte kommt. Ohne Eintrag (Stundenerfassung aus, noch nicht geladen): bis zur Endzeit.
+    private func tagOffen(_ a: DienstAnfrage) -> Bool {
+        if let e = stunden.eintraege.first(where: { $0.dienst.id == a.id }) { return !e.vorbei }
+        return (dienstZeiten(a).ende ?? .distantFuture) > jetzt
+    }
     private func zeigeStart(_ a: DienstAnfrage) -> Bool {
-        guard !(a.service_start_time ?? "").isEmpty else { return false }
-        return (dienstZeiten(a).start ?? .distantFuture) > jetzt
+        !(a.service_start_time ?? "").isEmpty && tagOffen(a)
     }
     private func zeigeEnde(_ a: DienstAnfrage) -> Bool {
-        guard !(a.service_end_time ?? "").isEmpty else { return false }
-        return (dienstZeiten(a).ende ?? .distantFuture) > jetzt
+        !(a.service_end_time ?? "").isEmpty && tagOffen(a)
+    }
+    /// Endzeit vorbei, Stundenkarte aber noch nicht geladen: Stunden einmal neu holen, dann wechselt es.
+    private func stundenNachladen() {
+        let faellig = speicher.dienstAnfragen.filter { a in
+            a.angenommen && !stundenNachgeladen.contains(a.id)
+                && (dienstZeiten(a).ende ?? .distantFuture) <= jetzt
+                && stunden.eintraege.contains { $0.dienst.id == a.id && !$0.vorbei }
+        }
+        guard !faellig.isEmpty else { return }
+        stundenNachgeladen.formUnion(faellig.map(\.id))
+        Task { await stunden.laden() }
     }
 
     /// Pausen-Zeilen eines angenommenen Dienstes, deren Uhrzeit noch nicht vorbei ist.
@@ -276,7 +305,15 @@ private struct Tageszeile: View {
 private struct DienstKarte: View {
     let anfrage: DienstAnfrage
     let beschaeftigt: Bool
+    /// Treffpunkt-Zeile antippen: Karte und Notiz wie bei einer Fahrt.
+    var oeffnen: () -> Void = {}
     let antworten: (Bool) -> Void
+    @ObservedObject private var orte = OrteSpeicher.geteilt
+
+    /// Treffpunkt (13.11.): in der offenen Anfrage eine Zeile Icon + Ort darunter (20 Luft + 44 Kachel).
+    static func hoehe(_ a: DienstAnfrage) -> CGFloat {
+        AnfrageZeile.kartenHoehe(AnfrageZeile.zeilen(a)) + (a.treffpunkt?.hatOrt == true ? 64 : 0)
+    }
 
     var body: some View {
         let zeilen = AnfrageZeile.zeilen(anfrage)
@@ -286,10 +323,23 @@ private struct DienstKarte: View {
                     Text(z.text).grotesk(z.groesse(erste: i == 0), .bold).foregroundStyle(z.farbe)
                         .lineLimit(1).fixedSize()
                 }
+                if let tp = anfrage.treffpunkt, tp.hatOrt {
+                    // Treffpunkt wie in der Dienststart-Karte: Icon-Kachel und Ort.
+                    Button(action: oeffnen) {
+                        HStack(spacing: 20) {
+                            TreffpunktKachel(icon: tp.iconGrau(orte))
+                            Text(tp.name).grotesk(18, .bold, abstand: -0.5).foregroundStyle(.white).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(height: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.web)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.top, 19)
-            .frame(width: 362, height: AnfrageZeile.kartenHoehe(zeilen), alignment: .topLeading)
+            .frame(width: 362, height: Self.hoehe(anfrage), alignment: .topLeading)
             .background(Color(hex: 0x1A1A1A))
             .overlay(Rectangle().strokeBorder(anfrage.angenommen ? Farbe.lime : .clear, lineWidth: 2))
 
@@ -297,6 +347,47 @@ private struct DienstKarte: View {
                 AntwortKnoepfe(beschaeftigt: beschaeftigt, ablehnen: { antworten(false) }, annehmen: { antworten(true) })
             }
         }
+    }
+}
+
+/// Dienststart mit Treffpunkt (Figma 2908-12498): 1 px Lime-Rahmen, oben "Dienststart 15:30", darunter
+/// die Icon-Kachel 44 und der Ortsname. Ohne Ort (nur Notiz) die normale 48 hohe Zeile.
+private struct DienstStartKarte: View {
+    let zeit: String
+    let treffpunkt: DienstTreffpunkt
+    @ObservedObject private var orte = OrteSpeicher.geteilt
+
+    var body: some View {
+        let lime = Color(hex: 0xE3F654)
+        if treffpunkt.hatOrt {
+            ZStack(alignment: .topLeading) {
+                Text("Dienststart \(zeit)").grotesk(24, .bold, abstand: 0.6).foregroundStyle(lime).lineLimit(1)
+                    .frame(height: 24)
+                    .platz(16, 14)
+                TreffpunktKachel(icon: treffpunkt.iconGrau(orte))
+                    .platz(12, 46, 44, 44)
+                Text(treffpunkt.name).grotesk(18, .bold, abstand: -0.5).foregroundStyle(.white).lineLimit(1)
+                    .frame(height: 44)
+                    .platz(76, 46, 362 - 76 - 12, 44, .leading)
+            }
+            .frame(width: 362, height: 102, alignment: .topLeading)
+            .overlay(Rectangle().strokeBorder(lime, lineWidth: 1))
+            .contentShape(Rectangle())
+        } else {
+            VerlaufRahmenZeile(text: "Dienststart \(zeit)", farbe: lime)
+                .contentShape(Rectangle())
+        }
+    }
+}
+
+/// Icon-Kachel 44 x 44 (#242525, Ecken 12) mit dem grauen Ort-Icon 24 x 24.
+private struct TreffpunktKachel: View {
+    let icon: String
+    var body: some View {
+        Image(icon).resizable().scaledToFit().frame(width: 24, height: 24)
+            .frame(width: 44, height: 44)
+            .background(Color(hex: 0x242525))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -524,6 +615,12 @@ struct AuftragsKarte: View {
                 Text("Plan \(plan)").grotesk(10, abstand: -0.5)
                     .foregroundStyle(Color(hex: 0xF4F5F4).opacity(0.5))
                     .mittig(201, iconMitte + 18, 64)
+            }
+            // Start Zeitraum: Ende klein unter der Zeit ("bis 14:30").
+            if let bis = fahrt.etdBis, !bis.isEmpty {
+                Text("bis \(bis)").grotesk(12, .bold, abstand: -0.5)
+                    .foregroundStyle(Color(hex: 0xE2F754))
+                    .mittig(201, iconMitte + (zeigePlan ? 30 : 18), 80)
             }
 
             // Orte: links 40, rechts 39, Spalten 1fr | 29 | 1fr mit 18 Abstand.

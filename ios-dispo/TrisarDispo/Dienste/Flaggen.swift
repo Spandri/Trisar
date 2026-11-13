@@ -2,7 +2,7 @@ import Supabase
 import SwiftUI
 
 /// Flaggen an Fahrern, wie admin/src/shared/flaggen.js (Figma Koordinator_Screen_Map 2832:12528):
-/// drei Flaggen in Cyan, Violett und Koenigsblau. Die Dispo waehlt Fahrer aus (Karte oder Alle Fahrer)
+/// drei Flaggen in Cyan, Pink und Koenigsblau. Die Dispo waehlt Fahrer aus (Karte oder Alle Fahrer)
 /// und tippt eine Flagge an. Sie fuellt sich, sobald alle Ausgewaehlten sie tragen, erneut tippen nimmt sie weg.
 /// Gespeichert in profiles.flagge (flagge1 bis flagge3), hoechstens eine Flagge je Fahrer.
 enum Flaggen {
@@ -15,7 +15,7 @@ enum Flaggen {
 
     static let alle: [Eintrag] = [
         Eintrag(id: "flagge1", name: "Flagge 1 (Cyan)", umriss: "Flagge_1", voll: "Flagge_1_Voll"),
-        Eintrag(id: "flagge2", name: "Flagge 2 (Violett)", umriss: "Flagge_2", voll: "Flagge_2_Voll"),
+        Eintrag(id: "flagge2", name: "Flagge 2 (Pink)", umriss: "Flagge_2", voll: "Flagge_2_Voll"),
         Eintrag(id: "flagge3", name: "Flagge 3 (Königsblau)", umriss: "Flagge_3", voll: "Flagge_3_Voll"),
     ]
     static let kreis = "Flagge_Kreis"
@@ -66,12 +66,14 @@ struct FlaggenKnoepfe: View {
     var nur: [String]? = nil
     var aktiv: Set<String> = []
     var filtern = false
+    /// Kreisgroesse, die Flagge waechst mit (35 -> 14 x 18). Karte nimmt 44 zum leichteren Tippen.
+    var groesse: CGFloat = 35
 
     var body: some View {
         if waagerecht {
             HStack(spacing: 8) { knoepfe }
         } else {
-            VStack(spacing: 3) { knoepfe }
+            VStack(spacing: groesse > 35 ? 6 : 3) { knoepfe }
         }
     }
 
@@ -80,10 +82,10 @@ struct FlaggenKnoepfe: View {
             let gefuellt = filtern ? aktiv.contains(f.id) : Flaggen.alleHaben(ids, flaggeVon, f.id)
             Button { wahl(filtern || !gefuellt ? f.id : nil) } label: {
                 ZStack {
-                    Image(Flaggen.kreis).resizable().frame(width: 35, height: 35)
-                    Image(gefuellt ? f.voll : f.umriss).resizable().frame(width: 14, height: 18)
+                    Image(Flaggen.kreis).resizable().frame(width: groesse, height: groesse)
+                    Image(gefuellt ? f.voll : f.umriss).resizable().frame(width: groesse * 14 / 35, height: groesse * 18 / 35)
                 }
-                .frame(width: 35, height: 35)
+                .frame(width: groesse, height: groesse)
                 .contentShape(Circle())
             }
             .buttonStyle(.web)

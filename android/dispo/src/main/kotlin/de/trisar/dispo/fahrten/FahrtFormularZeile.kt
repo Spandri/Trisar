@@ -24,6 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -54,6 +57,8 @@ internal fun FormularZeile(
     rechts: RechtsArt? = null,
     rechtsAktion: (() -> Unit)? = null,
     zuruecksetzen: () -> Unit,
+    /** Start Zeitraum (13.11.): Tipp auf die Beschriftung schaltet um (onLabelClick), dann gepunktet unterstrichen. */
+    beschriftungAktion: (() -> Unit)? = null,
     feld: @Composable () -> Unit,
 ) {
     val gefuellt = FahrtText.getrimmt(wert).isNotEmpty()
@@ -64,7 +69,18 @@ internal fun FormularZeile(
             Modifier.fillMaxSize().padding(start = 18.dp, end = (6 + if (hatEta) 64 else 40).dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(beschriftung, style = css(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.5f)), maxLines = 1, softWrap = false)
+            val stilBeschriftung = css(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.5f))
+            if (beschriftungAktion != null) {
+                // underline decoration-dotted underline-offset-4 wie im Web.
+                Text(beschriftung, style = stilBeschriftung, maxLines = 1, softWrap = false,
+                    modifier = Modifier.tippen(beschriftungAktion).drawBehind {
+                        val y = size.height - 1.dp.toPx()
+                        drawLine(LIME.copy(alpha = 0.5f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(1.5f.dp.toPx(), 2.dp.toPx())))
+                    })
+            } else {
+                Text(beschriftung, style = stilBeschriftung, maxLines = 1, softWrap = false)
+            }
             Box(Modifier.weight(1f).fillMaxSize(), contentAlignment = Alignment.CenterStart) { feld() }
         }
         Row(

@@ -20,6 +20,8 @@ struct FahrtZeile: Decodable {
     let created_at: String?
     let etd: String?
     let original_etd: String?
+    /// Start Zeitraum (13.11.): Ende des Zeitraums, nil = feste Startzeit.
+    let etd_bis: String?
     let convoy_id: UUID?
     let driver_id: UUID?
     /// Eigene Orte der Dispo (fehlen die Spalten noch, bleiben sie leer).
@@ -51,6 +53,8 @@ struct DienstAnfrage: Decodable, Identifiable, Equatable {
     /// Ohne vorher ist es ein ganz neuer Dienst, sonst zeigt die Anfrage nur das Geaenderte.
     var pausen: [Stunden.DienstPause]? = nil
     var vorher: DienstVorher? = nil
+    /// Treffpunkt und Notiz beim Dienststart (dienst_treffpunkt), nil ohne Ort und Notiz.
+    var treffpunkt: DienstTreffpunkt? = nil
 
     var angenommen: Bool { (status ?? "").lowercased() == "accepted" }
 }
@@ -78,6 +82,8 @@ struct Fahrt: Identifiable, Equatable {
     let fahrtDatum: String      // yyyy-MM-dd
     let etd: String             // HH:mm
     let planEtd: String?
+    /// Start Zeitraum: Ende "HH:mm", nil = feste Startzeit.
+    var etdBis: String? = nil
     let kolonnenID: UUID?
     let istKolonne: Bool
     var meineAntwort: String    // convoy_assignments.response_status
@@ -204,11 +210,19 @@ final class FahrtenSpeicher: ObservableObject {
                     .in("dienst_id", values: ids).execute().value) ?? []
                 let aenderungen: [AenderungZeile] = (try? await Backend.client.from("dienst_aenderung").select("dienst_id,vorher")
                     .in("dienst_id", values: ids).execute().value) ?? []
+                // Treffpunkt und Notiz beim Dienststart (fehlt die Tabelle noch, bleibt es leer).
+                let treffpunkte: [DienstTreffpunkt] = (try? await Backend.client.from("dienst_treffpunkt")
+                    .select("dienst_id,ort_id,name,adresse,lat,lng,notiz,aktualisiert")
+                    .in("dienst_id", values: ids).execute().value) ?? []
                 let pausenJe = Dictionary(pausen.map { ($0.dienst_id, $0.pausen ?? []) }, uniquingKeysWith: { a, _ in a })
                 let vorherJe = Dictionary(aenderungen.compactMap { a in a.vorher.map { (a.dienst_id, $0) } }, uniquingKeysWith: { a, _ in a })
+                let treffpunktJe = Dictionary(treffpunkte.compactMap { t in t.dienstID.flatMap { t.leer ? nil : ($0, t) } }, uniquingKeysWith: { a, _ in a })
+                // Eigene Orte fuer das Icon des Treffpunkts.
+                if treffpunkte.contains(where: { $0.ortID != nil }) { await OrteSpeicher.geteilt.ladenFallsNoetig() }
                 for i in dienste.indices {
                     dienste[i].pausen = pausenJe[dienste[i].id] ?? []
                     dienste[i].vorher = vorherJe[dienste[i].id]
+                    dienste[i].treffpunkt = treffpunktJe[dienste[i].id]
                 }
             }
 
@@ -254,6 +268,7 @@ final class FahrtenSpeicher: ObservableObject {
                     fahrtDatum: Self.fahrtDatum(zeile),
                     etd: String((zeile.etd ?? "12:00").prefix(5)),
                     planEtd: zeile.original_etd.map { String($0.prefix(5)) },
+                    etdBis: zeile.etd_bis.flatMap { $0.isEmpty ? nil : String($0.prefix(5)) },
                     kolonnenID: zeile.convoy_id,
                     istKolonne: istKolonne,
                     meineAntwort: eigene?.response_status ?? "pending",
@@ -388,12 +403,13 @@ final class FahrtenSpeicher: ObservableObject {
                     return DienstAnfrage(id: eintrag.id, service_date: eintrag.service_date,
                                          service_start_time: eintrag.service_start_time,
                                          service_end_time: eintrag.service_end_time, status: "accepted",
-                                         pausen: eintrag.pausen, vorher: nil)
+                                         // Treffpunkt bleibt beim Annehmen erhalten (sonst bis zum naechsten Laden weg).
+                                         pausen: eintrag.pausen, vorher: nil, treffpunkt: eintrag.treffpunkt)
                 case "zurueckgesetzt":
                     let v = eintrag.vorher
                     return DienstAnfrage(id: eintrag.id, service_date: eintrag.service_date,
                                          service_start_time: v?.start, service_end_time: v?.ende, status: "accepted",
-                                         pausen: v?.pausen ?? [], vorher: nil)
+                                         pausen: v?.pausen ?? [], vorher: nil, treffpunkt: eintrag.treffpunkt)
                 default:
                     return nil
                 }
@@ -414,6 +430,8 @@ final class FahrtenSpeicher: ObservableObject {
             kanal.postgresChange(AnyAction.self, schema: "public", table: "convoy_assignments", filter: .eq("driver_id", value: id)),
             kanal.postgresChange(AnyAction.self, schema: "public", table: "driver_service_requests", filter: .eq("driver_id", value: id)),
             kanal.postgresChange(AnyAction.self, schema: "public", table: "profiles", filter: .eq("id", value: id)),
+            // Treffpunkt und Notiz beim Dienststart (RLS: nur die eigenen Dienste).
+            kanal.postgresChange(AnyAction.self, schema: "public", table: "dienst_treffpunkt"),
         ]
         // Neue Chat-Nachrichten: nur Zaehler neu, die Fahrten bleiben.
         let nachrichten = kanal.postgresChange(AnyAction.self, schema: "public", table: "messages")

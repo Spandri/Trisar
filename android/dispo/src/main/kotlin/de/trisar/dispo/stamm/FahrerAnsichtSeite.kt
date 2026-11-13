@@ -147,6 +147,20 @@ internal fun FahrerAnsichtSeite(fahrer: DispoFahrer, zurueck: () -> Unit, bearbe
     val alleDienste = (eintraege ?: emptyList()).map { e ->
         AblaufDienst(e.dienst.id.lowercase(), e.dienst.datum, e.dienst.beginn, e.dienst.ende, e.dienst.pausen, e)
     } + kommende
+    // Treffpunkt und Notiz beim Dienststart (dienst_treffpunkt), eine Abfrage fuer alle gezeigten Dienste.
+    var treffpunktJe by remember { mutableStateOf<Map<String, de.trisar.kern.DienstTreffpunkt>>(emptyMap()) }
+    val tpSchluessel = alleDienste.map { it.id }.filter { it.isNotEmpty() }.distinct().sorted().joinToString(",")
+    LaunchedEffect(tpSchluessel) {
+        if (tpSchluessel.isEmpty()) { treffpunktJe = emptyMap(); return@LaunchedEffect }
+        val zeilen = runCatching {
+            Backend.client.from("dienst_treffpunkt").select(Columns.raw(de.trisar.kern.DienstTreffpunkt.SPALTEN)) {
+                filter { isIn("dienst_id", tpSchluessel.split(",")) }
+            }.decodeList<de.trisar.kern.DienstTreffpunktZeile>()
+        }.getOrDefault(emptyList())
+        // Eigener Ort als Treffpunkt: Orte fuer sein Icon laden.
+        if (zeilen.any { it.ort_id != null }) runCatching { de.trisar.kern.EigeneOrte.einmalLaden() }
+        treffpunktJe = zeilen.mapNotNull { z -> de.trisar.kern.DienstTreffpunkt.ausZeile(z)?.let { z.dienst_id.lowercase() to it } }.toMap()
+    }
     // Ablauf ab gestern. Aeltere Tage nur, solange dort Stunden noch nicht bestaetigt sind.
     val ab = LocalDate.now(Stunden.BERLIN).minusDays(1).toString()
     fun offen(d: AblaufDienst) = d.eintrag?.let { hatKarte(it) && it.zettel?.status != "bestaetigt" } == true
@@ -225,7 +239,7 @@ internal fun FahrerAnsichtSeite(fahrer: DispoFahrer, zurueck: () -> Unit, bearbe
                         for (t in teile) when (t) {
                             is AblaufTeil.Fahrt -> FahrtKarte(t.f, t.f.zeiten, datumAlsStatus = false, wischen = false, oeffnen = { oeffneFahrt(t.f.id) },
                                 erledigt = {}, archivieren = {}, duplizieren = {})
-                            is AblaufTeil.Dienst -> DienstBlock(t.d, t.fahrten, oeffneFahrt)
+                            is AblaufTeil.Dienst -> DienstBlock(t.d, t.fahrten, oeffneFahrt, treffpunktJe[t.d.id])
                         }
                     }
                     if (tage.isEmpty()) Text("Keine Fahrten und Dienste ab gestern.", style = grotesk(16f, 500, farbe = FA_LIME.copy(alpha = 0.7f)))
@@ -249,9 +263,36 @@ private fun StatusZeile(text: String, farbe: Color) {
     }
 }
 
+/**
+ * Dienststart mit Treffpunkt und Notiz (dienst_treffpunkt), wie die Karte in der Fahrer-App (Figma 2908-12498)
+ * und DienstStartMitOrt im Web: Lime-Rahmen, Icon-Kachel 44 und Ort, darunter die Notiz grau.
+ */
+@Composable
+private fun FaDienstStartMitOrt(zeit: String, tp: de.trisar.kern.DienstTreffpunkt) {
+    Column(Modifier.width(362.dp).border(1.dp, FA_LIME).padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp)) {
+        Text("Dienststart $zeit", style = grotesk(24f, 700, zeilenHoehe = 24f, abstand = 0.5f, farbe = FA_LIME), maxLines = 1)
+        if (tp.name.isNotEmpty()) {
+            Row(Modifier.padding(top = 8.dp).offset(x = (-4).dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(44.dp).background(hex(0x242525), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                    Icon(tp.iconGrau, Modifier.size(24.dp))
+                }
+                Column(Modifier.padding(start = 20.dp)) {
+                    Text(tp.name, style = grotesk(18f, 700, zeilenHoehe = 20f, abstand = -0.5f), maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    if (tp.adresse.isNotEmpty() && tp.adresse != tp.name) Text(tp.adresse,
+                        style = grotesk(13f, 500, farbe = Color.White.copy(alpha = 0.5f)), maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            }
+        }
+        if (tp.notiz.isNotEmpty()) Text(tp.notiz, style = grotesk(15f, 700, zeilenHoehe = 19f, abstand = -0.3f, farbe = hex(0x868687)),
+            modifier = Modifier.padding(top = 10.dp))
+    }
+}
+
 /** Ein Dienst: Dienststart, Fahrten und Pausen nach Uhrzeit, Dienstende. */
 @Composable
-private fun DienstBlock(d: AblaufDienst, fahrten: List<DispoFahrt>, oeffneFahrt: (String) -> Unit) {
+private fun DienstBlock(d: AblaufDienst, fahrten: List<DispoFahrt>, oeffneFahrt: (String) -> Unit, tp: de.trisar.kern.DienstTreffpunkt? = null) {
     val start = hmMin(d.beginn)
     // Zeilen nach Minuten: Fahrten und Pausen (Pausenende knapp hinter einer Fahrt zur selben Minute).
     val zeilen = mutableListOf<Pair<Double, Any>>()
@@ -267,7 +308,8 @@ private fun DienstBlock(d: AblaufDienst, fahrten: List<DispoFahrt>, oeffneFahrt:
         zeilen.add(mb to "Pausenende ${bis.take(5)}")
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        StatusZeile("Dienststart ${d.beginn.take(5).ifEmpty { "--:--" }}", FA_LIME)
+        if (tp != null) FaDienstStartMitOrt(d.beginn.take(5).ifEmpty { "--:--" }, tp)
+        else StatusZeile("Dienststart ${d.beginn.take(5).ifEmpty { "--:--" }}", FA_LIME)
         for ((_, z) in zeilen.sortedBy { it.first }) {
             if (z is DispoFahrt) FahrtKarte(z, z.zeiten, datumAlsStatus = false, wischen = false, oeffnen = { oeffneFahrt(z.id) },
                 erledigt = {}, archivieren = {}, duplizieren = {})

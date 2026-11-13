@@ -13,6 +13,7 @@ import { ortKreiseAusblenden, ortKreiseZeigen, ortSchildBauen } from '../../shar
 import { fahrerMarkierung, useFahrerMarkierung } from '../../shared/fahrerMarkierung';
 import AuswahlErklaerung from '../ui/AuswahlErklaerung';
 import FlaggenKnoepfe from '../ui/FlaggenKnoepfe';
+import { kartenBereich, pfadAusduennen, useKartenBereich } from '../../shared/kartenBereich';
 import { FLAGGEN, FLAGGE_UMRISS, flaggeId, flaggeNachId, flaggeSetzen } from '../../shared/flaggen';
 
 const envOrDefault = (value, fallback) => {
@@ -844,10 +845,14 @@ const ensureCoordinatorReadSession = async () => {
   }
 };
 
-function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyClick, sheetPercent, onRouteMetricsChange = () => {}, resetCameraSignal = 0, orte = [], gewaehlterOrtId = null, onOrtToggle = () => {}, markierung = null }) {
+function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyClick, sheetPercent, onRouteMetricsChange = () => {}, resetCameraSignal = 0, orte = [], gewaehlterOrtId = null, onOrtToggle = () => {}, markierung = null, bereich = null, kartenRef = null }) {
   const { t } = useI18n();
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  // Eigener Bereich der Dispo (13.11.): "Maps" zoomt darauf statt auf alle Fahrer.
+  const bereichRef = useRef(bereich);
+  bereichRef.current = bereich;
+  const bereichLinieRef = useRef(null);
   const onDriverSelectRef = useRef(onDriverSelect);
   const initializedResetSignalRef = useRef(false);
   const markersByDriverRef = useRef(new Map());
@@ -1009,6 +1014,11 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     if (!map || !window.trisarKarte) return;
 
     const bounds = new window.trisarKarte.LatLngBounds();
+    if (bereichRef.current?.length >= 3) {
+      bereichRef.current.forEach(([lng, lat]) => bounds.extend({ lat, lng }));
+      map.fitBounds(bounds, { top: KNOEPFE_OBEN_PX, right: 24, bottom: NAV_AND_FOOTER_COVER_PX, left: 24 });
+      return;
+    }
     markersByDriverRef.current.forEach((marker) => {
       const pos = marker?.getPosition?.();
       if (pos) bounds.extend(pos);
@@ -1239,6 +1249,7 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
       });
 
       mapInstanceRef.current = map;
+      if (kartenRef) kartenRef.current = map;
       // Tipp auf die leere Karte hebt die Auswahl eines Fahrers auf. Pins und
       // Gruppen liegen als Marker-Elemente ueber der Karte — deren Klicks
       // kommen hier ebenfalls an und werden uebergangen.
@@ -2000,6 +2011,19 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
     return () => window.removeEventListener('resize', handleResize);
   }, [fitAllDriverMarkers, fitRouteBounds, hasActiveRide, mapReady]);
 
+  // Umriss des eigenen Bereichs: duenne Lime-Linie, geschlossen, sonst nichts.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!mapReady || !map || !window.trisarKarte) return undefined;
+    bereichLinieRef.current?.setMap(null);
+    bereichLinieRef.current = null;
+    if (bereich?.length >= 3) {
+      const pfad = [...bereich, bereich[0]].map(([lng, lat]) => ({ lat, lng }));
+      bereichLinieRef.current = new window.trisarKarte.Polyline({ path: pfad, strokeColor: '#E3F654', strokeWeight: 2, strokeOpacity: 1, zIndex: 1, map });
+    }
+    return () => { bereichLinieRef.current?.setMap(null); bereichLinieRef.current = null; };
+  }, [bereich, mapReady]);
+
   return <div ref={mapRef} data-tutorial="karte-ansicht" className="absolute inset-0" />;
 }
 
@@ -2466,6 +2490,49 @@ export default function KartenView({ setView, filters = {} }) {
   const [selectedDriverId, setSelectedDriverId] = useState(null);
   const [routeMetrics, setRouteMetrics] = useState(null);
   const [resetCameraSignal, setResetCameraSignal] = useState(0);
+  // Eigener Bereich (13.11.): mit dem Finger frei zeichnen, "Maps" zoomt dann darauf.
+  const kartenRef = useRef(null);
+  const bereich = useKartenBereich();
+  const [bereichZeichnen, setBereichZeichnen] = useState(false);
+  const [zugPfad, setZugPfad] = useState([]);
+  const zugAktivRef = useRef(false);
+  const [zugLaeuft, setZugLaeuft] = useState(false);
+  const [bereichFehler, setBereichFehler] = useState('');
+  const zugPunkt = (event) => {
+    const rahmen = event.currentTarget.getBoundingClientRect();
+    return { x: event.clientX - rahmen.left, y: event.clientY - rahmen.top };
+  };
+  const zugBeginnen = (event) => {
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    zugAktivRef.current = true;
+    setZugLaeuft(true);
+    setZugPfad([zugPunkt(event)]);
+  };
+  const zugWeiter = (event) => {
+    if (!zugAktivRef.current) return;
+    const p = zugPunkt(event);
+    setZugPfad((alt) => [...alt, p]);
+  };
+  const zugEnde = () => { zugAktivRef.current = false; setZugLaeuft(false); };
+  const zugGross = zugPfad.length >= 3 && (() => {
+    const xs = zugPfad.map((p) => p.x); const ys = zugPfad.map((p) => p.y);
+    return Math.max(...xs) - Math.min(...xs) > 30 && Math.max(...ys) - Math.min(...ys) > 30;
+  })();
+  const bereichSchliessen = () => { setBereichZeichnen(false); setZugPfad([]); zugAktivRef.current = false; setZugLaeuft(false); };
+  const bereichSpeichern = async () => {
+    const karte = kartenRef.current?.karte;
+    if (!karte || !zugGross) return;
+    const punkte = pfadAusduennen(zugPfad).map((p) => { const ll = karte.unproject([p.x, p.y]); return [ll.lng, ll.lat]; });
+    const fehler = await kartenBereich.speichern(punkte);
+    setBereichFehler(fehler ? `Bereich nicht gespeichert: ${fehler}` : '');
+    bereichSchliessen();
+    setResetCameraSignal((prev) => prev + 1);
+  };
+  const bereichLoeschen = async () => {
+    const fehler = await kartenBereich.loeschen();
+    setBereichFehler(fehler ? `Bereich nicht gelöscht: ${fehler}` : '');
+    bereichSchliessen();
+  };
   const [quickFilters, setQuickFilters] = useState([...ALL_DRIVER_STATES]);
   const [sheetPercent, setSheetPercent] = useState(getMinSheetPercent());
   const [inactiveLookaheadHours, setInactiveLookaheadHours] = useState(1);
@@ -3256,6 +3323,8 @@ export default function KartenView({ setView, filters = {} }) {
         orte={orte}
         gewaehlterOrtId={gewaehlterOrtId}
         onOrtToggle={handleOrtToggle}
+        bereich={bereich}
+        kartenRef={kartenRef}
       />
 
       {driversError ? (
@@ -3310,6 +3379,74 @@ export default function KartenView({ setView, filters = {} }) {
         ) : null}
       </button>
 
+      {/* Eigener Bereich: Kreis-Knopf links neben der Auswahl, gleicher Look. */}
+      <button
+        type="button"
+        onClick={() => (bereichZeichnen ? bereichSchliessen() : setBereichZeichnen(true))}
+        data-tutorial="karte-bereich-knopf"
+        aria-label="Bereich zeichnen"
+        aria-pressed={bereichZeichnen}
+        onTouchMove={(event) => event.preventDefault()}
+        className={`absolute top-[60px] right-[140px] z-[33] w-[50px] h-[50px] rounded-full ${bereichZeichnen || bereich ? 'bg-[#FF6F63]' : 'bg-[#E3F654]'} border-2 border-black flex items-center justify-center touch-none select-none`}
+      >
+        {/* Pinsel-Kreis (13.11.): Lime ohne Bereich, rot beim Zeichnen und solange ein Bereich gespeichert ist. */}
+        <img src="/icon/_Icon_Schwarz/Bereich_Kreis_Trisar_Icons_01.svg" alt="" className="w-[34px] h-[34px]" />
+      </button>
+
+      {bereichZeichnen ? (
+        <>
+          <div
+            className="absolute inset-0 z-[32] touch-none select-none cursor-crosshair"
+            onPointerDown={zugBeginnen}
+            onPointerMove={zugWeiter}
+            onPointerUp={zugEnde}
+            onPointerCancel={zugEnde}
+          >
+            {zugPfad.length >= 2 ? (
+              <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                <path
+                  d={`M${zugPfad.map((p) => `${p.x},${p.y}`).join(' L')}${zugLaeuft ? '' : ' Z'}`}
+                  fill={zugLaeuft ? 'none' : 'rgba(227,246,84,0.10)'}
+                  stroke="#E3F654"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              </svg>
+            ) : null}
+          </div>
+          <div className="absolute left-[20px] right-[20px] z-[33] flex gap-[8px]" style={{ bottom: NAV_AND_FOOTER_COVER_PX - 36 }}>
+            {/* X: loescht den Bereich (gibt es keinen, nur schliessen). Neu zeichnen ueber den Stift. */}
+            <button
+              type="button"
+              onClick={bereich ? bereichLoeschen : bereichSchliessen}
+              aria-label={bereich ? 'Bereich löschen' : 'Abbrechen'}
+              className="w-[56px] h-[56px] rounded-full bg-[#FF6F63] border-2 border-black flex items-center justify-center shrink-0"
+            >
+              <img src="/icon/_Icon_Schwarz/Schliessen_Trisar_Icons_01.svg" alt="" className="w-[22px] h-[22px]" />
+            </button>
+              <>
+                <span className="flex-1" />
+                {/* Haken wie das rote X: runder Knopf, Lime mit schwarzem Rand. */}
+                <button
+                  type="button"
+                  onClick={zugGross ? bereichSpeichern : bereichSchliessen}
+                  disabled={!zugGross && !bereich}
+                  aria-label="Bereich speichern"
+                  className="w-[56px] h-[56px] rounded-full bg-[#E3F654] border-2 border-black flex items-center justify-center shrink-0 disabled:opacity-40"
+                >
+                  <img src="/icon/_Icon_Schwarz/Auswahl_Haken.svg" alt="" className="w-[22px] h-[25px] -mt-[3px]" />
+                </button>
+              </>
+          </div>
+        </>
+      ) : null}
+      {bereichFehler ? (
+        <div className="absolute left-[20px] right-[20px] top-[120px] z-[34] bg-[#171717] border border-[#FF8E8E] text-[#FF8E8E] text-[12px] px-3 py-2 font-['Space_Grotesk']" onClick={() => setBereichFehler('')}>
+          {bereichFehler}
+        </div>
+      ) : null}
+
       {erklaerungSichtbar ? <AuswahlErklaerung onFertig={() => setErklaerungSichtbar(false)} /> : null}
 
       {/* Flaggen (Figma 2832:12528): unter den Knoepfen, nur im Auswahlmodus. */}
@@ -3318,7 +3455,8 @@ export default function KartenView({ setView, filters = {} }) {
           ids={markierungStand.fahrer.map((f) => f.id)}
           flaggeVon={flaggeVon}
           onWahl={flaggeWaehlen}
-          className="absolute top-[134px] right-[28px] z-[31]"
+          groesse={44}
+          className="absolute top-[134px] right-[24px] z-[31]"
         />
       ) : benutzteFlaggen.length > 0 ? (
         // Ausserhalb der Auswahl bleiben die benutzten Flaggen rechts unter der Statusleiste und filtern die Karte.
@@ -3326,7 +3464,8 @@ export default function KartenView({ setView, filters = {} }) {
           nur={benutzteFlaggen}
           aktiv={flaggenFilter}
           onWahl={(id) => setFlaggenFilter((alt) => (alt.includes(id) ? alt.filter((x) => x !== id) : [...alt, id]))}
-          className="absolute top-[196px] right-[28px] z-[31]"
+          groesse={44}
+          className="absolute top-[196px] right-[24px] z-[31]"
         />
       ) : null}
       {flaggenFehler ? (

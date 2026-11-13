@@ -126,6 +126,17 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
             }
             dienst.append(z)
         }
+        // Angenommener Dienst mit Treffpunkt (heute oder spaeter): "Dienststart 07:00 – Bayerischer Hof".
+        // Antippen fuehrt wie bei einer Fahrt zur Navigation dorthin.
+        let heute = Datum.tagWert(Date())
+        for d in stand.dienste.filter({ !$0.offen && $0.treffpunkt != nil && $0.tag >= heute }).prefix(2) {
+            let z = CPListItem(text: "Dienststart \(d.start ?? "--:--") – \(d.treffpunkt ?? "")",
+                               detailText: ([Datum.tagEtikett(d.tag)] + [d.treffpunktNotiz].compactMap { $0 }).joined(separator: " · "),
+                               image: CarPlayBild.zeichen("mappin.and.ellipse"))
+            z.accessoryType = .disclosureIndicator
+            z.handler = { [weak self] _, fertig in self?.treffpunktNavigation(d); fertig() }
+            dienst.append(z)
+        }
         for d in stand.dienste where d.offen {
             let zeit = [d.start, d.ende].compactMap { $0 }.joined(separator: "–")
             let z = CPListItem(text: "Dienstanfrage " + Datum.tagEtikett(d.tag), detailText: zeit.isEmpty ? "Antwort offen" : "\(zeit) · Antwort offen",
@@ -244,8 +255,41 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
                                   animated: true, completion: nil)
     }
 
+    /// Ziel fuer den Treffpunkt: Koordinaten, sonst Adresse oder Name (aus dem Dienst im FahrtenSpeicher).
+    private func treffpunktZiel(_ d: UhrDienst) -> String {
+        let tp = Geteilt.fahrten.dienstAnfragen.first { $0.id.uuidString == d.id }?.treffpunkt
+        if let p = tp?.punkt { return "\(p.latitude),\(p.longitude)" }
+        if let a = tp?.adresse, !a.isEmpty { return a }
+        return d.treffpunkt ?? ""
+    }
+
+    /// Apple Karten oder Google Maps zum Treffpunkt beim Dienststart.
+    private func treffpunktNavigation(_ d: UhrDienst) {
+        guard let steuerung, steuerung.presentedTemplate == nil else { return }
+        let ziel = treffpunktZiel(d)
+        guard !ziel.isEmpty else { return }
+        let aktionen = [
+            CPAlertAction(title: "Apple Karten", style: .default) { [weak self] _ in
+                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
+                self?.navigieren(zu: ziel, google: false)
+            },
+            CPAlertAction(title: "Google Maps", style: .default) { [weak self] _ in
+                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
+                self?.navigieren(zu: ziel, google: true)
+            },
+            CPAlertAction(title: "Abbrechen", style: .cancel) { [weak self] _ in
+                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
+            },
+        ]
+        steuerung.presentTemplate(CPActionSheetTemplate(title: "Navigation zum Treffpunkt", message: d.treffpunkt, actions: aktionen),
+                                  animated: true, completion: nil)
+    }
+
     private func navigieren(_ f: UhrFahrt, google: Bool) {
-        let adresse = navigationsZiel(f).adresse
+        navigieren(zu: navigationsZiel(f).adresse, google: google)
+    }
+
+    private func navigieren(zu adresse: String, google: Bool) {
         guard !adresse.isEmpty else { return }
         var teile = URLComponents(string: google ? "comgooglemaps://" : "maps://")!
         teile.queryItems = google
@@ -476,7 +520,9 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         let jetzt = Date()
         return UhrStand(angemeldet: true, name: "Beispiel Fahrer",
                         fahrten: [a, uhr(f[1], phase: nil, offen: false), c, uhr(f[3], phase: nil, offen: false), uhr(f[4], phase: nil, offen: true)],
-                        dienste: [UhrDienst(id: UUID().uuidString, tag: heute, start: "06:00", ende: "14:00", offen: true)],
+                        dienste: [UhrDienst(id: UUID().uuidString, tag: heute, start: "06:00", ende: "14:00", offen: true),
+                                  UhrDienst(id: UUID().uuidString, tag: heute, start: "07:00", ende: "15:00", offen: false,
+                                            treffpunkt: "Bayerischer Hof", treffpunktNotiz: "Am Haupteingang warten.")],
                         ortungAn: true, letzteSendung: jetzt.addingTimeInterval(-40), stand: jetzt, steht: true, tempoKmh: 0,
                         heute: UhrStunden(dienstID: UUID().uuidString, start: jetzt.addingTimeInterval(-5 * 3600 - 720), ende: nil,
                                           fertig: false, pausen: [], arbeitsMin: 0, offen: false, zettelStatus: nil))

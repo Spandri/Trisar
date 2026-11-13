@@ -355,6 +355,7 @@ export default {
   "fahrt.saving": "Speichern ...",
   "fahrt.start": "Start",
   "fahrt.startZeit": "Start Zeit",
+  "fahrt.startZeitraum": "Start Zeitraum",
   "fahrt.statusBeendet": "beendet",
   "fahrt.statusOffen": "offen",
   "fahrt.statusStoniert": "storniert",

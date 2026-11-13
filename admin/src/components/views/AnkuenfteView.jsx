@@ -442,12 +442,12 @@ export const RideCard = ({
               <div>
                 <div className={`${strikeColor} text-base font-normal font-['Space_Grotesk'] line-through leading-5`}>{time.original}</div>
                 <div className={`${statusColor} text-base font-bold font-['Space_Grotesk'] leading-5`}>{time.status}</div>
-                <div className={`${statusColor} text-base font-normal font-['Space_Grotesk'] leading-5`}>{time.new}</div>
+                <div className={`${statusColor} text-base font-normal font-['Space_Grotesk'] leading-5`}>{time.new}{time.bis ? `–${time.bis}` : ''}</div>
               </div>
             ) : (
               <div>
                 <div className={`${statusColor} text-base font-bold font-['Space_Grotesk'] leading-5`}>{time.status}</div>
-                <div className={`${statusColor} text-base font-normal font-['Space_Grotesk'] leading-5`}>{time.time}</div>
+                <div className={`${statusColor} text-base font-normal font-['Space_Grotesk'] leading-5`}>{time.time}{time.bis ? `–${time.bis}` : ''}</div>
               </div>
             )}
             {(() => {
@@ -673,6 +673,8 @@ export default function AnkuenfteView({
       displayTime: ride?.status === 'delayed'
         ? {
             ...(ride.time || {}),
+            // Start Zeitraum nur, wenn die grosse Zeit die Abfahrt ist.
+            bis: (useDepartureTime && !isUnderway) ? (ride?.time?.bis || '') : '',
             original: String(
               (useDepartureTime && !isUnderway)
                 ? (ride?.time?.original || ride?.time?.time || ride?.time?.new || targetTimeLabel || '--:--')
@@ -687,6 +689,7 @@ export default function AnkuenfteView({
           }
         : {
             ...(ride.time || {}),
+            bis: (useDepartureTime && !isUnderway) ? (ride?.time?.bis || '') : '',
             status: statusLabel || String(ride?.time?.status || ''),
             time: String(
               (useDepartureTime && !isUnderway)
@@ -783,6 +786,7 @@ export default function AnkuenfteView({
       sourceView: 'ankuenfte',
       datum: String(ride.date || '').slice(0, 10),
       startZeit: String(startZeit),
+      startZeitBis: String(ride.startZeitBis || ''),
       start: String(ride.start || start),
       ziel: String(ride.ziel || ziel),
       konvoi: ride.konvoi || '',

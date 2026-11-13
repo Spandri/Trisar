@@ -849,6 +849,16 @@ struct DienstePlanenBlatt: View {
     /// Vorhandener Dienst bei genau einem Fahrer und einem Tag (vorausgefuellt, gesendet wird nur Geaendertes).
     @State private var bestand: Bestand?
     @State private var hatteBestand = false
+    /// Treffpunkt beim Dienststart (eigener Ort oder Adresse wie beim Standby-Ort) und Notiz an den Fahrer (13.11.).
+    @ObservedObject private var orte = OrteSpeicher.geteilt
+    @State private var treffpunktText = ""
+    @State private var treffpunktOrtID: UUID?
+    @State private var notiz = ""
+    @State private var ortTreffer: [EigenerOrt] = []
+    @State private var ortVorschlaege: [String] = []
+    @State private var ortOffen = false
+    @State private var vorschlagLauf: Task<Void, Never>?
+    @FocusState private var treffpunktFokus: Bool
 
     struct Bestand {
         var id: String
@@ -857,6 +867,10 @@ struct DienstePlanenBlatt: View {
         var pausen: [Pause]
         var angenommen: Bool
         var vorher: (start: String, ende: String, pausen: [Pause])?
+        /// Gespeicherter Treffpunkt als Eingabe (eigener Ort: sein Name, sonst die Adresse) und Notiz.
+        var treffpunktText = ""
+        var treffpunktOrtID: UUID?
+        var notiz = ""
     }
     enum Zustand { case neu, bestaetigt, angefragt }
 
@@ -869,6 +883,7 @@ struct DienstePlanenBlatt: View {
     private struct PausenJSON: Decodable { let pausen: [PauseJSON]? }
     private struct VorherJSON: Decodable { let start: String?; let ende: String?; let pausen: [PauseJSON]? }
     private struct AenderungJSON: Decodable { let vorher: VorherJSON? }
+    private struct TreffpunktJSON: Decodable { let ort_id: UUID?; let name: String?; let adresse: String?; let notiz: String? }
 
     private static func hm(_ x: String?) -> String { String((x ?? "").prefix(5)) }
     private static func pausenAus(_ l: [PauseJSON]?) -> [Pause] {
@@ -885,12 +900,19 @@ struct DienstePlanenBlatt: View {
         guard let d = zeilen.first(where: { ($0.status ?? "").lowercased() != "refused" }) else { return nil }
         let p: [PausenJSON] = (try? await c.from("dienst_pausen").select("pausen").eq("dienst_id", value: d.id).execute().value) ?? []
         let a: [AenderungJSON] = (try? await c.from("dienst_aenderung").select("vorher").eq("dienst_id", value: d.id).execute().value) ?? []
+        // Treffpunkt und Notiz (dienst_treffpunkt). Fehlt die Tabelle noch, bleibt es leer.
+        let tp: [TreffpunktJSON] = (try? await c.from("dienst_treffpunkt").select("ort_id, name, adresse, notiz")
+            .eq("dienst_id", value: d.id).execute().value) ?? []
         let v = a.first?.vorher
+        let t = tp.first
         return Bestand(
             id: d.id, start: hm(d.service_start_time), ende: hm(d.service_end_time),
             pausen: pausenAus(p.first?.pausen),
             angenommen: (d.status ?? "").lowercased() == "accepted",
-            vorher: v.map { (hm($0.start), hm($0.ende), pausenAus($0.pausen)) })
+            vorher: v.map { (hm($0.start), hm($0.ende), pausenAus($0.pausen)) },
+            treffpunktText: t.map { $0.ort_id != nil ? ($0.name ?? "") : ($0.adresse ?? $0.name ?? "") } ?? "",
+            treffpunktOrtID: t?.ort_id,
+            notiz: t?.notiz ?? "")
     }
 
     private static func gleichePausen(_ a: [Pause], _ b: [Pause]) -> Bool {
@@ -922,7 +944,192 @@ struct DienstePlanenBlatt: View {
     }
 
     private var unveraendert: Bool {
-        bestand != nil && zustand("start") != .neu && zustand("ende") != .neu && zustand("pausen") != .neu
+        bestand != nil && zustand("start") != .neu && zustand("ende") != .neu && zustand("pausen") != .neu && !treffpunktGeaendert
+    }
+
+    // MARK: Treffpunkt (shared/dienstTreffpunkt.js)
+
+    /// Vergleichsschluessel wie treffpunktSchluessel im Web: Ort, Text und Notiz.
+    private static func treffpunktSchluessel(_ ortID: UUID?, _ text: String, _ notiz: String) -> String {
+        [ortID?.uuidString.lowercased() ?? "", FahrtText.getrimmt(text), FahrtText.getrimmt(notiz)].joined(separator: "|")
+    }
+
+    /// Hat die Dispo Ort oder Notiz geaendert (ohne vorhandenen Dienst: etwas eingetragen)?
+    private var treffpunktGeaendert: Bool {
+        Self.treffpunktSchluessel(treffpunktOrtID, treffpunktText, notiz)
+            != Self.treffpunktSchluessel(bestand?.treffpunktOrtID, bestand?.treffpunktText ?? "", bestand?.notiz ?? "")
+    }
+
+    /// Felder nur mit Dienststart (gesetzt oder schon gesendet).
+    private var zeigeTreffpunkt: Bool { !start.isEmpty || !(bestand?.start ?? "").isEmpty }
+
+    private func treffpunktTippen(_ text: String) {
+        if text != treffpunktText { treffpunktOrtID = nil }
+        treffpunktText = text
+        fehler = nil
+        vorschlagLauf?.cancel()
+        let q = FahrtText.getrimmt(text)
+        ortTreffer = orte.treffer(q)
+        if q.isEmpty { ortVorschlaege = []; return }
+        ortOffen = true
+        vorschlagLauf = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            if Task.isCancelled { return }
+            let liste = await FahrtPruefung.ortsVorschlaege(q)
+            if !Task.isCancelled { ortVorschlaege = liste }
+        }
+    }
+
+    /// Zeile fuer dienst_treffpunkt (ohne dienst_id). Nicht gesetzte Felder gehen als null mit,
+    /// damit ein Upsert alte Werte ueberschreibt.
+    private struct TreffpunktDaten {
+        var ort_id: String?
+        var name: String?
+        var adresse: String?
+        var lat: Double?
+        var lng: Double?
+        var notiz: String?
+    }
+    private struct TreffpunktZeile: Encodable {
+        let dienst_id: String
+        let daten: TreffpunktDaten
+        let aktualisiert: String
+        enum CodingKeys: String, CodingKey { case dienst_id, ort_id, name, adresse, lat, lng, notiz, aktualisiert }
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(dienst_id, forKey: .dienst_id)
+            if let v = daten.ort_id { try c.encode(v, forKey: .ort_id) } else { try c.encodeNil(forKey: .ort_id) }
+            if let v = daten.name { try c.encode(v, forKey: .name) } else { try c.encodeNil(forKey: .name) }
+            if let v = daten.adresse { try c.encode(v, forKey: .adresse) } else { try c.encodeNil(forKey: .adresse) }
+            if let v = daten.lat { try c.encode(v, forKey: .lat) } else { try c.encodeNil(forKey: .lat) }
+            if let v = daten.lng { try c.encode(v, forKey: .lng) } else { try c.encodeNil(forKey: .lng) }
+            if let v = daten.notiz { try c.encode(v, forKey: .notiz) } else { try c.encodeNil(forKey: .notiz) }
+            try c.encode(aktualisiert, forKey: .aktualisiert)
+        }
+    }
+
+    /// Eingabe -> Zeile (treffpunktAufloesen). Eigener Ort: Koordinaten aus orte, sonst Adresse suchen.
+    /// .success(nil) = nichts gesetzt (entfernen), .failure = Adresse nicht gefunden.
+    private func treffpunktAufloesen() async -> Result<TreffpunktDaten?, TrisarFehler> {
+        let text = FahrtText.getrimmt(treffpunktText)
+        let notizText = FahrtText.getrimmt(notiz)
+        if text.isEmpty && notizText.isEmpty { return .success(nil) }
+        var d = TreffpunktDaten(notiz: notizText.isEmpty ? nil : notizText)
+        if !text.isEmpty {
+            if let id = treffpunktOrtID, let o = orte.orte.first(where: { $0.id == id }) {
+                d.ort_id = o.id.uuidString
+                d.name = o.name
+                d.adresse = o.adresse.isEmpty ? nil : o.adresse
+                d.lat = o.lat
+                d.lng = o.lng
+            } else {
+                guard let p = await Routen.punkt(fuer: text) else {
+                    return .failure(.text("Treffpunkt nicht gefunden. Bitte genauer eingeben oder einen eigenen Ort wählen."))
+                }
+                d.name = text.split(separator: ",").first.map { FahrtText.getrimmt(String($0)) } ?? text
+                d.adresse = text
+                d.lat = p.latitude
+                d.lng = p.longitude
+            }
+        }
+        return .success(d)
+    }
+
+    /// Fuer diese Dienste speichern, ohne Ort und Notiz entfernen (treffpunktSpeichern).
+    private static func treffpunktSpeichern(_ ids: [String], _ daten: TreffpunktDaten?) async throws {
+        guard !ids.isEmpty else { return }
+        let c = Backend.client
+        guard let daten else {
+            try await c.from("dienst_treffpunkt").delete().in("dienst_id", values: ids).execute()
+            return
+        }
+        let jetzt = ISO8601DateFormatter().string(from: Date())
+        try await c.from("dienst_treffpunkt")
+            .upsert(ids.map { TreffpunktZeile(dienst_id: $0, daten: daten, aktualisiert: jetzt) }).execute()
+    }
+
+    /// Treffpunkt-Feld mit eigenen Orten und Adressvorschlaegen (wie beim Standby) und Notiz an den Fahrer.
+    @ViewBuilder private var treffpunktFelder: some View {
+        let eigenerOrt = treffpunktOrtID.flatMap { id in orte.orte.first { $0.id == id } }
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                if let eigenerOrt {
+                    Image(eigenerOrt.symbol.grau).resizable().scaledToFit().frame(width: 24, height: 24)
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Treffpunkt beim Dienststart").grotesk(11, .medium).foregroundStyle(.white.opacity(0.6))
+                        .frame(height: 14)
+                    TextField("", text: Binding(get: { treffpunktText }, set: { treffpunktTippen($0) }),
+                              prompt: Text("Ort oder Adresse").foregroundStyle(.white.opacity(0.3)))
+                        .font(.grotesk(15, .bold)).foregroundStyle(.white).tint(Self.lime)
+                        .autocorrectionDisabled()
+                        .focused($treffpunktFokus)
+                        .frame(height: 20)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if !treffpunktText.isEmpty {
+                    Button {
+                        treffpunktText = ""; treffpunktOrtID = nil; ortTreffer = []; ortVorschlaege = []; fehler = nil
+                    } label: {
+                        Text("×").grotesk(20).foregroundStyle(.white.opacity(0.6)).frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.web)
+                    .accessibilityLabel("Treffpunkt entfernen")
+                }
+            }
+            .padding(.leading, 12).padding(.trailing, 6)
+            .frame(maxWidth: .infinity).frame(height: 56)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Self.kachelFarbe))
+
+            if ortOffen, treffpunktFokus, !ortTreffer.isEmpty || !ortVorschlaege.isEmpty {
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(ortTreffer.enumerated()), id: \.element.id) { _, o in
+                            vorschlagZeile(o.name, icon: o.symbol.grau) {
+                                treffpunktText = o.name; treffpunktOrtID = o.id
+                            }
+                        }
+                        ForEach(Array(ortVorschlaege.enumerated()), id: \.offset) { _, v in
+                            vorschlagZeile(v, icon: nil) { treffpunktText = v; treffpunktOrtID = nil }
+                        }
+                    }
+                }
+                .frame(maxHeight: 180)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(Color(hex: 0x151607))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color(hex: 0x4A4F22), lineWidth: 1))
+            }
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Notiz an Fahrer").grotesk(11, .medium).foregroundStyle(.white.opacity(0.6)).frame(height: 14)
+                TextField("", text: $notiz, prompt: Text("z. B. Schild mitnehmen").foregroundStyle(.white.opacity(0.3)),
+                          axis: .vertical)
+                    .lineLimit(2...6)
+                    .font(.grotesk(15, .bold)).foregroundStyle(.white).tint(Self.lime)
+            }
+            .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Self.kachelFarbe))
+        }
+        .padding(.top, 12)
+        .onChange(of: notiz) { _, _ in fehler = nil }
+    }
+
+    private func vorschlagZeile(_ text: String, icon: String?, waehlen: @escaping () -> Void) -> some View {
+        Button {
+            waehlen()
+            ortTreffer = []; ortVorschlaege = []; ortOffen = false; treffpunktFokus = false
+        } label: {
+            HStack(spacing: 10) {
+                if let icon { Image(icon).resizable().scaledToFit().frame(width: 20, height: 20) }
+                Text(text).grotesk(13, .medium).foregroundStyle(Self.lime).multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.web)
     }
 
     private func zustandZeile(_ z: Zustand?) -> some View {
@@ -1176,6 +1383,9 @@ struct DienstePlanenBlatt: View {
                 }
                 .padding(.top, 10)
 
+                // Treffpunkt und Notiz beim Dienststart: nur mit Dienststart (eigener Ort oder Adresse).
+                if zeigeTreffpunkt { treffpunktFelder }
+
                 if let reihenFehler {
                     Text(reihenFehler).grotesk(13, .medium).foregroundStyle(Color(hex: 0xFF8E8E))
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 8)
@@ -1226,6 +1436,7 @@ struct DienstePlanenBlatt: View {
             .background(Color(hex: 0x1C1C1E).ignoresSafeArea())
             .presentationDetents([.height(300)])
         }
+        .task { await orte.ladenFallsNoetig() }
         .onAppear {
             guard let v = vorgabe else { return }
             tage = v.tag.map { [$0] } ?? []
@@ -1244,8 +1455,10 @@ struct DienstePlanenBlatt: View {
             bestand = b
             if let b {
                 start = b.start; ende = b.ende; pausen = b.pausen
+                treffpunktText = b.treffpunktText; treffpunktOrtID = b.treffpunktOrtID; notiz = b.notiz
             } else if hatteBestand {
                 start = ""; ende = ""; pausen = []
+                treffpunktText = ""; treffpunktOrtID = nil; notiz = ""
             }
             hatteBestand = b != nil
             feld = nil
@@ -1343,16 +1556,20 @@ struct DienstePlanenBlatt: View {
 
     /// Nicht gesetzte Zeiten gehen als null mit, damit nur das Gesetzte gilt.
     private struct Anfrage: Encodable {
+        /// ID vergibt die App: der Treffpunkt wird VOR dem Dienst gespeichert, damit die
+        /// Push-Mitteilung zum neuen Dienst den Ort schon nennt (push_dienst_ausloeser).
+        let id = UUID().uuidString.lowercased()
         let driver_id: String
         let service_date: String
         let start: String?
         let ende: String?
         let requested_by = "dispo-ios"
 
-        enum CodingKeys: String, CodingKey { case driver_id, service_date, service_start_time, service_end_time, status, requested_by }
+        enum CodingKeys: String, CodingKey { case id, driver_id, service_date, service_start_time, service_end_time, status, requested_by }
 
         func encode(to encoder: Encoder) throws {
             var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(id, forKey: .id)
             try c.encode(driver_id, forKey: .driver_id)
             try c.encode(service_date, forKey: .service_date)
             if let start { try c.encode(start, forKey: .service_start_time) } else { try c.encodeNil(forKey: .service_start_time) }
@@ -1364,6 +1581,22 @@ struct DienstePlanenBlatt: View {
     private struct NeueID: Decodable { let id: String }
     private struct PausePlan: Encodable { let art = "fest"; let von: String; let bis: String }
     private struct PausenZeile: Encodable { let dienst_id: String; let pausen: [PausePlan]; let aktualisiert: String }
+
+    /// Letzter nicht abgelehnter Dienst je Fahrer und Tag (Treffpunkt ohne neuen Dienst).
+    private static func vorhandeneDienste(_ fahrer: [String], _ tage: [String]) async -> [String] {
+        struct Zeile: Decodable { let id: String; let driver_id: String; let service_date: String; let status: String? }
+        let zeilen: [Zeile] = (try? await Backend.client.from("driver_service_requests")
+            .select("id, driver_id, service_date, status, created_at")
+            .in("driver_id", values: fahrer).in("service_date", values: tage)
+            .order("created_at", ascending: false).execute().value) ?? []
+        var gesehen = Set<String>()
+        return zeilen.filter { z in
+            let k = "\(z.driver_id.lowercased())|\(z.service_date)"
+            if gesehen.contains(k) || (z.status ?? "").lowercased() == "refused" { return false }
+            gesehen.insert(k)
+            return true
+        }.map(\.id)
+    }
 
     private func senden() async {
         guard !fahrerIDs.isEmpty else { fehler = "Bitte mindestens einen Fahrer auswählen."; return }
@@ -1378,21 +1611,56 @@ struct DienstePlanenBlatt: View {
         let e = ende.isEmpty || ende == b?.ende ? nil : ende
         let pausenGeaendert = b.map { !Self.gleichePausen(pausen, $0.pausen) } ?? true
         let pausenWeg = b != nil && pausenGeaendert && pausen.isEmpty && !(b?.pausen.isEmpty ?? true)
-        if b != nil && s == nil && e == nil && !pausenGeaendert { fehler = "Keine Änderung zum Senden."; return }
-        if let b, pausenWeg, s == nil, e == nil {
-            // Nur alle Pausen entfernt: direkt am Dienst loeschen, der Fahrer bestaetigt das.
-            do { try await c.from("dienst_pausen").delete().eq("dienst_id", value: b.id).execute() }
-            catch { fehler = "Pausen nicht entfernt: \(error.localizedDescription)"; return }
-            fertig()
-            return
-        }
+        // Treffpunkt oder Notiz geaendert (ohne vorhandenen Dienst: etwas eingetragen).
+        let tpGeaendert = treffpunktGeaendert && zeigeTreffpunkt
+        if b != nil && s == nil && e == nil && !pausenGeaendert && !tpGeaendert { fehler = "Keine Änderung zum Senden."; return }
         // Eine Anfrage je Fahrer und gewaehltem Tag, das Profil bekommt den fruehesten Tag.
         let gewaehlt = Array(Set(tage)).sorted()
         guard !gewaehlt.isEmpty else { fehler = "Bitte einen Tag im Kalender wählen."; return }
         let tag = gewaehlt.first ?? Dienstzeit.heute()
+        // Treffpunkt vorab aufloesen (eigener Ort oder Adresse), damit nichts halb gesendet wird.
+        var tpDaten: TreffpunktDaten?
+        if tpGeaendert {
+            switch await treffpunktAufloesen() {
+            case let .success(d): tpDaten = d
+            case let .failure(f): fehler = f.localizedDescription; return
+            }
+        }
+        if let b, pausenWeg, s == nil, e == nil {
+            // Nur alle Pausen entfernt: direkt am Dienst loeschen, der Fahrer bestaetigt das.
+            do { try await c.from("dienst_pausen").delete().eq("dienst_id", value: b.id).execute() }
+            catch { fehler = "Pausen nicht entfernt: \(error.localizedDescription)"; return }
+            if tpGeaendert {
+                do { try await Self.treffpunktSpeichern([b.id], tpDaten) }
+                catch { fehler = "Treffpunkt nicht gespeichert: \(error.localizedDescription)"; return }
+            }
+            fertig()
+            return
+        }
+        if b != nil && s == nil && e == nil && !pausenGeaendert {
+            // Nur Treffpunkt oder Notiz geaendert: kein neuer Dienst, der Fahrer muss nichts neu bestaetigen.
+            // Gespeichert am letzten nicht abgelehnten Dienst je Fahrer und Tag.
+            do {
+                try await Self.treffpunktSpeichern(await Self.vorhandeneDienste(fahrerIDs, gewaehlt), tpDaten)
+                fertig()
+            } catch {
+                fehler = "Treffpunkt nicht gespeichert: \(error.localizedDescription)"
+            }
+            return
+        }
         do {
+            let zeilen = gewaehlt.flatMap { t in fahrerIDs.map { Anfrage(driver_id: $0, service_date: t, start: s, ende: e) } }
+            // Treffpunkt und Notiz zuerst an die vergebenen IDs, damit der Push-Ausloeser
+            // beim Einfuegen des Dienstes den Ort schon findet.
+            if tpGeaendert {
+                do { try await Self.treffpunktSpeichern(zeilen.map(\.id), tpDaten) }
+                catch {
+                    fehler = "Treffpunkt nicht gespeichert: \(error.localizedDescription)"
+                    return
+                }
+            }
             let neu: [NeueID] = try await c.from("driver_service_requests")
-                .insert(gewaehlt.flatMap { t in fahrerIDs.map { Anfrage(driver_id: $0, service_date: t, start: s, ende: e) } })
+                .insert(zeilen)
                 .select("id").execute().value
             // Feste Pausen je Dienst (dienst_pausen), fliessen in die Stundenerfassung des Fahrers.
             let plan = pausenGeaendert ? pausen.filter { $0.von != $0.bis }.map { PausePlan(von: $0.von, bis: $0.bis) } : []

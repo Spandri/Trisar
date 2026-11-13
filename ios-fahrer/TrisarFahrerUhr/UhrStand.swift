@@ -69,6 +69,11 @@ struct UhrDienst: Codable, Identifiable, Hashable {
     var start: String?     // HH:mm
     var ende: String?
     var offen: Bool        // noch nicht angenommen
+    // Ab 13.11. (optional, alter Stand bleibt lesbar): Treffpunkt beim Dienststart (dienst_treffpunkt).
+    var treffpunkt: String? = nil       // Name des Orts
+    var treffpunktNotiz: String? = nil  // Notiz der Dispo
+    var treffpunktLat: Double? = nil    // Koordinaten fuer Karten auf der Uhr
+    var treffpunktLng: Double? = nil
 }
 
 struct UhrStand: Codable, Equatable {

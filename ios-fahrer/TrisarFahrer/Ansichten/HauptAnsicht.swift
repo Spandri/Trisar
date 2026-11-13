@@ -7,6 +7,8 @@ struct HauptAnsicht: View {
     @EnvironmentObject private var speicher: FahrtenSpeicher
     @State private var profilOffen = false
     @State private var offeneFahrt: Fahrt?
+    /// Angetippter Dienststart mit Treffpunkt (Karte, Ort und Notiz wie bei einer Fahrt).
+    @State private var offenerDienst: DienstAnfrage?
     @State private var supportOffen = false
     @State private var fahrzeugOffen = false
     @ObservedObject private var stunden = StundenSpeicher.shared
@@ -40,7 +42,8 @@ struct HauptAnsicht: View {
                 FahrtenListeAnsicht(
                     oeffneProfil: { profilOffen = true },
                     oeffneFahrzeug: { fahrzeugOffen = true },
-                    oeffneFahrt: { offeneFahrt = $0 }
+                    oeffneFahrt: { offeneFahrt = $0 },
+                    oeffneDienst: { offenerDienst = $0 }
                 )
             }
         }
@@ -67,6 +70,10 @@ struct HauptAnsicht: View {
         .onReceive(Push.shared.$ziel.compactMap { $0 }) { _ in pushZielOeffnen() }
         // Kalter Start: Ziel erst einloesen, wenn die Fahrten da sind.
         .onChange(of: speicher.fahrten.map(\.id)) { _, _ in pushZielOeffnen() }
+        .webVollbild(item: $offenerDienst) { dienst in
+            DienstStartAnsicht(dienstID: dienst.id) { offenerDienst = nil }
+                .environmentObject(speicher)
+        }
         .webVollbild(item: $offeneFahrt) { fahrt in
             if let fahrer = anmeldung.fahrerID {
                 SoloNormalAnsicht(fahrtID: fahrt.id, fahrerID: fahrer) { offeneFahrt = nil }

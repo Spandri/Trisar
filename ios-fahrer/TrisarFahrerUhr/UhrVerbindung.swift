@@ -160,7 +160,8 @@ extension UhrVerbindung {
                      gaeste: ["Herr Kowalski"], notiz: "Halle B6, Eingang Ost."),
             UhrFahrt(id: "3", tag: morgen, zeit: "08:00", status: "Angenommen", von: "Hauptbahnhof", nach: "BMW Welt", flug: "", offen: false, laeuft: false, kolonne: true),
         ], dienste: [
-            UhrDienst(id: "d1", tag: morgen, start: "07:00", ende: "15:30", offen: true),
+            UhrDienst(id: "d1", tag: morgen, start: "07:00", ende: "15:30", offen: true,
+                      treffpunkt: "Bayerischer Hof", treffpunktNotiz: "Bitte 10 min früher da sein.", treffpunktLat: 48.1406, treffpunktLng: 11.5735),
         ], ortungAn: true, letzteSendung: Date().addingTimeInterval(-20), stand: Date(),
         steht: true, tempoKmh: 0,
         heute: fertig

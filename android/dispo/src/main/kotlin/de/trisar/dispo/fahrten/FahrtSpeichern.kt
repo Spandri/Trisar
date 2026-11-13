@@ -20,6 +20,8 @@ import kotlinx.serialization.json.put
 data class FahrtFormularWerte(
     val datum: String = "",
     val startZeit: String = "",
+    /** Start Zeitraum (13.11.): Ende des Zeitraums (jobs.etd_bis), leer = feste Startzeit. */
+    val startZeitBis: String = "",
     val start: String = "",
     val ziel: String = "",
     val flugnummer: String = "",
@@ -46,6 +48,8 @@ data class GeladeneFahrt(
     val zwischenstopps: List<String> = emptyList(),
     /** jobs.zwischenstopps gibt es in der Datenbank. */
     val mitStoppSpalte: Boolean = false,
+    /** jobs.etd_bis gibt es in der Datenbank (Migration start_zeitraum). */
+    val mitBisSpalte: Boolean = false,
 )
 
 /** payload an onCreateRide / onSave. */
@@ -170,9 +174,14 @@ object FahrtSpeichern {
             limit(1)
         }.decodeList<JsonObject>().firstOrNull()
         var mitStoppSpalte = true
-        val job = (try { mit("$spalten, pickup_ort_id, dropoff_ort_id, zwischenstopps") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-            mitStoppSpalte = false
-            try { mit("$spalten, pickup_ort_id, dropoff_ort_id") } catch (e2: kotlinx.coroutines.CancellationException) { throw e2 } catch (e2: Exception) { mit(spalten) }
+        var mitBisSpalte = true
+        // Start Zeitraum (13.11.): zuerst mit etd_bis, ohne die Spalte wie bisher.
+        val job = (try { mit("$spalten, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+            mitBisSpalte = false
+            try { mit("$spalten, pickup_ort_id, dropoff_ort_id, zwischenstopps") } catch (e1: kotlinx.coroutines.CancellationException) { throw e1 } catch (e1: Exception) {
+                mitStoppSpalte = false
+                try { mit("$spalten, pickup_ort_id, dropoff_ort_id") } catch (e2: kotlinx.coroutines.CancellationException) { throw e2 } catch (e2: Exception) { mit(spalten) }
+            }
         })
             ?: error("Fahrt nicht gefunden.")
 
@@ -272,6 +281,7 @@ object FahrtSpeichern {
         val werte = FahrtFormularWerte(
             datum = tag,
             startZeit = startZeit,
+            startZeitBis = FahrtText.uhrzeit(stringWert(job["etd_bis"]), ""),
             start = if (startOrt.isNotEmpty()) FahrtText.getrimmt(stringWert(job["pickup_name"])).ifEmpty { ortFuerEditor(null, stringWert(job["pickup_address"])) }
                 else ortFuerEditor(stringWert(job["pickup_name"]), stringWert(job["pickup_address"])),
             ziel = if (zielOrt.isNotEmpty()) FahrtText.getrimmt(stringWert(job["dropoff_name"])).ifEmpty { ortFuerEditor(null, stringWert(job["dropoff_address"])) }
@@ -289,7 +299,7 @@ object FahrtSpeichern {
         )
         return GeladeneFahrt(W.t(job["id"]).ifEmpty { id }, werte, namen.ifEmpty { listOf("") }, wirksam.joinToString(", "), dispoText, aiBooked,
             zwischenstopps = (job["zwischenstopps"] as? JsonArray)?.map { FahrtText.getrimmt(stringWert(it)) }?.filter { it.isNotEmpty() } ?: emptyList(),
-            mitStoppSpalte = mitStoppSpalte)
+            mitStoppSpalte = mitStoppSpalte, mitBisSpalte = mitBisSpalte)
     }
 
     // MARK: Gemeinsame Vorbereitung (Pruefungen vor dem Schreiben)
@@ -307,6 +317,8 @@ object FahrtSpeichern {
         val zwischenstopps: List<String>,
         val tag: String,
         val startZeit: String,
+        /** Start Zeitraum: Ende, nur mit Startzeit, sonst leer. */
+        val startZeitBis: String = "",
         val kolonne: String,
         val fahrerNamen: List<String>,
         val gaeste: List<String>,
@@ -331,6 +343,8 @@ object FahrtSpeichern {
         val tag = FahrtText.fahrtDatum(e.werte.datum)
         if (tag.isEmpty()) throw Abbruch(FahrtText.tr("app.datumUngueltig"))
         var startZeit = FahrtText.uhrzeit(e.werte.startZeit, "")
+        // Start Zeitraum wie im Web: etd_bis nur, wenn auch eine Startzeit da ist.
+        val startZeitBis = if (startZeit.isEmpty()) "" else FahrtText.uhrzeit(e.werte.startZeitBis, "")
         val flugNr = FahrtText.nummer(e.werte.flugnummer)
         val zugNr = FahrtText.nummer(e.werte.zugnummer)
         if (flugNr.isNotEmpty() && zugNr.isNotEmpty()) throw Abbruch(FahrtText.tr("app.nurFlugOderZug"))
@@ -351,7 +365,7 @@ object FahrtSpeichern {
             startName = so?.name ?: start, startAdresse = so?.adresse ?: start, startOrt = so?.id,
             zielName = zo?.name ?: ziel, zielAdresse = zo?.adresse ?: ziel, zielOrt = zo?.id,
             zwischenstopps = e.zwischenstopps.map { FahrtText.getrimmt(it) }.filter { it.isNotEmpty() },
-            tag = tag, startZeit = startZeit,
+            tag = tag, startZeit = startZeit, startZeitBis = startZeitBis,
             kolonne = FahrtText.getrimmt(e.werte.konvoi),
             fahrerNamen = FahrtText.fahrerNamenListe(e.fahrerNamen),
             gaeste = FahrtText.gaesteTeilen(e.fahrgaeste),
@@ -373,7 +387,7 @@ object FahrtSpeichern {
     private fun id(u: String?): JsonElement = u?.let { JsonPrimitive(it.lowercase()) } ?: JsonNull
 
     /** Gemeinsame Spalten von insertPayload / updatePayload. */
-    private fun jobSpalten(v: Vorbereitet, status: String, kolonne: String?, fahrer: String?, aiBooked: Boolean, mitStoppSpalte: Boolean = false): MutableMap<String, JsonElement> {
+    private fun jobSpalten(v: Vorbereitet, status: String, kolonne: String?, fahrer: String?, aiBooked: Boolean, mitStoppSpalte: Boolean = false, mitBisSpalte: Boolean = false): MutableMap<String, JsonElement> {
         val jetzt = DispoDatum.iso()
         return linkedMapOf(
             "pickup_name" to JsonPrimitive(v.startName),
@@ -402,6 +416,9 @@ object FahrtSpeichern {
                 it["pickup_ort_id"] = id(v.startOrt)
                 it["dropoff_ort_id"] = id(v.zielOrt)
             }
+            // Start Zeitraum: Anlegen nur, wenn gesetzt. Aendern immer (null = feste Startzeit), solange es die Spalte gibt.
+            if (v.startZeitBis.isNotEmpty()) it["etd_bis"] = JsonPrimitive(v.startZeitBis)
+            else if (mitBisSpalte) it["etd_bis"] = JsonNull
             if (mitStoppSpalte || v.zwischenstopps.isNotEmpty()) {
                 it["zwischenstopps"] = JsonArray(v.zwischenstopps.map { t -> JsonPrimitive(t) })
             }
@@ -508,7 +525,7 @@ object FahrtSpeichern {
             val kolonnenSync = kolonne != null || v.fahrerNamen.size > 1 || fahrerIDs.size > 1
             val zuordnung = if (kolonnenSync) fahrerIDs else listOfNotNull(fahrerNeu)
 
-            val spalten = jobSpalten(v, naechster, kolonne, fahrerNeu, geladen.aiBooked, geladen.mitStoppSpalte)
+            val spalten = jobSpalten(v, naechster, kolonne, fahrerNeu, geladen.aiBooked, geladen.mitStoppSpalte, geladen.mitBisSpalte)
             if (neuAnfragen) {
                 spalten["driver_response_status"] = JsonPrimitive("pending")
                 spalten["driver_responded_at"] = JsonNull

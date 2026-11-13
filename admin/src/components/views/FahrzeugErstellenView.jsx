@@ -190,8 +190,9 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   // Fahrer dieses Fahrzeugs (profiles.vehicle_id): zuweisen und mit einem Tipp zum Fahrer (12.11.).
   const [fahrerListe, setFahrerListe] = useState([]);
   const [fahrerStand, setFahrerStand] = useState(0);
+  // Beim Neuanlegen merkt sich die Auswahl den Fahrer und setzt ihn nach dem Speichern (wie Fahrzeug beim Fahrer).
+  const [neuFahrer, setNeuFahrer] = useState('');
   useEffect(() => {
-    if (!initialVehicle?.id) { setFahrerListe([]); return undefined; }
     let aktiv = true;
     supabase.from('profiles').select('id, first_name, last_name, vehicle_id, role, is_dispo').order('first_name').then(({ data, error }) => {
       if (!aktiv || error) return;
@@ -202,14 +203,14 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   }, [initialVehicle?.id, fahrerStand]);
   const zugewiesen = fahrerListe.find((p) => p.vehicle_id === initialVehicle?.id) || null;
   const fahrerName = (p) => [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim() || 'Ohne Name';
-  const fahrerZuweisen = async (neuId) => {
-    const vid = initialVehicle?.id;
-    if (!vid) return;
+  const fahrerZuweisen = async (neuId, vid = initialVehicle?.id, stumm = false) => {
+    if (!vid) return null;
     const client = hasSupabaseAdminConfig ? supabaseAdmin : supabase;
     // Bisherige Fahrer dieses Fahrzeugs loesen, dann den neuen setzen.
     const { error: e1 } = await client.from('profiles').update({ vehicle_id: null }).eq('vehicle_id', vid).neq('id', neuId || '00000000-0000-0000-0000-000000000000');
     const { error: e2 } = neuId ? await client.from('profiles').update({ vehicle_id: vid }).eq('id', neuId) : { error: null };
     const fehler = e1 || e2;
+    if (stumm) { setFahrerStand((n) => n + 1); return fehler; }
     setFeedback(fehler ? `Fahrer nicht gespeichert: ${fehler.message}` : (neuId ? 'Fahrer zugewiesen.' : 'Fahrer entfernt.'));
     setFahrerStand((n) => n + 1);
   };
@@ -257,7 +258,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   }, [isEditMode, schaeden]);
   // Seite waechst mit dem Schadensbericht (beginnt bei 20 + 882, darueber „Fahrzeug löschen“).
   // Tracker-Zeile (falls Tracker da) und Fahrer-Zeile (Bearbeiten) schieben alles darunter.
-  const trackerVersatz = (isEditMode && tracker.length > 0 ? 68 : 0) + (isEditMode ? 68 : 0);
+  const trackerVersatz = (isEditMode && tracker.length > 0 ? 68 : 0) + 68;
   const fahrerZeileOben = 662 + (isEditMode && tracker.length > 0 ? 68 : 0);
   const seitenHoehe = isEditMode ? Math.max(BASE_HEIGHT, 20 + 882 + trackerVersatz + schadenHoehe + 70) : BASE_HEIGHT;
 
@@ -296,6 +297,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
     setSeatCount('');
     setFuelType('');
     setImageUrl('');
+    setNeuFahrer('');
   };
 
   // Fahrzeug endgueltig loeschen. Schaeden fallen per CASCADE mit, Fahrten und Fahrer
@@ -391,7 +393,11 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
           if (setzenFehler) throw setzenFehler;
         }
       }
-      setFeedback(isEditMode ? t('erstellen.vehicleUpdated') : t('erstellen.vehicleCreated'));
+      let fahrerFehler = null;
+      if (!isEditMode && neuFahrer && savedVehicle?.id) fahrerFehler = await fahrerZuweisen(neuFahrer, savedVehicle.id, true);
+      setFeedback(fahrerFehler
+        ? `${t('erstellen.vehicleCreated')} Fahrer nicht gespeichert: ${fahrerFehler.message}`
+        : (isEditMode ? t('erstellen.vehicleUpdated') : t('erstellen.vehicleCreated')));
       if (typeof onSaved === 'function') onSaved(savedVehicle);
       if (isEditMode) {
         window.setTimeout(() => setView('fahrzeugListe'), 200);
@@ -575,12 +581,12 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
               />
             </Box>
 
-            {isEditMode && (
+            {(
               <>
-                <Box x={20} y={fahrerZeileOben} w={zugewiesen && onOpenDriver ? 271 : 362}>
+                <Box x={20} y={fahrerZeileOben} w={isEditMode && zugewiesen && onOpenDriver ? 271 : 362}>
                   <select
-                    value={zugewiesen?.id || ''}
-                    onChange={(event) => fahrerZuweisen(event.target.value)}
+                    value={isEditMode ? (zugewiesen?.id || '') : neuFahrer}
+                    onChange={(event) => (isEditMode ? fahrerZuweisen(event.target.value) : setNeuFahrer(event.target.value))}
                     aria-label="Fahrer"
                     className={`${inputClass} appearance-none cursor-pointer`}
                   >
@@ -593,7 +599,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
                   </select>
                   <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="absolute right-3 top-1/2 -translate-y-1/2 w-[10px] h-[13px] rotate-90 pointer-events-none" />
                 </Box>
-                {zugewiesen && onOpenDriver ? (
+                {isEditMode && zugewiesen && onOpenDriver ? (
                   <button
                     type="button"
                     onClick={() => onOpenDriver(zugewiesen.id)}

@@ -66,6 +66,8 @@ internal data class FahrtZeile(
     val created_at: String? = null,
     val etd: String? = null,
     val original_etd: String? = null,
+    /** Start Zeitraum (13.11.): Ende des Zeitraums, null = feste Startzeit. */
+    val etd_bis: String? = null,
     val convoy_id: String? = null,
     val driver_id: String? = null,
     val pickup_ort_id: String? = null,
@@ -90,6 +92,8 @@ data class DienstAnfrage(
      *  Ohne vorher ist es ein ganz neuer Dienst, sonst zeigt die Anfrage nur das Geaenderte. */
     val pausen: List<DienstPausenZeit> = emptyList(),
     val vorher: DienstVorher? = null,
+    /** Treffpunkt und Notiz beim Dienststart (dienst_treffpunkt), nur in der App, nicht aus der Zeile. */
+    @kotlinx.serialization.Transient val treffpunkt: de.trisar.kern.DienstTreffpunkt? = null,
 ) {
     val angenommen get() = status.orEmpty().lowercase() == "accepted"
 }
@@ -127,6 +131,8 @@ data class Fahrt(
     val abholOrtID: String? = null,
     val zielOrtID: String? = null,
     val zwischenstopps: List<String> = emptyList(),
+    /** Start Zeitraum: Ende (HH:mm), null = feste Startzeit. */
+    val etdBis: String? = null,
 ) {
     val abholKurz get() = Adresse.kurz(abholName, abholAdresse)
     val zielKurz get() = Adresse.kurz(zielName, zielAdresse)
@@ -404,6 +410,7 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
                         abholOrtID = z.pickup_ort_id,
                         zielOrtID = z.dropoff_ort_id,
                         zwischenstopps = z.zwischenstopps.orEmpty(),
+                        etdBis = z.etd_bis?.take(5)?.ifEmpty { null },
                     )
                 }
                 // Pausen und gemerkte Aenderung je Dienst dazu (fuer die Zeilen der Anfrage).
@@ -416,7 +423,15 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
                     Backend.client.from("dienst_aenderung").select(Columns.raw("dienst_id,vorher")) { filter { isIn("dienst_id", dienstIDs) } }
                         .liste<AenderungZeile>().mapNotNull { z -> z.vorher?.let { z.dienst_id to it } }.toMap()
                 }.getOrDefault(emptyMap())
-                dienstAnfragen.value = dienste.map { it.copy(pausen = pausenJe[it.id].orEmpty(), vorher = vorherJe[it.id]) }
+                // Treffpunkt und Notiz beim Dienststart (fehlt die Tabelle noch, bleibt es leer).
+                val treffpunktZeilen = if (dienstIDs.isEmpty()) emptyList() else runCatching {
+                    Backend.client.from("dienst_treffpunkt").select(Columns.raw(de.trisar.kern.DienstTreffpunkt.SPALTEN)) { filter { isIn("dienst_id", dienstIDs) } }
+                        .liste<de.trisar.kern.DienstTreffpunktZeile>()
+                }.getOrDefault(emptyList())
+                val treffpunktJe = treffpunktZeilen.mapNotNull { z -> de.trisar.kern.DienstTreffpunkt.ausZeile(z)?.let { z.dienst_id to it } }.toMap()
+                dienstAnfragen.value = dienste.map { it.copy(pausen = pausenJe[it.id].orEmpty(), vorher = vorherJe[it.id], treffpunkt = treffpunktJe[it.id]) }
+                // Eigener Ort als Treffpunkt: Orte fuer sein Icon laden.
+                if (treffpunktZeilen.any { it.ort_id != null }) EigeneOrte.einmalLaden()
                 // Eigene Orte einmal laden (Icon je Ort), nur lesen.
                 if (sichtbar.any { it.pickup_ort_id != null || it.dropoff_ort_id != null }) EigeneOrte.einmalLaden()
 
@@ -520,10 +535,12 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
                 filter(spalte, FilterOperator.EQ, fahrer)
             }
         }
+        // Treffpunkt und Notiz beim Dienststart (RLS: nur die eigenen Dienste, darum ohne Filter).
+        val treffpunkte = k.postgresChangeFlow<PostgresAction>(schema = "public") { table = "dienst_treffpunkt" }
         // Neue Chat-Nachrichten: nur Zaehler neu, die Fahrten bleiben.
         val nachrichten = k.postgresChangeFlow<PostgresAction>(schema = "public") { table = "messages" }
         kanal = k
-        stroeme.forEach { s -> beobachter += s.onEach { spaeterLaden() }.launchIn(viewModelScope) }
+        (stroeme + treffpunkte).forEach { s -> beobachter += s.onEach { spaeterLaden() }.launchIn(viewModelScope) }
         beobachter += nachrichten.onEach { ungelesenAktualisieren() }.launchIn(viewModelScope)
         runCatching { k.subscribe() }
     }

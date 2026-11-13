@@ -22,7 +22,7 @@ export const ID = {
   dienstStefano: '00000000-0000-4000-8000-000000000201',
 };
 
-export const testdaten = (ollamaUrl: string, ollamaModell: string) => {
+export const testdaten = (ollamaUrl: string, ollamaModell: string, verstehenModell = '') => {
   const heute = tagBerlin(0);
   const morgen = tagBerlin(1);
   const uebermorgen = tagBerlin(2);
@@ -31,6 +31,8 @@ export const testdaten = (ollamaUrl: string, ollamaModell: string) => {
     integration_settings: [
       { key: 'ollama_url', value: ollamaUrl },
       { key: 'ollama_model', value: ollamaModell },
+      // Verstehen per Modell (verstehen.ts). Leer: nur Regeln wie vor dem Umbau.
+      ...(verstehenModell ? [{ key: 'ollama_model_verstehen', value: verstehenModell }] : []),
     ],
     profiles: [
       { id: ID.dispo, first_name: 'Dispo', last_name: 'Zentrale', role: 'dispo', is_dispo: true, driver_number: null },
@@ -41,13 +43,13 @@ export const testdaten = (ollamaUrl: string, ollamaModell: string) => {
     ],
     vehicles: [
       { id: 'v1', license_plate: 'M-TR 101', brand_model: 'BMW 7er', trim: 'Limousine', color: 'schwarz' },
-      { id: 'v2', license_plate: 'M-TR 102', brand_model: 'Mercedes V-Klasse', trim: 'Van', color: 'schwarz' },
+      { id: 'v2', license_plate: 'M-TR 102', brand_model: 'Mercedes V-Klasse', trim: 'Van', color: 'schwarz', range_km: 312, battery_fuel_percent: 54 },
       { id: 'v3', license_plate: 'M-TR 103', brand_model: 'BMW X5', trim: 'SUV', color: 'grau' },
     ],
     guests: [
       { id: 'g1', first_name: 'Horst', last_name: 'Engel' },
       { id: 'g2', first_name: 'Markus', last_name: 'Müller' },
-      { id: 'g3', first_name: 'Julia', last_name: 'Weber' },
+      { id: 'g3', first_name: 'Julia', last_name: 'Weber', phone: '+49 170 333', company: 'BMW Group', needs_child_seat: true },
     ],
     job_guests: [
       { job_id: ID.fahrtEngel, guest_id: 'g1', is_main_contact: true },
@@ -105,6 +107,8 @@ export const testdaten = (ollamaUrl: string, ollamaModell: string) => {
     ],
     driver_service_requests: [
       { id: ID.dienstStefano, driver_id: ID.stefano, service_date: heute, service_start_time: '08:00:00', service_end_time: null, status: 'accepted', created_at: jetzt },
+      // Stefano gestern Nachtdienst, fuer "Lösch den Dienststart von gestern".
+      { id: 'dienst-stefano-gestern', driver_id: ID.stefano, service_date: tagBerlin(-1), service_start_time: '22:00:00', service_end_time: '23:30:00', status: 'accepted', created_at: jetzt },
       // Anna morgen mit Pause, fuer Dienst- und Pausenfragen.
       { id: 'dienst-anna', driver_id: ID.anna, service_date: tagBerlin(1), service_start_time: '07:00:00', service_end_time: '15:00:00', status: 'accepted', created_at: jetzt },
     ],
@@ -119,5 +123,10 @@ export const testdaten = (ollamaUrl: string, ollamaModell: string) => {
       { id: 'z2', driver_id: ID.marvin, datum: heute, arbeits_min: 390, status: 'eingereicht', angepasst: true },
     ],
     ki_protokoll: [],
+    job_notes: [],
+    jobs_archive: [],
+    // Standby morgen am Kongress: Tim und Marvin. Fuer Standby anzeigen, loeschen, verschieben.
+    standby: [{ id: 'sb1', datum: tagBerlin(1), von: '10:00:00', bis: '18:00:00', ort_name: 'Kongress', adresse: 'Messe München' }],
+    standby_fahrer: [{ standby_id: 'sb1', driver_id: ID.tim, status: 'angefragt' }, { standby_id: 'sb1', driver_id: ID.marvin, status: 'angefragt' }],
   };
 };

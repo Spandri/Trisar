@@ -53,6 +53,13 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -175,6 +182,19 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
     }
     LaunchedEffect(benutzteFlaggen) { if (flaggenFilter.any { it !in benutzteFlaggen }) flaggenFilter = flaggenFilter.filter { it in benutzteFlaggen }.toSet() }
     var erklaerungSichtbar by remember { mutableStateOf(false) }
+    // Eigener Bereich (13.11.): mit dem Finger frei zeichnen, "Karte" zoomt dann darauf.
+    var kartenSteuerung by remember { mutableStateOf<KartenSteuerung?>(null) }
+    var bereichZeichnen by remember { mutableStateOf(false) }
+    var zugPfad by remember { mutableStateOf(listOf<Offset>()) }
+    var zugLaeuft by remember { mutableStateOf(false) }
+    var bereichFehler by remember { mutableStateOf("") }
+    val pixelJeDp = LocalDensity.current.density
+    LaunchedEffect(Unit) { KartenBereich.laden() }
+    val zugGross = zugPfad.size >= 3 && run {
+        val xs = zugPfad.map { it.x }; val ys = zugPfad.map { it.y }
+        xs.max() - xs.min() > 30 * pixelJeDp && ys.max() - ys.min() > 30 * pixelJeDp
+    }
+    fun bereichSchliessen() { bereichZeichnen = false; zugPfad = emptyList(); zugLaeuft = false }
 
     // Filterkette wie im Web.
     val begriffe = filter.fahrerSuche.split(";").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
@@ -258,7 +278,9 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                 rasterHoehe = rasterHoehe, einpassenSignal = einpassen,
                 orte = EigeneOrte.liste, ortGewaehlt = ortGewaehlt,
                 markiert = markierteIDs,
+                bereich = KartenBereich.punkte,
             ),
+            steuerung = { if (kartenSteuerung !== it) kartenSteuerung = it },
             waehlen = { id ->
                 if (kartenAuswahl) {
                     val f = daten.fahrer.firstOrNull { it.id == id }
@@ -282,6 +304,30 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
             // Erneuter Tipp auf denselben Ort blendet die Kreise wieder aus.
             ortTippen = { id -> ortGewaehlt = if (ortGewaehlt == id) null else id },
         )
+
+        // Zeichenflaeche: Finger zieht die Linie, beim Loslassen schliesst sie sich.
+        if (bereichZeichnen) {
+            Canvas(
+                Modifier.fillMaxSize().pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = { o -> zugLaeuft = true; zugPfad = listOf(o) },
+                        onDrag = { change, _ -> zugPfad = zugPfad + change.position },
+                        onDragEnd = { zugLaeuft = false },
+                        onDragCancel = { zugLaeuft = false },
+                    )
+                },
+            ) {
+                if (zugPfad.size >= 2) {
+                    val form = Path().apply {
+                        moveTo(zugPfad[0].x, zugPfad[0].y)
+                        zugPfad.drop(1).forEach { lineTo(it.x, it.y) }
+                        if (!zugLaeuft) close()
+                    }
+                    if (!zugLaeuft) drawPath(form, LIME.copy(alpha = 0.10f))
+                    drawPath(form, LIME, style = Stroke(width = 2 * density, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                }
+            }
+        }
 
         // Oberflaeche ueber der Karte (Raster 402 breit).
         Box(Modifier.fillMaxSize()) {
@@ -321,6 +367,52 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                 Box(Modifier.fillMaxSize().zIndex(30f)) { AuswahlErklaerung { erklaerungSichtbar = false } }
             }
 
+            // Pinsel-Kreis: Lime ohne Bereich, rot beim Zeichnen und solange ein Bereich gespeichert ist.
+            Box(
+                Modifier.platz(402f - 140f - 50f, 60f, 50f, 50f).zIndex(33f).clip(CircleShape)
+                    .background(if (bereichZeichnen || KartenBereich.punkte != null) hex(0xFF6F63) else LIME, CircleShape)
+                    .border(2.dp, Color.Black, CircleShape)
+                    .tippen { if (bereichZeichnen) bereichSchliessen() else bereichZeichnen = true },
+                contentAlignment = Alignment.Center,
+            ) { Icon("Bereich_Kreis_Trisar_Icons_01", Modifier.size(34.dp)) }
+
+            // Unten: rotes X (loescht den Bereich, ohne Bereich nur schliessen) und Lime-Haken (speichern).
+            if (bereichZeichnen) {
+                Row(Modifier.platz(20f, rasterHoehe - 154f - 56f, 362f, 56f).zIndex(33f)) {
+                    Box(
+                        Modifier.size(56.dp).clip(CircleShape).background(hex(0xFF6F63), CircleShape).border(2.dp, Color.Black, CircleShape)
+                            .tippen {
+                                if (KartenBereich.punkte != null) {
+                                    bereichSchliessen()
+                                    scope.launch { KartenBereich.loeschen()?.let { bereichFehler = "Bereich nicht gelöscht: $it" } }
+                                } else bereichSchliessen()
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon("Schliessen_Trisar_Icons_01", Modifier.size(22.dp)) }
+                    Spacer(Modifier.weight(1f))
+                    val aktiv = zugGross || KartenBereich.punkte != null
+                    Box(
+                        Modifier.size(56.dp).alpha(if (aktiv) 1f else 0.4f).clip(CircleShape).background(LIME, CircleShape).border(2.dp, Color.Black, CircleShape)
+                            .tippen {
+                                if (zugGross) {
+                                    val k = kartenSteuerung?.koordinaten(KartenBereich.ausduennen(zugPfad, 6 * pixelJeDp)).orEmpty()
+                                    bereichSchliessen()
+                                    scope.launch {
+                                        bereichFehler = KartenBereich.speichern(k)?.let { "Bereich nicht gespeichert: $it" } ?: ""
+                                        einpassen++
+                                    }
+                                } else if (aktiv) bereichSchliessen()
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon("Auswahl_Haken", Modifier.padding(bottom = 3.dp).size(22.dp, 25.dp)) }
+                }
+            }
+            if (bereichFehler.isNotEmpty()) {
+                Box(Modifier.platz(20f, 120f, 362f).zIndex(34f).background(hex(0x171717)).border(1.dp, hex(0xFF8E8E)).padding(horizontal = 12.dp, vertical = 8.dp).tippen { bereichFehler = "" }) {
+                    Text(bereichFehler, style = grotesk(12f, 500, 12f * 1.35f, farbe = hex(0xFF8E8E)))
+                }
+            }
+
             // Im Auswahlmodus ohne Statusleiste, wie im Figma (2832:12528): dort stehen die Flaggen.
             if (!kartenAuswahl) {
                 SchnellFilterLeiste(zaehler, schnellFilter, Modifier.mittig(201f, 142f, 362f, 44f),
@@ -343,7 +435,8 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                     ids = markierung.ids,
                     flaggeVon = { id -> daten.fahrer.firstOrNull { it.id == id }?.flagge },
                     wahl = { flaggeWaehlen(it) },
-                    modifier = Modifier.platz(402f - 28f - 35f, 134f, 35f, 111f).zIndex(31f),
+                    groesse = 44f,
+                    modifier = Modifier.platz(402f - 24f - 44f, 134f, 44f, 144f).zIndex(31f),
                 )
             } else if (benutzteFlaggen.isNotEmpty()) {
                 // Ausserhalb der Auswahl bleiben die benutzten Flaggen rechts unter der Statusleiste und filtern die Karte.
@@ -354,7 +447,8 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                     nur = benutzteFlaggen,
                     aktiv = flaggenFilter,
                     filtern = true,
-                    modifier = Modifier.platz(402f - 28f - 35f, 196f, 35f, benutzteFlaggen.size * 38f - 3f).zIndex(31f),
+                    groesse = 44f,
+                    modifier = Modifier.platz(402f - 24f - 44f, 196f, 44f, benutzteFlaggen.size * 50f - 6f).zIndex(31f),
                 )
             }
             if (flaggenFehler.isNotEmpty()) {

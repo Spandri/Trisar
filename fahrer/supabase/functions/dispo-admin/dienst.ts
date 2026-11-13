@@ -29,9 +29,19 @@ export const normal = (text: string) => ` ${String(text || '').toLowerCase()
   .replace(/[^a-z0-9:.\-– ]+/g, ' ')
   .replace(/\s+/g, ' ')} `;
 
-const ENDE_RE = /feierabend|dienstende|dienst\s*(be)?enden|schicht\s*ende|nach\s*hause|heim\s*schick|heimfahren|schluss\s+machen|ausstempeln|\bende\b/;
-const START_RE = /dienststart|dienstbeginn|dienst\s*(be)?ginnen|dienst\s+starten|anfangen|einstempeln|in\s+den\s+dienst|\bstart\b|\bbeginn\b|\banfang\b|\bfaengt\b|\bbeginnt\b/;
+// Datum oder Uhrzeit nach einem Wort: dann ist "Start am Samstag" ein Dienst, "Start am Bahnhof" ein Ort.
+const ZEIT_FOLGT = '(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|heute|morgen|uebermorgen|um|ab|\\d)';
+// Steht ein Ort hinter start/ende/beginn ("Start in Offenburg", "Ende am Bahnhof"), ist es Start/Ziel einer Fahrt
+// und kein Dienst (ki_protokoll 12.11.).
+const OHNE_ORT = `(?!\\s+(?:in|im|am|an|ab|bei|beim|vom|von|zum|zur|ist|:)\\s+(?!${ZEIT_FOLGT}))`;
+const ENDE_RE = new RegExp(`feierabend|dienstende|dienst\\s*ende|dienst\\s*(be)?enden|schicht\\s*ende|nach\\s*hause|heim\\s*schick|heimfahren|schluss\\s+machen|ausstempeln|\\bende\\b${OHNE_ORT}`);
+// "dienstart" ist ein haeufiger Tippfehler fuer Dienststart.
+const START_RE = new RegExp(`dienststart|dienstart|dienst\\s+start|dienstbeginn|dienst\\s*(be)?ginnen|dienst\\s+starten|anfangen|einstempeln|in\\s+den\\s+dienst|\\bstart\\b${OHNE_ORT}|\\bbeginn\\b${OHNE_ORT}|\\banfang\\b${OHNE_ORT}|\\bfaengt\\b|\\bbeginnt\\b`);
 const DIENST_RE = /dienst|schicht|feierabend|pause|stempel/;
+// Schwache Hinweise, nur wenn ein Fahrer und eine Uhrzeit ohne Fahrt-Woerter dastehen ("Tim kommt morgen um 7",
+// "Stefano heute bis 18 Uhr"). Allein machen sie keinen Dienst.
+const SCHWACH_START = /\b(starten|startet|beginnen|kommt|kommen|arbeitet|arbeiten|faengt)\b|\bab\s+(halb\s+)?\d/;
+const SCHWACH_ENDE = /\bhoer\w*\b.*\bauf\b|\bschluss\b|\bbis\s+(halb\s+)?\d|\baufhoer\w*/;
 const SCHICK_RE = /\b(schick|schicke|schickt|sende|setz|setze|plan|plane)\b/;
 // Ohne Dienst-Wort klingt "schick X um 10 zum Flughafen" nach einer Fahrt, nicht nach einem Dienst.
 const FAHRT_RE = /fahrt|buch|abhol|flughafen|terminal|hotel|bahnhof|\bzum\b|\bzur\b|\bnach\b|gast|gaeste/;
@@ -57,13 +67,25 @@ const zuMin = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slic
 export const tagLesbar = (iso: string, heute: string) => {
   if (iso === heute) return 'heute';
   if (iso === plusTage(heute, 1)) return 'morgen';
+  if (iso === plusTage(heute, -1)) return 'gestern';
   const d = new Date(`${iso}T12:00:00Z`);
   return `${['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getUTCDay()]} ${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
 };
 
 const WOCHENTAGE = ['sonntag', 'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag'];
 // heute, morgen, uebermorgen, Wochentag (naechster, heute eingeschlossen), 14.11. / 14.11.2026
+// Ein Tag ist im Text genannt (auch gestern, vorgestern, "letzten Montag").
+export const TAG_RE = /\b(heute|morgen|uebermorgen|gestern|vorgestern|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b|\b[0-3]?\d\.[01]?\d\./;
 export const datumAusText = (text: string, heute: string) => {
+  if (/\bvorgestern\b/.test(text)) return plusTage(heute, -2);
+  if (/\bgestern\b/.test(text)) return plusTage(heute, -1);
+  // "letzten Montag", "vergangenen Freitag": der zuletzt gewesene Tag, nie heute.
+  const letzter = text.match(/\b(letzte[nmrs]?|vergangene[nmrs]?|vorige[nmrs]?)\s+(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/);
+  if (letzter) {
+    const ziel = WOCHENTAGE.indexOf(letzter[2]);
+    const heuteTag = new Date(`${heute}T12:00:00Z`).getUTCDay();
+    return plusTage(heute, -(((heuteTag - ziel + 7) % 7) || 7));
+  }
   if (/\buebermorgen\b/.test(text)) return plusTage(heute, 2);
   if (/\bmorgen\b/.test(text)) return plusTage(heute, 1);
   const tagMonat = text.match(/\b([0-3]?\d)\.([01]?\d)\.(\d{4})?/);
@@ -98,7 +120,7 @@ export const zeitenAusText = (text: string) => {
   }
   const frei = (von: number, bis: number) => !belegt.some(([a, b]) => von < b && bis > a);
   // "morgen frueh 7": Zahl nach frueh/vormittags zaehlt als Uhrzeit.
-  const einzel = new RegExp(`\\bhalb\\s+${H}\\b|\\b${H}[:.]([0-5]\\d)\\b|\\b${H}\\s*uhr\\b|\\b(?:um|ab|von|bis|gegen|frueh|vormittags)\\s+${H}${M}\\b`, 'g');
+  const einzel = new RegExp(`\\bhalb\\s+${H}\\b|\\b${H}[:.]([0-5]\\d)\\b|\\b${H}\\s*uhr\\b|\\b(?:um|ab|von|bis|gegen|frueh|vormittags|nachmittags|abends|nachts|heute|morgen|uebermorgen|start|beginn|anfang|ende|feierabend|schluss|dienststart|dienstart|dienstbeginn|dienstende|schichtbeginn|schichtende)\\s+${H}${M}\\b`, 'g');
   while ((m = einzel.exec(ohneDatum))) {
     if (!frei(m.index, m.index + m[0].length)) continue;
     let min: number;
@@ -137,7 +159,8 @@ export const genannteFahrer = async (admin: any, text: string): Promise<Fahrer[]
       nach: normal(p.last_name).trim(),
       nr: p.driver_number == null ? '' : String(p.driver_number).trim(),
     }));
-  const enthaelt = (wort: string) => wort.length >= 2 && new RegExp(`\\b${wort.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(text);
+  // "Stefanos Dienst": Genitiv-s zaehlt mit.
+  const enthaelt = (wort: string) => wort.length >= 2 && new RegExp(`\\b${wort.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b`).test(text);
   const gefunden = new Map<string, Fahrer>();
   for (const f of fahrer) {
     const voll = `${f.vor} ${f.nach}`.trim();
@@ -190,10 +213,15 @@ const dienstText = (b: Bestehend) => {
 
 // Was eine Angabe bei schon vorhandenem Dienst bedeutet. Ein einzelner "Start" nach dem
 // Dienstbeginn ist meist das Ende, in der Nacht (vor 06:00) ebenso; mitten im Dienst eine Pause.
-const aufVorhandenen = (b: Bestehend, start: string | null, ende: string | null, pausen: Pause[]) => {
+const aufVorhandenen = (b: Bestehend, start: string | null, ende: string | null, pausen: Pause[], ausdruecklichStart = false) => {
   if (!start || ende || pausen.length) return { start, ende, pausen, frage: '' };
   const t = zuMin(start);
   if (b.start && t === zuMin(b.start)) return null; // gleicher Start: nichts zu tun
+  // "Dienststart 22:00" ausdruecklich gesagt: das ist der Start, nicht geraten Ende oder Pause.
+  if (ausdruecklichStart) {
+    if (b.ende && t >= zuMin(b.ende) && t >= 6 * 60) return { start, ende: null, pausen, frage: `Dienststart von ${b.start || '–'} auf ${start} ändern? Das Dienstende ${b.ende} liegt dann davor, prüfe es danach.` };
+    return { start, ende: null, pausen, frage: b.start ? `Dienststart von ${b.start} auf ${start} ändern?` : `${start} als Dienststart?` };
+  }
   if (b.start && !b.ende) {
     if (t > zuMin(b.start) || t < 6 * 60) return { start: null, ende: start, pausen, frage: `${start} als Dienstende?` };
     return { start, ende: null, pausen, frage: `Dienststart von ${b.start} auf ${start} vorverlegen?` };
@@ -201,30 +229,147 @@ const aufVorhandenen = (b: Bestehend, start: string | null, ende: string | null,
   if (b.start && b.ende) {
     if (t < zuMin(b.start) && t >= 6 * 60) return { start, ende: null, pausen, frage: `Dienststart von ${b.start} auf ${start} vorverlegen?` };
     if (t > zuMin(b.ende) || t < 6 * 60) return { start: null, ende: start, pausen, frage: `Dienstende von ${b.ende} auf ${start} verschieben?` };
-    const bis = uhr(t + 30);
-    return { start: null, ende: null, pausen: [{ von: start, bis }], frage: `${start}–${bis} als Pause?` };
+    // Mitten im Dienst ohne Wort dazu: nicht raten, sondern fragen (kein Vorschlag zum Senden).
+    return { start: null, ende: null, pausen, frage: '', unklar: `${start} liegt mitten im Dienst. Meinst du das Dienstende („Dienstende ${start}“) oder eine Pause („Pause ${start} bis ${uhr(t + 30)}“)?` };
   }
   // nur Ende vorhanden
   if (b.ende && t < zuMin(b.ende)) return { start, ende: null, pausen, frage: `${start} als Dienststart?` };
   return { start: null, ende: start, pausen, frage: `Dienstende von ${b.ende} auf ${start} verschieben?` };
 };
 
+// "alle Fahrer", "allen Fahrern", "jedem Fahrer": alle Fahrer (ohne Dispo- und Pruefkonten).
+const ALLE_FAHRER_RE = /\b(alle[nm]?|saemtliche[n]?)\s+(unseren?\s+)?fahrer(n|innen)?\b|\bjede[nmr]?\s+fahrer\b/;
+export const alleFahrer = async (admin: any): Promise<Fahrer[]> => {
+  const { data } = await admin.from('profiles').select('id, first_name, last_name, role');
+  return (Array.isArray(data) ? data : [])
+    .filter((p: any) => !DISPO_ROLLEN.has(String(p?.role || '').toLowerCase()))
+    .map((p: any) => ({ id: String(p.id), name: [p.first_name, p.last_name].filter(Boolean).join(' ').trim() }));
+};
+
+// Tage im Text: "heute 22:00 und Samstag 7:30" sind zwei Dienste. Getrennt wird nur an "und" oder ",",
+// nicht an "bis" ("von heute bis morgen").
+const TAG_WORT = new RegExp(`\\b(heute|morgen|uebermorgen|${WOCHENTAGE.join('|')}|[0-3]?\\d\\.[01]?\\d\\.(\\d{4})?)`, 'g');
+const tageTeilen = (text: string, heute: string): string[] => {
+  const treffer = [...text.matchAll(TAG_WORT)].map((m) => ({ pos: m.index!, datum: datumAusText(` ${m[0]} `, heute) }));
+  if (new Set(treffer.map((t) => t.datum)).size < 2) return [text];
+  const schnitte: number[] = [];
+  for (let i = 1; i < treffer.length; i += 1) {
+    if (treffer[i].datum === treffer[i - 1].datum) continue;
+    const zwischen = text.slice(treffer[i - 1].pos, treffer[i].pos);
+    const m = zwischen.match(/(?:\s(?:und|sowie)\s|,)(?!.*(?:\s(?:und|sowie)\s|,))/);
+    if (!m || /\bbis\b/.test(zwischen.slice(m.index!))) return [text];
+    schnitte.push(treffer[i - 1].pos + m.index!);
+  }
+  const teile: string[] = [];
+  let von = 0;
+  for (const s of schnitte) { teile.push(text.slice(von, s)); von = s; }
+  teile.push(text.slice(von));
+  return teile.map((t) => ` ${t.replace(/^\s*(,|und|sowie)\s*/, '')} `);
+};
+
+type Vorschlag = { datum: string; start: string | null; ende: string | null; pausen: Pause[]; fahrer: Fahrer[] };
+const vorschlagText = (v: Vorschlag, heute: string) => [
+  v.start ? `Dienststart ${v.start}` : '',
+  ...v.pausen.map((p) => `Pause ${p.von}–${p.bis}`),
+  v.ende ? `Dienstende ${v.ende}` : '',
+].filter(Boolean).join(', ') + ` ${tagLesbar(v.datum, heute)}`;
+
+// "naechste Woche", "diese Woche", "kommende Woche": Montag bis Sonntag als ISO-Daten. Sonst null.
+export const wocheBereich = (text: string, heute: string): { von: string; bis: string } | null => {
+  const m = text.match(/\b(naechste|kommende|diese|dieser)\s+woche\b/);
+  if (!m) return null;
+  const wt = (new Date(`${heute}T12:00:00Z`).getUTCDay() + 6) % 7; // Mo = 0
+  const montag = plusTage(heute, -wt + (m[1] === 'diese' || m[1] === 'dieser' ? 0 : 7));
+  return { von: montag, bis: plusTage(montag, 6) };
+};
+// Welche Tage der Woche: "werktags", "Mo-Fr", "Montag bis Freitag" = 5 Tage, "jeden Tag", "taeglich", "ganze Woche" = 7.
+const wochenTage = (text: string, w: { von: string; bis: string }, heute: string): string[] | null => {
+  const fuenf = /\b(werktags|werktage|mo\s*-\s*fr|mo\s+bis\s+fr|montag\s+bis\s+freitag)\b/.test(text);
+  const sieben = /\b(jeden\s+tag|taeglich|ganze[n]?\s+woche|alle\s+tage|montag\s+bis\s+sonntag|mo\s*-\s*so)\b/.test(text);
+  if (!fuenf && !sieben) return null;
+  const tage = Array.from({ length: fuenf ? 5 : 7 }, (_, i) => plusTage(w.von, i));
+  return tage.filter((t) => t >= heute);
+};
+
 // Vorschlag, wenn die Frage einen Dienst (Start, Pause, Ende) fuer Fahrer meint. Sonst null.
-export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahrer[]) => {
+// Mehrere Tage in einer Nachricht: Liste mit Rueckfrage, "ja" sendet alle (kontext.offeneDienste).
+export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahrer[], kontext: any = null) => {
   const text = normal(frage);
+  const { datum: heute } = jetztBerlin();
+  // Ganze Woche: "Plan die Dienste für nächste Woche, jeden Tag 7 bis 15 für Tim"
+  const woche = wocheBereich(text, heute);
+  const wochentage = woche ? wochenTage(text, woche, heute) : null;
+  if (woche && wochentage?.length) {
+    const ohneTage = text.replace(/\b(naechste|kommende|diese|dieser)\s+woche\b|\b(werktags|werktage|jeden\s+tag|taeglich|ganze[n]?\s+woche|alle\s+tage)\b|\b(mo|montag)\s*(-|bis)\s*(fr|freitag|so|sonntag)\b/g, ' ');
+    const basis = await dienstEinTag(admin, ` dienst ${ohneTage} `, markiert, null, true);
+    if (!basis || !('fahrer' in basis)) return null;
+    const fahrer = basis.fahrer as Fahrer[];
+    const vorschlaege: Vorschlag[] = [];
+    for (const tag of wochentage) {
+      const r = await dienstEinTag(admin, ` dienst ${ohneTage} am ${tag.slice(8, 10)}.${tag.slice(5, 7)}.${tag.slice(0, 4)} `, markiert, fahrer);
+      if (!r) continue;
+      if (!r.action) return { answer: String(r.answer || '') };
+      const v = r.action.vorschlag;
+      vorschlaege.push({ datum: v.datum, start: v.start, ende: v.ende, pausen: v.pausen, fahrer: v.fahrer });
+    }
+    if (!vorschlaege.length) return null;
+    const k = { ...(kontext || {}) };
+    delete k.offeneDienstLoeschung;
+    return {
+      answer: `Ich habe ${vorschlaege.length} Dienste für ${fahrer.map((f) => f.name).join(', ')} erkannt:\n${vorschlaege.map((v, i) => `${i + 1}. ${vorschlagText(v, heute)}`).join('\n')}\n\nMit „ja“ sende ich alle. Mit „nein“ breche ich ab.`,
+      kontext: { ...k, offeneDienste: { liste: vorschlaege.map((v) => ({ ...v, fahrerIds: v.fahrer.map((f) => f.id) })), zeit: Date.now() } },
+    };
+  }
+  const tage = tageTeilen(text, heute);
+  if (tage.length < 2) return dienstEinTag(admin, text, markiert);
+  // Art (Start/Ende/Pause) und Fahrer gelten fuer alle Teile, wenn sie nur einmal genannt sind.
+  const alle = await dienstEinTag(admin, text, markiert, null, true);
+  if (!alle || !('fahrer' in alle)) return dienstEinTag(admin, text, markiert);
+  const fahrer = alle.fahrer as Fahrer[];
+  const vorschlaege: Vorschlag[] = [];
+  let art = '';
+  for (const teil of tage) {
+    const eigeneArt = /dienstende|feierabend|\bende\b|schluss/.test(teil) ? ' dienstende ' : (/start|beginn|anfang|dienstart/.test(teil) ? ' dienststart ' : '');
+    art = eigeneArt || art || (/dienstende|feierabend|\bende\b/.test(text) && !/start|beginn/.test(text) ? ' dienstende ' : ' dienststart ');
+    const r = await dienstEinTag(admin, `${teil}${eigeneArt ? '' : art}`, markiert, fahrer);
+    if (!r) continue;
+    if (!('action' in r) || !r.action) return { answer: String(r.answer || '') };
+    const v = r.action.vorschlag;
+    vorschlaege.push({ datum: v.datum, start: v.start, ende: v.ende, pausen: v.pausen, fahrer: v.fahrer });
+  }
+  if (vorschlaege.length < 2) return dienstEinTag(admin, text, markiert);
+  const namen = fahrer.map((f) => f.name).join(', ');
+  const k = { ...(kontext || {}) };
+  delete k.offeneDienstLoeschung;
+  return {
+    answer: `Ich habe ${vorschlaege.length} Dienste für ${namen} erkannt:\n${vorschlaege.map((v, i) => `${i + 1}. ${vorschlagText(v, heute)}`).join('\n')}\n\nMit „ja“ sende ich alle. Mit „nein“ breche ich ab.`,
+    kontext: { ...k, offeneDienste: { liste: vorschlaege.map((v) => ({ ...v, fahrerIds: v.fahrer.map((f) => f.id) })), zeit: Date.now() } },
+  };
+};
+
+// Ein Tag. fahrerFix: Fahrer schon bekannt (mehrere Tage). nurFahrer: nur die Fahrer bestimmen.
+const dienstEinTag = async (admin: any, text: string, markiert: Fahrer[], fahrerFix: Fahrer[] | null = null, nurFahrer = false): Promise<any> => {
   // Fragen ("Wann faengt Tim an?") sind keine Dienst-Auftraege.
   if (/^(wann|wer|wie|was|welche|welcher|welches|wo|ob|hat|ist|sind)\b/.test(text.trim())) return null;
+  // "Ende in München", "Start am Bahnhof" ohne Dienst-Wort: Ort einer Fahrt, kein Dienst.
+  if (!DIENST_RE.test(text) && new RegExp(`\\b(start|ende|ziel|beginn|abholung)\\s+(in|im|am|an|bei|beim|vom|von|zum|zur)\\s+(?!${ZEIT_FOLGT})`).test(text)) return null;
   const hatDienstWort = DIENST_RE.test(text) || ENDE_RE.test(text) || START_RE.test(text);
   // "Tim und Marvin morgen 6 bis 14": Zeitspanne mit Fahrernamen ohne Fahrt-Woerter ist ein Dienst.
   const nurSpanne = !hatDienstWort && !SCHICK_RE.test(text) && !FAHRT_RE.test(text)
     && /\b\d{1,2}([:.]\d{2})?\s*(uhr\s*)?(-|–|bis)\s*\d{1,2}/.test(text);
-  if (!hatDienstWort && !SCHICK_RE.test(text) && !nurSpanne) return null;
+  // "Tim morgen 7 Uhr", "Stefano heute bis 18 Uhr", "Tim kommt morgen um 7": Fahrer + Uhrzeit, kurz, ohne Fahrt-Woerter.
+  const nameUndZeit = !hatDienstWort && !nurSpanne && !FAHRT_RE.test(text) && text.trim().length <= 90
+    && zeitenAusText(text).length > 0 && !/\b(standby|lohn|stundenlohn|euro|tracker|kennzeichen|fahrzeug|auto)\b/.test(text)
+    // "Schreib allen Fahrern: Morgen Treffpunkt 7 Uhr" ist eine Nachricht, kein Dienst.
+    && !/\b(schreib\w*|nachricht\w*|sag\w*|mitteil\w*|info\w*|treffpunkt|erinner\w*|frag\w*)\b/.test(text);
+  if (!hatDienstWort && !SCHICK_RE.test(text) && !nurSpanne && !nameUndZeit) return null;
   if (!hatDienstWort && FAHRT_RE.test(text)) return null;
 
-  const genannt = await genannteFahrer(admin, text);
-  if (nurSpanne && !genannt.length) return null;
+  const genannt = fahrerFix || (ALLE_FAHRER_RE.test(text) ? await alleFahrer(admin) : await genannteFahrer(admin, text));
+  if ((nurSpanne || (nameUndZeit && !SCHICK_RE.test(text))) && !genannt.length) return null;
   const fahrer = genannt.length ? genannt : markiert;
   if (!fahrer.length) return null;
+  if (nurFahrer) return { fahrer };
 
   const { datum: heute, minuten: jetzt } = jetztBerlin();
   const datum = datumAusText(text, heute);
@@ -256,12 +401,24 @@ export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahre
     ende = restZeiten[1].zeit;
   } else {
     const einzel = restZeiten[0]?.zeit || relativ;
+    // Eine Zahl, die keine erkannte Uhrzeit ist ("Dienststart 7 Komma 5"): nachfragen statt "jetzt" nehmen.
+    const ohneDatum = text.replace(/\b[0-3]?\d\.[01]?\d\.(\d{4})?/g, ' ').replace(/\bfahrer\s*\d+/g, ' ').replace(/\bin\s+\d+\s*(min\w*|std|stunde\w*)/g, ' ');
+    if (!einzel && /\b\d{1,2}\b/.test(ohneDatum) && !pausen.length) {
+      return { answer: 'Um wie viel Uhr genau? Zum Beispiel „Dienststart morgen 7:00“ oder „Dienstende 16 Uhr“.' };
+    }
     const jetztGerundet = uhr(Math.ceil(jetzt / 5) * 5);
-    if (ENDE_RE.test(text) && !START_RE.test(text)) ende = einzel || jetztGerundet;
-    else if (START_RE.test(text) || (einzel && !pausen.length)) start = einzel || jetztGerundet;
-    if (ENDE_RE.test(text) && START_RE.test(text) && restZeiten.length >= 2) {
-      start = restZeiten[0].zeit;
-      ende = restZeiten[1].zeit;
+    const startWort = START_RE.test(text) || SCHWACH_START.test(text);
+    const endeWort = ENDE_RE.test(text) || SCHWACH_ENDE.test(text);
+    if (endeWort && !startWort) ende = einzel || jetztGerundet;
+    else if (startWort || (einzel && !pausen.length)) start = einzel || jetztGerundet;
+    if (endeWort && startWort && restZeiten.length >= 2) {
+      // Zeit hinter dem jeweiligen Wort: "Ende 16 Start 7" ist Start 7, Ende 16.
+      const posStart = text.search(new RegExp(START_RE.source + '|' + SCHWACH_START.source));
+      const posEnde = text.search(new RegExp(ENDE_RE.source + '|' + SCHWACH_ENDE.source));
+      const nach = (pos: number) => restZeiten.find((z) => z.pos >= pos)?.zeit;
+      start = nach(posStart) || restZeiten[0].zeit;
+      ende = (posEnde > posStart ? nach(posEnde) : restZeiten.find((z) => z.pos >= posEnde && z.pos < posStart)?.zeit) || restZeiten[1].zeit;
+      if (start === ende) { start = restZeiten[0].zeit; ende = restZeiten[1].zeit; }
     }
   }
   if (!start && !ende && !pausen.length) return null;
@@ -273,14 +430,21 @@ export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahre
   const ohne = fahrer.filter((f) => !bestehend.has(f.id));
   let hinweis = '';
   let rueckfrage = '';
-  if (mit.length && ohne.length && !(pausen.length && !start && !ende)) {
+  // Ausdruecklich Dienststart/Dienstende genannt: vorhandene Dienste werden geaendert, die anderen neu angelegt.
+  const ausdruecklich = START_RE.test(text) || ENDE_RE.test(text);
+  if (mit.length && ohne.length && ausdruecklich) {
+    hinweis = `${mit.length === 1 ? `${mit[0].name} hat` : `${mit.map((f) => f.name).join(', ')} haben`} ${tag} schon Dienst, ${mit.length === 1 ? 'der wird' : 'die werden'} geändert. `;
+  } else if (mit.length && ohne.length && !(pausen.length && !start && !ende)) {
     return {
       answer: `${mit.map((f) => `${f.name} hat ${tag} schon Dienst (${dienstText(bestehend.get(f.id)!)})`).join(', ')}, ${ohne.map((f) => f.name).join(', ')} noch nicht. Bitte für beide Gruppen getrennt schicken, dann kann ich den vorhandenen Dienst ändern und den neuen anlegen.`,
     };
   }
   if (mit.length && !ohne.length) {
-    const ergebnisse = mit.map((f) => aufVorhandenen(bestehend.get(f.id)!, start, ende, pausen));
+    const nurStart = (START_RE.test(text) || SCHWACH_START.test(text)) && !ENDE_RE.test(text) && !SCHWACH_ENDE.test(text) && !pausen.length;
+    const ergebnisse = mit.map((f) => aufVorhandenen(bestehend.get(f.id)!, start, ende, pausen, nurStart));
     const vorhandenText = mit.map((f) => `${f.name} hat ${tag} schon Dienst (${dienstText(bestehend.get(f.id)!)})`).join(', ');
+    const unklar = ergebnisse.find((e: any) => e?.unklar) as any;
+    if (unklar) return { answer: `${mit.map((f) => `${f.name} hat ${tag} schon Dienst (${dienstText(bestehend.get(f.id)!)})`).join(', ')}. ${unklar.unklar}` };
     if (ergebnisse.some((e) => e === null)) {
       return { answer: `${vorhandenText}. Der Dienststart ${start} ist schon eingetragen, ich ändere nichts.` };
     }
@@ -296,7 +460,7 @@ export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahre
 
   const namen = fahrer.map((f) => f.name).filter(Boolean);
   const wer = genannt.length
-    ? namen.join(', ')
+    ? (!fahrerFix && ALLE_FAHRER_RE.test(text) && genannt.length > 3 ? `alle ${genannt.length} Fahrer` : namen.join(', '))
     : `${fahrer.length === 1 ? 'den markierten Fahrer' : `die ${fahrer.length} markierten Fahrer`} (${namen.join(', ')})`;
   const teile = [
     start ? `Dienststart ${start}` : '',
@@ -306,9 +470,9 @@ export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahre
   // art/zeit fuer aeltere App-Versionen, die nur Start oder Ende kennen.
   const art = start && !ende && !pausen.length ? 'start' : (ende && !start && !pausen.length ? 'ende' : 'dienst');
   return {
-    answer: hinweis
+    answer: hinweis && !ohne.length
       ? `${hinweis}${rueckfrage || `${teile.join(', ')}?`} Ich ändere dann den vorhandenen Dienst.`
-      : `${teile.join(', ')} ${tag} für ${wer}. Soll ich das senden?`,
+      : `${teile.join(', ')} ${tag} für ${wer}. ${hinweis}Soll ich das senden?`,
     action: {
       type: 'dienst_vorschlag',
       vorschlag: { art, zeit: ende || start || '', datum, start, ende, pausen, fahrer },

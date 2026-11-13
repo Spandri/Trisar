@@ -25,7 +25,7 @@ import kotlinx.serialization.json.buildJsonObject
 
 /**
  * Flaggen an Fahrern, wie admin/src/shared/flaggen.js (Figma Koordinator_Screen_Map 2832:12528):
- * drei Flaggen in Cyan, Violett und Koenigsblau. Die Dispo waehlt Fahrer aus (Karte oder Alle Fahrer)
+ * drei Flaggen in Cyan, Pink und Koenigsblau. Die Dispo waehlt Fahrer aus (Karte oder Alle Fahrer)
  * und tippt eine Flagge an. Sie fuellt sich, sobald alle Ausgewaehlten sie tragen, erneut tippen nimmt sie weg.
  * Gespeichert in profiles.flagge (flagge1 bis flagge3), hoechstens eine Flagge je Fahrer.
  */
@@ -34,7 +34,7 @@ internal object Flaggen {
 
     val alle = listOf(
         Eintrag("flagge1", "Flagge 1 (Cyan)", "Flagge_1", "Flagge_1_Voll"),
-        Eintrag("flagge2", "Flagge 2 (Violett)", "Flagge_2", "Flagge_2_Voll"),
+        Eintrag("flagge2", "Flagge 2 (Pink)", "Flagge_2", "Flagge_2_Voll"),
         Eintrag("flagge3", "Flagge 3 (Königsblau)", "Flagge_3", "Flagge_3_Voll"),
     )
     const val KREIS = "Flagge_Kreis"
@@ -83,21 +83,23 @@ internal fun FlaggenKnoepfe(
     nur: List<String>? = null,
     aktiv: Set<String> = emptySet(),
     filtern: Boolean = false,
+    /** Kreisgroesse in dp, die Flagge waechst mit (35 -> 14 x 18). Karte nimmt 44 zum leichteren Tippen. */
+    groesse: Float = 35f,
 ) {
     val knoepfe: @Composable () -> Unit = {
         for (f in Flaggen.alle.filter { nur == null || it.id in nur }) {
             val gefuellt = if (filtern) f.id in aktiv else Flaggen.alleHaben(ids, flaggeVon, f.id)
             Box(
-                Modifier.size(35.dp).semantics { contentDescription = f.name }.tippen { wahl(if (filtern || !gefuellt) f.id else null) },
+                Modifier.size(groesse.dp).semantics { contentDescription = f.name }.tippen { wahl(if (filtern || !gefuellt) f.id else null) },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Flaggen.KREIS, Modifier.size(35.dp))
-                Icon(if (gefuellt) f.voll else f.umriss, Modifier.size(14.dp, 18.dp))
+                Icon(Flaggen.KREIS, Modifier.size(groesse.dp))
+                Icon(if (gefuellt) f.voll else f.umriss, Modifier.size((groesse * 14f / 35f).dp, (groesse * 18f / 35f).dp))
             }
         }
     }
     if (waagerecht) Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) { knoepfe() }
-    else Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) { knoepfe() }
+    else Column(modifier, verticalArrangement = Arrangement.spacedBy(if (groesse > 35f) 6.dp else 3.dp)) { knoepfe() }
 }
 
 /** Flagge mit duenner schwarzer Umrandung (schwarze Kopie knapp hinter der Flagge), fuer Lasche und Marker. */

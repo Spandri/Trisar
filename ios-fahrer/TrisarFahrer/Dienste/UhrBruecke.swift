@@ -230,7 +230,11 @@ final class UhrBruecke: NSObject {
             UhrDienst(id: d.id.uuidString, tag: d.service_date ?? "",
                       start: d.service_start_time.map { String($0.prefix(5)) },
                       ende: d.service_end_time.map { String($0.prefix(5)) },
-                      offen: !d.angenommen)
+                      offen: !d.angenommen,
+                      treffpunkt: d.treffpunkt.flatMap { $0.name.isEmpty ? nil : $0.name },
+                      treffpunktNotiz: d.treffpunkt.flatMap { $0.notiz.isEmpty ? nil : $0.notiz },
+                      treffpunktLat: d.treffpunkt?.punkt?.latitude,
+                      treffpunktLng: d.treffpunkt?.punkt?.longitude)
         }
         let ort = ortung.letztePosition
         let steht = Self.steht(ort)

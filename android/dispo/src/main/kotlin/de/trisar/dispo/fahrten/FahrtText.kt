@@ -392,6 +392,7 @@ object FahrtText {
         "fahrt.saving" to "Speichern ...",
         "fahrt.start" to "Start",
         "fahrt.startZeit" to "Start Zeit",
+        "fahrt.startZeitraum" to "Start Zeitraum",
         "fahrt.statusBeendet" to "beendet",
         "fahrt.statusOffen" to "offen",
         "fahrt.statusStoniert" to "storniert",

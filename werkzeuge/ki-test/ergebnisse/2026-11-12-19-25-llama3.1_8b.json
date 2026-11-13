@@ -1,0 +1,118 @@
+[
+  {
+    "fall": "Schick eine Fahrt fuer jetzt",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Schick Stefano Spandri eine Fahrt von Kreillerstraße 210 zur Erner Straße 5 für jetzt",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: heute, Do 12.11. um 19:30, Kreillerstraße 210 → Erner Straße 5, Fahrer Stefano Spandri.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-12",
+      "startZeit": "19:30",
+      "start": "Kreillerstraße 210",
+      "ziel": "Erner Straße 5",
+      "fahrgaeste": "",
+      "fahrerNamen": "Stefano Spandri",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 125
+  },
+  {
+    "fall": "Schicke eine Fahrt fuer morgen",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Schicke Stefano Spandri eine Fahrt für morgen 10:30 Uhr vom Hotel Bayerischer Hof zur Messe mit dem Gast Weber",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Fr 13.11. um 10:30, Hotel Bayerischer Hof → Messe München, Gast Weber, Fahrer Stefano Spandri.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "10:30",
+      "start": "Hotel Bayerischer Hof",
+      "ziel": "Messe München",
+      "fahrgaeste": "Weber",
+      "fahrerNamen": "Stefano Spandri",
+      "fahrtId": "",
+      "startOrtId": "o1",
+      "zielOrtId": "o5"
+    },
+    "ms": 25
+  },
+  {
+    "fall": "Fahrt Fahrer von nach",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Fahrt Stefano morgen 9 Uhr von Brudermühlstraße 2, 81371 München zu Ernastraße 5, 81829 München",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Fr 13.11. um 09:00, Brudermühlstraße 2, 81371 München → Ernastraße 5, 81829 München, Fahrer Stefano Spandri.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "09:00",
+      "start": "Brudermühlstraße 2, 81371 München",
+      "ziel": "Ernastraße 5, 81829 München",
+      "fahrgaeste": "",
+      "fahrerNamen": "Stefano Spandri",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 25
+  },
+  {
+    "fall": "Fahrt Fahrer von nach ohne Zeit fragt nach",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Fahrt Stefano von Brudermühlstraße 2, 81371 München zu Ernastraße 5 81829 München",
+    "ok": true,
+    "fehler": [],
+    "art": "booking_needs_clarification",
+    "antwort": "Fahrt heute ab Brudermühlstraße 2, 81371 München nach Ernastraße 5 81829 München: Um wie viel Uhr?",
+    "felder": {},
+    "ms": 7537
+  },
+  {
+    "fall": "Wo sind die markierten",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Wo sind die drei gerade",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Marvin Keller: kein Standort vorhanden (kein Signal von App oder Tracker). Gerade keine Fahrt, heute keine weitere.\nStefano Spandri ist am Hotel Bayerischer Hof, Promenadeplatz 2-6, 80333 München (Signal gerade eben). Gerade keine Fahrt, heute keine weitere.\nTim Schedler ist am Hauptbahnhof München, Bayerstraße 10a, 80335 München (Signal gerade eben). Aktuelle Fahrt: 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten (noch nicht gestartet).",
+    "felder": {},
+    "ms": 32
+  },
+  {
+    "fall": "Pause eingetragen",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "Hat Stefano morgen eine Pause eingetragen?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Ich habe keine Informationen über Stefano Spandris Dienstplan oder seine Pausen.",
+    "felder": {},
+    "ms": 3229
+  },
+  {
+    "fall": "Zwei Fahrer anlegen",
+    "gruppe": "Protokoll",
+    "schritt": 1,
+    "frage": "kannst du fahrer Fertel garlo erstellen und fahrer Marvin hallo",
+    "ok": false,
+    "fehler": [
+      "Antwort ohne \"Marvin Hallo\""
+    ],
+    "art": "antwort",
+    "antwort": "Neuer Fahrer: Fertel Garlo\nBenutzername: fertel.garlo\nPasswort: erzeuge ich beim Speichern\n\nSoll ich den Fahrer so anlegen? Mit „ja“ speichere ich ihn. Ändern kannst du vorher noch, z. B. „Benutzername mmuster“ oder „Nummer 14“.",
+    "felder": {},
+    "ms": 4
+  }
+]

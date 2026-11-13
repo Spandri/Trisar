@@ -1307,6 +1307,8 @@ export default function App() {
         const fallbackReadClient = hasSupabaseAdminConfig ? supabase : supabaseAdmin;
         const jobSelectBase = 'id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins';
         const jobSelectCandidates = [
+          // Start Zeitraum (13.11.): etd_bis = Ende des Zeitraums.
+          `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis`,
           `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps`,
           `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id`,
           `${jobSelectBase}, ai_booked, flight_number, train_number`,
@@ -1746,8 +1748,13 @@ export default function App() {
           const plannedEtd = originalEtd || etd || '';
           const plannedEtdMinutes = parseClockToMinutes(plannedEtd);
           const nowMinutes = parseClockToMinutes(nowClock);
-          const shouldShiftEtdWithDelay = isTodayRide && isOpenLike && Number.isFinite(plannedEtdMinutes) && Number.isFinite(nowMinutes) && nowMinutes > plannedEtdMinutes;
-          const delayMins = shouldShiftEtdWithDelay ? Math.max(0, nowMinutes - plannedEtdMinutes) : 0;
+          // Start Zeitraum (13.11.): verspaetet erst nach dem Ende des Zeitraums, nicht schon nach dem Anfang.
+          const bisMinutes = parseClockToMinutes(normalizeClockValue(job.etd_bis, ''));
+          const spaetAbMinutes = Number.isFinite(bisMinutes) && Number.isFinite(plannedEtdMinutes)
+            ? (bisMinutes < plannedEtdMinutes ? bisMinutes + 1440 : bisMinutes)
+            : plannedEtdMinutes;
+          const shouldShiftEtdWithDelay = isTodayRide && isOpenLike && Number.isFinite(spaetAbMinutes) && Number.isFinite(nowMinutes) && nowMinutes > spaetAbMinutes;
+          const delayMins = shouldShiftEtdWithDelay ? Math.max(0, nowMinutes - spaetAbMinutes) : 0;
           const effectiveEtd = shouldShiftEtdWithDelay ? nowClock : (etd || originalEtd || '');
           const routeDurationInTrafficMins = Number(job.ext_route_duration_in_traffic_mins);
           const routeDurationMins = Number(job.ext_route_duration_mins);
@@ -1788,6 +1795,7 @@ export default function App() {
             zielOrtId,
             zielOrtName: zielOrtId ? dropoffName : '',
             startZeit: effectiveEtd || originalEtd || '--:--',
+            startZeitBis: normalizeClockValue(job.etd_bis, ''),
             zwischenstopps: Array.isArray(job.zwischenstopps) ? job.zwischenstopps : [],
             fahrerNamen,
             // Fuer die Mehrfachauswahl der Karte (Fahrten nur der markierten Fahrer).
@@ -1815,6 +1823,7 @@ export default function App() {
                   original: originalEtd || effectiveEtd || '--:--',
                   status: '',
                   new: effectiveEtd || originalEtd || '--:--',
+                  bis: normalizeClockValue(job.etd_bis, ''),
                   arrivalOriginal,
                   arrivalNew,
                   arrivalTime: arrivalNew,
@@ -1822,6 +1831,7 @@ export default function App() {
               : {
                   status: '',
                   time: effectiveEtd || '--:--',
+                  bis: normalizeClockValue(job.etd_bis, ''),
                   arrivalTime: arrivalNew,
                   arrivalOriginal,
                   arrivalNew,
@@ -2332,6 +2342,7 @@ export default function App() {
         sourceView: 'ankuenfte',
         datum: String(ride.date || '').slice(0, 10),
         startZeit: String(ride.startZeit || ride.time?.new || ride.time?.time || ride.time?.original || ''),
+        startZeitBis: String(ride.startZeitBis || ''),
         start: String(ride.start || routeParts[0] || '').trim(),
         ziel: String(ride.ziel || routeParts.slice(1).join(' - ') || '').trim(),
         startOrtId: ride.startOrtId || '',
@@ -2781,6 +2792,8 @@ export default function App() {
         ride_date: rideDate,
         etd: (hasValidatedTrain ? trainEtdValues.etd : startZeit) || null,
         original_etd: (hasValidatedTrain ? trainEtdValues.originalEtd : startZeit) || null,
+        // Start Zeitraum: leer = feste Startzeit.
+        etd_bis: (startZeit && normalizeClockValue(payload?.startZeitBis, '')) || null,
         status: nextJobStatus,
         convoy_id: resolvedConvoyId,
         driver_id: resolvedDriverId,
@@ -3169,6 +3182,7 @@ export default function App() {
         ride_date: rideDate,
         etd: (hasValidatedTrain ? trainEtdValues.etd : startZeit) || null,
         original_etd: (hasValidatedTrain ? trainEtdValues.originalEtd : startZeit) || null,
+        ...(startZeit && normalizeClockValue(payload?.startZeitBis, '') ? { etd_bis: normalizeClockValue(payload?.startZeitBis, '') } : {}),
         status: mapEditorStatusToJobStatus(payload?.aktuellerStatus),
         convoy_id: resolvedConvoyId,
         driver_id: resolvedDriverId,
@@ -3654,6 +3668,7 @@ export default function App() {
           onEditDriver={openDriverEditor}
           onOpenDriver={openDriverAnsicht}
           onNavigateToMapWithDrivers={navigateToMapWithSelectedDrivers}
+          onFetchPlaceSuggestions={handleFetchPlaceSuggestions}
         />
       );
     }
@@ -3671,6 +3686,7 @@ export default function App() {
           onEditDriver={openDriverEditor}
           onOpenDriver={openDriverAnsicht}
           onNavigateToMapWithDrivers={navigateToMapWithSelectedDrivers}
+          onFetchPlaceSuggestions={handleFetchPlaceSuggestions}
           planerDirekt
         />
       );
@@ -3710,7 +3726,8 @@ export default function App() {
     }
     // Ohne gemerkten Fahrer (z. B. neuer Tab) zurueck zur Fahrerliste statt einer leeren Seite.
     if (view === 'fahrerAnsicht' && !driverAnsichtData?.id) {
-      return <AlleFahrer key="alleFahrer" setView={navigateTo} onCreateDriver={openDriverCreate} onEditDriver={openDriverEditor} onOpenDriver={openDriverAnsicht} onNavigateToMapWithDrivers={navigateToMapWithSelectedDrivers} />;
+      return <AlleFahrer key="alleFahrer" setView={navigateTo} onCreateDriver={openDriverCreate} onEditDriver={openDriverEditor} onOpenDriver={openDriverAnsicht} onNavigateToMapWithDrivers={navigateToMapWithSelectedDrivers}
+          onFetchPlaceSuggestions={handleFetchPlaceSuggestions} />;
     }
     if (view === 'fahrerAnsicht') {
       return (

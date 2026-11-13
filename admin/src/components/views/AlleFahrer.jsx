@@ -13,6 +13,8 @@ import { fahrerMarkierung } from '../../shared/fahrerMarkierung';
 import FlaggenKnoepfe from '../ui/FlaggenKnoepfe';
 import { FLAGGE_UMRISS, flaggeId, flaggeNachId, flaggeSetzen } from '../../shared/flaggen';
 import { ExportKnopf, StundenExportFenster } from './StundenExport';
+import { LEERER_TREFFPUNKT, treffpunktAufloesen, treffpunktSchluessel, treffpunktSpeichern } from '../../shared/dienstTreffpunkt';
+import { orteStand } from '../../shared/orte';
 
 const DRIVERS_RELOAD_EVENT = 'trisar:admin:drivers:reload';
 const ADMIN_FALLBACK_ERROR_RE = /invalid jwt|signature is invalid|not allowed|unauthorized|permission denied|row-level security|42501/i;
@@ -900,7 +902,7 @@ function PlanningOverviewChart({
   );
 }
 
-export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOpenDriver, onNavigateToMapWithDrivers, planerDirekt = false }) {
+export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOpenDriver, onNavigateToMapWithDrivers, planerDirekt = false, onFetchPlaceSuggestions = async () => [] }) {
   const { t } = useI18n();
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -954,6 +956,9 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
   const [bulkStartTime, setBulkStartTime] = useState('');
   const [bulkEndTime, setBulkEndTime] = useState('');
   const [bulkPausen, setBulkPausen] = useState([]); // [{ von: 'HH:MM', bis: 'HH:MM' }]
+  // Treffpunkt und Notiz beim Dienststart (dienst_treffpunkt).
+  const [bulkTreffpunkt, setBulkTreffpunkt] = useState(LEERER_TREFFPUNKT);
+  const [bulkNotiz, setBulkNotiz] = useState('');
   // Vorhandener Dienst (ein Fahrer, ein Tag), im Planer vorausgefuellt. Gesendet wird nur, was sich aendert.
   const [bulkBestand, setBulkBestand] = useState(null);
   const [bulkServiceDate, setBulkServiceDate] = useState(getTodayIsoDate());
@@ -1681,7 +1686,10 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
     const hasPausen = pausenGeaendert && (bulkPausen || []).some((p) => normalizeClockValue(p.von) && normalizeClockValue(p.bis));
     // Alle Pausen eines vorhandenen Dienstes entfernt: direkt am Dienst loeschen (Fahrer bestaetigt das).
     const pausenWeg = Boolean(bestand) && pausenGeaendert && !hasPausen && (bestand.pausen || []).length > 0;
-    if (bestand && !hasStart && !hasEnd && !hasPausen && !pausenWeg) {
+    // Treffpunkt oder Notiz geaendert (ohne vorhandenen Dienst: etwas eingetragen).
+    const treffpunktGeaendert = treffpunktSchluessel(bulkTreffpunkt, bulkNotiz)
+      !== treffpunktSchluessel(bestand?.treffpunkt || LEERER_TREFFPUNKT, bestand?.notiz || '');
+    if (bestand && !hasStart && !hasEnd && !hasPausen && !pausenWeg && !treffpunktGeaendert) {
       setBulkPlanError('Keine Änderung zum Senden.');
       return;
     }
@@ -1716,6 +1724,13 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
     setIsApplyingBulkPlan(true);
     try {
       const writeClient = hasSupabaseAdminConfig ? supabaseAdmin : supabase;
+      // Treffpunkt vorab aufloesen (eigener Ort oder Adresse), damit nichts halb gesendet wird.
+      const treffpunktZeile = treffpunktGeaendert
+        ? await treffpunktAufloesen(bulkTreffpunkt, bulkNotiz, orteStand()?.orte || [])
+        : null;
+      if (treffpunktZeile?.fehler) { setBulkPlanError(treffpunktZeile.fehler); return; }
+      let gesendeteDienste = null;
+      let treffpunktGespeichert = false;
       const targetDriverIds = selectedDriverIds
         .map((driverId) => String(driverId || '').trim())
         .filter(Boolean);
@@ -1723,9 +1738,13 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
       if (pausenWeg && !hasStart && !hasEnd) {
         const { error: wegFehler } = await writeClient.from('dienst_pausen').delete().eq('dienst_id', bestand.id);
         if (wegFehler) { setBulkPlanError(`Pausen nicht entfernt: ${wegFehler.message}`); return; }
-      } else if (!isResetRequest) {
+      } else if (!isResetRequest && (hasStart || hasEnd || hasPausen || !bestand)) {
+        // Nur Treffpunkt oder Notiz geaendert: kein neuer Dienst, der Fahrer muss nichts neu bestaetigen.
         const requestRows = (gewaehlteTage.length ? gewaehlteTage : [effectiveDate]).flatMap((tag) => targetDriverIds
           .map((driverId) => ({
+            // ID vergibt die App: der Treffpunkt wird VOR dem Dienst gespeichert, damit die
+            // Push-Mitteilung zum neuen Dienst den Ort schon nennt (push_dienst_ausloeser).
+            id: crypto.randomUUID(),
             driver_id: driverId,
             service_date: tag,
             service_start_time: hasStart ? nextStart : null,
@@ -1733,6 +1752,11 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
             status: 'pending',
             requested_by: 'admin-app',
           })));
+        if (treffpunktGeaendert) {
+          const { error: vorabFehler } = await treffpunktSpeichern(writeClient, requestRows.map((r) => r.id), treffpunktZeile);
+          if (vorabFehler) { setBulkPlanError(`Treffpunkt nicht gespeichert: ${vorabFehler.message}`); return; }
+          treffpunktGespeichert = true;
+        }
 
         const { data: neueDienste, error } = await writeClient
           .from('driver_service_requests')
@@ -1748,6 +1772,7 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
           );
           return;
         }
+        gesendeteDienste = neueDienste || [];
         // Feste Pausen je Dienst (dienst_pausen), fliessen in die Stundenerfassung des Fahrers.
         const pausen = (bulkPausen || [])
           .map((p) => ({ art: 'fest', von: normalizeClockValue(p.von), bis: normalizeClockValue(p.bis) }))
@@ -1765,6 +1790,30 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
             setBulkPlanError(`Dienste gesendet, Pausen nicht gespeichert: ${pausenFehler.message}`);
             return;
           }
+        }
+      }
+
+      // Treffpunkt und Notiz an die gesendeten Dienste, sonst an den vorhandenen Dienst je Fahrer und Tag.
+      if (treffpunktGeaendert && !isResetRequest && !treffpunktGespeichert) {
+        let dienstIds = (gesendeteDienste || []).map((d) => d.id);
+        if (!gesendeteDienste) {
+          const tageFuerTreffpunkt = gewaehlteTage.length ? gewaehlteTage : [effectiveDate];
+          const { data: vorhandene } = await writeClient.from('driver_service_requests')
+            .select('id, driver_id, service_date, status, created_at')
+            .in('driver_id', targetDriverIds).in('service_date', tageFuerTreffpunkt)
+            .order('created_at', { ascending: false });
+          const gesehen = new Set();
+          dienstIds = (vorhandene || []).filter((d) => {
+            const k = `${d.driver_id}|${d.service_date}`;
+            if (gesehen.has(k) || String(d.status || '').toLowerCase() === 'refused') return false;
+            gesehen.add(k);
+            return true;
+          }).map((d) => d.id);
+        }
+        const { error: treffpunktFehler } = await treffpunktSpeichern(writeClient, dienstIds, treffpunktZeile);
+        if (treffpunktFehler) {
+          setBulkPlanError(`Treffpunkt nicht gespeichert: ${treffpunktFehler.message}`);
+          return;
         }
       }
 
@@ -2259,6 +2308,9 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
           <button
             type="button"
             onClick={() => {
+              // Treffpunkt und Notiz gelten pro Senden, beim Oeffnen leer (ein Fahrer: kommt aus dem Bestand).
+              setBulkTreffpunkt(LEERER_TREFFPUNKT);
+              setBulkNotiz('');
               setIsBulkPlannerOpen(true);
               setBulkPlanError('');
               setBulkPlanSuccess('');
@@ -2320,6 +2372,11 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
             fahrerIds={selectedDriverIds}
             bestand={bulkBestand}
             onBestand={setBulkBestand}
+            treffpunkt={bulkTreffpunkt}
+            onTreffpunkt={(wert) => { setBulkTreffpunkt(wert); setBulkPlanError(''); setBulkPlanSuccess(''); }}
+            notiz={bulkNotiz}
+            onNotiz={(wert) => { setBulkNotiz(wert); setBulkPlanError(''); setBulkPlanSuccess(''); }}
+            onFetchPlaceSuggestions={onFetchPlaceSuggestions}
             vorlagen={PLAN_TEMPLATES}
             fehler={bulkPlanError}
             speichert={isApplyingBulkPlan}

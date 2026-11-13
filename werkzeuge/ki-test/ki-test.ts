@@ -20,6 +20,8 @@ const arg = (name: string, standard: string) =>
 const modell = arg('modell', 'llama3.1:8b');
 const ollama = arg('ollama', 'http://localhost:11434');
 const nur = arg('nur', '');
+// --verstehen=qwen2.5:14b: Absicht per Modell (verstehen.ts), sonst nur Regeln.
+const verstehen = arg('verstehen', '');
 
 const NAMEN: Record<string, string> = { [ID.tim]: 'Tim Schedler', [ID.marvin]: 'Marvin Keller', [ID.stefano]: 'Stefano Spandri', [ID.anna]: 'Anna Berger' };
 
@@ -95,7 +97,7 @@ const alle = faelle().filter((f) => !nur || f.gruppe === nur);
 console.log(`KI-Testsatz: ${alle.length} Fälle, Modell ${modell}, Ollama ${ollama}\n`);
 
 for (const fall of alle) {
-  const db = new SpeicherDb(testdaten(ollama, modell));
+  const db = new SpeicherDb(testdaten(ollama, modell, verstehen));
   const verlauf: { role: string; text: string }[] = [];
   let kontext: any = null;
   let offenerVorschlag: any = null;

@@ -35,7 +35,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.ClickableText
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Text
@@ -765,15 +764,12 @@ internal fun KiAssistentAnsicht(
                             if (eingabe.isEmpty()) PText("Nachricht schreiben...", 16f, 400, hex(0x868786))
                             BasicTextField(
                                 eingabe,
-                                { neu ->
-                                    // Enter schickt ab wie im Web (keydown Enter ohne Shift).
-                                    if (neu.endsWith("\n") && neu.length == eingabe.length + 1) { eingabe = neu.dropLast(1); senden() } else eingabe = neu
-                                },
+                                // Enter macht eine neue Zeile wie im Web, gesendet wird mit dem Pfeil.
+                                { neu -> eingabe = neu },
                                 textStyle = grotesk(16f, zeilenHoehe = 24f, farbe = Color.White),
                                 cursorBrush = SolidColor(Color.White),
                                 maxLines = 5,
-                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Send),
-                                keyboardActions = KeyboardActions(onSend = { senden() }),
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Default),
                                 modifier = Modifier.fillMaxWidth().focusRequester(fokus).onFocusChanged { fokussiert = it.isFocused },
                             )
                         }
@@ -1027,7 +1023,10 @@ private fun KiAnlegenKarte(art: String, d: Map<String, String>, offen: Boolean, 
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 PAbsatz(titel, 24f, 700, 26f, Color.Black, modifier = Modifier.padding(end = 86.dp))
                 if (zeile.isNotEmpty()) PAbsatz(zeile, 12f, 500, 16f, Color.Black.copy(alpha = 0.8f), modifier = Modifier.padding(end = 86.dp))
-                PAbsatz(if (art == "fahrer") "Neuer Fahrer" else "Neues Fahrzeug", 16f, 700, 24f, Color.Black)
+                PAbsatz(
+                    if (art == "fahrer") "Neuer Fahrer" else f("fahrerName").ifEmpty { null }?.let { "Neues Fahrzeug für $it" } ?: "Neues Fahrzeug",
+                    16f, 700, 24f, Color.Black,
+                )
                 val fehler = f("fehler")
                 if (fehler.isNotEmpty()) PAbsatz(fehler, 11f, 700, 16f, hex(0xD23A2E))
             }
@@ -1057,6 +1056,18 @@ private fun KiAnlegenKarte(art: String, d: Map<String, String>, offen: Boolean, 
                             modifier = Modifier.padding(top = 4.dp).fillMaxWidth().height(36.dp)
                                 .border(1.dp, Color.Black.copy(alpha = 0.2f), RectangleShape).padding(horizontal = 8.dp, vertical = 8.dp),
                         )
+                    }
+                }
+                // Fahrzeug je Fahrer: Zuordnung beim Bestaetigen, hier abwaehlbar.
+                if (art == "fahrzeug" && f("fahrerId").isNotEmpty()) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        PText("Fahrer: ${f("fahrerName")}", 11f, 700, Color.Black.copy(alpha = 0.8f), modifier = Modifier.weight(1f))
+                        Box(
+                            Modifier.height(32.dp).border(1.dp, Color.Black.copy(alpha = 0.3f), RectangleShape)
+                                .tippen { aendern(d + ("fahrerId" to "") + ("fahrerName" to "") + ("fehler" to "")) }
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { PText("Ohne Fahrer", 11f, 700, Color.Black) }
                     }
                 }
             }

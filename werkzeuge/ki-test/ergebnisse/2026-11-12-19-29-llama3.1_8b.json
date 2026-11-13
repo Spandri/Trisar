@@ -1,0 +1,116 @@
+[
+  {
+    "fall": "Pause eingetragen ja",
+    "gruppe": "Fragen2",
+    "schritt": 1,
+    "frage": "Hat Anna morgen eine Pause eingetragen?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Anna Berger hat morgen Pause 11:30–12:00. Dienst 07:00–15:00.",
+    "felder": {},
+    "ms": 4
+  },
+  {
+    "fall": "Pause eingetragen nein",
+    "gruppe": "Fragen2",
+    "schritt": 1,
+    "frage": "Hat Stefano heute eine Pause?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Stefano Spandri hat heute keine Pause eingetragen. Dienst 08:00–offen.",
+    "felder": {},
+    "ms": 1
+  },
+  {
+    "fall": "Wann faengt an",
+    "gruppe": "Fragen2",
+    "schritt": 1,
+    "frage": "Wann fängt Anna morgen an?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Anna Berger fängt morgen um 07:00 an.",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Wann Feierabend",
+    "gruppe": "Fragen2",
+    "schritt": 1,
+    "frage": "Wann hat Anna morgen Feierabend?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Anna Berger hat morgen um 15:00 Feierabend.",
+    "felder": {},
+    "ms": 1
+  },
+  {
+    "fall": "Stunden heute einer",
+    "gruppe": "Fragen2",
+    "schritt": 1,
+    "frage": "Wie viele Stunden hat Tim heute?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Tim Schedler hat heute 8:00 h an 1 Tag.",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Stunden heute alle",
+    "gruppe": "Fragen2",
+    "schritt": 1,
+    "frage": "Wie viele Stunden haben die Fahrer heute gearbeitet?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Stunden heute (aus Stundenzetteln), gesamt 14:30 h:\n- Tim Schedler: 8:00 h an 1 Tag.\n- Marvin Keller: 6:30 h an 1 Tag, davon 1 noch nicht bestätigt.",
+    "felder": {},
+    "ms": 2
+  },
+  {
+    "fall": "Offene Stundenzettel",
+    "gruppe": "Fragen2",
+    "schritt": 1,
+    "frage": "Welche Stundenzettel sind noch offen?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Noch nicht bestätigt (1):\n- Marvin Keller: heute, 6:30 h, vom Fahrer angepasst",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Dienst fuer Fahrer aus dem Gespraech",
+    "gruppe": "Fragen2",
+    "schritt": 1,
+    "frage": "Wo ist Stefano?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Stefano Spandri ist am Hotel Bayerischer Hof, Promenadeplatz 2-6, 80333 München (Signal gerade eben). Gerade keine Fahrt, heute keine weitere.",
+    "felder": {},
+    "ms": 107
+  },
+  {
+    "fall": "Dienst fuer Fahrer aus dem Gespraech",
+    "gruppe": "Fragen2",
+    "schritt": 2,
+    "frage": "Dann schick Dienststart für morgen 9:00 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 09:00 morgen für den markierten Fahrer (Stefano Spandri). Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-13",
+      "start": "09:00",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Stefano Spandri"
+    },
+    "ms": 1
+  }
+]

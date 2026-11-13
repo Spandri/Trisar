@@ -11,6 +11,8 @@ struct TrisarFahrerApp: App {
     @StateObject private var nfc = NfcTag()
 
     init() {
+        // Startvideo so frueh wie moeglich laden, damit es ohne Verzoegerung losgeht.
+        StartVideo.vorbereiten()
         // Wie overscroll-none im Web: Seiten federn oben und unten nicht nach.
         UIScrollView.appearance().bounces = false
         // Wie im Web: Seiten und Vollbilder erscheinen sofort, ohne Hochfahren oder Einblenden.
@@ -55,6 +57,8 @@ struct TrisarFahrerApp: App {
             // Ganze App auf die Breite des iPhones skalieren (Raster 402 wie im Web).
             .webMassstab()
             .preferredColorScheme(.dark)
+            // Startvideo wie im Web, nur beim Kaltstart (StartVideo.swift).
+            .startVideo()
             .onOpenURL { url in
                 nfc.empfangen(url)
                 Task {

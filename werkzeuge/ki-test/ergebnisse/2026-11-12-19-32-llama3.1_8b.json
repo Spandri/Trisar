@@ -1,0 +1,74 @@
+[
+  {
+    "fall": "Fahrzeug an Fahrer, ja",
+    "gruppe": "Zuordnen",
+    "schritt": 1,
+    "frage": "Gib Marvin das Fahrzeug M-TR 102",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Marvin Keller bekommt Mercedes V-Klasse (M-TR 102)? Tim Schedler fährt es auch. Mit „ja“ speichere ich es.",
+    "felder": {},
+    "ms": 1
+  },
+  {
+    "fall": "Fahrzeug an Fahrer, ja",
+    "gruppe": "Zuordnen",
+    "schritt": 2,
+    "frage": "ja",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Gespeichert: Marvin Keller fährt Mercedes V-Klasse (M-TR 102).",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Tracker ins Auto, nein",
+    "gruppe": "Zuordnen",
+    "schritt": 1,
+    "frage": "Steck Tracker 4 in den M-TR 103",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Tracker 4 in BMW X5 (M-TR 103) setzen? Mit „ja“ speichere ich es.",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Tracker ins Auto, nein",
+    "gruppe": "Zuordnen",
+    "schritt": 2,
+    "frage": "nein",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Okay, ich habe nichts geändert.",
+    "felder": {},
+    "ms": 1
+  },
+  {
+    "fall": "Tracker umstecken nennt bisheriges Auto",
+    "gruppe": "Zuordnen",
+    "schritt": 1,
+    "frage": "Tracker 3 ins Auto M-TR 103",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Tracker 3 in BMW X5 (M-TR 103) setzen? Bisher steckt er in BMW 7er (M-TR 101). Mit „ja“ speichere ich es.",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Unbekanntes Kennzeichen",
+    "gruppe": "Zuordnen",
+    "schritt": 1,
+    "frage": "Gib Tim den M-XY 999",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Das Fahrzeug mit diesem Kennzeichen finde ich nicht. Sag mir das Kennzeichen genau so, wie es in TRISAR steht.",
+    "felder": {},
+    "ms": 0
+  }
+]

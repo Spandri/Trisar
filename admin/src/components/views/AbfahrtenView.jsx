@@ -406,12 +406,12 @@ const RideCard = ({
               <div>
                 <div className={`${strikeColor} text-base font-normal font-['Space_Grotesk'] line-through leading-5`}>{time.original}</div>
                 <div className={`${statusColor} text-base font-bold font-['Space_Grotesk'] leading-5`}>{time.status}</div>
-                <div className={`${statusColor} text-base font-normal font-['Space_Grotesk'] leading-5`}>{time.new}</div>
+                <div className={`${statusColor} text-base font-normal font-['Space_Grotesk'] leading-5`}>{time.new}{time.bis ? `–${time.bis}` : ''}</div>
               </div>
             ) : (
               <div>
                 <div className={`${statusColor} text-base font-bold font-['Space_Grotesk'] leading-5`}>{time.status}</div>
-                <div className={`${statusColor} text-base font-normal font-['Space_Grotesk'] leading-5`}>{time.time}</div>
+                <div className={`${statusColor} text-base font-normal font-['Space_Grotesk'] leading-5`}>{time.time}{time.bis ? `–${time.bis}` : ''}</div>
               </div>
             )}
             {(() => {
@@ -648,6 +648,7 @@ export default function AbfahrtenView({
       sourceView: 'abfahrten',
       datum: String(ride.date || '').slice(0, 10),
       startZeit: String(startZeit),
+      startZeitBis: String(ride.startZeitBis || ''),
       start: String(ride.start || start),
       ziel: String(ride.ziel || ziel),
       konvoi: ride.konvoi || '',

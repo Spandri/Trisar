@@ -1,0 +1,50 @@
+[
+  {
+    "fall": "Standby allein, ja",
+    "gruppe": "Standby2",
+    "schritt": 1,
+    "frage": "Standby morgen 10-18 Uhr an der Messe für Tim und Marvin",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Standby: Messe München, 13.11. 10:00–18:00, Tim Schedler, Marvin Keller.\nMit „ja“ lege ich den Standby an, die Fahrt buchst du wie immer über die Karte.",
+    "felder": {},
+    "ms": 4
+  },
+  {
+    "fall": "Standby allein, ja",
+    "gruppe": "Standby2",
+    "schritt": 2,
+    "frage": "ja",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Standby angelegt: Messe München, 13.11. 10:00–18:00. Tim Schedler, Marvin Keller bekommen die Anfrage.",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Karten: Standby allein",
+    "gruppe": "Standby2",
+    "schritt": 1,
+    "frage": "Standby übermorgen von 9 bis 13 Uhr am Bayerischer Hof für Anna",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Standby: Hotel Bayerischer Hof, 14.11. 09:00–13:00, Anna Berger. Bestätige ihn auf seiner Karte.",
+    "felder": {},
+    "ms": 1
+  },
+  {
+    "fall": "Standby allein ohne Fahrer fragt nach",
+    "gruppe": "Standby2",
+    "schritt": 1,
+    "frage": "Standby morgen ab 10 bis 16 Uhr am Hauptbahnhof",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Standby: Hauptbahnhof München, 13.11. 10:00–16:00.\nFür den Standby fehlt noch welcher Fahrer. Sag es mir, z. B. „Tim“.",
+    "felder": {},
+    "ms": 0
+  }
+]

@@ -22,6 +22,8 @@ struct FormularZeile<Feld: View>: View {
     var etaAktion: (() -> Void)?
     var rechts: RechtsArt?
     var rechtsAktion: (() -> Void)?
+    /// Tipp auf die Beschriftung (onLabelClick), dann gepunktet unterstrichen (Start Zeit / Start Zeitraum).
+    var beschriftungAktion: (() -> Void)?
     let zuruecksetzen: () -> Void
     @ViewBuilder let feld: () -> Feld
 
@@ -33,10 +35,21 @@ struct FormularZeile<Feld: View>: View {
             Rectangle().strokeBorder(formularLime, lineWidth: 2)
             // p-1 + px-3 links, pr-10 bzw. pr-16 rechts, gap-4 zwischen Beschriftung und Eingabe.
             HStack(spacing: 16) {
-                Text(beschriftung)
-                    .font(.grotesk(16, .medium)).tracking(0.5)
-                    .foregroundStyle(formularLime.opacity(0.5))
-                    .lineLimit(1).fixedSize()
+                if let beschriftungAktion {
+                    Button(action: beschriftungAktion) {
+                        beschriftungText
+                            // underline decoration-dotted underline-offset-4
+                            .overlay(alignment: .bottom) {
+                                GepunkteteLinie()
+                                    .stroke(formularLime.opacity(0.5), style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [0.1, 2.5]))
+                                    .frame(height: 1)
+                            }
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.web)
+                } else {
+                    beschriftungText
+                }
                 feld().frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.leading, 18)
@@ -82,6 +95,23 @@ struct FormularZeile<Feld: View>: View {
         }
         .frame(width: 362, height: 56)
         .clipped()
+    }
+
+    private var beschriftungText: some View {
+        Text(beschriftung)
+            .font(.grotesk(16, .medium)).tracking(0.5)
+            .foregroundStyle(formularLime.opacity(0.5))
+            .lineLimit(1).fixedSize()
+    }
+}
+
+/// Waagrechte Linie fuer die gepunktete Unterstreichung der Beschriftung.
+private struct GepunkteteLinie: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        return p
     }
 }
 

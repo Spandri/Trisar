@@ -24,6 +24,8 @@ class HauptAktivitaet : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Startvideo so frueh wie moeglich laden, damit es ohne Verzoegerung losgeht.
+        de.trisar.kern.StartVideo.vorbereiten(applicationContext)
         // Helle Symbole in Status- und Navigationsleiste, der Hintergrund ist immer dunkel (wie iOS).
         enableEdgeToEdge(
             statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -36,6 +38,8 @@ class HauptAktivitaet : ComponentActivity() {
         // Testansicht "nur Kennzeichen + Standort" (nur Debug): adb ... --ez TRISAR_NUR_KENNZEICHEN true
         if (BuildConfig.DEBUG) de.trisar.kern.FahrzeugTest.nurKennzeichen = intent?.getBooleanExtra("TRISAR_NUR_KENNZEICHEN", false) == true
         setContent {
+            // Startvideo wie im Web, nur beim Kaltstart (kern/StartVideo.kt).
+            de.trisar.kern.StartVideoTor {
             WebMassstab {
                 Box(Modifier.fillMaxSize().background(Color.Black)) {
                     val zustand by anmeldung.zustand.collectAsState()
@@ -49,6 +53,7 @@ class HauptAktivitaet : ComponentActivity() {
                         }
                     }
                 }
+            }
             }
         }
     }

@@ -105,7 +105,9 @@ export const useStundenKarten = () => {
   // Startseite: nur vorbei und noch nicht von der Dispo bestaetigt. Der laufende Dienst von heute
   // steht nur im Verlauf, nicht auf der Startseite (Wunsch 12.11.).
   const karten = useMemo(() => (eintraege || []).filter((e) => e.vorbei && e.zettel?.status !== 'bestaetigt'), [eintraege]);
-  return { karten, laden };
+  // Dienst-ID -> vorbei (Stundenkarte da), damit die Startseite Dienststart/-ende bis dahin stehen laesst.
+  const vorbeiNachDienst = useMemo(() => new Map((eintraege || []).map((e) => [String(e.dienst?.id || ''), Boolean(e.vorbei)])), [eintraege]);
+  return { karten, laden, vorbeiNachDienst };
 };
 
 const speichern = async (eintrag, { beginn, ende, pauseMin, angepasst, begruendung }) => {

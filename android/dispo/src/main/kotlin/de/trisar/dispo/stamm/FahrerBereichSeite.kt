@@ -1,6 +1,11 @@
 package de.trisar.dispo.stamm
 
 import de.trisar.kern.Backend
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.widthIn
@@ -726,7 +731,82 @@ internal data class DienstBestand(
     val pausen: List<Pair<String, String>>,
     val angenommen: Boolean,
     val vorher: Triple<String, String, List<Pair<String, String>>>?,
+    /** Treffpunkt und Notiz beim Dienststart (dienst_treffpunkt): Text im Feld, eigener Ort (orte.id) und Notiz. */
+    val treffpunktText: String = "",
+    val treffpunktOrtID: String = "",
+    val notiz: String = "",
 )
+
+/** Vergleichsschluessel: hat die Dispo Ort oder Notiz geaendert? (treffpunktSchluessel im Web) */
+private fun dpTreffpunktSchluessel(text: String, ortID: String, notiz: String) = listOf(ortID, text.trim(), notiz.trim())
+
+/** Aufgeloester Treffpunkt fuer dienst_treffpunkt (ohne dienst_id), null = nichts gesetzt. */
+private sealed interface DpTreffpunktErgebnis {
+    data object Leer : DpTreffpunktErgebnis
+    data class Zeile(val werte: kotlinx.serialization.json.JsonObject) : DpTreffpunktErgebnis
+    data class Fehler(val text: String) : DpTreffpunktErgebnis
+}
+
+/**
+ * Eingabe -> Zeile fuer dienst_treffpunkt (treffpunktAufloesen im Web). Eigener Ort: Koordinaten aus orte,
+ * sonst Adresse suchen. Nicht gefunden: Fehler, damit nichts halb gesendet wird.
+ */
+private suspend fun dpTreffpunktAufloesen(ctx: android.content.Context, text: String, ortID: String, notiz: String): DpTreffpunktErgebnis {
+    val t = text.trim()
+    val n = notiz.trim()
+    if (t.isEmpty() && n.isEmpty()) return DpTreffpunktErgebnis.Leer
+    fun w(x: String?) = if (x.isNullOrEmpty()) kotlinx.serialization.json.JsonNull else kotlinx.serialization.json.JsonPrimitive(x)
+    fun z(x: Double?) = if (x == null) kotlinx.serialization.json.JsonNull else kotlinx.serialization.json.JsonPrimitive(x)
+    var ort: String? = null; var name: String? = null; var adresse: String? = null; var lat: Double? = null; var lng: Double? = null
+    if (t.isNotEmpty()) {
+        if (ortID.isNotEmpty()) de.trisar.kern.EigeneOrte.einmalLaden()
+        val eigener = de.trisar.kern.EigeneOrte.zuID(ortID.ifEmpty { null })
+        if (eigener != null) {
+            ort = eigener.id; name = eigener.name; adresse = eigener.adresse.ifEmpty { null }; lat = eigener.lat; lng = eigener.lng
+        } else {
+            val p = de.trisar.kern.Routen.punkt(ctx, t)
+                ?: return DpTreffpunktErgebnis.Fehler("Treffpunkt nicht gefunden. Bitte genauer eingeben oder einen eigenen Ort wählen.")
+            name = t.split(",").first().trim(); adresse = t; lat = p.lat; lng = p.lng
+        }
+    }
+    return DpTreffpunktErgebnis.Zeile(kotlinx.serialization.json.buildJsonObject {
+        put("ort_id", w(ort)); put("name", w(name)); put("adresse", w(adresse))
+        put("lat", z(lat)); put("lng", z(lng)); put("notiz", w(n))
+    })
+}
+
+/** Fuer diese Dienste speichern, bei Leer entfernen (treffpunktSpeichern im Web). */
+private suspend fun dpTreffpunktSpeichern(dienstIDs: List<String>, ergebnis: DpTreffpunktErgebnis) {
+    val ids = dienstIDs.filter { it.isNotEmpty() }
+    if (ids.isEmpty()) return
+    val c = Backend.client
+    when (ergebnis) {
+        is DpTreffpunktErgebnis.Zeile -> {
+            val jetzt = java.time.Instant.now().toString()
+            c.from("dienst_treffpunkt").upsert(ids.map { id ->
+                kotlinx.serialization.json.JsonObject(ergebnis.werte + mapOf(
+                    "dienst_id" to kotlinx.serialization.json.JsonPrimitive(id),
+                    "aktualisiert" to kotlinx.serialization.json.JsonPrimitive(jetzt),
+                ))
+            })
+        }
+        else -> c.from("dienst_treffpunkt").delete { filter { isIn("dienst_id", ids) } }
+    }
+}
+
+/** Letzter nicht abgelehnter Dienst je Fahrer und Tag (fuer eine reine Treffpunkt-Aenderung ohne neue Zeile). */
+private suspend fun dpVorhandeneDienste(fahrerIDs: List<String>, tage: List<String>): List<String> {
+    val zeilen = Backend.client.from("driver_service_requests").select(io.github.jan.supabase.postgrest.query.Columns.raw("id, driver_id, service_date, status, created_at")) {
+        filter { isIn("driver_id", fahrerIDs); isIn("service_date", tage) }
+        order("created_at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+    }.decodeList<kotlinx.serialization.json.JsonObject>()
+    fun s(o: kotlinx.serialization.json.JsonObject, k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+    val gesehen = mutableSetOf<String>()
+    return zeilen.filter { d ->
+        val k = "${s(d, "driver_id")}|${s(d, "service_date")}"
+        if (k in gesehen || s(d, "status").lowercase() == "refused") false else { gesehen += k; true }
+    }.map { s(it, "id") }
+}
 
 /** Letzte nicht abgelehnte Dienstzeile des Tages mit Pausen und gemerktem angenommenem Stand. */
 internal suspend fun dienstBestandLaden(fahrer: String, tag: String): DienstBestand? = runCatching {
@@ -747,8 +827,17 @@ internal suspend fun dienstBestandLaden(fahrer: String, tag: String): DienstBest
         .decodeList<kotlinx.serialization.json.JsonObject>().firstOrNull()
     val a = c.from("dienst_aenderung").select(io.github.jan.supabase.postgrest.query.Columns.list("vorher")) { filter { eq("dienst_id", id) } }
         .decodeList<kotlinx.serialization.json.JsonObject>().firstOrNull()?.get("vorher") as? kotlinx.serialization.json.JsonObject
+    // Treffpunkt und Notiz (dienst_treffpunkt). Fehlt die Tabelle noch, bleibt es leer.
+    val tp = runCatching {
+        c.from("dienst_treffpunkt").select(io.github.jan.supabase.postgrest.query.Columns.raw("ort_id, name, adresse, notiz")) { filter { eq("dienst_id", id) } }
+            .decodeList<kotlinx.serialization.json.JsonObject>().firstOrNull()
+    }.getOrNull()
+    fun tpText(k: String) = ((tp?.get(k) as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content).orEmpty()
+    val tpOrt = tpText("ort_id")
     DienstBestand(id, text(d, "service_start_time"), text(d, "service_end_time"), pausenAus(p?.get("pausen")), status == "accepted",
-        a?.let { Triple(text(it, "start"), text(it, "ende"), pausenAus(it["pausen"])) })
+        a?.let { Triple(text(it, "start"), text(it, "ende"), pausenAus(it["pausen"])) },
+        treffpunktText = if (tpOrt.isNotEmpty()) tpText("name") else tpText("adresse").ifEmpty { tpText("name") },
+        treffpunktOrtID = tpOrt, notiz = tpText("notiz"))
 }.getOrNull()
 
 @Composable
@@ -762,6 +851,15 @@ internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe?
     var start by remember { mutableStateOf(vorgabe?.start ?: "") }
     var ende by remember { mutableStateOf(vorgabe?.ende ?: "") }
     val pausen = remember { mutableStateListOf<Pair<String, String>>().apply { vorgabe?.pausen?.let { addAll(it) } } }
+    // Treffpunkt beim Dienststart (Text + eigener Ort wie beim Standby) und Notiz an den Fahrer (13.11.).
+    var treffText by remember { mutableStateOf("") }
+    var treffOrtID by remember { mutableStateOf("") }
+    var treffNotiz by remember { mutableStateOf("") }
+    var treffVorschlaege by remember { mutableStateOf(emptyList<String>()) }
+    var treffOffen by remember { mutableStateOf(false) }
+    var treffLauf by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val fokus = LocalFocusManager.current
+    LaunchedEffect(Unit) { de.trisar.kern.EigeneOrte.einmalLaden() }
     /** Welche Zeit Plus und Minus verschieben: "start", "ende", "p0-von", "p1-bis" ... */
     var feld by remember { mutableStateOf<String?>(if (vorgabe?.start.isNullOrEmpty()) null else "start") }
     val radCtx = LocalContext.current
@@ -852,8 +950,10 @@ internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe?
         bestand = b
         if (b != null) {
             start = b.start; ende = b.ende; pausen.clear(); pausen.addAll(b.pausen)
+            treffText = b.treffpunktText; treffOrtID = b.treffpunktOrtID; treffNotiz = b.notiz
         } else if (hatteBestand) {
             start = ""; ende = ""; pausen.clear()
+            treffText = ""; treffOrtID = ""; treffNotiz = ""
         }
         hatteBestand = b != null
         feld = null
@@ -876,7 +976,21 @@ internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe?
         }
     }
     val zStart = zustand("start"); val zEnde = zustand("ende"); val zPausen = zustand("pausen")
-    val unveraendert = bestand != null && zStart != "neu" && zEnde != "neu" && zPausen != "neu"
+    val treffpunktNeu = dpTreffpunktSchluessel(treffText, treffOrtID, treffNotiz) !=
+        dpTreffpunktSchluessel(bestand?.treffpunktText.orEmpty(), bestand?.treffpunktOrtID.orEmpty(), bestand?.notiz.orEmpty())
+    val unveraendert = bestand != null && zStart != "neu" && zEnde != "neu" && zPausen != "neu" && !treffpunktNeu
+    /** Treffpunkt tippen: eigene Orte sofort, Adressvorschlaege nach kurzer Pause (wie beim Standby). */
+    fun treffpunktTippen(text: String) {
+        treffText = text; treffOrtID = ""; fehler = null
+        treffLauf?.cancel()
+        val q = text.trim()
+        if (q.isEmpty()) { treffVorschlaege = emptyList(); return }
+        treffOffen = true
+        treffLauf = scope.launch {
+            kotlinx.coroutines.delay(250)
+            treffVorschlaege = de.trisar.dispo.fahrten.FahrtPruefung.ortsVorschlaege(q)
+        }
+    }
     /** × bei vorausgefuellten Feldern: zurueck auf den gesendeten Stand, Gesendetes selbst bleibt. */
     fun zurueck(istStart: Boolean): (() -> Unit)? {
         val gesendet = (if (istStart) bestand?.start else bestand?.ende).orEmpty()
@@ -909,32 +1023,56 @@ internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe?
         val mitEnde = ende.isNotEmpty() && ende != b?.ende
         val pausenGeaendert = b == null || !gleichePausen(pausen.toList(), b.pausen)
         val pausenWeg = b != null && pausenGeaendert && pausen.isEmpty() && b.pausen.isNotEmpty()
-        if (b != null && !mitStart && !mitEnde && !pausenGeaendert) { fehler = "Keine Änderung zum Senden."; return }
+        // Treffpunkt oder Notiz geaendert (ohne vorhandenen Dienst: etwas eingetragen).
+        val treffpunktGeaendert = dpTreffpunktSchluessel(treffText, treffOrtID, treffNotiz) !=
+            dpTreffpunktSchluessel(b?.treffpunktText.orEmpty(), b?.treffpunktOrtID.orEmpty(), b?.notiz.orEmpty())
+        if (b != null && !mitStart && !mitEnde && !pausenGeaendert && !treffpunktGeaendert) { fehler = "Keine Änderung zum Senden."; return }
         speichert = true; fehler = null
-        if (b != null && pausenWeg && !mitStart && !mitEnde) {
-            // Nur alle Pausen entfernt: direkt am Dienst loeschen, der Fahrer bestaetigt das.
-            scope.launch {
-                runCatching { de.trisar.kern.Backend.client.from("dienst_pausen").delete { filter { eq("dienst_id", b.id) } } }
-                    .onSuccess { speichert = false; fertig() }
-                    .onFailure { fehler = "Pausen nicht entfernt: ${it.message}"; speichert = false }
-            }
-            return
-        }
+        val treffTage = tageListe.sorted().ifEmpty { listOf(Dienstzeit.heute()) }
         scope.launch {
+            // Treffpunkt vorab aufloesen (eigener Ort oder Adresse), damit nichts halb gesendet wird.
+            val tpErgebnis = if (treffpunktGeaendert) dpTreffpunktAufloesen(dialogKontext, treffText, treffOrtID, treffNotiz) else null
+            if (tpErgebnis is DpTreffpunktErgebnis.Fehler) { fehler = tpErgebnis.text; speichert = false; return@launch }
+            if (b != null && !mitStart && !mitEnde && (!pausenGeaendert || pausenWeg)) {
+                // Nur alle Pausen entfernt und/oder nur Treffpunkt/Notiz geaendert: kein neuer Dienst.
+                // Pausen weg bestaetigt der Fahrer, Treffpunkt und Notiz muss er nicht neu bestaetigen.
+                try {
+                    if (pausenWeg) de.trisar.kern.Backend.client.from("dienst_pausen").delete { filter { eq("dienst_id", b.id) } }
+                    if (tpErgebnis != null) dpTreffpunktSpeichern(dpVorhandeneDienste(fahrerIDs, treffTage), tpErgebnis)
+                    speichert = false
+                    fertig()
+                } catch (x: kotlinx.coroutines.CancellationException) { throw x } catch (x: Exception) {
+                    fehler = (if (pausenWeg) "Pausen nicht entfernt: " else "Treffpunkt nicht gespeichert: ") + x.message
+                    speichert = false
+                }
+                return@launch
+            }
             try {
                 val c = de.trisar.kern.Backend.client
                 fun t(w: String?) = if (w == null) kotlinx.serialization.json.JsonNull else kotlinx.serialization.json.JsonPrimitive(w)
                 // Je Fahrer und je gewaehltem Tag eine Dienstanfrage, das Profil bekommt den fruehesten Tag.
                 val tage = tageListe.sorted().ifEmpty { listOf(Dienstzeit.heute()) }
                 val tag = tage.first()
-                val zeilen = tage.flatMap { dienstTag -> fahrerIDs.map { id -> dienstTag to id } }.map { (dienstTag, id) ->
+                // ID vergibt die App: der Treffpunkt wird VOR dem Dienst gespeichert, damit die Push-Mitteilung
+                // zum neuen Dienst den Ort schon nennt (push_dienst_ausloeser liest dienst_treffpunkt beim INSERT).
+                val paare = tage.flatMap { dienstTag -> fahrerIDs.map { id -> dienstTag to id } }
+                val neueIDs = paare.map { java.util.UUID.randomUUID().toString() }
+                val zeilen = paare.mapIndexed { i, (dienstTag, id) ->
                     kotlinx.serialization.json.buildJsonObject {
+                        put("id", t(neueIDs[i]))
                         put("driver_id", t(id))
                         put("service_date", t(dienstTag))
                         put("service_start_time", t(start.takeIf { mitStart }))
                         put("service_end_time", t(ende.takeIf { mitEnde }))
                         put("status", t("pending"))
                         put("requested_by", t("dispo-android"))
+                    }
+                }
+                if (tpErgebnis != null) {
+                    try { dpTreffpunktSpeichern(neueIDs, tpErgebnis) } catch (x: kotlinx.coroutines.CancellationException) { throw x } catch (x: Exception) {
+                        fehler = "Treffpunkt nicht gespeichert: ${x.message}"
+                        speichert = false
+                        return@launch
                     }
                 }
                 val neu = c.from("driver_service_requests").insert(zeilen) { select(io.github.jan.supabase.postgrest.query.Columns.list("id")) }
@@ -1054,7 +1192,7 @@ internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe?
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)).tippen { fertig() }) {
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black).tippen { }
-                .navigationBarsPadding().verticalScroll(rememberScrollState())
+                .navigationBarsPadding().imePadding().verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 22.dp),
         ) {
             Column(Modifier.fillMaxWidth().background(hex(0x1A1A1A)).border(2.dp, gruen).padding(start = 17.dp, end = 17.dp, top = 14.dp, bottom = 16.dp)) {
@@ -1126,6 +1264,48 @@ internal fun DienstePlanenBlatt(fahrerIDs: List<String>, vorgabe: DienstVorgabe?
                             if (nichtsGesetzt) "Start oder Ende antippen" else if (nurPause) "Nur Pause" else if (start.isNotEmpty()) "Nur Dienststart" else "Nur Dienstende",
                             style = grotesk(18f, 700, 44f, -0.5f, if (nichtsGesetzt) grau else LIME),
                         )
+                    }
+                }
+
+                // Treffpunkt und Notiz beim Dienststart: nur mit Dienststart (eigener Ort oder Adresse).
+                if (start.isNotEmpty() || bestand?.start.orEmpty().isNotEmpty()) {
+                    val hinweis = Color.White.copy(alpha = 0.6f)
+                    val leerText = Color.White.copy(alpha = 0.3f)
+                    val eigener = de.trisar.kern.EigeneOrte.zuID(treffOrtID.ifEmpty { null })
+                    Row(Modifier.fillMaxWidth().padding(top = 12.dp).height(56.dp).background(kachelGrund, form).padding(start = 12.dp, end = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (eigener != null) Icon(de.trisar.kern.OrtIcons.grau(eigener.icon), Modifier.size(24.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Treffpunkt beim Dienststart", style = grotesk(11f, 500, 14f, farbe = hinweis), maxLines = 1)
+                            Box {
+                                if (treffText.isEmpty()) Text("Ort oder Adresse", style = grotesk(15f, 700, 20f, farbe = leerText), maxLines = 1)
+                                BasicTextField(treffText, { treffpunktTippen(it) },
+                                    Modifier.fillMaxWidth().onFocusChanged { treffOffen = it.isFocused },
+                                    textStyle = grotesk(15f, 700, 20f), singleLine = true, cursorBrush = SolidColor(LIME))
+                            }
+                        }
+                        if (treffText.isNotEmpty()) {
+                            Box(Modifier.size(36.dp).tippen { treffText = ""; treffOrtID = ""; treffVorschlaege = emptyList(); fehler = null },
+                                contentAlignment = Alignment.Center) {
+                                Text("×", style = grotesk(20f, 400, farbe = hinweis))
+                            }
+                        }
+                    }
+                    // Eigene Orte zuerst, darunter die Adressen (wie beim Standby).
+                    val eigeneTreffer = if (treffOrtID.isEmpty()) de.trisar.kern.EigeneOrte.vorschlaege(treffText) else emptyList()
+                    if (treffOffen && (eigeneTreffer.isNotEmpty() || treffVorschlaege.isNotEmpty())) {
+                        de.trisar.dispo.fahrten.OrtVorschlagListe(eigeneTreffer, treffVorschlaege, Modifier.fillMaxWidth().padding(top = 4.dp),
+                            { o -> treffText = o.name; treffOrtID = o.id; treffVorschlaege = emptyList(); treffOffen = false; fokus.clearFocus() }) { i ->
+                            treffText = treffVorschlaege[i]; treffOrtID = ""; treffVorschlaege = emptyList(); treffOffen = false; fokus.clearFocus()
+                        }
+                    }
+                    Column(Modifier.fillMaxWidth().padding(top = 6.dp).background(kachelGrund, form).padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)) {
+                        Text("Notiz an Fahrer", style = grotesk(11f, 500, 14f, farbe = hinweis), maxLines = 1)
+                        Box {
+                            if (treffNotiz.isEmpty()) Text("z. B. Schild mitnehmen", style = grotesk(15f, 700, 20f, farbe = leerText))
+                            BasicTextField(treffNotiz, { treffNotiz = it; fehler = null }, Modifier.fillMaxWidth().height(40.dp),
+                                textStyle = grotesk(15f, 700, 20f), cursorBrush = SolidColor(LIME))
+                        }
                     }
                 }
             }

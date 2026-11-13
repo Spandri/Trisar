@@ -78,7 +78,7 @@ final class DispoUhrBruecke: NSObject {
             .map { f in
                 DispoUhrFahrt(id: f.id, tag: f.datum, zeit: f.startZeit, von: f.startOrt, nach: f.zielOrt,
                               fahrer: f.ohneFahrerVariante ? "" : f.fahrer, gast: f.name,
-                              status: f.aktuellerStatus, ohneFahrer: f.ohneFahrerVariante, verspaetet: f.verspaetet,
+                              status: f.aktuellerStatus, ohneFahrer: f.ohneFahrerVariante, verspaetet: f.zuSpaet,
                               ankunft: Self.ankunft(f), statusText: Self.statusText(f.jobStatus))
             }
         return DispoUhrStand(angemeldet: true, fahrer: Array(fahrer), fahrten: Array(fahrten), stand: Date())

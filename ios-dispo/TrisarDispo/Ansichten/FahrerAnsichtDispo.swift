@@ -17,6 +17,10 @@ struct FahrerAnsichtDispo: View {
     @StateObject private var dienste: FahrerDiensteModell
     @State private var eintraege: [Stunden.Eintrag]?
     @State private var kommende: [AblaufDienst] = []
+    /// Treffpunkt und Notiz je Dienst-ID (klein geschrieben), wie useTreffpunkte im Web.
+    @State private var treffpunkte: [String: DienstTreffpunkt] = [:]
+    /// Eigene Orte liefern das Icon des Treffpunkts.
+    @ObservedObject private var orte = OrteSpeicher.geteilt
     @State private var exportLaeuft = false
     @State private var exportDatei: TeilbareDatei?
     @State private var exportFehler = false
@@ -189,6 +193,7 @@ struct FahrerAnsichtDispo: View {
         .task { await stundenLaden() }
         .task { await dienste.laden() }
         .task { await kommendeLaden() }
+        .task(id: treffpunktSchluessel) { await treffpunkteLaden() }
         .sheet(item: $exportDatei) { d in DateiTeilen(url: d.url).ignoresSafeArea() }
         .alert("Export fehlgeschlagen.", isPresented: $exportFehler) { Button("OK", role: .cancel) {} }
     }
@@ -258,7 +263,11 @@ struct FahrerAnsichtDispo: View {
         }
         let sortiert = zeilen.sorted { $0.0 < $1.0 }.map(\.1)
         VStack(alignment: .leading, spacing: 12) {
-            statusZeile("Dienststart \(d.beginn.isEmpty ? "--:--" : String(d.beginn.prefix(5)))", lime)
+            if let tp = treffpunkte[d.id], !tp.leer {
+                dienstStartMitOrt(d.beginn.isEmpty ? "--:--" : String(d.beginn.prefix(5)), tp)
+            } else {
+                statusZeile("Dienststart \(d.beginn.isEmpty ? "--:--" : String(d.beginn.prefix(5)))", lime)
+            }
             ForEach(sortiert) { z in
                 switch z {
                 case .fahrt(let f): fahrtKarte(f)
@@ -267,6 +276,47 @@ struct FahrerAnsichtDispo: View {
             }
             statusZeile("Dienstende \(d.ende.isEmpty ? "--:--" : String(d.ende.prefix(5)))", rot)
         }
+    }
+
+    /// Dienststart mit Treffpunkt (DienstStartMitOrt im Web): Lime-Rahmen, darunter Ort-Kachel mit Name
+    /// (und Adresse, wenn anders), darunter die Notiz in Grau.
+    private func dienstStartMitOrt(_ zeit: String, _ tp: DienstTreffpunkt) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Dienststart \(zeit)").grotesk(24, .bold, abstand: 0.5).foregroundStyle(lime)
+            if tp.hatOrt {
+                HStack(spacing: 20) {
+                    RoundedRectangle(cornerRadius: 12).fill(Color(hex: 0x242525)).frame(width: 44, height: 44)
+                        .overlay(Image(tp.iconGrau(orte)).resizable().scaledToFit().frame(width: 24, height: 24))
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(tp.name).grotesk(18, .bold, abstand: -0.5).foregroundStyle(.white).lineLimit(1)
+                        if !tp.adresse.isEmpty && tp.adresse != tp.name {
+                            Text(tp.adresse).grotesk(13, .medium).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
+                        }
+                    }
+                }
+                .padding(.top, 8).padding(.leading, -4)
+            }
+            if !tp.notiz.isEmpty {
+                Text(tp.notiz).grotesk(15, .bold, abstand: -0.3).foregroundStyle(grau)
+                    .fixedSize(horizontal: false, vertical: true).padding(.top, 10)
+            }
+        }
+        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
+        .frame(width: 362, alignment: .leading)
+        .overlay(Rectangle().strokeBorder(lime, lineWidth: 1))
+    }
+
+    private var treffpunktSchluessel: String { ablaufDienste.map(\.id).sorted().joined(separator: ",") }
+
+    /// Treffpunkte der gezeigten Dienste in einer Abfrage. Fehlt die Tabelle, bleibt es leer.
+    private func treffpunkteLaden() async {
+        let ids = ablaufDienste.map(\.id).filter { !$0.isEmpty }
+        guard !ids.isEmpty else { treffpunkte = [:]; return }
+        await orte.ladenFallsNoetig()
+        let zeilen: [DienstTreffpunkt] = (try? await Backend.client.from("dienst_treffpunkt")
+            .select("dienst_id, ort_id, name, adresse, notiz").in("dienst_id", values: ids).execute().value) ?? []
+        treffpunkte = Dictionary(zeilen.compactMap { t in t.dienstID.map { ($0.uuidString.lowercased(), t) } },
+                                 uniquingKeysWith: { a, _ in a })
     }
 
     private func exportieren() async {

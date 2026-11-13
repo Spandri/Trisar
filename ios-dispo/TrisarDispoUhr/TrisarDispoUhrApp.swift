@@ -1106,7 +1106,7 @@ struct UhrFlaggenFilter: View {
                         .overlay(Circle().stroke(.black, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(id == "flagge1" ? "Flagge Cyan" : id == "flagge2" ? "Flagge Violett" : "Flagge Königsblau")
+                .accessibilityLabel(id == "flagge1" ? "Flagge Cyan" : id == "flagge2" ? "Flagge Pink" : "Flagge Königsblau")
                 .accessibilityAddTraits(an ? .isSelected : [])
             }
             if senkrecht { VStack(spacing: 4) { knoepfe } } else { HStack(spacing: 4) { knoepfe } }

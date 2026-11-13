@@ -18,6 +18,7 @@ import { FahrzeugKarte } from '../../../shared/FahrzeugKarte';
 import { ortIconFuer } from '../../../shared/orte';
 import { anfrageKartenHoehe, anfrageZeilen, pausenZeilen, zeilenFarbe, zeilenGroesse, zeilenText, zuMinuten, GRAU } from '../../../shared/dienstAnfrage';
 import StandbyKarte from './StandbyKarte';
+import { treffpunktIcon } from '../../../shared/dienstTreffpunkt';
 import { standbyBlockHoehe } from '../../../shared/standby';
 
 const BASE_WIDTH = 402;
@@ -171,11 +172,19 @@ const SERVICE_REQUEST_CARD_GAP = 12;
 const SERVICE_REQUEST_LIST_GAP = 48;
 // Angenommene Anfragen zeigen keine Knoepfe mehr und sind entsprechend flacher.
 // Offene Anfrage: Hoehe haengt an der Zahl der Zeilen (Dienststart, Pausen, Dienstende, einzeln oder zusammen).
-const anfrageHoehe = (request) => (request.zeilen?.length ? anfrageKartenHoehe(request.zeilen) : SERVICE_REQUEST_CARD_HEIGHT);
+// Treffpunkt (13.11.): in der offenen Anfrage eine Zeile Icon + Ort darunter (20 Luft + 44 Kachel).
+const TREFFPUNKT_ZEILE = 64;
+const hatTreffpunktOrt = (request) => Boolean(request?.treffpunkt?.name);
+const anfrageHoehe = (request) => (request.zeilen?.length ? anfrageKartenHoehe(request.zeilen) : SERVICE_REQUEST_CARD_HEIGHT)
+  + (hatTreffpunktOrt(request) ? TREFFPUNKT_ZEILE : 0);
 const serviceBlockHeight = (request) => (request.angenommen ? anfrageHoehe(request) : anfrageHoehe(request) + ACTION_GAP + ACTION_HEIGHT);
 // Angenommener Dienst (12.11.): wie im Verlauf eine Zeile "Dienststart" ueber den Fahrten des Tages und
-// eine Zeile "Dienstende" darunter. Ist die Uhrzeit vorbei, verschwindet die Zeile (steht dann im Verlauf).
+// eine Zeile "Dienstende" darunter. Beide bleiben stehen, bis die Stundenerfassung des Tages kommt (13.11.),
+// danach ist der Tag abgeschlossen. Ohne Stundenerfassung: bis die Endzeit vorbei ist.
 const DIENST_ZEILE_HOEHE = 48;
+// Dienststart mit Treffpunkt: Karte wie Figma 2908-12498 (Zeile + Icon-Kachel 44 + Ortsname), 102 hoch.
+const DIENST_START_ORT_HOEHE = 102;
+const dienstZeileHoehe = (request, art) => (art === 'start' && hatTreffpunktOrt(request) ? DIENST_START_ORT_HOEHE : DIENST_ZEILE_HOEHE);
 const dienstZeitpunkte = (request) => {
   const tag = String(request?.date || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tag)) return { start: null, ende: null };
@@ -280,7 +289,7 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
     });
     tagesAnfragen.filter((r) => r.angenommen && r.zeigeStart).forEach((request) => {
       dienste.push({ request, top: cursorTop, art: 'start' });
-      cursorTop += DIENST_ZEILE_HOEHE + CARD_GAP;
+      cursorTop += dienstZeileHoehe(request, 'start') + CARD_GAP;
     });
     // Pausen des angenommenen Dienstes warten, bis ihre Uhrzeit zwischen den Fahrten dran ist.
     pausenWarte = tagesAnfragen.filter((r) => r.angenommen)
@@ -455,6 +464,16 @@ const RideCard = ({ job, layout, topOffset = 0, onOpen, onAction, onSheetOpen, a
         </div>
       )}
 
+      {/* Start Zeitraum: Ende klein unter der Zeit ("bis 14:30"). */}
+      {job?.etdBis ? (
+        <div
+          className="absolute text-[#e2f754] text-[12px] font-bold text-center tracking-[-0.5px] pointer-events-none"
+          style={{ left: '50%', transform: 'translateX(-50%)', top: iconCenterY + (showPlan ? 30 : 18), width: '80px', fontFamily: 'Space Grotesk' }}
+        >
+          {`bis ${job.etdBis}`}
+        </div>
+      ) : null}
+
       {/* Location Names + Arrow */}
       <div
         className="absolute left-[40px] right-[39px] pointer-events-none grid grid-cols-[minmax(0,1fr)_29px_minmax(0,1fr)] gap-x-[18px] items-center"
@@ -533,6 +552,7 @@ const FahrtenScreen01View = ({
   onServiceRequestAction,
   serviceActionBusyId = null,
   unreadByChat = {},
+  onOpenDienst = () => {},
 }) => {
   const { t, locale } = useI18n();
   const [scale, setScale] = useState(1);
@@ -630,7 +650,9 @@ const FahrtenScreen01View = ({
 
     return [...priorityJobs, ...otherJobs];
   }, [localJobs, newTopJobIds]);
-  // Minutentakt, damit Dienststart/-ende verschwinden, sobald die Uhrzeit vorbei ist.
+  // Stunden am Ende des Diensttages (nur live). Steht hier oben, weil Dienststart/-ende davon abhaengen.
+  const { karten: stundenKarten, laden: stundenLaden, vorbeiNachDienst } = useStundenKarten();
+  // Minutentakt, damit Pausen und Dienstende weiterruecken.
   const [jetztMinute, setJetztMinute] = useState(() => Date.now());
   useEffect(() => {
     const id = window.setInterval(() => setJetztMinute(Date.now()), 30000);
@@ -649,23 +671,30 @@ const FahrtenScreen01View = ({
           endTime: String(entry?.serviceEndTime || entry?.service_end_time || '').trim(),
           pausen: Array.isArray(entry?.pausen) ? entry.pausen : [],
           vorher: entry?.vorher || null,
+          treffpunkt: entry?.treffpunkt || null,
         }))
         .map((entry) => {
           // Offen: Zeilen der Anfrage (ganz neu alles, sonst nur das Geaenderte).
           if (!entry.angenommen) return { ...entry, zeilen: anfrageZeilen(entry) };
-          const { start, ende } = dienstZeitpunkte(entry);
+          const { ende } = dienstZeitpunkte(entry);
           // Angenommen: Pausenstart/-ende als Zeilen zwischen den Fahrten, bis ihre Uhrzeit vorbei ist.
           const tag = String(entry.date || '').slice(0, 10);
           const pausen = /^\d{4}-\d{2}-\d{2}$/.test(tag) ? pausenZeilen(entry.pausen, entry.startTime).filter((z) => {
             const t = zuZeitpunkt(tag, z.zeit);
             return !t || new Date(t).getTime() + (z.m >= 1440 ? 86400000 : 0) > jetztMinute;
           }) : [];
-          return { ...entry, pausenZeilen: pausen, zeigeStart: Boolean(entry.startTime) && (start === null || start > jetztMinute), zeigeEnde: Boolean(entry.endTime) && (ende === null || ende > jetztMinute) };
+          // Tag offen, bis die Stundenkarte kommt. Ohne Eintrag (Stundenerfassung aus, noch nicht geladen): bis zur Endzeit.
+          const stundenVorbei = vorbeiNachDienst.get(entry.id);
+          const offen = stundenVorbei !== undefined ? !stundenVorbei : (ende === null || ende > jetztMinute);
+          return { ...entry, pausenZeilen: pausen, endeVorbei: ende !== null && ende <= jetztMinute, zeigeStart: Boolean(entry.startTime) && offen, zeigeEnde: Boolean(entry.endTime) && offen };
         })
         // Angenommen und alles vorbei: nur noch im Verlauf.
         .filter((entry) => entry.id && (!entry.angenommen || entry.zeigeStart || entry.zeigeEnde || entry.pausenZeilen.length)),
-    [serviceRequests, jetztMinute],
+    [serviceRequests, jetztMinute, vorbeiNachDienst],
   );
+  // Endzeit vorbei, Stundenkarte aber noch nicht geladen: Stunden einmal neu holen, dann wechselt es.
+  const endeOhneKarte = activeServiceRequests.some((r) => r.angenommen && r.endeVorbei && vorbeiNachDienst.get(r.id) === false);
+  useEffect(() => { if (endeOhneKarte) stundenLaden(); }, [endeOhneKarte, stundenLaden]);
 
   const frameHeight = useMemo(() => {
     const safeScale = Math.max(scale, 0.01);
@@ -681,8 +710,6 @@ const FahrtenScreen01View = ({
     return () => { aktiv = false; };
   }, [schriftGeladen]);
   const [fahrzeugKartenHoehe, setFahrzeugKartenHoehe] = useState(VEHICLE_CARD_HEIGHT);
-  // Stunden am Ende des Diensttages (nur live).
-  const { karten: stundenKarten, laden: stundenLaden } = useStundenKarten();
   const sichtbareStunden = DEMO_MODE ? [] : stundenKarten;
   const listenLayout = useMemo(
     () => buildListenLayout(visibleJobs, activeServiceRequests, fahrzeugKartenHoehe, sichtbareStunden, standbys),
@@ -840,6 +867,35 @@ const FahrtenScreen01View = ({
                   if (art !== 'karte') {
                     const farbe = art === 'start' ? '#E3F654' : art === 'ende' ? '#FF6F63' : GRAU;
                     const zeit = (art === 'start' ? request.startTime : request.endTime).slice(0, 5);
+                    if (art === 'start' && request.treffpunkt) {
+                      // Dienststart mit Treffpunkt (Figma 2908-12498): Lime-Rahmen, darunter Icon-Kachel
+                      // und Ort. Antippen oeffnet Karte und Notiz wie bei einer Fahrt.
+                      const mitOrt = hatTreffpunktOrt(request);
+                      return (
+                        <button
+                          type="button"
+                          key={`${request.id}-start`}
+                          onClick={() => onOpenDienst(request)}
+                          data-tutorial="dienststart-treffpunkt"
+                          className="absolute left-5 w-[362px] outline outline-1 outline-offset-[-1px] text-left active:opacity-80"
+                          style={{ top: `${top}px`, height: `${dienstZeileHoehe(request, 'start')}px`, outlineColor: farbe }}
+                        >
+                          <span className="absolute left-4 text-2xl font-bold leading-6 tracking-wide" style={{ top: mitOrt ? 14 : 12, color: farbe, fontFamily: 'Space Grotesk' }}>
+                            {t('misc.shiftStart', { time: zeit })}
+                          </span>
+                          {mitOrt ? (
+                            <>
+                              <span className="absolute left-[12px] top-[46px] w-[44px] h-[44px] bg-[#242525] rounded-[12px] flex items-center justify-center">
+                                <img src={treffpunktIcon(request.treffpunkt)} alt="" className="w-[24px] h-[24px] object-contain" />
+                              </span>
+                              <span className="absolute left-[76px] right-[12px] top-[58px] text-white text-[18px] leading-[20px] font-bold tracking-[-0.5px] truncate" style={{ fontFamily: 'Space Grotesk' }}>
+                                {request.treffpunkt.name}
+                              </span>
+                            </>
+                          ) : null}
+                        </button>
+                      );
+                    }
                     return (
                       <div
                         key={`${request.id}-${art}-${zeile?.key || ''}`}
@@ -873,6 +929,15 @@ const FahrtenScreen01View = ({
                             {zeilenText(z, t)}
                           </div>
                         ))}
+                        {hatTreffpunktOrt(request) ? (
+                          // Treffpunkt wie in der Dienststart-Karte: Icon-Kachel und Ort.
+                          <button type="button" onClick={() => onOpenDienst(request)} className="mt-[20px] h-[44px] w-full flex items-center gap-[20px] text-left">
+                            <span className="w-[44px] h-[44px] bg-[#242525] rounded-[12px] flex items-center justify-center shrink-0">
+                              <img src={treffpunktIcon(request.treffpunkt)} alt="" className="w-[24px] h-[24px] object-contain" />
+                            </span>
+                            <span className="min-w-0 truncate text-white text-[18px] leading-[20px] font-bold tracking-[-0.5px] font-['Space_Grotesk']">{request.treffpunkt.name}</span>
+                          </button>
+                        ) : null}
                       </div>
                       {!request.angenommen && (
                       <>

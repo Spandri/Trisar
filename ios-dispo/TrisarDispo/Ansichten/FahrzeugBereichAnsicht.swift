@@ -298,6 +298,8 @@ struct FahrzeugFormularSeite: View {
     /// Fahrer dieses Fahrzeugs (profiles.vehicle_id): zuweisen und mit einem Tipp zum Fahrer (12.11.).
     @State private var fahrerListe: [FahrerWahl] = []
     @State private var fahrerStand = 0
+    /// Beim Neuanlegen: gewaehlter Fahrer, wird nach dem Speichern gesetzt (wie Fahrzeug beim Fahrer).
+    @State private var neuFahrer = ""
 
     private struct FahrerWahl: Decodable, Identifiable {
         let id: String
@@ -320,8 +322,8 @@ struct FahrzeugFormularSeite: View {
 
     private var bearbeiten: Bool { !(fahrzeug?.id ?? "").isEmpty }
     private var trackerVersatz: CGFloat { bearbeiten && !tracker.isEmpty ? 136 : 0 }
-    /// Zeile „Fahrer“ (nur beim Bearbeiten) unter den Tracker-Zeilen, schiebt alles darunter um 68.
-    private var fahrerVersatz: CGFloat { bearbeiten ? 68 : 0 }
+    /// Zeile „Fahrer“ unter den Tracker-Zeilen (auch beim Neuanlegen), schiebt alles darunter um 68.
+    private var fahrerVersatz: CGFloat { 68 }
     private var versatz: CGFloat { trackerVersatz + fahrerVersatz }
 
     private var zugewiesen: FahrerWahl? {
@@ -362,8 +364,8 @@ struct FahrzeugFormularSeite: View {
                     nfcKnopf("Tag beschreiben", aktion: tagBeschreiben).platz(20, 750, 175, 56)
                     nfcKnopf("Tag auslesen", aktion: tagAuslesen).platz(207, 750, 175, 56)
                 }
-                if bearbeiten {
-                    let mitKnopf = zugewiesen != nil && oeffneFahrer != nil
+                Group {
+                    let mitKnopf = bearbeiten && zugewiesen != nil && oeffneFahrer != nil
                     fahrerAuswahl.platz(20, 682 + trackerVersatz, mitKnopf ? 271 : 362, 56)
                     if mitKnopf, let f = zugewiesen, let oeffneFahrer {
                         Button { fokus = nil; oeffneFahrer(f.id) } label: {
@@ -534,7 +536,6 @@ struct FahrzeugFormularSeite: View {
 
     /// Alle Fahrer ohne Dispo-Rollen (wie die Auswahl im Web).
     private func fahrerLaden() async {
-        guard bearbeiten else { fahrerListe = []; return }
         let dispoRollen: Set<String> = ["dispo", "dispatcher", "admin", "koordinator", "coordinator", "pruefung"]
         guard let liste: [FahrerWahl] = try? await Backend.client.from("profiles")
             .select("id, first_name, last_name, vehicle_id, role, is_dispo")
@@ -545,10 +546,20 @@ struct FahrzeugFormularSeite: View {
 
     /// Speichert sofort: erst alle bisherigen Fahrer dieses Fahrzeugs loesen, dann den neuen setzen.
     private func fahrerZuweisen(_ neuID: String) {
-        guard let vid = fahrzeug?.id, !vid.isEmpty else { return }
-        struct Fahrzeug: Encodable { let vehicle_id: String? }
+        guard let vid = fahrzeug?.id, !vid.isEmpty else { neuFahrer = neuID; return }
         Task {
             do {
+                try await fahrerSetzen(neuID, fahrzeug: vid)
+                rueckmeldung = neuID.isEmpty ? "Fahrer entfernt." : "Fahrer zugewiesen."
+            } catch {
+                rueckmeldung = "Fahrer nicht gespeichert: \(dbMeldung(error))"
+            }
+            fahrerStand += 1
+        }
+    }
+
+    private func fahrerSetzen(_ neuID: String, fahrzeug vid: String) async throws {
+        struct Fahrzeug: Encodable { let vehicle_id: String? }
                 try await Backend.client.from("profiles").update(Fahrzeug(vehicle_id: nil), returning: .minimal)
                     .eq("vehicle_id", value: vid)
                     .neq("id", value: neuID.isEmpty ? "00000000-0000-0000-0000-000000000000" : neuID)
@@ -558,12 +569,11 @@ struct FahrzeugFormularSeite: View {
                         .eq("id", value: neuID)
                         .execute()
                 }
-                rueckmeldung = neuID.isEmpty ? "Fahrer entfernt." : "Fahrer zugewiesen."
-            } catch {
-                rueckmeldung = "Fahrer nicht gespeichert: \(dbMeldung(error))"
-            }
-            fahrerStand += 1
-        }
+    }
+
+    /// Angezeigter Fahrer: beim Bearbeiten der zugewiesene, beim Neuanlegen der gewaehlte.
+    private var fahrerAnzeige: FahrerWahl? {
+        bearbeiten ? zugewiesen : fahrerListe.first { $0.id == neuFahrer }
     }
 
     private var fahrerAuswahl: some View {
@@ -577,7 +587,7 @@ struct FahrzeugFormularSeite: View {
         } label: {
             ZStack(alignment: .leading) {
                 Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2)
-                Text(zugewiesen?.name ?? "Kein Fahrer")
+                Text(fahrerAnzeige?.name ?? "Kein Fahrer")
                     .font(.grotesk(16, .medium)).tracking(0.5)
                     .foregroundStyle(Color(hex: 0x8A9728))
                     .lineLimit(1)
@@ -699,7 +709,7 @@ struct FahrzeugFormularSeite: View {
     }
 
     private func leeren() {
-        markeModell = ""; variante = ""; vin = ""; kennzeichen = ""; farbe = ""; sitze = ""; kraftstoff = ""; bildURL = ""
+        markeModell = ""; variante = ""; vin = ""; kennzeichen = ""; farbe = ""; sitze = ""; kraftstoff = ""; bildURL = ""; neuFahrer = ""
     }
 
     private func bildUebernehmen(_ auswahl: PhotosPickerItem?) async {
@@ -747,9 +757,15 @@ struct FahrzeugFormularSeite: View {
         let id = bearbeiten ? fahrzeug?.id : nil
         Task {
             do {
-                _ = try await FahrzeugeDienst.speichern(inhalt, id: id)
+                let gespeichert = try await FahrzeugeDienst.speichern(inhalt, id: id)
                 if let id, trackerWahl != trackerStart { try await FahrzeugeDienst.trackerZuordnen(fahrzeug: id, imei: trackerWahl) }
                 rueckmeldung = id != nil ? "Fahrzeug erfolgreich aktualisiert." : "Fahrzeug erfolgreich erstellt."
+                if id == nil, !neuFahrer.isEmpty, let neuID = gespeichert?.text("id"), !neuID.isEmpty {
+                    do { try await fahrerSetzen(neuFahrer, fahrzeug: neuID) } catch {
+                        rueckmeldung = "Fahrzeug erfolgreich erstellt. Fahrer nicht gespeichert: \(dbMeldung(error))"
+                    }
+                    fahrerStand += 1
+                }
                 if id != nil {
                     try? await Task.sleep(for: .milliseconds(200))
                     zurListe()

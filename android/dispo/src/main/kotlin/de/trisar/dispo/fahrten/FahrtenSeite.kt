@@ -306,7 +306,8 @@ private fun anzeigeZeiten(f: DispoFahrt, abfahrten: Boolean, mitStandort: Boolea
     val ziel = zielZeit(f, false, mitStandort)
     val abfahrt = !mitStandort && f.aktuellerStatus != "unterwegs"
     val alt = f.zeiten
-    var neu = z.copy(status = minutenEtikett(f, mitStandort))
+    // Start Zeitraum nur, wenn die grosse Zeit die Abfahrt ist.
+    var neu = z.copy(status = minutenEtikett(f, mitStandort), bis = if (abfahrt) z.bis else "")
     neu = if (f.verspaetet) neu.copy(
         original = (if (abfahrt) W.erste(alt.original, alt.zeit, alt.neu, ziel) else W.erste(alt.ankunftOriginal, alt.original, ziel)) ?: "--:--",
         neu = (if (abfahrt) W.erste(alt.neu, alt.zeit, alt.original, ziel) else W.erste(alt.ankunftNeu, alt.ankunftZeit, alt.neu, ziel)) ?: "--:--",
@@ -518,14 +519,16 @@ private fun NotizBlock(fahrt: DispoFahrt, notizFarbe: Color) {
 
 @Composable
 private fun RechteSpalte(fahrt: DispoFahrt, zeiten: FahrtZeiten, strichFarbe: Color, statusFarbe: Color, textFarbe: Color) {
+    // Start Zeitraum: "14:00–14:30".
+    val bisText = if (zeiten.bis.isNotEmpty()) "–${zeiten.bis}" else ""
     Column(horizontalAlignment = Alignment.End) {
         if (fahrt.verspaetet) {
             Text(zeiten.original, style = css(16f, 400, 20f, farbe = strichFarbe).copy(textDecoration = TextDecoration.LineThrough))
             if (zeiten.status.isNotEmpty()) Text(zeiten.status, style = css(16f, 700, 20f, farbe = statusFarbe))
-            Text(zeiten.neu, style = css(16f, 400, 20f, farbe = statusFarbe))
+            Text(zeiten.neu + bisText, style = css(16f, 400, 20f, farbe = statusFarbe))
         } else {
             if (zeiten.status.isNotEmpty()) Text(zeiten.status, style = css(16f, 700, 20f, farbe = statusFarbe))
-            Text(zeiten.zeit, style = css(16f, 400, 20f, farbe = statusFarbe))
+            Text(zeiten.zeit + bisText, style = css(16f, 400, 20f, farbe = statusFarbe))
         }
         // Losfahr- bzw. Ankunftszeit klein unter der grossen Zeit.
         val gezeigt = (if (fahrt.verspaetet) zeiten.neu else zeiten.zeit).trim()

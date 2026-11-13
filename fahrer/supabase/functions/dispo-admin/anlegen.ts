@@ -11,6 +11,7 @@
 
 // deno-lint-ignore-file no-explicit-any
 import { kontoAnlegen, NAME_MUSTER } from './konto.ts';
+import { genannteFahrer } from './dienst.ts';
 
 const FRIST_MS = 15 * 60 * 1000;
 
@@ -111,7 +112,7 @@ const freierBenutzername = async (admin: any, basis: string) => {
 };
 
 // Gut lesbar und abtippbar: ohne 0/O, 1/l/I.
-const passwortErzeugen = () => {
+export const passwortErzeugen = () => {
   const zeichen = 'abcdefghjkmnpqrstuvwxyz23456789';
   const z = crypto.getRandomValues(new Uint8Array(8));
   const teil = Array.from(z, (n) => zeichen[n % zeichen.length]).join('');
@@ -148,7 +149,9 @@ const fahrerSpeichern = async (admin: any, d: FahrerDaten) => {
 
 // ---- Fahrzeug -------------------------------------------------------------------------------------
 
-type FahrzeugDaten = { modell: string; ausstattung: string; kennzeichen: string; sitze: string; farbe: string; kraftstoff: string; vin: string };
+// fahrerId/fahrerName: dieser Fahrer bekommt das Fahrzeug gleich zugeordnet ("Erstelle allen Fahrern ein Fahrzeug").
+type FahrzeugDaten = { modell: string; ausstattung: string; kennzeichen: string; sitze: string; farbe: string; kraftstoff: string; vin: string;
+  fahrerId?: string; fahrerName?: string };
 
 const MARKEN = ['mercedes-benz', 'mercedes', 'bmw', 'audi', 'vw', 'volkswagen', 'tesla', 'skoda', 'opel', 'ford', 'toyota', 'porsche',
   'range rover', 'land rover', 'volvo', 'hyundai', 'kia', 'cupra', 'seat', 'renault', 'peugeot', 'citroen', 'fiat', 'nissan', 'mazda',
@@ -212,6 +215,7 @@ const fahrzeugText = (d: FahrzeugDaten) => [
   ...(d.farbe ? [`Farbe: ${d.farbe}`] : []),
   ...(d.kraftstoff ? [`Kraftstoff: ${d.kraftstoff}`] : []),
   ...(d.vin ? [`VIN: ${d.vin}`] : []),
+  ...(d.fahrerName ? [`Fahrer: ${d.fahrerName}`] : []),
   '',
   'Soll ich das Fahrzeug so anlegen? Mit „ja“ speichere ich es. Ändern kannst du vorher noch, z. B. „Kennzeichen M-TR 106“ oder „8 Sitze“.',
 ].join('\n');
@@ -226,7 +230,7 @@ const fahrzeugPruefen = async (admin: any, d: FahrzeugDaten) => {
 };
 
 const fahrzeugSpeichern = async (admin: any, d: FahrzeugDaten) => {
-  const { error } = await admin.from('vehicles').insert([{
+  const { data: neu, error } = await admin.from('vehicles').insert([{
     brand_model: d.modell,
     trim: d.ausstattung || null,
     license_plate: d.kennzeichen || null,
@@ -234,9 +238,16 @@ const fahrzeugSpeichern = async (admin: any, d: FahrzeugDaten) => {
     color: d.farbe || null,
     fuel_type: d.kraftstoff || null,
     vin: d.vin || null,
-  }]);
+  }]).select('id').single();
   if (error) return `Das Anlegen hat nicht geklappt (${error.message}). Es wurde nichts gespeichert.`;
-  return `Angelegt: ${d.modell}${d.kennzeichen ? ` (${d.kennzeichen})` : ''}. Tracker und Fahrer ordnest du unter Fahrzeug bzw. Fahrer bearbeiten zu.`;
+  const name = `${d.modell}${d.kennzeichen ? ` (${d.kennzeichen})` : ''}`;
+  if (d.fahrerId && neu?.id) {
+    const { error: zuFehler } = await admin.from('profiles').update({ vehicle_id: neu.id }).eq('id', d.fahrerId);
+    return zuFehler
+      ? `Angelegt: ${name}. Die Zuordnung zu ${d.fahrerName || 'dem Fahrer'} hat nicht geklappt (${zuFehler.message}), ordne es unter Fahrer bearbeiten zu.`
+      : `Angelegt: ${name} für ${d.fahrerName || 'den Fahrer'}.`;
+  }
+  return `Angelegt: ${name}. Tracker und Fahrer ordnest du unter Fahrzeug bzw. Fahrer bearbeiten zu.`;
 };
 
 // ---- Ablauf ---------------------------------------------------------------------------------------
@@ -341,6 +352,11 @@ export const anlegenVorschlag = async (admin: any, frage: string, kontext: any, 
   const istFahrer = FAHRER_RE.test(text);
   if (!istFahrzeug && !istFahrer) return null;
 
+  // Ein Fahrzeug je Fahrer: "Erstelle allen Fahrern ein Fahrzeug, alles Mercedes V-Klasse", "Für Tim und Anna je
+  // einen BMW X5". Eine Karte je Fahrer, beim Bestaetigen wird es dem Fahrer gleich zugeordnet.
+  const jeFahrer = await fahrzeugeJeFahrer(admin, roh, text, istFahrzeug, kontext, karten);
+  if (jeFahrer) return jeFahrer;
+
   // Mehrere in einem Satz: "Fahrer Fertel Garlo und Fahrer Marvin Hallo", "zwei Autos: BMW 5er M-TR 104, Audi A8 M-TR 106",
   // je Zeile einer. Jeder Teil wird fuer sich gelesen.
   const teile = anlegenTeilen(roh, istFahrzeug && !istFahrer ? 'fahrzeug' : istFahrer && !istFahrzeug ? 'fahrer' : null);
@@ -386,6 +402,62 @@ export const anlegenVorschlag = async (admin: any, frage: string, kontext: any, 
 };
 
 type Entwurf = { art: 'fahrer' | 'fahrzeug'; daten: any; titel: string; fehler: string; hinweis: string };
+
+const ALLE_RE = /\b(alle[nm]?|saemtliche[n]?|jede[nmr]?)\s+(unseren?\s+)?fahrer(n|innen)?\b|\bfuer\s+jeden\b|\bje(weils)?\s+(ein|einen)\b/;
+const fahrzeugeJeFahrer = async (admin: any, roh: string, text: string, istFahrzeug: boolean, kontext: any, karten: boolean): Promise<AnlegenAntwort> => {
+  if (!istFahrzeug) return null;
+  const alle = /\b(alle[nm]?|saemtliche[n]?|jede[nmr]?)\s+(unseren?\s+)?fahrer(n|innen)?\b|\bfuer\s+jeden\s+fahrer\b/.test(text);
+  let fahrer: { id: string; name: string }[] = [];
+  let schonMit: string[] = [];
+  if (alle) {
+    const { data } = await admin.from('profiles').select('id, first_name, last_name, role, is_dispo, vehicle_id');
+    const liste = (Array.isArray(data) ? data : [])
+      .filter((p: any) => p.is_dispo !== true && !['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator', 'pruefung'].includes(String(p.role || '').toLowerCase()));
+    // Wer schon ein Fahrzeug hat, bekommt keins dazu, ausser es heisst "auch" ("auch die mit Fahrzeug").
+    const auch = /\bauch\b.*\b(mit|schon)\b/.test(text);
+    const name = (p: any) => [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+    fahrer = liste.filter((p: any) => auch || !p.vehicle_id).map((p: any) => ({ id: String(p.id), name: name(p) }));
+    schonMit = auch ? [] : liste.filter((p: any) => p.vehicle_id).map(name);
+  } else if (ALLE_RE.test(text) || /\bfuer\s+[a-z]/.test(text)) {
+    fahrer = await genannteFahrer(admin, text);
+  }
+  if (!fahrer.length) {
+    if (alle && schonMit.length) return { answer: `Alle Fahrer haben schon ein Fahrzeug. Soll trotzdem jeder ein neues bekommen, schreib „auch die mit Fahrzeug“.`, kontext };
+    return null;
+  }
+  fahrer = fahrer.slice(0, 30);
+  // Fahrzeug-Angaben ohne Namen und Fahrer-Woerter lesen.
+  let rest = roh;
+  for (const f of fahrer) for (const w of f.name.split(/\s+/)) if (w.length >= 2) rest = rest.replace(new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b`, 'gi'), ' ');
+  rest = rest.replace(/\b(allen|alle|jedem|jeden|jeder|f(ü|ue)r|und|je|jeweils|fahrern|fahrer|auch die mit fahrzeug)\b/gi, ' ');
+  const f = fahrzeugFelder(rest);
+  // Nur mit Marke ("Mercedes V-Klasse"), sonst wuerde aus "ein Fahrzeug erstellen" ein Modell.
+  const mitMarke = MARKEN.some((m) => new RegExp(`\\b${m}\\b`).test(normal(f.rest)));
+  const modell = mitMarke ? modellAus(f.rest) : '';
+  if (!modell) {
+    return { answer: `Welche Marke und welches Modell sollen die ${fahrer.length} Fahrzeuge haben? Zum Beispiel „Erstelle allen Fahrern ein Fahrzeug Mercedes V-Klasse“.`, kontext: ohneOffenes(kontext) };
+  }
+  // Ein Kennzeichen gilt nur fuer ein Fahrzeug: bei mehreren bleibt es leer.
+  const kennzeichen = fahrer.length === 1 ? f.kennzeichen : '';
+  const daten: FahrzeugDaten[] = fahrer.map((x) => ({ modell, ausstattung: f.ausstattung, kennzeichen, sitze: f.sitze, farbe: f.farbe,
+    kraftstoff: f.kraftstoff, vin: fahrer.length === 1 ? f.vin : '', fahrerId: x.id, fahrerName: x.name }));
+  const hinweise = [
+    ...(schonMit.length ? [`${schonMit.join(', ')} ${schonMit.length === 1 ? 'hat' : 'haben'} schon ein Fahrzeug und ${schonMit.length === 1 ? 'bekommt' : 'bekommen'} keins dazu.`] : []),
+    ...(fahrer.length > 1 && f.kennzeichen ? ['Ein Kennzeichen passt nur zu einem Fahrzeug, trag es auf der jeweiligen Karte ein.'] : []),
+  ];
+  if (karten) {
+    return {
+      answer: [`${fahrer.length === 1 ? `Neues Fahrzeug für ${fahrer[0].name}` : `${fahrer.length} Fahrzeuge, je eins pro Fahrer`}. Prüfe die Karten und bestätige sie einzeln, beim Bestätigen ordne ich das Fahrzeug dem Fahrer zu.`, ...hinweise].join('\n'),
+      kontext: ohneOffenes(kontext),
+      aktionen: daten.map((d) => ({ type: 'fahrzeug_proposal', fahrzeug: { ...d, fehler: '' } })),
+    };
+  }
+  if (daten.length === 1) return { answer: `${hinweise.length ? `${hinweise.join('\n')}\n` : ''}${fahrzeugText(daten[0])}`, kontext: mitOffenem(kontext, 'fahrzeug', daten[0]) };
+  return {
+    answer: `Ich lege an:\n${daten.map((d, i) => `${i + 1}. ${d.modell} für ${d.fahrerName}`).join('\n')}${hinweise.length ? `\n${hinweise.join('\n')}` : ''}\n\nMit „ja“ lege ich alle an und ordne sie zu. Mit „nein“ nichts.`,
+    kontext: { ...ohneOffenes(kontext), offenesAnlegen: { art: 'mehrere', liste: daten.map((d) => ({ art: 'fahrzeug', daten: d })), zeit: Date.now() } },
+  };
+};
 
 // Teile einer Nachricht: je Zeile, sonst an "und"/"," vor Fahrer/Fahrzeug/Marke/Kennzeichen, sonst bei
 // Fahrern an "und" zwischen zwei Namen ("Leg Max Muster und Lisa Lang als Fahrer an").
@@ -469,6 +541,7 @@ export const anlegenAusKarte = async (admin: any, body: any) => {
     const d: FahrzeugDaten = {
       modell: String(roh.modell || '').trim(), ausstattung: String(roh.ausstattung || '').trim(), kennzeichen: String(roh.kennzeichen || '').trim().toUpperCase(),
       sitze: String(roh.sitze || '').trim(), farbe: String(roh.farbe || '').trim(), kraftstoff: String(roh.kraftstoff || '').trim(), vin: String(roh.vin || '').trim(),
+      ...(/^[0-9a-f-]{36}$/i.test(String(roh.fahrerId || '')) ? { fahrerId: String(roh.fahrerId).toLowerCase(), fahrerName: String(roh.fahrerName || '').trim() } : {}),
     };
     const fehler = await fahrzeugPruefen(admin, d);
     if (fehler) return { status: 200, daten: { ok: false, text: fehler } };

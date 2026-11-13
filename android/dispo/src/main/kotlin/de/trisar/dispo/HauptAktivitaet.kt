@@ -35,6 +35,8 @@ class HauptAktivitaet : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Startvideo so frueh wie moeglich laden, damit es ohne Verzoegerung losgeht.
+        de.trisar.kern.StartVideo.vorbereiten(applicationContext)
         // Helle Symbole in Status- und Navigationsleiste, der Hintergrund ist immer dunkel (wie iOS).
         enableEdgeToEdge(
             statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -44,6 +46,8 @@ class HauptAktivitaet : ComponentActivity() {
             BuildConfig.FIREBASE_PROJEKT, BuildConfig.FIREBASE_SENDER)
         de.trisar.kern.Push.ausIntent(intent)
         setContent {
+            // Startvideo wie im Web, nur beim Kaltstart (kern/StartVideo.kt).
+            de.trisar.kern.StartVideoTor {
             WebMassstab {
                 Box(Modifier.fillMaxSize().background(Color.Black)) {
                     val zustand by anmeldung.zustand.collectAsState()
@@ -56,6 +60,7 @@ class HauptAktivitaet : ComponentActivity() {
                         }
                     }
                 }
+            }
             }
         }
     }
