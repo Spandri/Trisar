@@ -1,0 +1,8 @@
+# Zwischenstaende: die fertigen Bilder liegen in den Apps (dreh-einbauen.py verteilt sie)
+v-klasse-360/
+v-klasse-konfigurator/
+farben/
+*.png
+*.webp
+*.html
+vorschau.svg

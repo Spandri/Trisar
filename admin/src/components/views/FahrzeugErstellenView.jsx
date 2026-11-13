@@ -3,6 +3,7 @@ import BackCircleButton from '../ui/BackCircleButton';
 import TrisarFooter from '../ui/TrisarFooter';
 import { hasSupabaseAdminConfig, supabase, supabaseAdmin } from '../../services/supabase';
 import { useI18n } from '../../i18n';
+import { drehInfoLaden, drehModell, drehLack, modellVorschlaege, farbVorschlaege } from '../../shared/fahrzeugDreh';
 
 const BASE_WIDTH = 402;
 const BASE_HEIGHT = 913;
@@ -163,6 +164,15 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   const [trackerWahl, setTrackerWahl] = useState('');
   const [trackerStart, setTrackerStart] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+
+  // Vorschlaege fuer Marke/Modell und Farbe: Modelle und Lacke mit 360-Grad-Ansicht in der Fahrer-App.
+  const [drehInfo, setDrehInfo] = useState(null);
+  const [vorschlagFeld, setVorschlagFeld] = useState(null);
+  useEffect(() => { let aktiv = true; drehInfoLaden().then((i) => { if (aktiv) setDrehInfo(i); }); return () => { aktiv = false; }; }, []);
+  const modellListe = vorschlagFeld === 'modell' ? modellVorschlaege(drehInfo, brandModel) : [];
+  const farbListe = vorschlagFeld === 'farbe' ? farbVorschlaege(drehInfo, brandModel, color) : [];
+  const gewaehlterLack = drehLack(drehModell(drehInfo, brandModel), color);
+  const feldVerlassen = (feld) => window.setTimeout(() => setVorschlagFeld((f) => (f === feld ? null : f)), 120);
 
   const brandModelRef = useRef(null);
   const trimRef = useRef(null);
@@ -415,6 +425,8 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
                 ref={brandModelRef}
                 value={brandModel}
                 onChange={(event) => setBrandModel(event.target.value)}
+                onFocus={() => setVorschlagFeld('modell')}
+                onBlur={() => feldVerlassen('modell')}
                 placeholder={t('erstellen.brandModel')}
                 className={inputClass}
               />
@@ -467,9 +479,15 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
                 ref={colorRef}
                 value={color}
                 onChange={(event) => setColor(event.target.value)}
+                onFocus={() => setVorschlagFeld('farbe')}
+                onBlur={() => feldVerlassen('farbe')}
                 placeholder={t('erstellen.color')}
                 className={inputClass}
               />
+              {/* Farbe passt zu einer Bilderreihe: Farbpunkt, die Fahrer-App zeigt das Auto drehbar */}
+              {gewaehlterLack ? (
+                <span title="360°-Ansicht in der Fahrer-App" className="absolute right-9 top-1/2 -translate-y-1/2 w-[16px] h-[16px] rounded-full border border-[#e3f654]" style={{ background: gewaehlterLack.hex }} />
+              ) : null}
               <button type="button" onClick={() => colorRef.current?.focus()} className="absolute right-3 top-1/2 -translate-y-1/2">
                 <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="w-[10px] h-[13px]" />
               </button>
@@ -636,6 +654,36 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
             {isEditMode && (
               <SchadensBericht schaeden={schaeden} blockRef={schadenRef} top={882 + trackerVersatz} />
             )}
+
+            {/* Vorschlaege wie beim Start einer Fahrt: Antippen uebernimmt den Namen */}
+            {modellListe.length > 0 || farbListe.length > 0 ? (
+              <div
+                className="absolute left-[20px] w-[362px] max-h-[240px] overflow-y-auto rounded-2xl border border-[#4a4f22] bg-[#151607] z-[120]"
+                style={{ top: `${(vorschlagFeld === 'modell' ? 186 : 390) + 60}px` }}
+              >
+                {modellListe.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); setBrandModel(name); setVorschlagFeld(null); }}
+                    className="w-full px-3 py-3 text-left text-[13px] font-medium border-b last:border-b-0 border-[#2a2d15] text-[#e3f654]"
+                  >
+                    {name}
+                  </button>
+                ))}
+                {farbListe.map((lack) => (
+                  <button
+                    key={lack.code}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); setColor(lack.name); setVorschlagFeld(null); }}
+                    className="w-full px-3 py-3 flex items-center gap-3 text-left text-[13px] font-medium border-b last:border-b-0 border-[#2a2d15] text-[#e3f654]"
+                  >
+                    <span className="w-[16px] h-[16px] rounded-full border border-[#4a4f22] shrink-0" style={{ background: lack.hex }} />
+                    {lack.name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
           </div>
         </div>

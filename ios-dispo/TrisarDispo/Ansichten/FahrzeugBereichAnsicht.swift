@@ -409,6 +409,15 @@ struct FahrzeugFormularSeite: View {
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { schadenHoehe = $0 }
                         .platz(20, 898 + versatz, 362, nil)
                 }
+
+                // Farbe passt zu einer Bilderreihe: Farbpunkt, die Fahrer-App zeigt das Auto drehbar
+                if let lack = FahrzeugDrehVorschlaege.lack(markeModell: markeModell, farbe: farbe) {
+                    Circle().fill(Color(hex: UInt32(lack.hex.dropFirst(), radix: 16) ?? 0))
+                        .overlay(Circle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 1))
+                        .platz(20 + 362 - 52, 410 + 20, 16, 16)
+                        .allowsHitTesting(false)
+                }
+                drehVorschlaege
             }
         }
         .overlay { FussleisteUnten() }
@@ -428,6 +437,43 @@ struct FahrzeugFormularSeite: View {
         } message: {
             Text("Das Fahrzeug und seine Schadensmeldungen werden gelöscht. Fahrer und Fahrten verlieren die Zuordnung. Das lässt sich nicht rückgängig machen.")
         }
+    }
+
+    /// Vorschlaege wie beim Start einer Fahrt: Modelle und Lacke mit 360-Grad-Ansicht in der Fahrer-App.
+    @ViewBuilder private var drehVorschlaege: some View {
+        let modelle = fokus == .markeModell ? FahrzeugDrehVorschlaege.modellVorschlaege(markeModell) : []
+        let lacke = fokus == .farbe ? FahrzeugDrehVorschlaege.farbVorschlaege(markeModell: markeModell, eingabe: farbe) : []
+        if !modelle.isEmpty || !lacke.isEmpty {
+            VStack(spacing: 0) {
+                ForEach(modelle, id: \.self) { name in
+                    vorschlagZeile(name, punkt: nil) { markeModell = name; fokus = nil }
+                }
+                ForEach(lacke, id: \.self) { lack in
+                    vorschlagZeile(lack.name, punkt: Color(hex: UInt32(lack.hex.dropFirst(), radix: 16) ?? 0)) { farbe = lack.name; fokus = nil }
+                }
+            }
+            .background(Color(hex: 0x151607))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color(hex: 0x4A4F22), lineWidth: 1))
+            .platz(20, (fokus == .markeModell ? 206 : 410) + 60, 362, nil)
+        }
+    }
+
+    private func vorschlagZeile(_ text: String, punkt: Color?, aktion: @escaping () -> Void) -> some View {
+        Button(action: aktion) {
+            HStack(spacing: 12) {
+                if let punkt {
+                    Circle().fill(punkt).frame(width: 16, height: 16)
+                        .overlay(Circle().strokeBorder(Color(hex: 0x4A4F22), lineWidth: 1))
+                }
+                Text(text).font(.grotesk(13, .medium)).foregroundStyle(Color(hex: 0xE3F654))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12).frame(height: 44)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) { Rectangle().fill(Color(hex: 0x2A2D15)).frame(height: 1) }
+        }
+        .buttonStyle(.web)
     }
 
     private func loeschen() {

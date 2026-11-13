@@ -155,12 +155,12 @@ data class FahrzeugAngaben(
         return if (hatKacheln) KartenRaster(v, b, y + 17.65f, y + 17.65f + 52f + 20.35f) else KartenRaster(v, b, null, y + 16f)
     }
 
-    /** Fahrzeugblock der Fahrzeug-Seite (353 breit). Mit allem 332 hoch. */
-    fun blockRaster(): BlockRaster {
+    /** Fahrzeugblock der Fahrzeug-Seite (353 breit). Mit allem 332 hoch. mitDreh: 360-Grad-Ansicht statt Standbild. */
+    fun blockRaster(mitDreh: Boolean = false): BlockRaster {
         var y = 52f
         var v: Float? = null; var b: Float? = null; var m: Float? = null; var a: Float? = null
         if (vin.isNotEmpty()) { v = 51.97f; y = 68f }
-        if (bild != null) { b = 75f; y = 197f }
+        if (bild != null || mitDreh) { b = 75f; y = 197f }
         if (modell.isNotEmpty()) { m = y + 13f; y += 33f }
         if (ausstattung.isNotEmpty()) { val o = if (modell.isEmpty()) y + 8f else y; a = o; y = o + 16f }
         return if (hatKacheln) BlockRaster(v, b, m, a, y + 24f, y + 24f + 52f + 10f) else BlockRaster(v, b, m, a, null, y + 16f)

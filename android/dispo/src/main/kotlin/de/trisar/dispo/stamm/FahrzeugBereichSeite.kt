@@ -389,6 +389,10 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
     var vin by remember { mutableStateOf(fahrzeug?.vin ?: "") }
     var kennzeichen by remember { mutableStateOf(fahrzeug?.licensePlate ?: "") }
     var farbe by remember { mutableStateOf(fahrzeug?.color ?: "") }
+    // Vorschlaege fuer Marke & Modell und Farbe: Modelle und Lacke mit 360-Grad-Ansicht in der Fahrer-App.
+    var vorschlagFeld by remember { mutableStateOf<String?>(null) }
+    val ctxDreh = LocalContext.current
+    val fokusDreh = LocalFocusManager.current
     var sitze by remember { mutableStateOf(fahrzeug?.seatCount?.toString() ?: "") }
     var kraftstoff by remember { mutableStateOf(fahrzeug?.fuelType ?: "") }
     var bildURL by remember { mutableStateOf(fahrzeug?.imageUrl ?: "") }
@@ -529,11 +533,17 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
             StammTitel(if (bearbeiten) "Fahrzeug bearbeiten" else "Fahrzeug erstellen", Modifier.platz(20f, 140f),
                 groesse = if (bearbeiten) 36f else 42f, abstand = -0.5f, farbe = 0xE2F754)
 
-            BoxFeld("Marke & Modell", markeModell, { markeModell = it }, Modifier.platz(20f, 206f, 178f, 56f), gross = KeyboardCapitalization.Words)
+            BoxFeld("Marke & Modell", markeModell, { markeModell = it }, Modifier.platz(20f, 206f, 178f, 56f), gross = KeyboardCapitalization.Words,
+                fokusGeaendert = { if (it) vorschlagFeld = "modell" else if (vorschlagFeld == "modell") vorschlagFeld = null })
             BoxFeld("Modell Variante", variante, { variante = it }, Modifier.platz(204f, 206f, 178f, 56f), gross = KeyboardCapitalization.Words)
             BoxFeld("VIN", vin, { vin = it }, Modifier.platz(20f, 274f, 362f, 56f), gross = KeyboardCapitalization.Characters)
             BoxFeld("Kennzeichen", kennzeichen, { kennzeichen = it }, Modifier.platz(20f, 342f, 362f, 56f), gross = KeyboardCapitalization.Characters)
-            BoxFeld("Farbe", farbe, { farbe = it }, Modifier.platz(20f, 410f, 362f, 56f))
+            BoxFeld("Farbe", farbe, { farbe = it }, Modifier.platz(20f, 410f, 362f, 56f),
+                fokusGeaendert = { if (it) vorschlagFeld = "farbe" else if (vorschlagFeld == "farbe") vorschlagFeld = null })
+            // Farbe passt zu einer Bilderreihe: Farbpunkt, die Fahrer-App zeigt das Auto drehbar
+            FahrzeugDrehVorschlaege.lack(ctxDreh, markeModell, farbe)?.let { lack ->
+                Box(Modifier.platz(20f + 362f - 52f, 430f, 16f, 16f).background(hex(lack.hex), CircleShape).border(1.dp, LIME, CircleShape))
+            }
             BoxFeld("Beifahreranzahl", sitze, { sitze = it.filter { c -> c.isDigit() } }, Modifier.platz(20f, 478f, 362f, 56f), tastatur = KeyboardType.Number)
 
             // Select mit festen Kraftstoffen, ein abweichender gespeicherter Wert bleibt waehlbar.
@@ -642,6 +652,24 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
                 val dichte = androidx.compose.ui.platform.LocalDensity.current
                 SchadensBerichtDispo(fid, Modifier.platz(20f, 898f + trackerVersatz + fahrerVersatz, 362f)
                     .then(Modifier.onSizeChanged { schadenHoehe = with(dichte) { it.height.toDp().value } }))
+            }
+
+            // Vorschlaege wie beim Start einer Fahrt: Antippen uebernimmt den Namen
+            val modellListe = if (vorschlagFeld == "modell") FahrzeugDrehVorschlaege.modellVorschlaege(ctxDreh, markeModell) else emptyList()
+            val lackListe = if (vorschlagFeld == "farbe") FahrzeugDrehVorschlaege.farbVorschlaege(ctxDreh, markeModell, farbe) else emptyList()
+            if (modellListe.isNotEmpty() || lackListe.isNotEmpty()) {
+                val form = RoundedCornerShape(16.dp)
+                Column(
+                    Modifier.platz(20f, (if (vorschlagFeld == "modell") 206f else 410f) + 60f, 362f)
+                        .background(hex(0x151607), form).border(1.dp, hex(0x4A4F22), form).clipToBounds(),
+                ) {
+                    modellListe.forEach { name ->
+                        DrehVorschlagZeile(name, null) { markeModell = name; vorschlagFeld = null; fokusDreh.clearFocus() }
+                    }
+                    lackListe.forEach { lack ->
+                        DrehVorschlagZeile(lack.name, hex(lack.hex)) { farbe = lack.name; vorschlagFeld = null; fokusDreh.clearFocus() }
+                    }
+                }
             }
         }
         FussleisteUnten()
@@ -789,5 +817,18 @@ private fun SchadensBerichtDispo(fahrzeugID: String, modifier: Modifier) {
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit, modifier = Modifier.fillMaxWidth())
             }
         }
+    }
+}
+
+/** Eine Zeile der Modell-/Farbvorschlaege (Farbpunkt nur bei Lacken). */
+@Composable
+private fun DrehVorschlagZeile(text: String, punkt: Color?, waehlen: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().height(44.dp).tippen(waehlen).border(0.5.dp, hex(0x2A2D15)).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (punkt != null) Box(Modifier.size(16.dp).background(punkt, CircleShape).border(1.dp, hex(0x4A4F22), CircleShape))
+        Text(text, style = grotesk(13f, 500, farbe = LIME), maxLines = 1)
     }
 }

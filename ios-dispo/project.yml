@@ -52,6 +52,8 @@ targets:
       - ../ios-fahrer/TrisarFahrer/Ansichten/WebText.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/LoginAnsicht.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/FahrzeugKarte.swift
+      # FahrzeugKarte kennt den 360-Grad-Satz (DrehSatz). Bilder hat nur die Fahrer-App, die Dispo nutzt den Satz nicht.
+      - ../ios-fahrer/TrisarFahrer/Ansichten/FahrzeugDrehung.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/KarteAnsicht.swift
       - ../ios-fahrer/TrisarFahrer/Ansichten/SupportAnsicht.swift
     dependencies:

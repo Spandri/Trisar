@@ -119,7 +119,9 @@ private struct FahrzeugInhalt: View {
                 .grotesk(30, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1C1C1D))
                 .lineLimit(1).minimumScaleFactor(0.5)
                 .platz(0, 15.29, 353, 36.68, .top)
-            if let oben = r.bild, let url = a.bild {
+            if let oben = r.bild, let dreh = a.dreh {
+                FahrzeugDrehung(satz: dreh).platz(16, oben, 321, 122)
+            } else if let oben = r.bild, let url = a.bild {
                 FahrzeugBild(url: url).platz(51, oben, 250, 122)
             }
             if let oben = r.vin {

@@ -5,6 +5,7 @@ import TrisarFooter from '../../../components/ui/TrisarFooter';
 import { USER_LOCATION_DOT_URL } from '../../../shared/ui/icons';
 import { fahrzeugAngaben, blockRaster } from '../../../shared/fahrzeugAngaben';
 import { FahrzeugKacheln, FahrzeugBild, StandortChip } from '../../../shared/FahrzeugKarte';
+import FahrzeugDrehung, { useDrehSatz } from '../../../shared/FahrzeugDrehung';
 import { useI18n } from '../../../i18n';
 import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
 import { DEMO_MODE } from '../../../datenquelle';
@@ -37,7 +38,9 @@ const VehicleBlock = ({ vehicle, top, onHoehe }) => {
   const plateNumber = a.kennzeichen || t('app.noVehicle');
   // Adresse eines Bildes, das nicht geladen werden konnte: dann ohne Bild.
   const [kaputtesBild, setKaputtesBild] = useState('');
-  const raster = blockRaster(a, { bildDa: Boolean(a.bild) && kaputtesBild !== a.bild });
+  // Modell und Farbe passen zu einem 360-Grad-Satz: drehbares Auto statt Standbild.
+  const drehSatz = useDrehSatz(vehicle);
+  const raster = blockRaster(a, { bildDa: Boolean(drehSatz) || (Boolean(a.bild) && kaputtesBild !== a.bild) });
   useEffect(() => { onHoehe?.(raster.hoehe); }, [raster.hoehe, onHoehe]);
 
   return (
@@ -60,7 +63,9 @@ const VehicleBlock = ({ vehicle, top, onHoehe }) => {
         </p>
       ) : null}
 
-      {raster.bild !== undefined ? (
+      {raster.bild !== undefined && drehSatz ? (
+        <FahrzeugDrehung satz={drehSatz} alt={plateNumber} style={{ left: '16px', top: `${raster.bild}px`, width: '321px', height: '122px' }} />
+      ) : raster.bild !== undefined ? (
         <FahrzeugBild
           src={a.bild}
           alt={plateNumber}

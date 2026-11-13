@@ -110,7 +110,9 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
 
     val versatz = 20f
     val angaben = FahrzeugAngaben.aus(fahrzeug, ausstattung)
-    val raster = angaben.blockRaster()
+    // Modell und Farbe passen zu einem 360-Grad-Satz: drehbares Auto statt Standbild.
+    val dreh = remember(angaben.modell, angaben.farbe) { DrehSatz.finden(ctx, angaben.modell, angaben.farbe) }
+    val raster = angaben.blockRaster(mitDreh = dreh != null)
     // Ohne Standort rueckt der Fahrzeugblock an die Stelle der Karte, darunter folgt alles
     // seiner Hoehe (die je nach vorhandenen Angaben schrumpft).
     val blockOben = if (standort == null) 99f else 440f
@@ -134,7 +136,7 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
                 }
             }
 
-            FahrzeugBlock(angaben, raster, Modifier.platz(24.5f, versatz + blockOben, 353f, raster.hoehe))
+            FahrzeugBlock(angaben, raster, Modifier.platz(24.5f, versatz + blockOben, 353f, raster.hoehe), dreh)
 
             if (fahrzeug == null) {
                 Box(
@@ -170,13 +172,16 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
 
 /** Fahrzeugblock (353 breit, weiss, mit allen Angaben 332 hoch). Nur Angaben mit Wert. */
 @Composable
-private fun FahrzeugBlock(a: FahrzeugAngaben, r: FahrzeugAngaben.BlockRaster, modifier: Modifier) {
+private fun FahrzeugBlock(a: FahrzeugAngaben, r: FahrzeugAngaben.BlockRaster, modifier: Modifier, dreh: DrehSatz? = null) {
     val blass = Color(28, 28, 29).copy(alpha = 0.15f)
     Box(modifier.background(Color.White)) {
         SchrumpfText(a.kennzeichen.ifEmpty { "Kein Fahrzeug" }, grotesk(30f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 353f,
             Modifier.platz(0f, 15.29f, 353f, 36.68f))
         val bild = a.bild
-        r.bild?.let { o -> if (bild != null) FahrzeugFoto(bild, Modifier.platz(51f, o, 250f, 122f)) }
+        r.bild?.let { o ->
+            if (dreh != null) FahrzeugDrehung(dreh, Modifier.platz(16f, o, 321f, 122f))
+            else if (bild != null) FahrzeugFoto(bild, Modifier.platz(51f, o, 250f, 122f))
+        }
         r.vin?.let { VinZeile(a.vin, Modifier.platz(0f, it, 353f)) }
         r.modell?.let { SchrumpfText(a.modell, grotesk(20f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 353f,
             Modifier.platz(0f, it, 353f), minFaktor = 0.6f) }

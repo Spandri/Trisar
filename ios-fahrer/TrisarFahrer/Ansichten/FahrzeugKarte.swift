@@ -6,6 +6,8 @@ struct FahrzeugAngaben: Equatable {
     var kennzeichen = ""
     var vin = ""
     var bild: URL?
+    /// 360-Grad-Satz (FahrzeugDrehung.swift), wenn Modell und Farbe passen. Ersetzt im Fahrzeugblock das Standbild.
+    var dreh: DrehSatz?
     var modell = ""
     var ausstattung = ""
     var kraftstoff = ""
@@ -24,13 +26,14 @@ struct FahrzeugAngaben: Equatable {
         self.ausstattung = t(ausstattung)
         kraftstoff = t(f?.fuel_type)
         farbe = t(f?.color)
+        dreh = DrehSatz.finden(modell: modell, farbe: farbe)
         sitze = (f?.seat_count ?? 0) > 0 ? f?.seat_count : nil
         fuellstand = f?.battery_fuel_percent
         reichweite = f?.range_km
         #if DEBUG
         // Testansicht "nur Kennzeichen + Standort": Start mit Argument -TRISAR_NUR_KENNZEICHEN.
         if Self.nurKennzeichenTest {
-            vin = ""; bild = nil; modell = ""; self.ausstattung = ""; kraftstoff = ""; farbe = ""
+            vin = ""; bild = nil; dreh = nil; modell = ""; self.ausstattung = ""; kraftstoff = ""; farbe = ""
             sitze = nil; fuellstand = nil; reichweite = nil
         }
         #endif
@@ -62,7 +65,7 @@ struct FahrzeugAngaben: Equatable {
         var r = BlockRaster(hoehe: 0)
         var y: CGFloat = 52
         if !vin.isEmpty { r.vin = 51.97; y = 68 }
-        if bild != nil { r.bild = 75; y = 197 }
+        if bild != nil || dreh != nil { r.bild = 75; y = 197 }
         if !modell.isEmpty { r.modell = y + 13; y = y + 33 }
         if !ausstattung.isEmpty { let o = modell.isEmpty ? y + 8 : y; r.ausstattung = o; y = o + 16 }
         if hatKacheln { r.kacheln = y + 24; r.hoehe = y + 24 + 52 + 10 } else { r.hoehe = y + 16 }
