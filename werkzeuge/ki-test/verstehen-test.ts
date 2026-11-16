@@ -7,7 +7,7 @@
 // Gibt je Fehler eine Zeile aus und am Ende Treffer, Dauer im Schnitt und die schlimmsten Verwechslungen.
 
 // deno-lint-ignore-file no-explicit-any
-import { absichtLesen, nachrichtLesen } from '../../fahrer/supabase/functions/dispo-admin/verstehen.ts';
+import { absichtLesen, absichtMitAusnahmen, nachrichtLesen } from '../../fahrer/supabase/functions/dispo-admin/verstehen.ts';
 
 const arg = (n: string, s: string) => Deno.args.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3) ?? s;
 const modell = arg('modell', 'qwen2.5:14b');
@@ -201,6 +201,46 @@ const NEU: Fall[] = [
   ['Ist LH1835 pünktlich?', 'frage'],
   ['Was steht heute noch an?', 'frage'],
 ];
+
+// Ausnahmen (14.11.): wer ausgenommen ist, frei formuliert. Leere Liste: niemand darf ausgenommen sein.
+//   deno run -A werkzeuge/ki-test/verstehen-test.ts --ausser --ollama=...
+const AUSSER: [string, string[]][] = [
+  ['Schick allen bis auf Stefano bitte ein dienstbeginn für heute 13:30 Uhr', ['Stefano']],
+  ['Alle außer Tim haben morgen ab 7 Dienst', ['Tim']],
+  ['Sag allen außer Tim und Marvin, dass sie tanken sollen', ['Tim', 'Marvin']],
+  ['Feierabend für alle, nur Marvin nicht', ['Marvin']],
+  ['Jeder fängt morgen um 8 an, Stefano ausgenommen', ['Stefano']],
+  ['Schreib allen ohne Anna: Treffpunkt Halle B', ['Anna']],
+  ['Alle bis auf Tim und Lisa in den Feierabend schicken', ['Tim', 'Lisa']],
+  ['Stundenlohn 18 Euro für alle, ausgenommen Marvin', ['Marvin']],
+  ['Lösch die Dienste morgen von allen außer Stefano', ['Stefano']],
+  ['Schick alle in Feierabend außer den markierten', ['markiert']],
+  ['allen fahrern dienstbeginn 6 uhr morgen nur der stefano nicht der hat frei', ['Stefano']],
+  ['Bestätige alle offenen Stundenzettel außer den von Tim', ['Tim']],
+  // ohne Ausnahme
+  ['Schick allen Fahrern Dienstbeginn morgen 7 Uhr', []],
+  ['Lösch den Fahrer Paul Berg', []],
+  ['Stefano hat heute frei, lösch seinen Dienst', []],
+  ['Neue Fahrt ohne Fahrer morgen 9 Uhr Hauptbahnhof zur Messe', []],
+  ['Wo ist Tim?', []],
+  ['Sag Stefano er soll ohne Gast zurückfahren', []],
+  ['Tim und Marvin morgen 6 bis 14', []],
+  // Ohne Gruppe (alle, jeder, markierte) wird nicht gefragt, eine reine Auskunft braucht keine Ausnahme.
+  ['Wer hat heute außer Tim noch Dienst?', []],
+];
+if (Deno.args.includes('--ausser')) {
+  let gut = 0;
+  for (const [satz, soll] of AUSSER) {
+    const t0 = Date.now();
+    const r = await absichtMitAusnahmen({ url, modell }, satz);
+    const ist = r.ausser.map((x) => x.toLowerCase());
+    const passt = ist.length === soll.length && soll.every((x) => ist.some((y) => y.includes(x.toLowerCase())));
+    if (passt) gut += 1;
+    else console.log(`FEHL ${((Date.now() - t0) / 1000).toFixed(1)}s  ${satz.slice(0, 80).padEnd(80)} ausser ${JSON.stringify(r.ausser)}, erwartet ${JSON.stringify(soll)} (${r.absicht})`);
+  }
+  console.log(`\n${modell} Ausnahmen: ${gut}/${AUSSER.length}`);
+  Deno.exit(0);
+}
 
 let ok = 0;
 let ms = 0;

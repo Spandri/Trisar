@@ -9,7 +9,7 @@ import WatchConnectivity
 final class DispoUhrBruecke: NSObject {
     static let shared = DispoUhrBruecke()
     /// Auch fuer CarPlay (DispoCarPlaySzene): dieselben Daten, nichts doppelt laden.
-    let karte = KartenDaten()
+    let karte = KartenDaten(kanalName: "dispo-bruecke-karten-live")
     private var abos = Set<AnyCancellable>()
     private(set) var angemeldet = false
     /// CarPlay verbunden: Daten laufen auch ohne gekoppelte Uhr.
@@ -20,6 +20,9 @@ final class DispoUhrBruecke: NSObject {
         datenStarten()
     }
     private var datenLaufen = false
+    /// Starten und Beenden der Karte nacheinander, damit ein schneller Wechsel (CarPlay ab und
+    /// wieder an) keinen zweiten Kanal oeffnet, waehrend der alte noch geschlossen wird.
+    private var karteAufgabe: Task<Void, Never>?
     private var letzterStand: DispoUhrStand?
 
     func einrichten() {
@@ -41,21 +44,46 @@ final class DispoUhrBruecke: NSObject {
         return WCSession.isSupported() && s.activationState == .activated && s.isPaired && s.isWatchAppInstalled
     }
 
+    /// Startet die Daten, wenn jemand sie braucht (Uhr oder CarPlay), und haelt sie sonst an.
     private func datenStarten() {
-        guard angemeldet, uhrDa || carPlay, !datenLaufen else { return }
+        let gebraucht = angemeldet && (uhrDa || carPlay)
+        if !gebraucht {
+            datenAnhalten()
+            return
+        }
+        guard !datenLaufen else { return }
         datenLaufen = true
         let fahrten = DispoFahrtenSpeicher.gemeinsam
         fahrten.starten()
-        Task { await karte.starten() }
+        karteSchalten(an: true)
         Publishers.CombineLatest(karte.$fahrer, fahrten.$fahrten)
             .debounce(for: .seconds(1), scheduler: RunLoop.main)
             .sink { [weak self] _ in self?.senden() }
             .store(in: &abos)
     }
 
+    /// Weder Uhr noch CarPlay (oder abgemeldet): Karte der Bruecke (15-s-Takt, Realtime) beenden.
+    /// DispoFahrtenSpeicher.gemeinsam laeuft weiter, die Fahrtenliste der App nutzt ihn auch.
+    private func datenAnhalten() {
+        guard datenLaufen else { return }
+        datenLaufen = false
+        abos.removeAll()
+        karteSchalten(an: false)
+    }
+
+    private func karteSchalten(an: Bool) {
+        let vorher = karteAufgabe
+        karteAufgabe = Task { [karte] in
+            await vorher?.value
+            if an { await karte.starten() } else { await karte.beenden() }
+        }
+    }
+
     private func standBauen() -> DispoUhrStand {
         guard angemeldet else { return .leer }
+        // Lange ohne Signal ausgeblendet (Karten-Filter): auch auf der Uhr nicht zaehlen.
         let fahrer = karte.fahrer
+            .filter { !OhneSignalEinstellung.geteilt.ausgeblendet($0) }
             .sorted { ($0.zustand.rawValue, $0.name) < ($1.zustand.rawValue, $1.name) }
             .prefix(60)
             .map { f in
@@ -222,6 +250,7 @@ extension DispoUhrBruecke: WCSessionDelegate {
         let fahrtID = message["fahrt"] as? String
         let fahrerID = message["fahrer"] as? String
         let nachrichtID = message["nachricht"] as? String
+        let frageID = message["frageID"] as? String
         Task { @MainActor in
             // Die Uhr weckt die App im Hintergrund. Ohne Hintergrundzeit friert iOS sie ein,
             // waehrend sie auf den Server wartet ("The network connection was lost").
@@ -257,7 +286,16 @@ extension DispoUhrBruecke: WCSessionDelegate {
                 return
             }
             if art == DispoUhrAktion.kiFrage {
-                replyHandler(await Self.kiFrage(frage, uhrVerlauf: verlaufDaten))
+                let antwort = await Self.kiFrage(frage, uhrVerlauf: verlaufDaten)
+                replyHandler(antwort)
+                // Zweiter Weg (13.11.): Schlaeft die Uhr beim Warten ein, geht die direkte Antwort verloren.
+                // transferUserInfo kommt in der Warteschlange spaetestens beim Aufwachen an.
+                if let frageID {
+                    var info = antwort
+                    info["kiAntwort"] = true
+                    info["frageID"] = frageID
+                    WCSession.default.transferUserInfo(info)
+                }
                 return
             }
             if art == DispoUhrAktion.vorschlagVerwerfen {

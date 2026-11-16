@@ -110,6 +110,20 @@ internal object FahrerMarkierung {
 
     fun leeren() = setzen(false, emptyList())
 
+    /** Alle Profile mit diesen Flaggen (auch ohne Standort auf der Karte), null bei Fehler. */
+    suspend fun mitFlaggenLaden(flaggen: List<String>): List<Eintrag>? {
+        if (flaggen.isEmpty()) return emptyList()
+        val zeilen = runCatching {
+            Backend.client.from("profiles").select(Columns.raw("id, first_name, last_name, vehicle_id, flagge")) {
+                filter { isIn("flagge", flaggen) }
+            }.decodeList<JsonObject>()
+        }.getOrNull() ?: return null
+        fun t(o: JsonObject, k: String) = (o[k] as? JsonPrimitive)?.takeIf { it.isString || it.content != "null" }?.content.orEmpty()
+        return zeilen.map { o ->
+            Eintrag(t(o, "id"), listOf(t(o, "first_name"), t(o, "last_name")).filter { it.isNotBlank() }.joinToString(" ").trim(), t(o, "vehicle_id"))
+        }.filter { it.id.isNotEmpty() }
+    }
+
     /** Fahrzeuge der markierten Fahrer (profiles.vehicle_id), traegt sie auch in die Markierung ein. */
     suspend fun fahrzeugIDsLaden(): Set<String> {
         val ids = ids

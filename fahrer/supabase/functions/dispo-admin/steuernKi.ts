@@ -18,6 +18,7 @@ import { passwortErzeugen } from './anlegen.ts';
 import { alleFahrer, datumAusText, genannteFahrer, jetztBerlin, normal, plusTage, tagLesbar } from './dienst.ts';
 import { fahrtRueckgaengig } from './fahrtenKi.ts';
 import { PLATE_RE, plateKey } from './zuordnenKi.ts';
+import { ausnahmen, ausnahmenText } from './ausnahmen.ts';
 
 const FRIST_MS = 15 * 60 * 1000;
 const JA_RE = /^\s*(ja|jo|jap|japp|yes|ok|okay|klar|genau|passt|mach(s|e)?( das)?|senden|schick(s|e)?( ab)?|speicher\w*|bestaetig\w*|in ordnung|gerne|bitte|los)\b/;
@@ -154,7 +155,7 @@ export const steuern = async (admin: any, roh0: string, kontext: any, dispoId: s
     const w = normal(wemText);
     const alle = /\b(alle[nm]?|jede[nmr]?)\b/.test(w);
     const f = alle ? await alleFahrer(admin) : await genannteFahrer(admin, w);
-    return { fahrer: f, wer: alle && f.length > 3 ? `alle ${f.length} Fahrer` : f.map((x) => x.name).join(', ') };
+    return { fahrer: f, wer: (alle && f.length > 3 ? (ausnahmen(admin).length ? `${f.length} Fahrer` : `alle ${f.length} Fahrer`) : f.map((x) => x.name).join(', ')) + (f.length ? ausnahmenText(admin) : '') };
   };
   const inhaltGlaetten = (t: string) => {
     let i = t.trim().replace(/^["„]|["“”]$/g, '');
@@ -179,9 +180,9 @@ export const steuern = async (admin: any, roh0: string, kontext: any, dispoId: s
   }
   // Vom Modell gelesen: Empfaenger und Text direkt nehmen, nichts zerlegen.
   if (absicht === 'nachricht' && nachrichtFelder) {
-    const alleGemeint = nachrichtFelder.empfaenger.some((x) => /^(alle|allen|alle fahrer)$/i.test(x));
+    const alleGemeint = nachrichtFelder.empfaenger.some((x) => /^(alle|allen|alle fahrer)(\s|$)/i.test(x));
     const e = alleGemeint ? await empfaenger('alle') : nachrichtFelder.empfaenger.length ? await empfaenger(nachrichtFelder.empfaenger.join(' und ')) : { fahrer: [], wer: '' };
-    const genannt = nachrichtFelder.empfaenger.filter((x) => !/^(alle|allen|alle fahrer)$/i.test(x));
+    const genannt = nachrichtFelder.empfaenger.filter((x) => !/^(alle|allen|alle fahrer)(\s|$)/i.test(x));
     const inhalt = nachrichtFelder.text ? inhaltGlaetten(nachrichtFelder.text) : '';
     // Genannte Namen, die es nicht gibt, nicht still weglassen.
     const fehlt = alleGemeint ? [] : genannt.filter((n) => !e.fahrer.some((f) => normal(f.name).includes(normal(n).trim())));
@@ -395,6 +396,8 @@ export const steuern = async (admin: any, roh0: string, kontext: any, dispoId: s
     if (!alle && !fahrer.length) return { answer: 'Von welchem Fahrer? Oder „Bestätige alle offenen Stundenzettel“.', kontext };
     let q = admin.from('stundenzettel').select('id, driver_id, datum, arbeits_min, status').eq('status', 'eingereicht');
     if (fahrer.length) q = q.in('driver_id', fahrer.map((f) => f.id));
+    // "Bestätige alle außer Tim": Ausgenommene bleiben offen (ausnahmen.ts).
+    else if (ausnahmen(admin).length) q = q.not('driver_id', 'in', `(${ausnahmen(admin).map((f) => f.id).join(',')})`);
     const hatTag = /\b(heute|gestern|morgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b|\b[0-3]?\d\.[01]?\d\./.test(text);
     if (hatTag) q = q.eq('datum', /\bgestern\b/.test(text) ? plusTage(heute, -1) : datumAusText(text, heute));
     const { data } = await q;

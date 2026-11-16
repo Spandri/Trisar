@@ -217,15 +217,20 @@ private fun AlleFahrerSeite(
         if (id in markiert) markiert.remove(id) else markiert.add(id)
     }
 
-    // Ist die Mehrfachauswahl der Karte an, gilt eine Aenderung hier auch dort
-    // (und damit fuer Fahrzeuge, Fahrten, Fahrt anlegen und KI-Assistent).
+    // Die Auswahl hier gilt als Markierung in der ganzen Dispo (Karte, Fahrzeuge, Fahrten, Fahrt anlegen,
+    // KI-Assistent), auch wenn die Mehrfachauswahl der Karte aus ist (14.11.).
+    // Auswahlmodus der Liste = mindestens ein Fahrer ausgewaehlt.
     androidx.compose.runtime.LaunchedEffect(markiert.toList(), liste.fahrer) {
         val m = FahrerMarkierung
-        if (!m.aktiv) return@LaunchedEffect
+        if (markiert.isEmpty() && !m.aktiv) return@LaunchedEffect
         val nachID = liste.fahrer.associateBy { it.id }
         val neu = markiert.map { id ->
             val alt = m.fahrer.firstOrNull { it.id == id }
-            FahrerMarkierung.Eintrag(id, nachID[id]?.name?.ifEmpty { null } ?: alt?.name ?: "", alt?.vehicleId ?: "")
+            FahrerMarkierung.Eintrag(
+                id,
+                nachID[id]?.name?.ifEmpty { null } ?: alt?.name ?: "",
+                nachID[id]?.vehicleId?.ifEmpty { null } ?: alt?.vehicleId ?: "",
+            )
         }
         if (m.ids != neu.map { it.id } || neu.withIndex().any { (i, f) -> f.name != m.fahrer.getOrNull(i)?.name }) m.ersetzen(neu)
     }

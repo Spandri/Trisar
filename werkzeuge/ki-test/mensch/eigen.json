@@ -1,0 +1,14 @@
+[
+  {"name": "Tippfehler klein geschrieben", "saetze": ["tim morgn ab 7", "anna übermorgen frei", "wann fängt anna morgen an", "stefano feierabend"]},
+  {"name": "Nachricht bestätigen per Text", "saetze": ["sag tim er soll zum hbf kommen", "ja"]},
+  {"name": "Stundenlohn bestätigen per Text", "saetze": ["stundenlohn tim 22 euro", "passt"]},
+  {"name": "Fahrt mit Uhrzeit umgangssprachlich", "saetze": ["brauch ne fahrt um halb 4 vom bayerischen hof zum flughafen für herrn engel, tim fährt", "mach 16 uhr draus", "nee doch nicht"]},
+  {"name": "Fahrt ändern", "saetze": ["verschieb die fahrt von herrn engel auf 11 uhr", "die fahrt von müller macht jetzt tim statt stefano", "storniere die fahrt von frau weber morgen"]},
+  {"name": "Wer hat Zeit", "saetze": ["wer hat heute nachmittag zeit", "welche fahrten sind noch offen", "wer fährt die 18 uhr fahrt", "gib die tim"]},
+  {"name": "Mehrere Aufträge in einem Satz", "saetze": ["tim morgen 8 bis 16 und anna morgen 9 bis 17", "schick tim in den feierabend und sag marvin er soll um 14 uhr anfangen"]},
+  {"name": "Pause", "saetze": ["tim macht jetzt pause", "pause für anna morgen von 12 bis 12:30", "stefano 30 min pause um 13 uhr"]},
+  {"name": "Markierte Fahrer", "markiert": ["tim", "marvin"], "saetze": ["schick die in den feierabend", "die sollen morgen um 6 anfangen"]},
+  {"name": "Unklar und Quatsch", "saetze": ["mach das mal", "tim", "17 uhr", "asdf jkl", "lösch alles", "wie wird das wetter morgen"]},
+  {"name": "Rückgängig und Hilfe", "saetze": ["was kannst du alles", "mach das rückgängig"]},
+  {"name": "Zahlen und Auswertung", "saetze": ["wie viele fahrten haben wir heute", "wie viele stunden hat tim heute", "wer hat den stundenzettel noch nicht bestätigt"]}
+]

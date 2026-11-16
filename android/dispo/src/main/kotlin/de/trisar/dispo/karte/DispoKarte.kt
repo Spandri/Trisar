@@ -83,6 +83,27 @@ internal data class KartenStand(
     val markiert: Set<String>? = null,
     /** Eigener Bereich der Dispo (13.11.): duenne Lime-Linie, "Karte" in der Leiste zoomt darauf. */
     val bereich: List<KartenPunkt>? = null,
+    /** Fahrer auf laufender Dienstreise (14.11.): statt des Pins das Fahrzeug auf der Strecke. */
+    val reisen: List<KartenReise> = emptyList(),
+)
+
+/** Laufende Dienstreise eines Fahrers auf der Karte (DienstreiseKartenSchicht.jsx). */
+internal data class KartenReise(
+    val kennung: String,
+    val fahrerID: String,
+    val offen: List<KartenPunkt>,
+    val gefahren: List<KartenPunkt>,
+    val position: KartenPunkt?,
+    val art: String,
+    val nummer: String,
+    val text: String,
+    val farbe: Color,
+    /** Umstiege (Fahrzeug des naechsten Abschnitts, "U2 ab 06:56") wie in der Fahrer-App. */
+    val umstiege: List<de.trisar.kern.KartenUmstieg> = emptyList(),
+    /** Zielflagge der Reise. */
+    val ziel: KartenPunkt? = null,
+    /** Strecke, Umstiege und Zielflagge nur beim gewaehlten Fahrer (mitLinie in DienstreiseKartenSchicht.jsx). */
+    val mitLinie: Boolean = true,
 )
 
 /**
@@ -174,7 +195,9 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
 
     // updateDriverClusters: Gruppen erst ab fuenf Fahrern, deren Pins (35) sich beruehren.
     // Der gewaehlte Fahrer und seine Kolonne bleiben immer einzeln.
-    val kandidaten = stand.fahrer.filter { it.id !in einzeln }.map { it to bild(it.ort) }
+    // Fahrer auf Dienstreise: kein Pin, dafuer das Fahrzeug (unten).
+    val aufReise = stand.reisen.map { it.fahrerID }.toSet()
+    val kandidaten = stand.fahrer.filter { it.id !in einzeln && it.id !in aufReise }.map { it to bild(it.ort) }
     val radius = 35f + 1f
     val vergeben = HashSet<Int>()
     val gruppen = mutableListOf<List<KartenFahrer>>()
@@ -209,7 +232,7 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
     }
 
     for (f in stand.fahrer) {
-        if (f.id in inGruppe) continue
+        if (f.id in inGruppe || f.id in aufReise) continue
         val istGewaehlt = gewaehltID == f.id
         val inKolonne = f.id in kolonne
         // Fokus: ist ein Fahrer gewaehlt, treten alle anderen zurueck (ausser seiner Kolonne).
@@ -257,6 +280,30 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
                 Icon("Fahrer_Signal_Punkt_${f.signalStufe}_Trisar_01", Modifier.padding(start = 22.dp, top = 21.dp).size(14.dp))
                 Icon("Fahrer_Signal_Balken_${5 - f.signalStufe}_Trisar_01", Modifier.padding(start = 25.3.dp, top = 25.dp).size(8.15.dp, 5.41667.dp))
             }
+        }
+    }
+
+    // Fahrzeug mit Fahrer-Punkt in Statusfarbe und Schild "ICE 612 → Mannheim 10:29 +3". Antippen waehlt den Fahrer.
+    // Umstiege und Zielflagge der Dienstreisen (DienstreiseKartenSchicht.jsx).
+    for (r in stand.reisen) {
+        if (!r.mitLinie) continue
+        androidx.compose.runtime.key(r.kennung + "-zeichen") {
+            for (u in r.umstiege) {
+                val (x, y) = bild(KartenPunkt(u.ort.lat, u.ort.lng))
+                de.trisar.kern.UmstiegMarker(u.art, u.text, Modifier.ankern(x, y, 0.5f, 0.5f).zIndex(2400f))
+            }
+            r.ziel?.let { z ->
+                val (x, y) = bild(z)
+                Icon("Ziel_Pin_Trisar_01", Modifier.ankern(x, y, 0.5f, 1f).zIndex(2400f).size(35.dp, 41.1367.dp))
+            }
+        }
+    }
+    for (r in stand.reisen) {
+        val p = r.position ?: continue
+        val (x, y) = bild(p)
+        androidx.compose.runtime.key(r.kennung) {
+            de.trisar.kern.FahrzeugMarker(r.art, r.nummer, r.text, r.farbe,
+                Modifier.ankern(x, y, 0.5f, 0.5f).zIndex(2500f).tippen { waehlen(r.fahrerID) })
         }
     }
 
@@ -382,6 +429,7 @@ internal class KartenSteuerung {
             alleEinpassen()
         }
         routeAbgleichen()
+        reisenAbgleichen()
         ortKreiseAbgleichen()
         bereichAbgleichen()
         val g = neu.gewaehlt
@@ -511,6 +559,27 @@ internal class KartenSteuerung {
     fun koordinaten(punkte: List<androidx.compose.ui.geometry.Offset>): List<KartenPunkt> {
         val proj = karte?.projection ?: return emptyList()
         return punkte.map { val ll = proj.fromScreenLocation(android.graphics.PointF(it.x, it.y)); KartenPunkt(ll.latitude, ll.longitude) }
+    }
+
+    // MARK: Dienstreisen
+
+    private var reiseKennungen = setOf<String>()
+
+    /** Je laufender Dienstreise offene Strecke blau (5) und gefahrenes Stueck grau (5); weggefallene leeren. */
+    private fun reisenAbgleichen() {
+        if (karte == null || !stilGeladen) return
+        val stil = karte?.style ?: return
+        if (!stil.isFullyLoaded) return
+        val neu = stand.reisen.map { it.kennung }.toSet()
+        for (k in reiseKennungen - neu) {
+            linie(stil, "$k-offen", emptyList(), 0x0059FF, 5f, false, 1f)
+            linie(stil, "$k-gefahren", emptyList(), 0x5C5C5C, 5f, false, 1f)
+        }
+        for (r in stand.reisen) {
+            linie(stil, "${r.kennung}-offen", if (r.mitLinie) r.offen else emptyList(), 0x0059FF, 5f, false, 1f)
+            linie(stil, "${r.kennung}-gefahren", if (r.mitLinie) r.gefahren else emptyList(), 0x5C5C5C, 5f, false, 1f)
+        }
+        reiseKennungen = neu
     }
 
     // MARK: Route

@@ -104,6 +104,8 @@ struct DienstVorschlag: Codable, Equatable {
     var ende: String?
     var pausen: [Pause]?
     var fahrer: [Fahrer]
+    /// Mit Ausnahme ("alle außer Tim") zaehlt im Voice-Modus nur der Knopf (15.11.).
+    var nurKnopf: Bool?
 
     /// Ohne start/ende im Vorschlag gilt die Zeit je nach Art (aeltere Server-Antworten).
     var startWert: String? { start ?? (art == "start" ? zeit : nil) }

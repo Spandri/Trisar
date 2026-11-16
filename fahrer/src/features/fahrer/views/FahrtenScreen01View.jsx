@@ -18,6 +18,8 @@ import { FahrzeugKarte } from '../../../shared/FahrzeugKarte';
 import { ortIconFuer } from '../../../shared/orte';
 import { anfrageKartenHoehe, anfrageZeilen, pausenZeilen, zeilenFarbe, zeilenGroesse, zeilenText, zuMinuten, GRAU } from '../../../shared/dienstAnfrage';
 import StandbyKarte from './StandbyKarte';
+import DienstreiseKarte from './DienstreiseKarte';
+import { reiseBlockHoehe } from '../../../shared/dienstreise';
 import { treffpunktIcon } from '../../../shared/dienstTreffpunkt';
 import { standbyBlockHoehe } from '../../../shared/standby';
 
@@ -175,8 +177,10 @@ const SERVICE_REQUEST_LIST_GAP = 48;
 // Treffpunkt (13.11.): in der offenen Anfrage eine Zeile Icon + Ort darunter (20 Luft + 44 Kachel).
 const TREFFPUNKT_ZEILE = 64;
 const hatTreffpunktOrt = (request) => Boolean(request?.treffpunkt?.name);
+// In der offenen Anfrage nur, wenn sie den Dienststart betrifft (z. B. nicht bei "nur Dienstende").
+const ortInAnfrage = (request) => hatTreffpunktOrt(request) && (request?.zeilen || []).some((z) => z.art === 'start');
 const anfrageHoehe = (request) => (request.zeilen?.length ? anfrageKartenHoehe(request.zeilen) : SERVICE_REQUEST_CARD_HEIGHT)
-  + (hatTreffpunktOrt(request) ? TREFFPUNKT_ZEILE : 0);
+  + (ortInAnfrage(request) ? TREFFPUNKT_ZEILE : 0);
 const serviceBlockHeight = (request) => (request.angenommen ? anfrageHoehe(request) : anfrageHoehe(request) + ACTION_GAP + ACTION_HEIGHT);
 // Angenommener Dienst (12.11.): wie im Verlauf eine Zeile "Dienststart" ueber den Fahrten des Tages und
 // eine Zeile "Dienstende" darunter. Beide bleiben stehen, bis die Stundenerfassung des Tages kommt (13.11.),
@@ -238,7 +242,15 @@ const tagSchluessel = (job) => {
 // fuer den sie gilt, statt pauschal ganz oben zu stehen.
 // Stundenkarten stehen am Ende ihres Diensttages (nach dessen Fahrten). Tage ohne
 // Fahrten (z. B. ein vergangener Dienst) bekommen ihre eigene Tageszeile, chronologisch.
-const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEIGHT, stundenKarten = [], standbys = []) => {
+const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEIGHT, stundenKarten = [], standbys = [], reisen = []) => {
+  // Dienstreise: Karte wie eine Fahrt, unter Dienstanfragen und Standby des Tages.
+  const reisenProTag = new Map();
+  (reisen || []).forEach((r) => {
+    const tag = String(r?.datum || '').slice(0, 10);
+    if (!tag) return;
+    if (!reisenProTag.has(tag)) reisenProTag.set(tag, []);
+    reisenProTag.get(tag).push(r);
+  });
   const standbyProTag = new Map();
   (standbys || []).forEach((st) => {
     const tag = String(st?.datum || '').slice(0, 10);
@@ -266,9 +278,11 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
   const fahrten = [];
   const stunden = [];
   const standbyPlaetze = [];
-  const offeneTage = new Set([...anfragenProTag.keys(), ...stundenProTag.keys(), ...standbyProTag.keys()]);
+  const reisePlaetze = [];
+  const offeneTage = new Set([...anfragenProTag.keys(), ...stundenProTag.keys(), ...standbyProTag.keys(), ...reisenProTag.keys()]);
   let cursorTop = VEHICLE_CARD_TOP + fahrzeugKarteHoehe + DAY_DIVIDER_GAP_BOTTOM;
   let pausenWarte = [];
+  let reisenWarte = [];
 
   const tagBeginnen = (tag) => {
     if (zeilen.length) cursorTop += DAY_DIVIDER_GAP_TOP;
@@ -287,7 +301,19 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
       standbyPlaetze.push({ standby, top: cursorTop });
       cursorTop += standbyBlockHoehe(standby) + SERVICE_REQUEST_LIST_GAP;
     });
-    tagesAnfragen.filter((r) => r.angenommen && r.zeigeStart).forEach((request) => {
+    // Dienstreise nach Startzeit (14.11.): vor dem Dienststart nur, wenn sie frueher beginnt, sonst
+    // zwischen den Fahrten an ihrer Uhrzeit (wie die Pausen).
+    const starts = tagesAnfragen.filter((r) => r.angenommen && r.zeigeStart);
+    const dienstMinute = starts.map((r) => zuMinuten(r.startTime)).filter((m) => m !== null).sort((a, b) => a - b)[0] ?? null;
+    const tagesReisen = (reisenProTag.get(tag) || [])
+      .map((reise) => ({ reise, m: zuMinuten(reise.start_zeit) }))
+      .sort((a, b) => (a.m ?? -1) - (b.m ?? -1));
+    tagesReisen.filter((r) => dienstMinute === null || r.m === null || r.m < dienstMinute).forEach(({ reise }) => {
+      reisePlaetze.push({ reise, top: cursorTop });
+      cursorTop += reiseBlockHoehe(reise) + SERVICE_REQUEST_LIST_GAP;
+    });
+    reisenWarte = tagesReisen.filter((r) => dienstMinute !== null && r.m !== null && r.m >= dienstMinute);
+    starts.forEach((request) => {
       dienste.push({ request, top: cursorTop, art: 'start' });
       cursorTop += dienstZeileHoehe(request, 'start') + CARD_GAP;
     });
@@ -299,6 +325,11 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
   };
   // Pausen-Zeilen bis zur Minute m (Infinity = alle restlichen) setzen.
   const pausenBis = (m) => {
+    while (reisenWarte.length && reisenWarte[0].m <= m) {
+      const { reise } = reisenWarte.shift();
+      reisePlaetze.push({ reise, top: cursorTop });
+      cursorTop += reiseBlockHoehe(reise) + CARD_GAP;
+    }
     while (pausenWarte.length && pausenWarte[0].zeile.m <= m) {
       const { request, zeile } = pausenWarte.shift();
       dienste.push({ request, top: cursorTop, art: 'pause', zeile });
@@ -351,7 +382,7 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
   // Uebrige Tage ohne Fahrten haengen chronologisch hinten an.
   leereTageBis(null);
 
-  return { zeilen, dienste, fahrten, stunden, standbyPlaetze, unterkante: cursorTop };
+  return { zeilen, dienste, fahrten, stunden, standbyPlaetze, reisePlaetze, unterkante: cursorTop };
 };
 
 const RideCard = ({ job, layout, topOffset = 0, onOpen, onAction, onSheetOpen, actionBusy, tutorialId, ungelesen = 0 }) => {
@@ -549,6 +580,9 @@ const FahrtenScreen01View = ({
   standbys = [],
   onStandbyAntworten = () => {},
   onStandbyMelden = () => {},
+  dienstreisen = [],
+  onDienstreiseAntworten = () => {},
+  onOpenDienstreise = () => {},
   onServiceRequestAction,
   serviceActionBusyId = null,
   unreadByChat = {},
@@ -712,9 +746,9 @@ const FahrtenScreen01View = ({
   const [fahrzeugKartenHoehe, setFahrzeugKartenHoehe] = useState(VEHICLE_CARD_HEIGHT);
   const sichtbareStunden = DEMO_MODE ? [] : stundenKarten;
   const listenLayout = useMemo(
-    () => buildListenLayout(visibleJobs, activeServiceRequests, fahrzeugKartenHoehe, sichtbareStunden, standbys),
+    () => buildListenLayout(visibleJobs, activeServiceRequests, fahrzeugKartenHoehe, sichtbareStunden, standbys, dienstreisen),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visibleJobs, activeServiceRequests, schriftGeladen, fahrzeugKartenHoehe, sichtbareStunden, standbys, jetztMinute],
+    [visibleJobs, activeServiceRequests, schriftGeladen, fahrzeugKartenHoehe, sichtbareStunden, standbys, dienstreisen, jetztMinute],
   );
   const rideLayouts = listenLayout.fahrten;
   const ridesBottom = listenLayout.unterkante;
@@ -929,7 +963,7 @@ const FahrtenScreen01View = ({
                             {zeilenText(z, t)}
                           </div>
                         ))}
-                        {hatTreffpunktOrt(request) ? (
+                        {ortInAnfrage(request) ? (
                           // Treffpunkt wie in der Dienststart-Karte: Icon-Kachel und Ort.
                           <button type="button" onClick={() => onOpenDienst(request)} className="mt-[20px] h-[44px] w-full flex items-center gap-[20px] text-left">
                             <span className="w-[44px] h-[44px] bg-[#242525] rounded-[12px] flex items-center justify-center shrink-0">
@@ -974,6 +1008,12 @@ const FahrtenScreen01View = ({
                 {listenLayout.standbyPlaetze.map(({ standby, top }) => (
                   <div key={`standby-${standby.id}`} className="absolute left-5" style={{ top }}>
                     <StandbyKarte standby={standby} onAntworten={onStandbyAntworten} onMelden={onStandbyMelden} />
+                  </div>
+                ))}
+
+                {listenLayout.reisePlaetze.map(({ reise, top }) => (
+                  <div key={`reise-${reise.id}`} className="absolute left-5" style={{ top }}>
+                    <DienstreiseKarte reise={reise} onAntworten={onDienstreiseAntworten} onOpen={onOpenDienstreise} />
                   </div>
                 ))}
 

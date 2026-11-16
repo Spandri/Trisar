@@ -12,24 +12,32 @@ struct FahrzeugBereichAnsicht: View {
     enum Seite: Hashable { case liste, filter, erstellen, bearbeiten(StammFahrzeug) }
 
     var body: some View {
-        Group {
-            switch seite {
-            case .liste:
-                FahrzeugListeSeite(zeigen: zeigen, filter: filter,
-                                   filterOeffnen: { seite = .filter },
-                                   erstellen: { seite = .erstellen },
-                                   bearbeiten: { seite = .bearbeiten($0) })
-            case .filter:
-                FahrzeugFilterSeite(filter: filter, zurueck: { seite = .liste })
-            case .erstellen:
-                FahrzeugFormularSeite(fahrzeug: nil, zurListe: { seite = .liste })
-            case let .bearbeiten(f):
-                // Fahrer antippen: Fahrer-Bereich mit der Fahrer-Ansicht dieses Fahrers (openDriverById im Web).
-                FahrzeugFormularSeite(fahrzeug: f, zurListe: { seite = .liste },
-                                      oeffneFahrer: { id in FahrerSprung.id = id; zeigen(.fahrer) })
+        // Liste bleibt immer aufgebaut (nur ausgeblendet), damit sie beim Zurueckkommen an derselben
+        // Stelle steht statt wieder oben (wie FahrerBereichAnsicht). Die anderen Seiten liegen darueber.
+        ZStack {
+            FahrzeugListeSeite(zeigen: zeigen, filter: filter,
+                               filterOeffnen: { seite = .filter },
+                               erstellen: { seite = .erstellen },
+                               bearbeiten: { seite = .bearbeiten($0) })
+                .opacity(seite == .liste ? 1 : 0)
+                .allowsHitTesting(seite == .liste)
+                .accessibilityHidden(seite != .liste)
+            Group {
+                switch seite {
+                case .liste:
+                    EmptyView()
+                case .filter:
+                    FahrzeugFilterSeite(filter: filter, zurueck: { seite = .liste })
+                case .erstellen:
+                    FahrzeugFormularSeite(fahrzeug: nil, zurListe: { seite = .liste })
+                case let .bearbeiten(f):
+                    // Fahrer antippen: Fahrer-Bereich mit der Fahrer-Ansicht dieses Fahrers (openDriverById im Web).
+                    FahrzeugFormularSeite(fahrzeug: f, zurListe: { seite = .liste },
+                                          oeffneFahrer: { id in FahrerSprung.id = id; zeigen(.fahrer) })
+                }
             }
+            .id(seite)
         }
-        .id(seite)
     }
 }
 

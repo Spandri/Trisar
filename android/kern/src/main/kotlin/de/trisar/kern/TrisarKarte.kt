@@ -72,7 +72,15 @@ data class KartenInhalt(
     val flugKurs: Double = 0.0,
     val flugSpur: List<GeoPunkt> = emptyList(),    // Lime, 3 breit
     val kollegen: List<KartenKollege> = emptyList(),
+    val umstiege: List<KartenUmstieg> = emptyList(), // Dienstreise: Umstieg-Marker je Umstieg
+    val gefahren: List<GeoPunkt> = emptyList(),    // Dienstreise: schon gefahrenes Stueck, grau 6
+    val fahrzeug: KartenFahrzeug? = null,          // Dienstreise: Fahrzeug mit Fahrer und Schild
+    /** Nur diese Punkte einpassen (Dienstreise: Strecke + Ziel, damit die wandernde Position nicht neu einpasst). */
+    val einpassen: List<GeoPunkt>? = null,
 )
+
+/** Fahrzeug einer Dienstreise auf der Karte (FahrzeugMarker). */
+data class KartenFahrzeug(val ort: GeoPunkt, val art: String, val nummer: String, val text: String)
 
 /** formatDuration der Web-App: "12 min" oder "1:05 h". */
 fun kartenDauer(m: Int): String = when {
@@ -143,9 +151,10 @@ fun TrisarKarte(inhalt: KartenInhalt, untenFrei: Float, modifier: Modifier = Mod
 
     // Linien: MapLibre misst in System-dp, das Raster ist breiter oder schmaler. Darum umrechnen.
     val faktor = dichte.density / ctx.resources.displayMetrics.density
-    LaunchedEffect(stil, inhalt.fahrt, inhalt.anfahrt, inhalt.flugSpur) {
+    LaunchedEffect(stil, inhalt.fahrt, inhalt.anfahrt, inhalt.flugSpur, inhalt.gefahren) {
         val s = stil ?: return@LaunchedEffect
         linie(s, "fahrt", inhalt.fahrt, 0xFF0059FF.toInt(), 6f * faktor, false)
+        linie(s, "gefahren", inhalt.gefahren, 0xFF5C5C5C.toInt(), 6f * faktor, false)
         linie(s, "anfahrt", inhalt.anfahrt, 0xFFE3F654.toInt(), 5f * faktor, true)
         linie(s, "flugspur", inhalt.flugSpur, 0xFFE3F654.toInt(), 3f * faktor, false, 0.95f)
     }
@@ -156,7 +165,8 @@ fun TrisarKarte(inhalt: KartenInhalt, untenFrei: Float, modifier: Modifier = Mod
         if (stil == null) return@LaunchedEffect
         // Vor dem ersten Layout hat die Karte keine Groesse, dann spaeter nochmal.
         while (kartenAnsicht.width < 10 || kartenAnsicht.height < 10) delay(200)
-        val alle = inhalt.fahrt + inhalt.anfahrt + listOfNotNull(inhalt.abholort, inhalt.ziel, inhalt.flugzeug) + inhalt.kollegen.map { it.ort }
+        val alle = inhalt.einpassen
+            ?: (inhalt.fahrt + inhalt.anfahrt + listOfNotNull(inhalt.abholort, inhalt.ziel, inhalt.flugzeug) + inhalt.kollegen.map { it.ort })
         if (alle.size < 2) {
             (inhalt.fahrer ?: alle.firstOrNull())?.let { m.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(it.lat, it.lng), 13.0)) }
             return@LaunchedEffect
@@ -186,12 +196,15 @@ fun TrisarKarte(inhalt: KartenInhalt, untenFrei: Float, modifier: Modifier = Mod
             Box(Modifier.fillMaxSize()) {
                 inhalt.ziel?.let { PinBild("Ziel_Pin_Trisar_01", Modifier.amOrt(m, it, kamera, true)) }
                 inhalt.abholort?.let { PinBild("Abholort_Pin_Trisar_01_rot", Modifier.amOrt(m, it, kamera, true)) }
+                // Umstiege einer Dienstreise: Fahrzeug des naechsten Abschnitts mit "U2 ab 06:56", mittig auf dem Ort.
+                inhalt.umstiege.forEach { u -> UmstiegMarker(u.art, u.text, Modifier.amOrt(m, u.ort, kamera, false)) }
                 inhalt.kollegen.forEach { k -> KollegenPin(k, Modifier.amOrt(m, k.ort, kamera, true)) }
                 inhalt.flugzeug?.let {
                     Icon("Flugzeug_Karte_Trisar_01_lime", Modifier.amOrt(m, it, kamera, false).size(46.dp).rotate(inhalt.flugKurs.toFloat()))
                 }
                 Zeitblasen(m, inhalt, kamera)
                 inhalt.fahrer?.let { FahrerPunkt(inhalt.fahrerNummer, Modifier.amOrt(m, it, kamera, false)) }
+                inhalt.fahrzeug?.let { fz -> FahrzeugMarker(fz.art, fz.nummer, fz.text, null, Modifier.amOrt(m, fz.ort, kamera, false)) }
             }
         }
     }

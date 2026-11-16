@@ -25,6 +25,12 @@ const jetztBerlin = () => {
   return new Date(Date.UTC(+teile.year, +teile.month - 1, +teile.day, +teile.hour, +teile.minute, +teile.second));
 };
 
+// Kontextgroesse fuer Ollama (15.11.): Verstehen (verstehen.ts) laeuft mit 4096. Ein anderer Wert laedt das
+// Modell auf dem Mac mini neu (5-16 s), und mit mehr als 4096 bleibt qwen2.5:14b auf den 16 GB gar nicht geladen,
+// jede Buchung kostete so rund 15 s Ladezeit. Darum 4096, nur ein sehr langer Prompt (grob 3 Zeichen je Token)
+// bekommt 8192 und nimmt das Neuladen in Kauf, statt abgeschnitten zu werden.
+const kontextFuer = (text, antwortTokens = 400) => (String(text || '').length / 3 + antwortTokens > 4000 ? 8192 : 4096);
+
 export const kiErstellen = ({ admin, ollamaUrl, ollamaModell, kontext, fristMs = 52000 }) => {
 // Normalisierter Text, also ohne Umlaute. "andere" allein waere auch das Wort fuer "weitere".
 const AENDERN_RE = /\bfug(e|en|t)?\b.*\bhinzu\b|\btrag(e)?\b.*\bein\b|\bsetz(e)?\b.*\b(fahrer|als|auf)\b|\b(entferne|losche|storniere|verschiebe|aktualisiere)\b|^(bitte\s+)?andere\b|\b(andern|aktualisieren|verschieben|stornieren|loschen)\b.*(bitte|kannst|\?)|\b(kannst du|bitte)\b.*\b(andern|aktualisieren|verschieben|stornieren|loschen)\b/;
@@ -35,7 +41,7 @@ const AENDERN_KURZ_RE = /\bverschieb\b|\bverleg(e|en)?\b|\bgib\b|\bsoll\b.*\bfah
 // Fahrer auf eine vorhandene Fahrt schicken: "Schick Tim auf die 18 Uhr Fahrt", "Plan Marvin fuer die offene Fahrt ein".
 const ZUWEISEN_RE = /\b(schick|schicke|plan|plane|teil|teile|nimm)\b.*\b(die|der|den|diese|dieser|zur)\b(\s+[a-z0-9:]+){0,3}\s+fahrt\b|\b(die|der|diese)\b(\s+[a-z0-9:]+){0,3}\s+fahrt\b.*\b(schick|schicke|plan|plane|teil|teile)\b/;
 // Korrektur eines gerade gezeigten Vorschlags: "doch lieber 11:30".
-const KORREKTUR_RE = /\b(doch|lieber|stattdessen|besser|eher|nein)\b/;
+const KORREKTUR_RE = /\b(doch|lieber|stattdessen|besser|eher|nein|draus|daraus)\b/;
 const FRAGE_OHNE_FAHRER_RE = /\b(kein|keine|keinen|ohne)\b.*\bfahrer\b/;
 const supabase = admin;
 const supabaseAdmin = admin;
@@ -341,6 +347,8 @@ Regeln:
 - Du hast in dieser App explizit Leserechte auf die bereitgestellten DB-Daten (inkl. Kontaktdaten), wenn sie im Snapshot enthalten sind.
 - Wenn Information fehlt, sage das explizit.
 - Erfinde keine IDs, Zeiten, Namen oder Status.
+- Sprich den Disponenten mit du an, nie mit Sie.
+- Behaupte nie, du haettest etwas gebucht, gesendet, geaendert oder geloescht. Das kannst du nicht.
 - Du aenderst selbst nichts. Ist eine Buchung, Aenderung oder ein Dienst gemeint, frage in einem Satz nach, welche Fahrt oder welcher Fahrer und was genau passieren soll.
 - Gib Antworten bevorzugt als kurze Stichpunkte, wenn mehrere Fakten genannt werden.
 - Wenn du unsicher bist, stelle genau eine Rückfrage.
@@ -509,25 +517,29 @@ const extractDateHint = (prompt) => {
     }
   }
 
+  // Datumsgrenze (15.11.): nachts vor 05:00 meint "morgen" das heutige Kalenderdatum (Tag nach dem Schlafen),
+  // gleiche Regel wie datumAusText in dienst.ts.
+  const nachtsJetzt = jetztBerlin().getUTCHours() < 5;
   if (/\bubermorgen\b/.test(text)) {
     const d = jetztBerlin();
-    d.setUTCDate(d.getUTCDate() + 2);
+    d.setUTCDate(d.getUTCDate() + (nachtsJetzt ? 1 : 2));
     return { type: 'date', value: toIsoDateString(d) };
   }
-  // Wochentag: der naechste kommende (heute zaehlt mit, "naechsten" schiebt eine Woche weiter).
+  // Wochentag: der naechste nach heute. Ist heute dieser Wochentag, ist der in 7 Tagen gemeint
+  // (fuer heute sagt man "heute"), ausser "heute" steht dabei. Gleiche Regel wie datumAusText (dienst.ts).
   const wochentag = text.match(/\b(sonntag|montag|dienstag|mittwoch|donnerstag|freitag|samstag)\b/);
   if (wochentag) {
     const ziel = ['sonntag', 'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag'].indexOf(wochentag[1]);
     const d = jetztBerlin();
     let plus = (ziel - d.getUTCDay() + 7) % 7;
-    if (plus === 0 && /\bnachste[nmrs]?\s+/.test(text)) plus = 7;
+    if (plus === 0 && !/\bheute\b/.test(text)) plus = 7;
     d.setUTCDate(d.getUTCDate() + plus);
     return { type: 'date', value: toIsoDateString(d) };
   }
   if (/\bheute\b/.test(text)) return { type: 'date', value: toIsoDateString() };
   if (/\bmorgen\b/.test(text)) {
     const d = jetztBerlin();
-    d.setUTCDate(d.getUTCDate() + 1);
+    d.setUTCDate(d.getUTCDate() + (nachtsJetzt ? 0 : 1));
     return { type: 'date', value: toIsoDateString(d) };
   }
   if (/\bgestern\b/.test(text)) {
@@ -553,6 +565,14 @@ const isBookingPrompt = (prompt) => {
     && /\b(nach|zum|zur|ins|in die|vom|von der)\b/.test(text)
     && !/\b(die|der|den|diese|dieser)\b(\s+[a-z0-9:]+){0,3}\s+fahrt\b/.test(text)
     && !/dienst|schicht|feierabend|pause|nach hause|heim/.test(text)) return true;
+  // "Stefano soll vom Flughafen zum Flughafen Salzburg fahren um 20:30", "Bring Frau Weber um 9 vom Hotel zur Messe":
+  // Fahr-Verb + Strecke von ... nach + Uhrzeit ist eine neue Fahrt, solange keine vorhandene gemeint ist und nichts geaendert wird.
+  if (/\b(fahr(en|t|e|st)?|fahrt\s+er|bring(en|t|e|st)?|chauffier\w*)\b/.test(text)
+    && /\b(von|vom|ab)\b\s+\D.*\b(nach|zum|zur|zu|ins|bis)\b/.test(text)
+    && (/\b(um|ab|gegen)\s+\d{1,2}\b/.test(text) || /\b\d{1,2}[:.]\d{2}\b/.test(text) || /\b\d{1,2}\s*uhr\b/.test(text))
+    && !/\b(die|der|den|diese|dieser)\b(\s+[a-z0-9:]+){0,3}\s+fahrt\b/.test(text)
+    && !/\b(ander|aender|verschieb|korrigier|statt|anstatt|stattdessen|tausch|wechsel|ubernimm|ubernehm|uebernimm)\w*/.test(text)
+    && !/dienst|schicht|feierabend|pause/.test(text)) return true;
   // "Hol Herrn Engel ... ab", "Ich brauche ein Auto ...", "Fahrt fuer Julia Weber morgen 11:30 ..."
   return /\bhol\b.*\bab\b|\babholen\b.*\b(und|bring)/.test(text)
     || /\bbrauch(e|en)?\b.*\b(auto|wagen|fahrzeug|fahrt|fahrer)\b/.test(text)
@@ -892,6 +912,36 @@ const buildDirectIntentAnswer = ({ prompt, snapshot, chatHistory = [] }) => {
     }
   }
 
+  // Frage nach Fahrer und Marke oder Modell ("Bekommt Tim den BMW", "Fährt Tim den Mercedes?", "Wer fährt den X5"),
+  // 16.11.: Das freie Modell sagte "Ja, Tim fährt den BMW", obwohl Tim den Mercedes fährt. Jetzt aus den Daten.
+  const fahrzeugFrage = (/^(bekommt|kriegt|fahrt|hat|nimmt|sitzt|wer|ist)\b/.test(text) || /\?\s*$/.test(String(prompt || '')))
+    && /\b(bekommt|kriegt|fahrt|hat|nimmt|sitzt)\b/.test(text)
+    && !/\b(nach|zum|zur|vom|von|morgen|gestern|buch\w*|fahrten|dienst\w*|stunden|pause|gast|gaste|telefon\w*|nummer)\b|\d{1,2}[:.]\d{2}|\bum \d|\bge[a-z]{3,}(t|en)\b/.test(text);
+  if (fahrzeugFrage) {
+    const satzWoerter = new Set(text.split(/[^a-z0-9]+/).filter((w) => w.length >= 2));
+    const modellWoerter = (v) => normalizeText(v?.brand_model).split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+    const treffer = vehicles.map((v) => ({ v, n: modellWoerter(v).filter((w) => satzWoerter.has(w)).length }));
+    const max = Math.max(0, ...treffer.map((x) => x.n));
+    const gefragt = max ? treffer.filter((x) => x.n === max).map((x) => x.v) : [];
+    if (gefragt.length) {
+      const autoName = (v) => `${v.brand_model || 'Fahrzeug'}${v.license_plate ? ` (${v.license_plate})` : ''}`;
+      const fahrerVon = (v) => drivers.filter((d) => d.vehicle_id === v.id).map((d) => getDriverDisplayName(d)).filter(Boolean);
+      const werFaehrt = gefragt.map((v) => {
+        const namen = fahrerVon(v);
+        return namen.length ? `${autoName(v)} fährt ${namen.join(' und ')}.` : `${autoName(v)} ist keinem Fahrer zugewiesen.`;
+      }).join(' ');
+      const gemeint = genannteFahrer(snapshot, prompt);
+      if (gemeint.length === 1) {
+        const profil = gemeint[0];
+        const name = getDriverDisplayName(profil);
+        const eigenes = vehicles.find((v) => v.id === profil.vehicle_id);
+        if (eigenes && gefragt.some((v) => v.id === eigenes.id)) return `Ja, ${name} fährt ${autoName(eigenes)}.`;
+        return `Nein, ${name} ${eigenes ? `fährt ${autoName(eigenes)}` : 'hat kein Fahrzeug zugewiesen'}. ${werFaehrt}`;
+      }
+      if (!gemeint.length && /^wer\b/.test(text)) return werFaehrt;
+    }
+  }
+
   if (/(wie viel|wieviel|wie viele|anzahl).*(fahrer)/.test(text)) {
     return `Es gibt ${drivers.length} Fahrer in der Datenbank.`;
   }
@@ -1058,6 +1108,15 @@ const buildDirectIntentAnswer = ({ prompt, snapshot, chatHistory = [] }) => {
     if (!match) {
       const nameCandidate = extractLikelyDriverReferenceName(prompt) || extractLikelyDriverName(prompt);
       if (nameCandidate) match = findBestDriverByName(drivers, nameCandidate);
+    }
+    if (!match && locationIntent) {
+      // "Wo ist der Band gerade" (verhoerter Name, 16.11.): Das genannte Wort passt auf keinen Fahrer. Dann nicht
+      // den zuletzt besprochenen Fahrer nehmen, sondern sagen, dass der Name unbekannt ist.
+      const genannt = String(prompt || '').match(/\b[Ww]o\s+(?:ist|steckt|bleibt|befindet\s+sich)\s+(?:(?:der|die|das|unser|unsere)\s+)?([A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]+)?)/);
+      const wort = genannt?.[1] || '';
+      if (wort && !/^(Fahrer\w*|Er|Sie|Es|Ihr|Jetzt|Gerade|Heute|Denn|Eigentlich|Aktuell|Momentan)\b/.test(wort) && !findBestDriverByName(drivers, wort)) {
+        return `„${wort}“ finde ich nicht unter den Fahrern. Wen meinst du? Nenne den Namen oder zum Beispiel „Fahrer #15“.`;
+      }
     }
     if (!match) {
       // Folgefragen ohne erneute Namensnennung (z. B. "und welche telefonnummer?")
@@ -1313,8 +1372,8 @@ const callOllamaGenerate = async ({ systemPrompt, userPrompt, dbSnapshot, chatHi
       model: OLLAMA_MODEL,
       prompt: promptText,
       stream: false,
-      keep_alive: '30m',
-      options: { num_ctx: 8192,
+      keep_alive: -1,
+      options: { num_ctx: kontextFuer(promptText, MAX_OUTPUT_TOKENS),
         temperature: 0.2,
         num_predict: MAX_OUTPUT_TOKENS,
       },
@@ -1354,8 +1413,8 @@ const callOllamaGenerate = async ({ systemPrompt, userPrompt, dbSnapshot, chatHi
         model: OLLAMA_MODEL,
         prompt: strictPrompt,
         stream: false,
-      keep_alive: '30m',
-        options: { num_ctx: 8192,
+      keep_alive: -1,
+        options: { num_ctx: kontextFuer(strictPrompt, 220),
           temperature: 0.1,
           num_predict: 220,
         },
@@ -1484,8 +1543,8 @@ const callOllamaRideBookingPlanner = async ({ prompt, chatHistory = [], snapshot
       model: OLLAMA_MODEL,
       prompt: plannerPrompt,
       stream: false,
-      keep_alive: '30m',
-      options: { num_ctx: 8192, temperature: 0.0, num_predict: 320 },
+      keep_alive: -1,
+      options: { num_ctx: kontextFuer(plannerPrompt, 320), temperature: 0.0, num_predict: 320 },
     }),
   });
   const data = await response.json().catch(() => null);
@@ -1827,6 +1886,14 @@ const buchungFortsetzen = (offen, prompt, snapshot) => {
   setze('fahrgaeste', teil.fahrgaeste);
   if (teil.fahrerNamen.length) setze('fahrerNamen', teil.fahrerNamen);
   if (Number(teil.anonymeGaeste) > 0) setze('anonymeGaeste', teil.anonymeGaeste);
+  // Nur Tag oder Uhrzeit als Antwort ("Heute", "morgen um 9"): kein Ort (13.11.: "Heute" wurde das Ziel).
+  const nurZeit = normalizeText(prompt)
+    .replace(/\b(heute|morgen|ubermorgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|um|uhr|gegen|ab|am|den|bitte|frueh|fruh|abends|nachmittags|vormittags|mittags|halb|viertel|vor|nach)\b/g, ' ')
+    .replace(/[^a-z]/g, '') === '';
+  if (!neu && nurZeit) {
+    const fehlt = ['start', 'ziel', 'startZeit'].filter((feld) => !p[feld]);
+    return { payload: p, missingFields: fehlt, needsClarification: fehlt.length > 0 };
+  }
   // Nur ein Ort als Antwort ("Hotel Bayerischer Hof", "zum Flughafen"): gehoert in das fehlende Feld.
   if (!neu) {
     const wohin = /^(zum|zur|nach|ins|in die|in den)\b/i.test(prompt);
@@ -3183,7 +3250,7 @@ const festeAntwort = (prompt, daten, markierte) => {
   return null;
 };
 
-const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVorschlag = null, letzteFahrtId = null, markierteFahrer = [] }) => {
+const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVorschlag = null, letzteFahrtId = null, markierteFahrer = [], absicht = null, ohneModell = false }) => {
   const trimmedPrompt = String(prompt || '').trim();
   if (!trimmedPrompt) return 'Bitte stelle eine Frage.';
 
@@ -3198,7 +3265,20 @@ const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVorschlag
   // Aenderungen erkennt die Regel und schlaegt sie als Karte vor. Gespeichert wird erst nach der Bestaetigung.
   const frageNorm = normalizeText(trimmedPrompt);
   const mitFragezeichen = /\?\s*$/.test(trimmedPrompt);
-  const buchung = isBookingPrompt(trimmedPrompt);
+  // Das Modell hat "neue Fahrt" verstanden (verstehen.ts), die Muster unten aber nicht (15.11.: "soll um 20:30 am
+  // Flughafen München zum Flughafen Salzburg fahren", "alle Fahrer außer Marvin von der Messe zum Flughafen um
+  // 14:30"). Dann gilt die Absicht, solange keine vorhandene Fahrt ("die Fahrt") gemeint ist. Liegt schon ein
+  // Vorschlag offen, ist es nur mit eigener Uhrzeit und Strecke eine weitere Fahrt, sonst eine Korrektur.
+  const vorhandeneGemeint = /\b(die|der|den|diese|dieser)\b(\s+[a-z0-9:]+){0,3}\s+fahrt(en)?\b/.test(frageNorm);
+  const hatZeit = /\b\d{1,2}[:.]\d{2}\b|\b\d{1,2}\s*uhr\b|\b(um|ab|gegen)\s+(halb\s+)?\d{1,2}\b/.test(frageNorm);
+  const hatStrecke = /\b(nach|zu|zum|zur|ins)\b/.test(frageNorm);
+  const neuLautModell = absicht === 'fahrt_neu' && !vorhandeneGemeint && !mitFragezeichen && !conversationContext.offeneBuchung
+    && !/dienst|schicht|feierabend|pause|nach hause|\bheim\b/.test(frageNorm)
+    && (!offenerVorschlag || (hatZeit && hatStrecke && !KORREKTUR_RE.test(frageNorm) && !/\b(ander|aender|verschieb|korrigier|statt)\w*/.test(frageNorm)));
+  // Umgekehrt: "Buch auf die Fahrt um 18 Uhr alle Fahrer" meint eine vorhandene Fahrt, keine neue.
+  // Nicht bei offener Rueckfrage ("Welche Fahrt?" -> "die um 14 Uhr"): das ist eine Auswahl.
+  const aendernLautModell = absicht === 'fahrt_aendern' && !conversationContext.offeneBuchung && !conversationContext.rueckfrage;
+  const buchung = (isBookingPrompt(trimmedPrompt) && !(aendernLautModell && vorhandeneGemeint)) || neuLautModell;
   const zeigWunsch = /^(bitte\s+)?(gib|zeig|zeige|nenn|nenne|liste|schick|schicke)\s+(mir|uns)\b/.test(frageNorm)
     && !/\b(eine|neue)\s+fahrt\b/.test(frageNorm);
   const istAenderung = !buchung && !zeigWunsch && (
@@ -3206,7 +3286,14 @@ const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVorschlag
     || (AENDERN_KURZ_RE.test(frageNorm) && !mitFragezeichen)
     || (ZUWEISEN_RE.test(frageNorm) && !mitFragezeichen && !FRAGEWORT_RE.test(frageNorm))
     || (offenerVorschlag && !mitFragezeichen && !FRAGEWORT_RE.test(frageNorm) && ANPASSUNG_RE.test(frageNorm))
+    // Das Modell hat "Fahrt aendern" verstanden ("die Fahrt von Müller macht jetzt Tim statt Stefano").
+    || (aendernLautModell && !FRAGEWORT_RE.test(frageNorm))
+    // "mach 16 Uhr draus" zu einem offenen Vorschlag.
+    || (offenerVorschlag && /\b(draus|daraus)\b/.test(frageNorm))
   );
+  if (aendernLautModell && !buchung && /\b(zwei|drei|vier|beide[n]?|alle[n]?|mehrere[n]?|samtliche[n]?)\b(\s+[a-z0-9:]+){0,3}\s+fahrten\b/.test(frageNorm)) {
+    return 'Mehrere Fahrten auf einmal ändere ich nicht. Nenne mir eine Fahrt, zum Beispiel „Gib die 18-Uhr-Fahrt Tim“. Ich habe nichts geändert.';
+  }
   if (istAenderung) {
     if (STORNIEREN_RE.test(frageNorm)) {
       return 'Stornieren oder löschen geht nur direkt an der Fahrt. Tippe im Chat auf „Fahrt bearbeiten“ oder öffne sie unter Alle Fahrten.';
@@ -3296,6 +3383,9 @@ const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVorschlag
   delete compactSnapshot.data.job_guests;
   delete compactSnapshot.data.convoy_assignments;
   delete compactSnapshot.meta.counts;
+  // Nur die gerechneten Antworten gewuenscht (Frei-Modus fragt danach sein eigenes Modell, oder der
+  // Modell-Rechner ist aus): hier aufhoeren statt das freie Modell zu rufen.
+  if (ohneModell) return { answer: '', meta: { ohneModell: true } };
   const systemPrompt = buildSystemPrompt();
   let semanticMatches = [];
   if (PGVECTOR_ENABLED) {

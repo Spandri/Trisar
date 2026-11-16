@@ -1,0 +1,6 @@
+[
+  {"name": "Zuordnen", "saetze": ["ordne Marvin das Auto M-TR 103 zu", "nein", "Marvin fährt ab jetzt den BMW X5", "nein", "Tim soll den 7er nehmen", "nein", "steck den Tracker 4 in den X5"]},
+  {"name": "Gast", "saetze": ["leg einen gast an: Dr. Peter Lang, BMW, 0172 999888", "nein", "nimm frau sabine koch von siemens als gast auf, vip", "nein", "braucht frau weber einen kindersitz", "welche firma hat julia weber"]},
+  {"name": "Standby", "saetze": ["Tim soll morgen von 10 bis 18 am Bayerischen Hof bereitstehen", "Marvin und Anna sollen sich heute ab 14 bis 20 Uhr an der Messe bereithalten"]},
+  {"name": "Nachricht mit frei", "saetze": ["Schreib allen dass morgen frei ist", "nein", "Sag Tim: morgen kein Dienst", "nein", "Sag allen außer Tim, dass sie heute tanken sollen"]}
+]

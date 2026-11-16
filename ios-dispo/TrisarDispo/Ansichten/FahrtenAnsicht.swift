@@ -23,6 +23,9 @@ struct FahrtenAnsicht: View {
     /// Offener Standby (Ansicht 'standby' im Web), liegt als eigene Seite darueber.
     @State private var standbyOffen: UUID?
     @ObservedObject private var standby = DispoStandbySpeicher.gemeinsam
+    /// Offene Dienstreise (Ansicht 'dienstreise' im Web), liegt als eigene Seite darueber.
+    @State private var reiseOffen: UUID?
+    @ObservedObject private var dienstreise = DispoDienstreiseSpeicher.gemeinsam
 
     var body: some View {
         ZStack {
@@ -31,7 +34,7 @@ struct FahrtenAnsicht: View {
                 FahrtenFilterAnsicht(filter: $speicher.filter) { seite = vorFilter }
             } else {
                 FahrtenListeDispo(seite: seite, speicher: speicher, wechseln: wechseln, zeigen: zeigen, oeffneFahrt: oeffneFahrt,
-                                  oeffneStandby: { standbyOffen = $0 })
+                                  oeffneStandby: { standbyOffen = $0 }, oeffneReise: { reiseOffen = $0 })
                     // Suche wie im Web: bleibt beim Wechsel ins Archiv, neu bei Ankuenfte <-> Abfahrten.
                     .id(seite.istAbfahrten)
                 Navileiste(aktiv: .fahrten) { ziel in
@@ -43,8 +46,17 @@ struct FahrtenAnsicht: View {
                 StandbyAnsicht(standbyID: id, zurueck: { standbyOffen = nil })
                     .zIndex(1)
             }
+            if let id = reiseOffen {
+                DienstreiseDispoAnsicht(reiseID: id, zurueck: { reiseOffen = nil })
+                    .zIndex(2)
+            }
         }
         .task { await standby.starten() }
+        .task { await dienstreise.starten() }
+        // Nach dem Senden aus dem Formular: die neue Dienstreise oeffnen.
+        .onChange(of: dienstreise.oeffnen, initial: true) { _, id in
+            if let id { reiseOffen = id; dienstreise.oeffnen = nil }
+        }
         // Nach dem Senden aus dem Formular: den neuen Standby oeffnen.
         .onChange(of: standby.oeffnen, initial: true) { _, id in
             if let id { standbyOffen = id; standby.oeffnen = nil }
@@ -82,10 +94,12 @@ struct FahrtenListeDispo: View {
     let zeigen: (DispoZiel) -> Void
     let oeffneFahrt: (UUID) -> Void
     var oeffneStandby: (UUID) -> Void = { _ in }
+    var oeffneReise: (UUID) -> Void = { _ in }
 
     @State private var suche = ""
     @ObservedObject private var standby = DispoStandbySpeicher.gemeinsam
     @ObservedObject private var markierung = FahrerMarkierung.geteilt
+    @ObservedObject private var dienstreise = DispoDienstreiseSpeicher.gemeinsam
 
     private var archiv: Bool { seite.istArchiv }
     private var abfahrten: Bool { seite.istAbfahrten }
@@ -147,6 +161,8 @@ struct FahrtenListeDispo: View {
                 if !archiv && !abfahrten {
                     StandbyKacheln(speicher: standby, oeffnen: oeffneStandby).padding(.top, 24)
                     StandbyFahrtenListe(speicher: standby, oeffnen: oeffneStandby).padding(.top, 24)
+                    // Dienstreise: Start → Ziel, Zeit, Zug/Flug, wer angenommen hat.
+                    DienstreiseKacheln(speicher: dienstreise, oeffnen: oeffneReise).padding(.top, 24)
                 }
 
                 VStack(alignment: .leading, spacing: 12) {

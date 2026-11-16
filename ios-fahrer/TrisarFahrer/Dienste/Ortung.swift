@@ -189,7 +189,7 @@ final class Ortung: NSObject, ObservableObject {
     /// Im Stillstand den letzten Standort mit aktueller Zeit nochmal senden (siehe Konfig.stillstandIntervall).
     private func stillstandSenden() {
         guard laeuft, fahrerID != nil, profilGeladen, !nutztOBD, let ort = letztePosition,
-              ort.horizontalAccuracy >= 0, ort.horizontalAccuracy <= 100,
+              ort.horizontalAccuracy >= 0,
               Date().timeIntervalSince(letzteLiveSendung) >= Konfig.stillstandIntervall - 2 else { return }
         naechsteLivePosition = CLLocation(
             coordinate: ort.coordinate,
@@ -282,8 +282,9 @@ final class Ortung: NSObject, ObservableObject {
         letztePosition = ort
         // Erst senden, wenn das Profil sagt, dass das Handy ortet (nicht OBD).
         guard fahrerID != nil, profilGeladen, !nutztOBD else { return }
-        // Grobe oder veraltete Punkte nicht senden (z.B. erster Punkt aus dem Funkzellen-Cache).
-        guard ort.horizontalAccuracy >= 0, ort.horizontalAccuracy <= 100,
+        // Jeden gueltigen Punkt senden, auch ungenaue (im Zug oft ueber 100 m, 14.11.). Die Genauigkeit
+        // geht mit. Nur veraltete Punkte (z.B. erster Punkt aus dem Funkzellen-Cache) nicht.
+        guard ort.horizontalAccuracy >= 0,
               abs(ort.timestamp.timeIntervalSinceNow) < 60 else { return }
 
         if ort.timestamp.timeIntervalSince(letzterVerlaufPunkt) >= Konfig.verlaufIntervall {

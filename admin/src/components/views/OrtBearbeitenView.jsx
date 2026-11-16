@@ -8,7 +8,7 @@ import BackCircleButton from '../ui/BackCircleButton';
 import TrisarFooter from '../ui/TrisarFooter';
 import { useI18n } from '../../i18n';
 import { demoConfirm, tutorialLaeuft } from '../ui/demoDialoge';
-import { adresseAufloesen, karteBereitstellen } from '../../shared/karte/maplibreKarte';
+import { adresseAufloesen, karteBereitstellen, koordinatenAusText } from '../../shared/karte/maplibreKarte';
 import { ortKreiseZeigen } from '../../shared/karte/ortKreise';
 import { ORT_ICONS, ortIconUrl, ortLoeschen, ortSpeichern, radienPruefen, STANDARD_RADIEN } from '../../shared/orte';
 
@@ -197,6 +197,17 @@ export default function OrtBearbeitenView({ ort = null, onClose = () => {}, onFe
     if (anfrageRef.current) clearTimeout(anfrageRef.current);
     if (!getippt) {
       setVorschlaege([]);
+      return;
+    }
+    // Koordinaten getippt ("48.1372, 11.6981"): Pin sofort dorthin, keine Vorschlaege.
+    const koordinaten = koordinatenAusText(getippt);
+    if (koordinaten) {
+      anfrageNrRef.current += 1;
+      setVorschlaege([]);
+      setVorschlaegeOffen(false);
+      setPin(koordinaten);
+      const karte = karteRef.current;
+      if (karte?.karte) karte.karte.easeTo({ center: [koordinaten.lng, koordinaten.lat], zoom: 16, duration: 600 });
       return;
     }
     setVorschlaegeOffen(true);

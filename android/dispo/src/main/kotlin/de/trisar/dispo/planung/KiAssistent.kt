@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
@@ -90,12 +91,14 @@ import io.github.jan.supabase.realtime.RealtimeChannel
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -257,6 +260,8 @@ internal object KiAssistentDienst {
             putJsonArray("markierteFahrer") { markierteFahrer.forEach { f -> addJsonObject { put("id", f.id); put("name", f.name) } } }
             // Mehrere Vorschlaege als Karten (aktionen), wie das Web.
             put("karten", true)
+            // Umschalter Regeln/Frei: bei "frei" beantwortet das Modell reine Fragen selbst.
+            put("modus", KiModus.modus)
         }
         // Eigene Zeitgrenze: das Modell braucht bis zu 52 s, Standard im Client sind 10 s.
         val text = Backend.client.functions.invoke("dispo-admin") {
@@ -304,6 +309,8 @@ internal data class KiDienstVorschlag(
     val start: String? = null, val ende: String? = null,
     val pausen: List<KiDienstPause> = emptyList(),
     val fahrer: List<KiDienstFahrer> = emptyList(),
+    /** Mit Ausnahme ("alle außer Tim") zaehlt im Voice-Modus nur der Knopf (15.11.). */
+    val nurKnopf: Boolean = false,
 ) {
     /** Ohne start/ende vom Server: aus art und zeit (aeltere Antworten). */
     val startWirksam: String? get() = start?.ifEmpty { null } ?: zeit.takeIf { art == "start" && it.isNotEmpty() }
@@ -493,9 +500,16 @@ internal fun KiAssistentAnsicht(
     var bearbeiteteID by remember { mutableStateOf<String?>(null) }
     var kopierteID by remember { mutableStateOf<String?>(null) }
     var sendet by remember { mutableStateOf(false) }
+    /** Sofortige Sperre, damit nie zwei Anfragen gleichzeitig laufen (sendetRef im Web). */
+    val sperre = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     /** Vorschlag, der gerade im Fahrtformular angepasst wird (Nachricht und Vorschlag). */
     var formular by remember { mutableStateOf<KiFormular?>(null) }
     var fokussiert by remember { mutableStateOf(false) }
+    var sprachModus by remember { mutableStateOf(false) }
+    // Abbrechen-Knopf beim Bearbeiten: waehrend er aus dem Senden-Knopf heraus- oder in ihn
+    // zurueckwaechst (860 ms), bleibt der Senden-Knopf stehen statt des Sprechen-Knopfs.
+    var imWandel by remember { mutableStateOf(false) }
+    var bearbeitetVorher by remember { mutableStateOf(false) }
     val fokus = remember { FocusRequester() }
     val fokusVerwalter = LocalFocusManager.current
     val ablage = LocalClipboardManager.current
@@ -509,6 +523,14 @@ internal fun KiAssistentAnsicht(
         onDispose { live.beenden() }
     }
     LaunchedEffect(nachrichten) { KiVerlaufSpeicher.sichern(nachrichten) }
+    val bearbeitetJetzt = bearbeiteteID != null
+    LaunchedEffect(bearbeitetJetzt) {
+        if (bearbeitetJetzt == bearbeitetVorher) return@LaunchedEffect
+        bearbeitetVorher = bearbeitetJetzt
+        imWandel = true
+        delay(860)
+        imWandel = false
+    }
     val letzte = nachrichten.lastOrNull()
     val signatur = letzte?.let { "${nachrichten.size}|${it.id}|${it.pending == true}|${it.text}|${it.bookingStatus ?: ""}|${it.karten.size}" } ?: ""
     LaunchedEffect(signatur, fokussiert) { if (nachrichten.isNotEmpty()) liste.animateScrollToItem(nachrichten.size) }
@@ -518,9 +540,11 @@ internal fun KiAssistentAnsicht(
         nachrichten = nachrichten + KiNachricht("$praefix-${System.currentTimeMillis()}", "assistant", text, KiNachricht.uhrzeit())
     }
 
-    fun senden() {
-        val text = eingabe.trim()
-        if (text.isEmpty() || sendet) return
+    /** vorgabe: Text aus dem Voice-Modus, sonst das Eingabefeld. Liefert die fertige Antwort (handleSend im Web). */
+    fun senden(vorgabe: String? = null, stimme: Boolean = false): CompletableDeferred<KiNachricht?> {
+        val fertig = CompletableDeferred<KiNachricht?>()
+        val text = (vorgabe ?: eingabe).trim()
+        if (text.isEmpty() || sendet || !sperre.compareAndSet(false, true)) { fertig.complete(null); return fertig }
         val jetzt = KiNachricht.uhrzeit()
         val ms = System.currentTimeMillis()
         var quelle = nachrichten
@@ -547,10 +571,10 @@ internal fun KiAssistentAnsicht(
             val beginn = System.currentTimeMillis()
             val markierte = if (FahrerMarkierung.wirkt) FahrerMarkierung.fahrer else emptyList()
             val ergebnis = runCatching { KiAssistentDienst.fragen(text, verlauf, offen, letzteFahrtID, markierte) }
-            // DENKZEIT_MS: so lange denkt der Assistent mindestens nach.
+            // DENKZEIT_MS: so lange denkt der Assistent mindestens nach. Im Voice-Modus zaehlt jede Sekunde, dort ohne.
             val rest = 3000 - (System.currentTimeMillis() - beginn)
-            if (rest > 0) delay(rest)
-            if (nachrichten.none { it.id == wartendID }) { sendet = false; return@launch }
+            if (rest > 0 && !stimme) delay(rest)
+            if (nachrichten.none { it.id == wartendID }) { sendet = false; sperre.set(false); fertig.complete(null); return@launch }
             // Ein neuer Vorschlag loest den alten ab, damit nur einer bestaetigt werden kann.
             if (ergebnis.getOrNull()?.buchungsVorschlag != null) {
                 nachrichten = nachrichten.map { if (it.id != wartendID && it.bookingStatus == "pending") it.copy(bookingStatus = "cancelled") else it }
@@ -569,7 +593,10 @@ internal fun KiAssistentAnsicht(
                 ).copy(pending = null, time = KiNachricht.uhrzeit())
             }
             sendet = false
+            sperre.set(false)
+            fertig.complete(nachrichten.firstOrNull { it.id == wartendID })
         }
+        return fertig
     }
 
     fun kopieren(n: KiNachricht) {
@@ -581,17 +608,23 @@ internal fun KiAssistentAnsicht(
     }
 
     // Dienststart/Dienstende fuer markierte Fahrer: erst der Knopf schickt ab.
-    fun dienstSenden(id: String, v: KiDienstVorschlag) {
+    // Liefert den Text fuer den Voice-Modus (handleDienstSenden im Web).
+    suspend fun dienstSendenWarten(id: String, v: KiDienstVorschlag): String {
         aendern(id) { it.copy(dienstStatus = "sendet", dienstFehler = null) }
-        scope.launch {
-            try {
-                val anzahl = KiAssistentDienst.dienstSenden(v)
-                aendern(id) { it.copy(dienstStatus = "gesendet", dienstAnzahl = anzahl) }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                aendern(id) { it.copy(dienstStatus = "offen", dienstFehler = e.message?.ifEmpty { null } ?: "Senden fehlgeschlagen") }
-            }
+        return try {
+            val anzahl = KiAssistentDienst.dienstSenden(v)
+            aendern(id) { it.copy(dienstStatus = "gesendet", dienstAnzahl = anzahl) }
+            "Gesendet."
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            val f = e.message?.ifEmpty { null } ?: "Senden fehlgeschlagen"
+            aendern(id) { it.copy(dienstStatus = "offen", dienstFehler = f) }
+            "Das hat nicht geklappt. $f"
         }
+    }
+
+    fun dienstSenden(id: String, v: KiDienstVorschlag) {
+        scope.launch { dienstSendenWarten(id, v) }
     }
 
     // Weitere Karten (Fahrten und Standbys) einer Nachricht.
@@ -599,23 +632,22 @@ internal fun KiAssistentAnsicht(
         aendern(id) { n -> n.copy(karten = n.karten.map { if (it.id == karteId) f(it) else it }) }
     }
 
-    fun karteBuchen(id: String, k: KiKarte) {
+    // Liefert erst zurueck, wenn die Karte gespeichert ist (handleKarteBuchen im Web, fuer das „ja“ im Voice-Modus).
+    suspend fun karteBuchenWarten(id: String, k: KiKarte) {
         if (k.art == "fahrer" || k.art == "fahrzeug") {
             val daten = k.daten ?: emptyMap()
             karteSetzen(id, k.id) { it.copy(status = "saving", offen = false) }
-            scope.launch {
-                try {
-                    val (ok, text) = KiAssistentDienst.anlegen(k.art, daten)
-                    if (!ok) {
-                        karteSetzen(id, k.id) { it.copy(status = "pending", daten = daten + ("fehler" to text.ifEmpty { "Nicht angelegt." })) }
-                        return@launch
-                    }
-                    karteSetzen(id, k.id) { it.copy(status = "booked") }
-                    if (text.isNotBlank()) hinweis(text, "msg-ai-karte")
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    karteSetzen(id, k.id) { it.copy(status = "pending", daten = daten + ("fehler" to (e.message?.ifEmpty { null } ?: "Nicht angelegt."))) }
+            try {
+                val (ok, text) = KiAssistentDienst.anlegen(k.art, daten)
+                if (!ok) {
+                    karteSetzen(id, k.id) { it.copy(status = "pending", daten = daten + ("fehler" to text.ifEmpty { "Nicht angelegt." })) }
+                    return
                 }
+                karteSetzen(id, k.id) { it.copy(status = "booked") }
+                if (text.isNotBlank()) hinweis(text, "msg-ai-karte")
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                karteSetzen(id, k.id) { it.copy(status = "pending", daten = daten + ("fehler" to (e.message?.ifEmpty { null } ?: "Nicht angelegt."))) }
             }
             return
         }
@@ -625,34 +657,34 @@ internal fun KiAssistentAnsicht(
             val ohneOrt = (sb.lat == null || sb.lng == null) && sb.ortId.isBlank()
             if (sb.fehlt.isNotEmpty() || ohneOrt || sb.fahrerIds.isEmpty()) { formular = KiFormular(id, standby = sb, karteId = k.id); return }
             karteSetzen(id, k.id) { it.copy(status = "saving") }
-            scope.launch {
-                try {
-                    KiAssistentDienst.standbyAnlegen(sb)
-                    karteSetzen(id, k.id) { it.copy(status = "booked") }
-                    hinweis("Standby angelegt: ${sb.ortName}, ${sb.von}–${sb.bis}. Die Fahrer bekommen die Anfrage.", "msg-ai-karte")
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    karteSetzen(id, k.id) { it.copy(status = "pending") }
-                    hinweis("Standby nicht angelegt: ${e.message?.ifEmpty { null } ?: "unbekannter Fehler"}", "msg-ai-karte")
-                }
+            try {
+                KiAssistentDienst.standbyAnlegen(sb)
+                karteSetzen(id, k.id) { it.copy(status = "booked") }
+                hinweis("Standby angelegt: ${sb.ortName}, ${sb.von}–${sb.bis}. Die Fahrer bekommen die Anfrage.", "msg-ai-karte")
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                karteSetzen(id, k.id) { it.copy(status = "pending") }
+                hinweis("Standby nicht angelegt: ${e.message?.ifEmpty { null } ?: "unbekannter Fehler"}", "msg-ai-karte")
             }
             return
         }
         val v = k.proposal ?: return
         if (!v.hatPflichtfelder) { formular = KiFormular(id, vorschlag = v, karteId = k.id); return }
         karteSetzen(id, k.id) { it.copy(status = "saving") }
-        scope.launch {
-            try {
-                val buchen = fahrtBuchen ?: throw IllegalStateException("Buchungsfunktion ist nicht verbunden.")
-                val fahrtID = buchen(v)
-                karteSetzen(id, k.id) { it.copy(status = "booked", rideId = fahrtID?.trim()?.ifEmpty { null }) }
-                hinweis(if (v.fahrtId != null) "Änderung gespeichert." else "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-karte")
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                karteSetzen(id, k.id) { it.copy(status = "pending") }
-                hinweis("Buchung fehlgeschlagen: ${e.message?.ifEmpty { null } ?: "Unbekannter Fehler"}", "msg-ai-karte")
-            }
+        try {
+            val buchen = fahrtBuchen ?: throw IllegalStateException("Buchungsfunktion ist nicht verbunden.")
+            val fahrtID = buchen(v)
+            karteSetzen(id, k.id) { it.copy(status = "booked", rideId = fahrtID?.trim()?.ifEmpty { null }) }
+            hinweis(if (v.fahrtId != null) "Änderung gespeichert." else "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-karte")
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            karteSetzen(id, k.id) { it.copy(status = "pending") }
+            hinweis("Buchung fehlgeschlagen: ${e.message?.ifEmpty { null } ?: "Unbekannter Fehler"}", "msg-ai-karte")
         }
+    }
+
+    fun karteBuchen(id: String, k: KiKarte) {
+        scope.launch { karteBuchenWarten(id, k) }
     }
 
     fun formularGebucht(id: String, fahrtID: String?, aenderung: Boolean, text: String? = null) {
@@ -668,24 +700,125 @@ internal fun KiAssistentAnsicht(
         hinweis(if (aenderung) "Änderung gespeichert." else "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
     }
 
-    fun buchen(id: String, v: KiBuchungsVorschlag) {
+    // Liefert den Text fuer den Voice-Modus (handleBookingConfirm im Web).
+    suspend fun buchenWarten(id: String, v: KiBuchungsVorschlag): String {
         if (!v.hatPflichtfelder) {
-            hinweis("Für diese Buchung fehlen noch Pflichtfelder (Start, Ziel oder Zeit).", "msg-ai-booking-error")
-            return
+            val t = "Für diese Buchung fehlen noch Pflichtfelder (Start, Ziel oder Zeit)."
+            hinweis(t, "msg-ai-booking-error")
+            return t
         }
         aendern(id) { it.copy(bookingStatus = "saving") }
-        scope.launch {
-            try {
-                val buchen = fahrtBuchen ?: throw IllegalStateException("Buchungsfunktion ist nicht verbunden.")
-                val fahrtID = buchen(v)
-                aendern(id) { it.copy(bookingStatus = "booked", bookingRideId = fahrtID?.trim()?.ifEmpty { null }) }
-                hinweis(if (v.fahrtId != null) "Änderung gespeichert." else "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                aendern(id) { it.copy(bookingStatus = "pending") }
-                hinweis("Buchung fehlgeschlagen: ${e.message?.ifEmpty { null } ?: "Unbekannter Fehler"}", "msg-ai-booking-failed")
-            }
+        return try {
+            val buchen = fahrtBuchen ?: throw IllegalStateException("Buchungsfunktion ist nicht verbunden.")
+            val fahrtID = buchen(v)
+            aendern(id) { it.copy(bookingStatus = "booked", bookingRideId = fahrtID?.trim()?.ifEmpty { null }) }
+            val t = if (v.fahrtId != null) "Änderung gespeichert." else "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert."
+            hinweis(t, "msg-ai-booked")
+            t
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            aendern(id) { it.copy(bookingStatus = "pending") }
+            val t = "Buchung fehlgeschlagen: ${e.message?.ifEmpty { null } ?: "Unbekannter Fehler"}"
+            hinweis(t, "msg-ai-booking-failed")
+            t
         }
+    }
+
+    fun buchen(id: String, v: KiBuchungsVorschlag) {
+        scope.launch { buchenWarten(id, v) }
+    }
+
+    // --- Voice-Modus (13.11.) ----------------------------------------------
+    // Die Sprache laeuft durch denselben Chat wie getippte Nachrichten, alles bleibt im Verlauf.
+
+    fun offeneKarten(n: KiNachricht?): List<KiKarte> = n?.karten.orEmpty().filter { it.status == "pending" }
+    fun istOffen(n: KiNachricht?): Boolean = n != null && ((n.bookingStatus == "pending" && n.bookingProposal != null) ||
+        (n.dienstStatus == "offen" && n.dienstVorschlag != null) || offeneKarten(n).isNotEmpty())
+
+    // Was wartet nach dieser Antwort auf ein „ja“? Vorschlaege bestaetigt die App selbst (lokal), sie stehen im
+    // Voice-Modus wie im Chat mit ihren Knoepfen. Rueckfragen des Servers („Mit „ja“ sende ich sie.“) gehen als Text an den Server.
+    fun fuerStimme(n: KiNachricht?): SprachAntwort {
+        if (n == null) return SprachAntwort("Das hat nicht geklappt. Sag es bitte noch einmal.")
+        var text = n.text
+        var offen: SprachOffen? = null
+        if (istOffen(n)) {
+            // Ganzer Antworttext auf der Karte, nicht nur die ersten 80 Zeichen.
+            offen = SprachOffen(lokal = true, titel = n.text.trim(), id = n.id)
+            val frage = if (n.dienstStatus == "offen") "Soll ich das senden?" else "Soll ich das so machen?"
+            if (!Regex("""\?\s*$""").containsMatchIn(text)) text = "$text $frage"
+        } else if (Regex("""(?i)„ja“|"ja"|\bmit ja\b""").containsMatchIn(text) || Regex("""\?\s*$""").containsMatchIn(text)) {
+            offen = SprachOffen(lokal = false, titel = text.trim())
+        }
+        return SprachAntwort(text, offen)
+    }
+
+    fun letzteOffene(): KiNachricht? = nachrichten.lastOrNull { istOffen(it) }
+
+    val sprachRufe = SprachRufe(
+        senden = { satz ->
+            // Laeuft noch eine Anfrage, warten statt sie zu verwerfen (bis 60 s).
+            var i = 0
+            while (i < 600 && sperre.get()) { delay(100); i += 1 }
+            fuerStimme(senden(satz, stimme = true).await())
+        },
+        // Laeuft im Chat-Scope: oeffnet eine Karte das Formular, verschwindet der Voice-Modus,
+        // die uebrigen Karten werden trotzdem fertig gebucht.
+        ja = { scope.async {
+            val m = letzteOffene()
+            if (m == null) SprachAntwort("Da wartet nichts mehr.")
+            else if (m.dienstStatus == "offen" && m.dienstVorschlag?.nurKnopf == true) SprachAntwort("Hier ist jemand ausgenommen. Prüf bitte die Fahrer und tipp auf Senden.")
+            else {
+                val texte = mutableListOf<String>()
+                val dv = m.dienstVorschlag
+                val bp = m.bookingProposal
+                if (m.dienstStatus == "offen" && dv != null) texte += dienstSendenWarten(m.id, dv)
+                if (m.bookingStatus == "pending" && bp != null) texte += buchenWarten(m.id, bp)
+                val karten = offeneKarten(m)
+                for (k in karten) karteBuchenWarten(m.id, k)
+                SprachAntwort(texte.filter { it.isNotBlank() }.joinToString(" ").ifEmpty { "Erledigt." })
+            }
+        }.await() },
+        nein = {
+            val m = letzteOffene()
+            if (m != null) aendern(m.id) { x ->
+                x.copy(
+                    bookingStatus = if (x.bookingStatus == "pending") "cancelled" else x.bookingStatus,
+                    dienstStatus = if (x.dienstStatus == "offen") "verworfen" else x.dienstStatus,
+                    karten = x.karten.map { if (it.status == "pending") it.copy(status = "cancelled", offen = false) else it },
+                )
+            }
+            SprachAntwort("Okay, verworfen.")
+        },
+    )
+
+    // Vorschlaege einer Antwort mit ihren Knoepfen, im Chat und im Voice-Modus gleich (vorschlaegeVon im Web).
+    // Im Voice-Modus oeffnet Antippen einer Karte kein Formular.
+    @Composable
+    fun Vorschlaege(n: KiNachricht, imSprachModus: Boolean) {
+        n.dienstVorschlag?.let { v -> DienstVorschlagKnoepfe(n, v, { dienstSenden(n.id, v) }) { aendern(n.id) { it.copy(dienstStatus = "verworfen") } } }
+        n.bookingProposal?.let { v ->
+            Buchung(
+                n, v,
+                if (imSprachModus) null else ({ formular = KiFormular(n.id, vorschlag = v) }),
+                { buchen(n.id, v) }, { aendern(n.id) { it.copy(bookingStatus = "cancelled") } }, oeffneFahrt,
+            )
+        }
+        n.karten.forEach { k ->
+            WeitereKarte(
+                k,
+                oeffnen = if (imSprachModus) null else ({ formular = KiFormular(n.id, vorschlag = k.proposal, standby = k.standby, karteId = k.id) }),
+                buchen = { karteBuchen(n.id, k) },
+                verwerfen = { karteSetzen(n.id, k.id) { it.copy(status = "cancelled", offen = false) } },
+                oeffneFahrt = oeffneFahrt,
+                umschalten = { karteSetzen(n.id, k.id) { if (it.status == "pending") it.copy(offen = !it.offen) else it } },
+                aendern = { daten -> karteSetzen(n.id, k.id) { it.copy(daten = daten) } },
+            )
+        }
+    }
+
+    // Juengste Antwort mit Vorschlaegen fuer den Voice-Modus (auch nach dem Bestaetigen, damit man das Ergebnis sieht).
+    val sprachVorschlag = nachrichten.lastOrNull {
+        it.role == "assistant" && it.pending != true && (it.bookingProposal != null || it.dienstVorschlag != null || it.karten.isNotEmpty())
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -694,8 +827,8 @@ internal fun KiAssistentAnsicht(
             val breite = minOf(402f, maxWidth.value)
             Box(Modifier.width(breite.dp).fillMaxSize().align(Alignment.TopCenter)) {
                 Column(Modifier.fillMaxSize().imePadding()) {
-                    // CHAT_TOP = 60 + 50 + 30
-                    Spacer(Modifier.height(140.dp))
+                    // CHAT_TOP = 60 + 50 + 30, dazu der Umschalter Regeln/Frei (28).
+                    Spacer(Modifier.height(168.dp))
                     val bearbeitetIndex = bearbeiteteID?.let { i -> nachrichten.indexOfFirst { it.id == i } }?.takeIf { it >= 0 }
                     LazyColumn(
                         Modifier.weight(1f).fillMaxWidth(), state = liste,
@@ -727,19 +860,7 @@ internal fun KiAssistentAnsicht(
                                                 contentAlignment = Alignment.Center,
                                             ) { PText("Neuplanung im Planer ansehen", 20f, 700, Color.Black, -0.5f) }
                                         }
-                                        n.dienstVorschlag?.let { v -> DienstVorschlagKnoepfe(n, v, { dienstSenden(n.id, v) }) { aendern(n.id) { it.copy(dienstStatus = "verworfen") } } }
-                                        n.bookingProposal?.let { v -> Buchung(n, v, { formular = KiFormular(n.id, vorschlag = v) }, { buchen(n.id, v) }, { aendern(n.id) { it.copy(bookingStatus = "cancelled") } }, oeffneFahrt) }
-                                        n.karten.forEach { k ->
-                                            WeitereKarte(
-                                                k,
-                                                oeffnen = { formular = KiFormular(n.id, vorschlag = k.proposal, standby = k.standby, karteId = k.id) },
-                                                buchen = { karteBuchen(n.id, k) },
-                                                verwerfen = { karteSetzen(n.id, k.id) { it.copy(status = "cancelled", offen = false) } },
-                                                oeffneFahrt = oeffneFahrt,
-                                                umschalten = { karteSetzen(n.id, k.id) { if (it.status == "pending") it.copy(offen = !it.offen) else it } },
-                                                aendern = { daten -> karteSetzen(n.id, k.id) { it.copy(daten = daten) } },
-                                            )
-                                        }
+                                        Vorschlaege(n, imSprachModus = false)
                                     }
                                 }
                             }
@@ -773,10 +894,14 @@ internal fun KiAssistentAnsicht(
                                 modifier = Modifier.fillMaxWidth().focusRequester(fokus).onFocusChanged { fokussiert = it.isFocused },
                             )
                         }
-                        KiAktionen(
-                            bearbeitet = bearbeiteteID != null, sendenAktiv = eingabe.isNotBlank() && !sendet,
-                            abbrechen = { bearbeiteteID = null; eingabe = "" }, senden = { senden() },
-                        )
+                        if (eingabe.isBlank() && bearbeiteteID == null && !imWandel) {
+                            SprechenKnopf { fokusVerwalter.clearFocus(); sprachModus = true }
+                        } else {
+                            KiAktionen(
+                                bearbeitet = bearbeiteteID != null, sendenAktiv = eingabe.isNotBlank() && !sendet,
+                                abbrechen = { bearbeiteteID = null; eingabe = "" }, senden = { senden() },
+                            )
+                        }
                     }
                     // Ohne Tastatur 175 ueber dem Rand, mit Tastatur 8 darueber.
                     Spacer(Modifier.height(if (fokussiert) 8.dp else 175.dp))
@@ -788,10 +913,11 @@ internal fun KiAssistentAnsicht(
                         if (zurueck != null) zurueck() else zeigen(DispoZiel.START)
                     }
                     Box(Modifier.align(Alignment.Center)) { KiMarke() }
+                    Box(Modifier.align(Alignment.BottomCenter).offset(y = 32.dp)) { KiModusSchalter() }
                 }
             }
         }
-        if (!fokussiert) Navileiste(DispoZiel.KI_ASSISTENT, zeigen)
+        if (!fokussiert && !sprachModus) Navileiste(DispoZiel.KI_ASSISTENT, zeigen)
         formular?.let { f ->
             BackHandler { formular = null }
             val sb = f.standby
@@ -811,6 +937,17 @@ internal fun KiAssistentAnsicht(
                 nachAnlegen = { fahrtID -> formularGebucht(nachricht, fahrtID, vorschlag.fahrtId != null) },
                 anpassen = if (vorschlag.fahrtId == null) null else { g -> vorschlag.aenderung(g) },
             )
+        }
+        // Waehrend das Formular offen ist, ist der Voice-Modus ganz weg (hoert und spricht nicht).
+        // Geht es zu und der Voice-Modus war an, kommt er wieder und hoert frisch zu (wie im Web).
+        if (sprachModus && formular == null) {
+            val sv = sprachVorschlag
+            SprachModusAnsicht(
+                sprachRufe,
+                vorschlag = sv?.let { n -> { Vorschlaege(n, imSprachModus = true) } },
+                vorschlagId = sv?.id,
+                vorschlagOffen = istOffen(sv),
+            ) { sprachModus = false }
         }
     }
 }
@@ -880,7 +1017,7 @@ private fun AssistentBlase(n: KiNachricht, kopiert: Boolean, kopieren: () -> Uni
 @Composable
 private fun DienstVorschlagKnoepfe(n: KiNachricht, v: KiDienstVorschlag, senden: () -> Unit, verwerfen: () -> Unit) {
     val knopf = v.knopfText
-    Column(Modifier.padding(top = 12.dp).width(362.dp)) {
+    Column(Modifier.padding(top = 12.dp).fillMaxWidth().widthIn(max = 362.dp)) {
         when (n.dienstStatus) {
             "offen" -> {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -902,8 +1039,8 @@ private fun DienstVorschlagKnoepfe(n: KiNachricht, v: KiDienstVorschlag, senden:
 }
 
 @Composable
-private fun Buchung(n: KiNachricht, v: KiBuchungsVorschlag, oeffnen: () -> Unit, buchen: () -> Unit, verwerfen: () -> Unit, oeffneFahrt: (String) -> Unit) {
-    Column(Modifier.padding(top = 12.dp).width(362.dp)) {
+private fun Buchung(n: KiNachricht, v: KiBuchungsVorschlag, oeffnen: (() -> Unit)?, buchen: () -> Unit, verwerfen: () -> Unit, oeffneFahrt: (String) -> Unit) {
+    Column(Modifier.padding(top = 12.dp).fillMaxWidth().widthIn(max = 362.dp)) {
         KiBuchungsKarte(v, if (n.bookingStatus == "pending") oeffnen else null)
         when (n.bookingStatus) {
             "pending" -> Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -961,11 +1098,11 @@ private fun KiBuchungsKarte(v: KiBuchungsVorschlag, oeffnen: (() -> Unit)? = nul
 /** Weitere Karte unter der ersten Fahrt (karten im Web): Fahrt oder Standby, eigene Knoepfe und eigener Status. */
 @Composable
 private fun WeitereKarte(
-    k: KiKarte, oeffnen: () -> Unit, buchen: () -> Unit, verwerfen: () -> Unit, oeffneFahrt: (String) -> Unit,
+    k: KiKarte, oeffnen: (() -> Unit)?, buchen: () -> Unit, verwerfen: () -> Unit, oeffneFahrt: (String) -> Unit,
     umschalten: () -> Unit = {}, aendern: (Map<String, String>) -> Unit = {},
 ) {
     val offen = k.status == "pending"
-    Column(Modifier.padding(top = 12.dp).width(362.dp)) {
+    Column(Modifier.padding(top = 12.dp).fillMaxWidth().widthIn(max = 362.dp)) {
         val sb = k.standby
         val v = k.proposal
         val anlegen = k.art == "fahrer" || k.art == "fahrzeug"
@@ -1160,6 +1297,46 @@ private fun SymbolStift(gefuellt: Boolean, farbe: Color) {
         } else {
             drawPath(p, farbe, style = Stroke(2 * s))
             drawLine(farbe, Offset(13 * s, 7 * s), Offset(17 * s, 11 * s), 2 * s)
+        }
+    }
+}
+
+
+/**
+ * Umschalter Regeln/Frei im KI-Assistenten (13.11.), wie shared/kiModus.js im Web. Pro Geraet gemerkt
+ * (SharedPreferences "trisar_ki"), beim ersten Anzeigen geladen.
+ */
+internal object KiModus {
+    // Standard ist "frei" (Wunsch 13.11.), "regeln" nur wenn ausdruecklich gewaehlt.
+    var modus by androidx.compose.runtime.mutableStateOf("frei")
+        private set
+    private var ablage: android.content.SharedPreferences? = null
+
+    fun laden(ctx: android.content.Context) {
+        if (ablage != null) return
+        ablage = ctx.applicationContext.getSharedPreferences("trisar_ki", android.content.Context.MODE_PRIVATE)
+        modus = if (ablage?.getString("modus", null) == "regeln") "regeln" else "frei"
+    }
+
+    fun setzen(neu: String) {
+        modus = if (neu == "regeln") "regeln" else "frei"
+        ablage?.edit()?.putString("modus", modus)?.apply()
+    }
+}
+
+/** Zwei Felder "Regeln | Frei", Lime-Rahmen, aktives Feld gefuellt (Entwurf 13.11.). */
+@Composable
+internal fun KiModusSchalter(modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { KiModus.laden(ctx) }
+    Row(modifier.border(2.dp, kiLime)) {
+        for ((wert, text) in listOf("regeln" to "Regeln", "frei" to "Frei")) {
+            val an = KiModus.modus == wert
+            Box(
+                Modifier.height(24.dp).background(if (an) kiLime else Color.Transparent).tippen { KiModus.setzen(wert) }
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) { PText(text, 12f, 500, if (an) hex(0x0E1008) else kiLime) }
         }
     }
 }

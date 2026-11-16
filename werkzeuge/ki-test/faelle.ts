@@ -35,6 +35,8 @@ const naechsterWochentag = (ziel: number) => {
   return tagBerlin(7);
 };
 
+const wochentag = (iso: string) => ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][new Date(`${iso}T12:00:00Z`).getUTCDay()];
+
 export const faelle = (): Fall[] => {
   const heute = tagBerlin(0);
   const morgen = tagBerlin(1);
@@ -206,10 +208,46 @@ export const faelle = (): Fall[] => {
     // --- Dienste ---
     ein('Dienst Start und Ende morgen', 'Dienst', 'Schick Tim morgen 7 bis 15 Uhr',
       { art: 'dienst_vorschlag', vorschlag: { datum: morgen, start: '07:00', ende: '15:00', fahrer: 'Tim' } }),
+    // Ausnahmen (ki_protokoll 14.11.: "bis auf Stefano" schickte Stefano trotzdem den Dienst)
+    ein('Dienst an alle bis auf einen', 'Ausnahme', 'Schick allen bis auf Stefano bitte ein dienstbeginn für heute 13:30 Uhr',
+      { art: 'dienst_vorschlag', enthaelt: ['ohne Stefano'], nicht: ['bei Stefano'], vorschlag: { datum: heute, start: '13:30' } }),
+    ein('Dienst an alle, einer ausgenommen, anders gesagt', 'Ausnahme', 'Morgen fangen alle um 8 an, nur Tim nicht',
+      { art: 'dienst_vorschlag', enthaelt: ['ohne Tim'], vorschlag: { datum: morgen, start: '08:00' } }),
+    ein('Feierabend fuer alle ausser zwei', 'Ausnahme', 'Schick alle Fahrer in den Feierabend außer Tim und Marvin',
+      { art: 'dienst_vorschlag', enthaelt: ['ohne Tim', 'Marvin'] }),
+    { name: 'Nachricht an alle ausser einem', gruppe: 'Ausnahme', schritte: [
+      { frage: 'Sag allen außer Tim, dass sie heute tanken sollen', erwartet: { art: 'antwort', enthaelt: ['ohne Tim', 'tank'], nicht: ['alle 4 Fahrer'] } },
+    ] },
+    ein('Stundenlohn fuer alle ausser einem', 'Ausnahme', 'Stundenlohn 25 Euro für alle Fahrer, ausgenommen Marvin',
+      { art: 'antwort', enthaelt: ['25,00', 'ohne Marvin', 'speichern'] }),
+    ein('Kein falsches Ausnehmen beim Loeschen', 'Ausnahme', 'Stefano hat heute frei, lösch seinen Dienst',
+      { art: ['antwort', 'rueckfrage'], enthaelt: ['Stefano'], nicht: ['ohne Stefano'] }),
+    // Datum und Aenderungen (15.11., ki_protokoll 13.-15.11.)
+    ein('Aendern von X auf Y nimmt Y', 'Datum', 'Änder den Dienststart von Stefano heute von 8:00 auf 6:30',
+      { art: 'dienst_vorschlag', vorschlag: { datum: heute, start: '06:30' } }),
+    ein('Dienstende verschieben ist kein Loeschen', 'Datum', 'Verschieb Stefanos Dienstende heute auf 17 Uhr',
+      { art: 'dienst_vorschlag', vorschlag: { ende: '17:00' }, nicht: ['entfernen'] }),
+    ein('Heutiger Wochentag meint naechste Woche', 'Datum', `Tim Dienststart ${['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][new Date(`${heute}T12:00:00Z`).getUTCDay()]} 9 Uhr`,
+      { art: 'dienst_vorschlag', vorschlag: { datum: tagBerlin(7), start: '09:00' } }),
+    ein('Wochentag nie in der Vergangenheit', 'Datum', `Tim Dienststart ${['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][new Date(`${tagBerlin(-1)}T12:00:00Z`).getUTCDay()]} 9 Uhr`,
+      { art: 'dienst_vorschlag', vorschlag: { datum: tagBerlin(6), start: '09:00' } }),
+    ein('Start nach altem Ende: Ende faellt weg', 'Datum', 'Anna Dienststart morgen 16 Uhr',
+      { art: 'dienst_vorschlag', enthaelt: ['fällt weg'], vorschlag: { datum: morgen, start: '16:00' } }),
+    ein('Fuer alle ohne erfundene Ausnahmen', 'Datum', 'Dienststart für alle Fahrer morgen um 10:30',
+      { art: 'dienst_vorschlag', nicht: ['ohne'], vorschlag: { datum: morgen, start: '10:30' } }),
+    ein('Dienststart von gestern loeschen', 'Datum', 'Lösche den Dienststart von Stefano von gestern',
+      { art: 'antwort', enthaelt: ['gestern'] }),
+    ein('Fahrt mit allen ausser einem', 'Datum', 'Neue Fahrt morgen um 14:30 mit allen Fahrern außer Marvin, vom Hauptbahnhof zum Flughafen',
+      { art: 'fahrt_buchen', enthaelt: ['ohne Marvin'], nicht: ['Fahrer Marvin'] }),
+    // Nachts (nur mit --uhr=01:30 --nur=Nacht laufen lassen): "morgen" meint das heutige Datum.
+    ein('Nachts: morgen ist heute (Dienst)', 'Nacht', 'Dienststart für Tim morgen um 10:30',
+      { art: 'dienst_vorschlag', vorschlag: { datum: heute, start: '10:30' } }),
+    ein('Nachts: morgen ist heute (Fahrt)', 'Nacht', 'Neue Fahrt morgen um 10 Uhr vom Hauptbahnhof zur Messe München',
+      { art: 'fahrt_buchen', vorschlag: { datum: heute } }),
     ein('Dienst ab Uhrzeit heute', 'Dienst', 'Dienst für Marvin heute ab 14 Uhr',
       { art: 'dienst_vorschlag', vorschlag: { datum: heute, start: '14:00', fahrer: 'Marvin' } }),
     ein('Vorhandener Dienst, Uhrzeit nachts', 'Dienst', 'Schick Stefano heute 00:30',
-      { art: 'dienst_vorschlag', enthaelt: ['schon Dienst'], vorschlag: { ende: '00:30', start: null } }),
+      { art: 'dienst_vorschlag', enthaelt: ['Dienstende'], vorschlag: { ende: '00:30', start: null } }),
     ein('Pause im vorhandenen Dienst', 'Dienst', 'Stefano Pause von 12 bis 12:30',
       { art: 'dienst_vorschlag', vorschlag: { pausen: '12:00' } }),
     ein('Feierabend mit Uhrzeit', 'Dienst', 'Anna Feierabend um 18 Uhr',
@@ -236,6 +274,11 @@ export const faelle = (): Fall[] => {
       { art: 'fahrt_buchen', vorschlag: { datum: morgen, startZeit: '09:00', start: 'Hauptbahnhof', ziel: 'Flughafen', fahrgaeste: 'Weber' } }),
     ein('Buchen nimmt eigene Orte mit ID', 'Buchen', 'Buche morgen um 10 Uhr eine Fahrt vom Bayerischer Hof zur Messe',
       { art: 'fahrt_buchen', vorschlag: { startZeit: '10:00', start: 'Hotel Bayerischer Hof', startOrtId: 'o1', ziel: 'Messe München', zielOrtId: 'o5' } }),
+    // 13.11.: "soll ... fahren" wurde als Zuweisung einer vorhandenen Fahrt gelesen ("keine anstehende Fahrt").
+    ein('Buchen per Fahr-Verb', 'Buchen', 'stefano soll vom flughafen münchen zum Flughafen salzburg fahren um 20:30 ohne gast',
+      { art: 'fahrt_buchen', vorschlag: { startZeit: '20:30', start: 'Flughafen', ziel: 'Salzburg' } }),
+    ein('Buchen fährt mit Strecke', 'Buchen', 'Stefano fährt um 20:30 vom Flughafen München nach Salzburg Flughafen, ohne Gast',
+      { art: 'fahrt_buchen', vorschlag: { startZeit: '20:30', ziel: 'Salzburg' } }),
     ein('Buchen fremder Ort ohne Ort-ID', 'Buchen', 'Buche morgen um 9 Uhr eine Fahrt von Vier Jahreszeiten nach Salzburg Flughafen',
       { art: 'fahrt_buchen', vorschlag: { start: 'Hotel Vier Jahreszeiten', startOrtId: 'o6', ziel: 'Salzburg', zielOrtId: null } }),
     ein('Buchung mit Fahrer und Gästezahl', 'Buchen', 'Neue Fahrt heute 20 Uhr Messe nach Bayerischer Hof, 2 Gäste, Fahrer Tim',
@@ -289,6 +332,10 @@ export const faelle = (): Fall[] => {
       { art: ['antwort', 'rueckfrage'], einesVon: ['stornier', 'bearbeiten'] }),
 
     // --- Fragen ---
+    // 13.11.: "noch im Dienst" heisst jetzt, nicht "von wann bis wann".
+    ein('Noch im Dienst ja', 'Fragen', 'Ist Stefano noch im Dienst?', { art: 'antwort', enthaelt: ['Ja', 'seit 08:00'] }),
+    ein('Noch im Dienst nein', 'Fragen', 'Ist Anna noch im Dienst', { art: 'antwort', enthaelt: ['Nein'] }),
+    ein('Irgendwer im Dienst', 'Fragen', 'Ist irgendein Fahrer aktuell noch im Dienst', { art: 'antwort', enthaelt: ['Stefano'] }),
     ein('Anzahl Fahrten heute', 'Fragen', 'Wie viele Fahrten haben wir heute?', { art: 'antwort', enthaelt: ['4'] }),
     ein('Fahrten eines Fahrers', 'Fragen', 'Welche Fahrten hat Stefano heute?', { art: 'antwort', enthaelt: ['10:30', '14:00'] }),
     ein('Wer fährt einen Gast', 'Fragen', 'Wer fährt Herrn Engel?', { art: 'antwort', enthaelt: ['Stefano'] }),
@@ -409,8 +456,10 @@ export const faelle = (): Fall[] => {
     { name: 'Dienste fuer ganze Woche, dann ja', gruppe: 'Fehlgriff', schritte: [
       { frage: 'Plan die Dienste für nächste Woche, jeden Tag 7 bis 15 für Tim', erwartet: { art: 'antwort', enthaelt: ['7 Dienste', 'Tim Schedler', '07:00', '15:00', 'ja'] } },
       { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['gesendet'], nicht: ['nicht gesendet'] } },
-      { frage: 'Lösch alle Dienste von Tim nächste Woche', erwartet: { art: 'antwort', enthaelt: ['ganzen Dienst löschen'] } },
-      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Dienst gelöscht', 'erledigt'] } },
+      { frage: 'Lösch alle Dienste von Tim nächste Woche', erwartet: { art: 'antwort', enthaelt: ['ganzen Dienst löschen', '7 Dienste', 'ja, löschen'] } },
+      // Ab 3 Diensten reicht ein blosses "ja" nicht (15.11.).
+      { frage: 'ja', erwartet: { art: 'antwort', enthaelt: ['Zur Sicherheit'], nicht: ['erledigt'] } },
+      { frage: 'ja, löschen', erwartet: { art: 'antwort', enthaelt: ['Dienst gelöscht', 'erledigt'] } },
     ] },
     ein('Dienste werktags', 'Fehlgriff', 'Tim nächste Woche werktags 8 bis 16', { art: 'antwort', enthaelt: ['5 Dienste'] }),
     ein('Notiz an Fahrt ist keine Gaeste-Frage', 'Fehlgriff', 'Gib der Fahrt von Herrn Engel die Notiz Kindersitz', { art: ['antwort', 'rueckfrage', 'fahrt_aendern'], nicht: ['keine besonderen Hinweise'] }),
@@ -535,5 +584,92 @@ export const faelle = (): Fall[] => {
       { frage: 'Verschieb die Fahrt von Stefano auf 16 Uhr', erwartet: { art: 'rueckfrage' } },
       { frage: 'die um 14 Uhr', erwartet: { art: 'fahrt_aendern', vorschlag: { fahrtId: ID.fahrtMueller, startZeit: '16:00' } } },
     ] },
+
+    // --- Mensch (15.11.): Fehler aus dem ki_protokoll und dem Test wie in der App (mensch-test.ts) ---
+    ein('Pause setzt kein Dienstende', 'Mensch', 'Pause für Anna morgen von 12 bis 12:30',
+      { art: 'dienst_vorschlag', vorschlag: { datum: morgen, pausen: '12:00-12:30', ende: null, start: null }, nicht: ['Dienstende'] }),
+    ein('Pause mit Dauer', 'Mensch', 'stefano 30 min pause um 13 uhr',
+      { art: 'dienst_vorschlag', vorschlag: { datum: heute, pausen: '13:00-13:30', ende: null }, nicht: ['Dienstende'] }),
+    ein('Pause jetzt', 'Mensch', 'tim macht jetzt pause',
+      { art: 'dienst_vorschlag', vorschlag: { datum: heute, ende: null, start: null, fahrer: 'Tim' }, enthaelt: ['Pause 11:'], nicht: ['Dienstende'] }),
+    ein('Tippfehler morgn', 'Mensch', 'tim morgn ab 7', { art: 'dienst_vorschlag', vorschlag: { datum: morgen, start: '07:00', fahrer: 'Tim' } }),
+    ein('Verhoert Dienst statt', 'Mensch', 'Schick Stefano Spandri den Dienst statt für 23:30 Uhr heute',
+      { art: 'dienst_vorschlag', vorschlag: { datum: heute, start: '23:30', ende: null } }),
+    // Wochentag von morgen und heute, damit der Fall an jedem Tag gilt (am 15.11. stand hier fest "Montag").
+    ein('Wochentag von morgen ist morgen', 'Mensch', `Habe ausversehen den Dienststart für alle am ${wochentag(morgen)} eingetragen um 10:30, bitte den löschen`,
+      { art: 'antwort', enthaelt: ['Anna Berger', 'morgen'] }),
+    ein('Wochentag von heute meint beim Löschen heute', 'Mensch', `Habe ausversehen den Dienststart für alle am ${wochentag(heute)} eingetragen, bitte den löschen`,
+      { art: 'antwort', enthaelt: ['Stefano Spandri', 'heute'] }),
+    ein('Kein Dienst am Tag, klarer Satz', 'Mensch', 'Lösch den Dienst von Marvin morgen', { art: 'antwort', enthaelt: ['Marvin Keller hat morgen keinen Dienst'] }),
+    ein('Fahrzeug-Frage nein', 'Mensch', 'Bekommt Tim den BMW', { art: 'antwort', enthaelt: ['Nein', 'Mercedes V-Klasse', 'M-TR 102'], nicht: ['Ja, Tim'] }),
+    ein('Fahrzeug-Frage ja', 'Mensch', 'Fährt Tim den Mercedes?', { art: 'antwort', enthaelt: ['Ja, Tim Schedler fährt Mercedes V-Klasse'] }),
+    ein('Wer fährt das Modell', 'Mensch', 'Wer fährt den X5', { art: 'antwort', enthaelt: ['BMW X5 (M-TR 103)', 'Anna Berger'] }),
+    ein('Fahrt am zum', 'Mensch', 'Stefano soll Heute um 20:30 Uhr am Flughafen München zum Flughafen in Salzburg fahren ohne Gast',
+      { art: 'fahrt_buchen', vorschlag: { datum: heute, startZeit: '20:30', start: 'Flughafen München', ziel: 'Salzburg', fahrerNamen: 'Stefano' }, nicht: ['ohne Gast', 'keine anstehende'] }),
+    ein('Fahrt mit allen ausser einem, frei gesagt', 'Mensch', 'Heute am Sonntag den 15. November alle Fahrer außer außer Marvin von der Messe München zum Flughafen München um 14:30',
+      { art: 'fahrt_buchen', vorschlag: { startZeit: '14:30', start: 'Messe', fahrerNamen: 'Tim' }, enthaelt: ['ohne Marvin'] }),
+    ein('Fahrt halb 4 klein getippt', 'Mensch', 'brauch ne fahrt um halb 4 vom bayerischen hof zum flughafen für herrn engel, tim fährt',
+      { art: 'fahrt_buchen', vorschlag: { startZeit: '15:30', start: 'Bayerischer Hof', fahrgaeste: 'Engel', fahrerNamen: 'Tim' } }),
+    { name: 'Zweite Fahrt ist eine neue', gruppe: 'Mensch', schritte: [
+      { frage: 'Erstelle eine Fahrt heute am Sonntag um 15:00 vom Hotel Bayerischer Hof zur Messe mit 3 Personen', erwartet: { art: 'fahrt_buchen', vorschlag: { startZeit: '15:00' } } },
+      { frage: 'Dann 17:00 Messe zu Flughafen München t2 1 Person mit Marvin als Fahrer  Der Gast ist sekura Jun',
+        erwartet: { art: 'fahrt_buchen', vorschlag: { startZeit: '17:00', start: 'Messe', fahrerNamen: 'Marvin' }, nicht: ['angepasst'] } },
+    ] },
+    { name: 'Korrektur bleibt Korrektur', gruppe: 'Mensch', schritte: [
+      { frage: 'Erstelle eine Fahrt heute um 15:00 vom Hotel Bayerischer Hof zur Messe mit 3 Personen', erwartet: { art: 'fahrt_buchen' } },
+      { frage: 'doch lieber 16 uhr', erwartet: { art: 'fahrt_buchen', vorschlag: { startZeit: '16:00', start: 'Bayerischer Hof' }, enthaelt: ['angepasst'] } },
+    ] },
+    { name: 'Buchen Schritt fuer Schritt, Heute ist kein Ziel', gruppe: 'Mensch', schritte: [
+      { frage: 'Buche', erwartet: { art: 'booking_needs_clarification' } },
+      { frage: 'Heute', erwartet: { art: 'booking_needs_clarification', nicht: ['nach Heute'] } },
+      { frage: 'Heute 20:30 Uhr', erwartet: { art: 'booking_needs_clarification', enthaelt: ['20:30'], nicht: ['nach Heute'] } },
+      { frage: 'vom Hauptbahnhof', erwartet: { art: 'booking_needs_clarification', enthaelt: ['Hauptbahnhof'] } },
+      { frage: 'zur Messe', erwartet: { art: 'fahrt_buchen', vorschlag: { startZeit: '20:30', start: 'Hauptbahnhof', ziel: 'Messe' } } },
+    ] },
+    { name: 'Getipptes Ja nach Karte erfindet nichts', gruppe: 'Mensch', schritte: [
+      { frage: 'Dienststart für Tim morgen um 7', erwartet: { art: 'dienst_vorschlag' } },
+      { frage: 'Ja', erwartet: { art: 'antwort', enthaelt: ['Knopf'], nicht: ['gesendet', 'geändert.'] } },
+      { frage: 'Ok dann schick Tim heim', erwartet: { art: 'dienst_vorschlag', vorschlag: { datum: heute, fahrer: 'Tim' }, enthaelt: ['Dienstende'] } },
+    ] },
+    ein('Zwei Dienste in einem Satz', 'Mensch', 'tim morgen 8 bis 16 und anna morgen 9 bis 17',
+      { art: 'dienst_vorschlag', vorschlag: { start: '08:00', ende: '16:00', fahrer: 'Tim' }, enthaelt: ['Noch nicht bearbeitet', 'anna morgen 9 bis 17'], nicht: ['Anna Berger'] }),
+    ein('Zwei Fahrer ein Dienst bleibt einer', 'Mensch', 'Tim und Anna morgen 8 bis 16',
+      { art: 'dienst_vorschlag', vorschlag: { start: '08:00', ende: '16:00', fahrer: 'Anna' }, nicht: ['Noch nicht bearbeitet'] }),
+    ein('Gruss ohne Modell', 'Mensch', 'Hallo', { art: ['antwort', 'rueckfrage'], enthaelt: ['Was kann ich für dich tun'] }),
+    // --- Härte (15.11.): Befunde aus dem Haertetest ---
+    { name: 'Neuer Auftrag statt ja', gruppe: 'Härte', schritte: [
+      { frage: 'Lösch den Dienst von Anna morgen', erwartet: { art: 'antwort', enthaelt: ['löschen?'] } },
+      { frage: 'Bitte gib Tim morgen 7 Uhr Dienststart', erwartet: { art: 'dienst_vorschlag', vorschlag: { start: '07:00', fahrer: 'Tim' }, enthaelt: ['verworfen'], nicht: ['gelöscht'] } },
+    ] },
+    { name: 'Nein plus neuer Auftrag', gruppe: 'Härte', schritte: [
+      { frage: 'Lösch den Dienst von Anna morgen', erwartet: { art: 'antwort' } },
+      { frage: 'Nein, gib ihr lieber Dienststart 9 Uhr morgen', erwartet: { art: 'dienst_vorschlag', vorschlag: { start: '09:00', fahrer: 'Anna' } } },
+    ] },
+    ein('Ohne Bezug keine erfundenen Zeiten', 'Härte', 'und für anna auch', { art: ['antwort', 'rueckfrage'], nicht: ['23:59', '00:00', 'alle 4 Fahrer'] }),
+    ein('Fahrt in der Vergangenheit warnt', 'Härte', 'Fahrt gestern um 9 vom Hauptbahnhof zum Flughafen', { art: 'fahrt_buchen', enthaelt: ['Vergangenheit'] }),
+    ein('Zuordnen frei gesagt', 'Härte', 'ordne Marvin das Auto M-TR 103 zu', { art: 'antwort', enthaelt: ['Marvin Keller', 'M-TR 103', 'ja'] }),
+    ein('Zuordnen ueber Modell', 'Härte', 'Marvin fährt ab jetzt den BMW X5', { art: 'antwort', enthaelt: ['Marvin Keller', 'M-TR 103'] }),
+    ein('Tracker ueber Modell', 'Härte', 'steck den Tracker 4 in den X5', { art: 'antwort', enthaelt: ['Tracker 4', 'M-TR 103'] }),
+    ein('Gast anlegen frei gesagt', 'Härte', 'leg einen gast an: Dr. Peter Lang, BMW, 0172 999888', { art: 'antwort', enthaelt: ['Neuer Gast', 'Peter Lang'] }),
+    ein('Kindersitz-Frage', 'Härte', 'braucht frau weber einen kindersitz', { art: 'antwort', enthaelt: ['Kindersitz'], nicht: ['nicht in den Daten', 'nicht vorhanden'] }),
+    ein('Bereitstehen ist Standby', 'Härte', 'Tim soll morgen von 10 bis 18 am Bayerischen Hof bereitstehen', { art: ['antwort', 'rueckfrage'], enthaelt: ['Standby', '10:00', '18:00', 'Tim'] }),
+    ein('Nachricht mit frei', 'Härte', 'Schreib allen dass morgen frei ist', { art: 'antwort', enthaelt: ['Push an alle', 'frei'], nicht: ['löschen'] }),
+    ein('Ausnahme nicht im Push-Text', 'Härte', 'Sag allen außer Tim, dass sie heute tanken sollen', { art: 'antwort', enthaelt: ['ohne Tim'], nicht: ['außer du', 'außer Tim,'] }),
+    // 16.11.: 24 Uhr, Fahrzeug nach Marke, Fragen ohne Bezug.
+    ein('24 Uhr als Ende', 'Härte', 'Dienstende für Tim heute 24 Uhr', { art: 'dienst_vorschlag', vorschlag: { ende: '00:00', fahrer: 'Tim' } }),
+    ein('Bis 24 Uhr', 'Härte', 'Tim Dienst morgen von 16 bis 24 Uhr', { art: 'dienst_vorschlag', vorschlag: { start: '16:00', ende: '00:00', fahrer: 'Tim' } }),
+    ein('24 Uhr als Beginn', 'Härte', 'Dienststart für Tim morgen um 24 Uhr', { art: 'antwort', enthaelt: ['nicht eindeutig'] }),
+    { name: 'Marke mit zwei Fahrzeugen', gruppe: 'Härte', schritte: [
+      { frage: 'Gib Tim den BMW', erwartet: { art: ['antwort', 'rueckfrage'], enthaelt: ['Welches Fahrzeug', 'M-TR 101', 'M-TR 103'] } },
+      { frage: 'den 7er', erwartet: { art: ['antwort', 'rueckfrage'], enthaelt: ['Tim Schedler bekommt BMW 7er', 'ja'] } },
+    ] },
+    ein('Frage ohne Bezug', 'Härte', 'Was macht der gerade', { art: ['antwort', 'rueckfrage'], enthaelt: ['Wen meinst du'], nicht: ['Stefano', 'Anna'] }),
+    { name: 'Folgefrage mit Bezug', gruppe: 'Härte', schritte: [
+      { frage: 'Wie viele Stunden hat Tim heute', erwartet: { art: 'antwort', enthaelt: ['Tim'] } },
+      { frage: 'Was macht der gerade', erwartet: { art: ['antwort', 'rueckfrage'], nicht: ['Wen meinst du'] } },
+    ] },
+    ein('Unbekannter Name', 'Härte', 'Wo ist der Band gerade', { art: ['antwort', 'rueckfrage'], enthaelt: ['„Band“ finde ich nicht'] }),
+    ein('Auftrag ohne Regel bleibt ehrlich', 'Mensch', 'Kannst du Tim auf die zwei Flughafen Fahrten hinzufügen?',
+      { art: ['antwort', 'rueckfrage', 'fahrt_aendern'], nicht: ['hinzugefügt', 'erledigt', 'wird gebucht'] }),
   ];
 };

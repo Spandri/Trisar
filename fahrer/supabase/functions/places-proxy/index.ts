@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { providerConfig } from '../_shared/provider-config.ts';
 import { recordUsageWithCost } from '../_shared/usage-tracking.ts';
-import { adressenPruefen, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
+import { adressenPruefen, routenPunkteLesen, tomtomRoute, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
 import { flughafenVorschlaege } from '../_shared/flughafen-vorschlaege.ts';
 
 const ensureEnv = (name: string) => {
@@ -84,6 +84,30 @@ Deno.serve(async (req) => {
       const schluessel = await tomtomSchluessel(adminClient);
       if (!schluessel || adressen.length === 0) return jsonResponse(200, { warnungen: [] });
       return jsonResponse(200, { warnungen: await adressenPruefen(adminClient, schluessel, adressen) });
+    }
+
+    // Routen-Editor der Dispo: Route mit Routenpunkten vorab rechnen, ohne zu speichern.
+    // adressen = Start, Zwischenstopps, Ziel. Nur angemeldet (kein anon).
+    if (body?.aktion === 'route_vorschau') {
+      if (!userId && tokenRole !== 'service_role') return jsonResponse(401, { error: 'Unauthorized' });
+      const adressen = Array.isArray(body?.adressen) ? body.adressen.map((t: unknown) => String(t ?? '').trim()).filter(Boolean).slice(0, 10) : [];
+      const schluessel = await tomtomSchluessel(adminClient);
+      if (!schluessel || adressen.length < 2) return jsonResponse(200, { ok: false, fehler: 'keine_route' });
+      const route = await tomtomRoute(adminClient, schluessel, adressen[0], adressen[adressen.length - 1], {
+        stopps: adressen.slice(1, -1),
+        routenPunkte: routenPunkteLesen(body?.punkte),
+      });
+      if (!route.ok) return jsonResponse(200, { ok: false, fehler: route.fehler || 'route_not_found' });
+      const p = route.payload as { von?: { lat: number; lon: number }; nach?: { lat: number; lon: number }; stopps?: Array<{ lat: number; lon: number }> };
+      const ort = (x?: { lat: number; lon: number }) => (x ? { lat: x.lat, lng: x.lon } : null);
+      return jsonResponse(200, {
+        ok: true,
+        polyline: route.polyline,
+        distanz_m: route.distanceM,
+        dauer_min: route.durationMins,
+        dauer_verkehr_min: route.durationInTrafficMins,
+        orte: [ort(p.von), ...(p.stopps || []).map(ort), ort(p.nach)],
+      });
     }
 
     const input = typeof body?.input === 'string' ? body.input.trim() : '';

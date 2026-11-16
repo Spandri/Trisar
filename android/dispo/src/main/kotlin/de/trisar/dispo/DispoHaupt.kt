@@ -79,7 +79,12 @@ fun DispoHaupt(anmeldung: Anmeldung) {
     /** Standby verschicken (setView('standbyAdd')) und offener Standby (setView('standby')). */
     var standbyNeu by rememberSaveable { mutableStateOf(false) }
     var offenerStandby by rememberSaveable { mutableStateOf<String?>(null) }
-    val standbyZeigen: (DispoZiel) -> Unit = { standbyNeu = false; offenerStandby = null; ziel = it }
+    /** Dienstreise verschicken (setView('dienstreiseAdd')) und offene Dienstreise (setView('dienstreise')). */
+    var dienstreiseNeu by rememberSaveable { mutableStateOf(false) }
+    var offeneDienstreise by rememberSaveable { mutableStateOf<String?>(null) }
+    val standbyZeigen: (DispoZiel) -> Unit = {
+        standbyNeu = false; offenerStandby = null; dienstreiseNeu = false; offeneDienstreise = null; ziel = it
+    }
     // Tipp auf eine Mitteilung: Fahrt, Fahrzeuge, Fahrer oder Fahrten oeffnen.
     val pushZiel by de.trisar.kern.Push.ziel.collectAsState()
     androidx.compose.runtime.LaunchedEffect(pushZiel) {
@@ -99,9 +104,12 @@ fun DispoHaupt(anmeldung: Anmeldung) {
     }
 
     // Android-Zurueck: erst den Editor schliessen, dann zur Startseite.
-    BackHandler(enabled = gaesteImport || bearbeiteteFahrt != null || standbyNeu || offenerStandby != null || ziel != DispoZiel.START) {
+    BackHandler(enabled = gaesteImport || bearbeiteteFahrt != null || standbyNeu || offenerStandby != null
+        || dienstreiseNeu || offeneDienstreise != null || ziel != DispoZiel.START) {
         when {
             gaesteImport -> gaesteImport = false
+            offeneDienstreise != null -> offeneDienstreise = null
+            dienstreiseNeu -> dienstreiseNeu = false
             offenerStandby != null -> offenerStandby = null
             standbyNeu -> standbyNeu = false
             bearbeiteteFahrt != null -> bearbeiteteFahrt = null
@@ -118,11 +126,12 @@ fun DispoHaupt(anmeldung: Anmeldung) {
                 DispoZiel.FAHRZEUGE -> FahrzeugBereich(zeigen)
                 DispoZiel.KUNDEN -> KundenBereich(zeigen, importieren = { gaesteImport = true })
                 DispoZiel.PROFIL -> KoordinatorProfil(zeigen)
-                DispoZiel.FAHRTEN -> FahrtenSeite(zeigen, oeffneFahrt) { offenerStandby = it }
+                DispoZiel.FAHRTEN -> FahrtenSeite(zeigen, oeffneFahrt, { offenerStandby = it }, { offeneDienstreise = it })
                 DispoZiel.KARTE -> DispoKarteSeite(zeigen)
                 DispoZiel.PLANUNG -> PlanungSeite(zeigen, oeffneFahrt)
                 DispoZiel.KI_ASSISTENT -> KiAssistentSeite(zeigen, oeffneFahrt)
-                DispoZiel.FAHRT_NEU -> FahrtFormularSeite(fahrtID = null, zurueck = { ziel = DispoZiel.START }, zeigen = zeigen, standbyWahl = { standbyNeu = true })
+                DispoZiel.FAHRT_NEU -> FahrtFormularSeite(fahrtID = null, zurueck = { ziel = DispoZiel.START }, zeigen = zeigen, standbyWahl = { standbyNeu = true },
+                    dienstreiseWahl = { dienstreiseNeu = true })
             }
         }
         // Editor liegt als eigene Seite darueber, ohne Hochschieben (wie setView im Web).
@@ -134,6 +143,7 @@ fun DispoHaupt(anmeldung: Anmeldung) {
             de.trisar.dispo.standby.StandbyNeuSeite(
                 zurueck = { standbyNeu = false; ziel = DispoZiel.FAHRTEN },
                 zurFahrt = { standbyNeu = false; ziel = DispoZiel.FAHRT_NEU },
+                zurDienstreise = { standbyNeu = false; dienstreiseNeu = true },
                 gesendet = { id -> standbyNeu = false; ziel = DispoZiel.FAHRTEN; offenerStandby = id },
                 zeigen = standbyZeigen,
             )
@@ -141,6 +151,21 @@ fun DispoHaupt(anmeldung: Anmeldung) {
         offenerStandby?.let { id ->
             key("standby-$id") {
                 de.trisar.dispo.standby.StandbyBearbeitenSeite(id, zurueck = { offenerStandby = null; ziel = DispoZiel.FAHRTEN }, zeigen = standbyZeigen)
+            }
+        }
+        // Dienstreise verschicken ebenso ueber "Fahrt hinzufuegen", die offene Dienstreise ueber allem.
+        if (dienstreiseNeu) {
+            de.trisar.dispo.dienstreise.DienstreiseNeuSeite(
+                zurueck = { dienstreiseNeu = false; ziel = DispoZiel.FAHRTEN },
+                zurFahrt = { dienstreiseNeu = false; ziel = DispoZiel.FAHRT_NEU },
+                zuStandby = { dienstreiseNeu = false; standbyNeu = true },
+                gesendet = { id -> dienstreiseNeu = false; ziel = DispoZiel.FAHRTEN; offeneDienstreise = id },
+                zeigen = standbyZeigen,
+            )
+        }
+        offeneDienstreise?.let { id ->
+            key("dienstreise-$id") {
+                de.trisar.dispo.dienstreise.DienstreiseBearbeitenSeite(id, zurueck = { offeneDienstreise = null; ziel = DispoZiel.FAHRTEN }, zeigen = standbyZeigen)
             }
         }
         if (gaesteImport) {

@@ -56,11 +56,12 @@ struct FahrerBereichAnsicht: View {
             seite = .ansicht(f)
         }
         .onDisappear { Task { await liste.stoppen() } }
-        // Ist die Mehrfachauswahl der Karte an, gilt eine Aenderung hier auch dort
-        // (und damit fuer Fahrzeuge, Fahrten, Fahrt anlegen und KI-Assistent).
-        .onChange(of: markiert) { _, ids in
+        // Die Auswahl hier gilt als Markierung in der ganzen Dispo (Karte, Fahrzeuge, Fahrten, Fahrt anlegen,
+        // KI-Assistent), auch wenn die Mehrfachauswahl der Karte aus ist (14.11., wie AlleFahrer.jsx).
+        // Auswahlmodus der Liste ist an, sobald jemand ausgewaehlt ist.
+        .onChange(of: markiert) { alt, ids in
             let m = FahrerMarkierung.geteilt
-            guard m.aktiv else { return }
+            guard m.aktiv || !ids.isEmpty || !alt.isEmpty else { return }
             m.ersetzen(ids.map { id in
                 let alt = m.fahrer.first { $0.id == id }
                 let name = liste.fahrer.first { $0.id == id }?.name ?? ""

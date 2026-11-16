@@ -10,6 +10,7 @@
 // Nach jeder Aenderung am Assistenten laufen lassen, damit nichts Altes kaputtgeht.
 
 // deno-lint-ignore-file no-explicit-any
+import './uhr.ts';
 import { kiFrage, antwortArt } from '../../fahrer/supabase/functions/dispo-admin/ki.ts';
 import { SpeicherDb } from './speicherDb.ts';
 import { ID, testdaten } from './testdaten.ts';
@@ -22,6 +23,8 @@ const ollama = arg('ollama', 'http://localhost:11434');
 const nur = arg('nur', '');
 // --verstehen=qwen2.5:14b: Absicht per Modell (verstehen.ts), sonst nur Regeln.
 const verstehen = arg('verstehen', '');
+// --modus=frei: wie die App mit Umschalter "Frei" (Standard dort). Fragen gehen dann nach den Regeln ans freie Modell.
+const modus = arg('modus', '');
 
 const NAMEN: Record<string, string> = { [ID.tim]: 'Tim Schedler', [ID.marvin]: 'Marvin Keller', [ID.stefano]: 'Stefano Spandri', [ID.anna]: 'Anna Berger' };
 
@@ -93,7 +96,8 @@ const pruefen = (daten: any, e: Erwartung): string[] => {
 type Ergebnis = { fall: string; gruppe: string; schritt: number; frage: string; ok: boolean; fehler: string[]; art: string; antwort: string; felder: Record<string, string>; ms: number };
 const ergebnisse: Ergebnis[] = [];
 
-const alle = faelle().filter((f) => !nur || f.gruppe === nur);
+// Nacht-Faelle nur gezielt mit --nur=Nacht --uhr=01:30, sonst passt die Testuhr (11:00) nicht.
+const alle = faelle().filter((f) => (nur ? f.gruppe === nur : f.gruppe !== 'Nacht'));
 console.log(`KI-Testsatz: ${alle.length} Fälle, Modell ${modell}, Ollama ${ollama}\n`);
 
 for (const fall of alle) {
@@ -107,6 +111,7 @@ for (const fall of alle) {
       aktion: 'ki_frage', frage: s.frage, verlauf, kontext, offenerVorschlag, letzteFahrtId,
       markierteFahrer: (s.markiert || []).map((id) => ({ id, name: NAMEN[id] || '' })),
       ...(s.karten ? { karten: true } : {}),
+      ...(modus ? { modus } : {}),
     };
     const beginn = Date.now();
     let daten: any;

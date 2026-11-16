@@ -232,6 +232,17 @@ export const adressenPruefen = async (
   return warnungen;
 };
 
+// Routenpunkt der Dispo (jobs.routen_punkte): nach = Abschnitt, 0 = Start bis erster Stopp, k = nach Stopp k.
+export type RoutenPunkt = { lat: number; lng: number; nach: number };
+
+export const routenPunkteLesen = (wert: unknown): RoutenPunkt[] => (
+  Array.isArray(wert)
+    ? wert.map((p) => ({ lat: Number(p?.lat), lng: Number(p?.lng ?? p?.lon), nach: Math.max(0, Math.floor(Number(p?.nach) || 0)) }))
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180)
+      .slice(0, 8)
+    : []
+);
+
 export type TomtomRoute = {
   ok: boolean;
   httpStatus: number;
@@ -251,7 +262,7 @@ export const tomtomRoute = async (
   schluessel: string,
   von: string,
   nach: string,
-  optionen: { stopps?: string[]; ohneAnker?: boolean } = {},
+  optionen: { stopps?: string[]; ohneAnker?: boolean; routenPunkte?: RoutenPunkt[] } = {},
 ): Promise<TomtomRoute> => {
   const leer = { distanceM: 0, durationMins: 0, durationInTrafficMins: 0, polyline: null, payload: {} };
   const stopps = (optionen.stopps || []).map((t) => t.trim()).filter(Boolean);
@@ -262,7 +273,15 @@ export const tomtomRoute = async (
   const a = wegpunkte[0] as Punkt;
   const b = wegpunkte[wegpunkte.length - 1] as Punkt;
   const stoppPunkte = wegpunkte.slice(1, -1) as Punkt[];
-  const url = `https://api.tomtom.com/routing/1/calculateRoute/${(wegpunkte as Punkt[]).map((p) => `${p.lat},${p.lon}`).join(':')}/json`
+  // Routenpunkte der Dispo in ihren Abschnitt einreihen: Start, Punkte(0), Stopp 1, Punkte(1), ..., Ziel.
+  const routenPunkte = (optionen.routenPunkte || []).map((p) => ({ ...p, nach: Math.min(p.nach, stoppPunkte.length) }));
+  const folge: Punkt[] = [a];
+  for (let abschnitt = 0; abschnitt <= stoppPunkte.length; abschnitt += 1) {
+    routenPunkte.filter((p) => p.nach === abschnitt).forEach((p) => folge.push({ lat: p.lat, lon: p.lng }));
+    if (abschnitt < stoppPunkte.length) folge.push(stoppPunkte[abschnitt]);
+  }
+  folge.push(b);
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/${folge.map((p) => `${p.lat},${p.lon}`).join(':')}/json`
     + `?key=${schluessel}&traffic=true&travelMode=car&routeRepresentation=polyline&computeTravelTimeFor=all`;
   const res = await fetch(url);
   const json = await res.json().catch(() => ({}));
@@ -283,6 +302,10 @@ export const tomtomRoute = async (
     durationInTrafficMins: Math.ceil(mitVerkehr / 60),
     polyline: punkte.length >= 2 ? kodierePolyline(punkte) : null,
     // Nur die Zusammenfassung speichern, die Punkte stehen schon in der Linie.
-    payload: { provider: TOMTOM_PROVIDER, summary: s, von: a, nach: b, ...(stoppPunkte.length ? { stopps: stoppPunkte } : {}) },
+    payload: {
+      provider: TOMTOM_PROVIDER, summary: s, von: a, nach: b,
+      ...(stoppPunkte.length ? { stopps: stoppPunkte } : {}),
+      ...(routenPunkte.length ? { routen_punkte: routenPunkte } : {}),
+    },
   };
 };

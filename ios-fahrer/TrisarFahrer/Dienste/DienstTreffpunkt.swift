@@ -46,6 +46,11 @@ struct DienstTreffpunkt: Decodable, Equatable {
 
     /// Graues Icon wie bei Start und Ziel einer Fahrt: eigener Ort mit seinem Icon, sonst nach dem Namen.
     @MainActor func iconGrau(_ orte: OrteSpeicher = .geteilt) -> String {
+        Self.icon(ortID: ortID, name: name, adresse: adresse, orte: orte)
+    }
+
+    /// Gleiche Regel fuer andere Orte (Ziel einer Dienstreise, treffpunktIcon im Web).
+    @MainActor static func icon(ortID: UUID?, name: String, adresse: String, orte: OrteSpeicher = .geteilt) -> String {
         if let eigenes = orte.iconGrau(ortID) { return eigenes }
         let text = "\(name) \(adresse)".lowercased()
         if text.range(of: #"\b(hotel|hof|resort|hostel|inn|motel|suite|residence)\b"#, options: .regularExpression) != nil {

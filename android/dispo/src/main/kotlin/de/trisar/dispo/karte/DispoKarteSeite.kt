@@ -179,6 +179,12 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
         val ids = Flaggen.alle.map { it.id }.filter { it in flaggenFilter }
         val mit = daten.fahrer.filter { it.flagge in ids }.map { FahrerMarkierung.Eintrag(it.id, it.name) }
         FahrerMarkierung.flaggenSetzen(ids, mit)
+        // Alle Fahrer mit diesen Flaggen, nicht nur die mit Standort auf der Karte (14.11.).
+        if (ids.isEmpty()) return@LaunchedEffect
+        val alle = FahrerMarkierung.mitFlaggenLaden(ids) ?: return@LaunchedEffect
+        val nachID = LinkedHashMap(mit.associateBy { it.id })
+        alle.forEach { p -> if (p.id !in nachID) nachID[p.id] = p }
+        FahrerMarkierung.flaggenSetzen(ids, nachID.values.toList())
     }
     LaunchedEffect(benutzteFlaggen) { if (flaggenFilter.any { it !in benutzteFlaggen }) flaggenFilter = flaggenFilter.filter { it in benutzteFlaggen }.toSet() }
     var erklaerungSichtbar by remember { mutableStateOf(false) }
@@ -206,10 +212,20 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
             .filter { it.isNotEmpty() }.joinToString(" ").lowercase()
         begriffe.any { heu.contains(it) }
     }
-    val gefiltert = passende.filter { it.zustand in schnellFilter }
+    // Lange ohne Signal (Schwelle im Karten-Filter): weg von der Karte, ausser gezielt ausgewaehlt oder "trotzdem zeigen".
+    LaunchedEffect(Unit) { OhneSignal.laden(ctx) }
+    var signalUhr by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000); signalUhr = System.currentTimeMillis() } }
+    val langeOhneSignal = passende.filter { OhneSignal.zuLange(it, signalUhr) }
+    val ohneSignalAusblenden = !OhneSignal.zeigen && ids.isEmpty() && langeOhneSignal.isNotEmpty()
+    val sichtbar = if (!ohneSignalAusblenden) passende else {
+        val weg = langeOhneSignal.map { it.id }.toSet()
+        passende.filter { it.id !in weg }
+    }
+    val gefiltert = sichtbar.filter { it.zustand in schnellFilter }
         .filter { kartenAuswahl || flaggenFilter.isEmpty() || it.flagge in flaggenFilter }
     val gewaehlt = gefiltert.firstOrNull { it.id == gewaehltID }
-    val zaehler = passende.filter { kartenAuswahl || flaggenFilter.isEmpty() || it.flagge in flaggenFilter }.groupingBy { it.zustand }.eachCount()
+    val zaehler = sichtbar.filter { kartenAuswahl || flaggenFilter.isEmpty() || it.flagge in flaggenFilter }.groupingBy { it.zustand }.eachCount()
 
     // selectedDriverForSheet: fehlt die Ankunft, aus Abfahrt + Fahrdauer der Route.
     val blattFahrer = gewaehlt?.let { g ->
@@ -266,6 +282,11 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
         }
     }
 
+    // Fahrer auf Dienstreise (14.11.): statt des Pins das Fahrzeug auf der Strecke.
+    val reisen = de.trisar.dispo.dienstreise.rememberKartenReisen(daten.fahrer, blattFahrer)
+    // Solange das Blatt eine Dienstreise zeigt, keine Anfahrt-Route zur spaeteren Fahrt (sonst zwei Linien).
+    val blattZeigtReise = blattFahrer != null && de.trisar.dispo.dienstreise.blattReise(blattFahrer) != null
+
     BoxWithConstraints(Modifier.fillMaxSize().background(hex(0x0E0E0E))) {
         val rasterHoehe = maxHeight.value
         val blattMax = max(BLATT_MIN, rasterHoehe - BLATT_UNTEN - 54f)
@@ -273,12 +294,13 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
 
         DispoKarte(
             KartenStand(
-                fahrer = gefiltert, gewaehlt = gewaehlt, route = route,
+                fahrer = gefiltert, gewaehlt = gewaehlt, route = if (blattZeigtReise) null else route,
                 blattHoehe = if (gewaehlt == null) 0f else blattHoehe,
                 rasterHoehe = rasterHoehe, einpassenSignal = einpassen,
                 orte = EigeneOrte.liste, ortGewaehlt = ortGewaehlt,
                 markiert = markierteIDs,
                 bereich = KartenBereich.punkte,
+                reisen = reisen,
             ),
             steuerung = { if (kartenSteuerung !== it) kartenSteuerung = it },
             waehlen = { id ->
@@ -429,6 +451,18 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                 )
             }
 
+            // Hinweis unter der Statusleiste: so viele lange ohne Signal ausgeblendet, Tippen oeffnet den Filter.
+            if (!kartenAuswahl && ohneSignalAusblenden) {
+                Box(
+                    Modifier.platz(20f, 196f, null, 30f).zIndex(31f).background(Color.Black)
+                        .border(1.dp, LIME.copy(alpha = 0.5f)).tippen { filterOffen = true }
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("${langeOhneSignal.size} ohne Signal ausgeblendet ›", style = grotesk(12f, 500, abstand = 0.3f, farbe = LIME), maxLines = 1)
+                }
+            }
+
             // Flaggen (Figma 2832:12528): unter den Knoepfen, nur im Auswahlmodus.
             if (kartenAuswahl) {
                 FlaggenKnoepfe(
@@ -499,7 +533,7 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
             }
         }
 
-        if (filterOffen) KartenFilterSeite(zurueck = { filterOffen = false })
+        if (filterOffen) KartenFilterSeite(zurueck = { filterOffen = false }, langeOhneSignal = langeOhneSignal)
     }
 }
 
@@ -661,36 +695,77 @@ private fun FahrerBlatt(
             // Uhrzeit des letzten Signals, rot sobald seit 5 Minuten nichts mehr kam.
             TextZeile(fahrer.signalText, grotesk(16f, 700, abstand = -0.3f, farbe = hex(fahrer.signalFarbe)),
                 Modifier.padding(top = 12.dp).fillMaxWidth(), hoehe = 18f)
-            TextZeile("Nächste Fahrt", grotesk(22f, 700, abstand = -1f, farbe = LIME), Modifier.padding(top = 6.dp), hoehe = 21f)
+            // Dienstreise (14.11.): laeuft gerade oder kommt heute vor der naechsten Fahrt, dann statt der Fahrt.
+            var uhr by remember { mutableLongStateOf(System.currentTimeMillis()) }
+            LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000); uhr = System.currentTimeMillis() } }
+            val reise = de.trisar.dispo.dienstreise.blattReise(fahrer, uhr)
 
-            if (info.hatFahrt) {
-                val fahrText = when {
-                    info.fahrMinuten > 0 -> "-${info.fahrMinuten} min Fahrt"
-                    info.unterwegs && info.ankunft != "--:--" -> "-<1 min Fahrt"
-                    else -> "- min Fahrt"
+            if (reise != null) {
+                Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextZeile("Dienstreise", grotesk(22f, 700, abstand = -1f, farbe = LIME), hoehe = 21f)
+                    Icon("Rollkoffer_Trisar_Icons_01_Lime", Modifier.size(20.dp))
                 }
-                ZeitPaar("ETD" to info.abfahrt, "ETA" to info.ankunft, fahrText, Modifier.padding(top = 12.dp))
+                ZeitPaar("START" to reise.start, "ANKUNFT" to reise.ankunft, reise.unter.ifEmpty { null }, Modifier.padding(top = 12.dp),
+                    spaetLinks = reise.startSpaet, spaetRechts = reise.ankunftSpaet)
 
                 Row(Modifier.padding(top = 24.dp).width(362.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OrtKachel(info.von.icon)
+                    OrtKachel(reise.icon)
                     Box(Modifier.weight(1f).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
                         Icon("Arrow_Trisar_Icons_01_Lime", Modifier.size(59.dp, 38.dp))
                     }
-                    OrtKachel(info.nach.icon)
+                    OrtKachel("Pin_Nav_Trisar_Icons_01_grau")
                 }
 
                 Row(Modifier.padding(top = 12.dp).width(362.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    OrtText(info.von, rechts = false, Modifier.weight(1f))
-                    OrtText(info.nach, rechts = true, Modifier.weight(1f))
+                    OrtText(KartenOrt("Start", null, reise.vonName), rechts = false, Modifier.weight(1f))
+                    OrtText(KartenOrt("Ziel", null, reise.nachName), rechts = true, Modifier.weight(1f))
+                }
+
+                if (reise.jetztTitel != null) {
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = LIME)) { append(reise.jetztTitel) }
+                            withStyle(SpanStyle(color = Color.White)) { append("  " + reise.jetztText) }
+                            if (reise.spaet != null) withStyle(SpanStyle(color = hex(0xF0997B))) { append(" +${reise.spaet}") }
+                        },
+                        style = grotesk(14f, 700, abstand = -0.3f, farbe = Color.White), maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 16.dp).width(362.dp)
+                            .background(hex(0x242525), RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+                    )
                 }
             } else {
-                // Ohne laufende oder naechste Fahrt: Hinweis statt leerer Zeiten und Orte.
-                Column(
-                    Modifier.padding(top = 12.dp).width(362.dp).background(hex(0x242525), RoundedCornerShape(16.dp)).padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text("Keine Fahrt geplant", style = grotesk(22f, 700, abstand = -0.8f, farbe = hex(0xF4F5F4)))
-                    Text("Gerade steht keine weitere Fahrt für diesen Fahrer an.", style = grotesk(14f, 700, abstand = -0.3f, farbe = GRAU))
+                TextZeile("Nächste Fahrt", grotesk(22f, 700, abstand = -1f, farbe = LIME), Modifier.padding(top = 6.dp), hoehe = 21f)
+
+                if (info.hatFahrt) {
+                    val fahrText = when {
+                        info.fahrMinuten > 0 -> "-${info.fahrMinuten} min Fahrt"
+                        info.unterwegs && info.ankunft != "--:--" -> "-<1 min Fahrt"
+                        else -> "- min Fahrt"
+                    }
+                    ZeitPaar("ETD" to info.abfahrt, "ETA" to info.ankunft, fahrText, Modifier.padding(top = 12.dp))
+
+                    Row(Modifier.padding(top = 24.dp).width(362.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OrtKachel(info.von.icon)
+                        Box(Modifier.weight(1f).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                            Icon("Arrow_Trisar_Icons_01_Lime", Modifier.size(59.dp, 38.dp))
+                        }
+                        OrtKachel(info.nach.icon)
+                    }
+
+                    Row(Modifier.padding(top = 12.dp).width(362.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        OrtText(info.von, rechts = false, Modifier.weight(1f))
+                        OrtText(info.nach, rechts = true, Modifier.weight(1f))
+                    }
+                } else {
+                    // Ohne laufende oder naechste Fahrt: Hinweis statt leerer Zeiten und Orte.
+                    Column(
+                        Modifier.padding(top = 12.dp).width(362.dp).background(hex(0x242525), RoundedCornerShape(16.dp)).padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text("Keine Fahrt geplant", style = grotesk(22f, 700, abstand = -0.8f, farbe = hex(0xF4F5F4)))
+                        Text("Gerade steht keine weitere Fahrt für diesen Fahrer an.", style = grotesk(14f, 700, abstand = -0.3f, farbe = GRAU))
+                    }
                 }
             }
 
@@ -700,15 +775,29 @@ private fun FahrerBlatt(
 }
 
 @Composable
-private fun ZeitPaar(links: Pair<String, String>, rechts: Pair<String, String>, unterRechts: String?, modifier: Modifier) {
+private fun ZeitPaar(
+    links: Pair<String, String>, rechts: Pair<String, String>, unterRechts: String?, modifier: Modifier,
+    /** Dienstreise (14.11.): Verspaetung in Minuten, dann Zeit in Orange mit Kachel "+5" daneben. */
+    spaetLinks: Int = 0, spaetRechts: Int = 0,
+) {
     Row(modifier.width(362.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             TextZeile(links.first, grotesk(12f, 700, abstand = -0.3f, farbe = GRAU), hoehe = 12f)
-            TextZeile(links.second, grotesk(42f, 700, abstand = -1f, farbe = LIME), hoehe = 38f)
+            if (spaetLinks > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextZeile(links.second, grotesk(42f, 700, abstand = -1f, farbe = de.trisar.kern.ReiseZeiten.ORANGE), hoehe = 38f)
+                    de.trisar.kern.VerspaetungKachel(spaetLinks)
+                }
+            } else TextZeile(links.second, grotesk(42f, 700, abstand = -1f, farbe = LIME), hoehe = 38f)
         }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
             TextZeile(rechts.first, grotesk(12f, 700, abstand = -0.3f, farbe = GRAU), hoehe = 12f, ausrichtung = Alignment.CenterEnd)
-            TextZeile(rechts.second, grotesk(42f, 700, abstand = -1f, farbe = LIME), Modifier.padding(top = 8.dp), hoehe = 38f, ausrichtung = Alignment.CenterEnd)
+            if (spaetRechts > 0) {
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextZeile(rechts.second, grotesk(42f, 700, abstand = -1f, farbe = de.trisar.kern.ReiseZeiten.ORANGE), hoehe = 38f, ausrichtung = Alignment.CenterEnd)
+                    de.trisar.kern.VerspaetungKachel(spaetRechts)
+                }
+            } else TextZeile(rechts.second, grotesk(42f, 700, abstand = -1f, farbe = LIME), Modifier.padding(top = 8.dp), hoehe = 38f, ausrichtung = Alignment.CenterEnd)
             if (unterRechts != null) {
                 Text(unterRechts, style = grotesk(12f, 700, abstand = -0.5f, farbe = hex(0xF4F5F4, 0.5f)), modifier = Modifier.padding(top = 6.dp), maxLines = 1)
             }

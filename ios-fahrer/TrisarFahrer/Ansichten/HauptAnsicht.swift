@@ -9,15 +9,19 @@ struct HauptAnsicht: View {
     @State private var offeneFahrt: Fahrt?
     /// Angetippter Dienststart mit Treffpunkt (Karte, Ort und Notiz wie bei einer Fahrt).
     @State private var offenerDienst: DienstAnfrage?
+    /// Angetippte Dienstreise (Karte mit Strecke, Abfahrt, Ankunft).
+    @State private var offeneReise: DienstreiseSpeicher.Reise?
     @State private var supportOffen = false
     @State private var fahrzeugOffen = false
     @ObservedObject private var stunden = StundenSpeicher.shared
     @ObservedObject private var standby = StandbySpeicher.shared
+    @ObservedObject private var dienstreise = DienstreiseSpeicher.shared
 
     /// Offene Dienstanfrage oder angenommener Dienst ab heute: Liste statt "Keine Fahrt"
     /// (sonst sah der Fahrer nach der Push nichts, wenn er an dem Tag keine Fahrten hat, 12.11.).
     private var dienstSichtbar: Bool {
-        standby.sichtbar || speicher.dienstAnfragen.contains { a in
+        // Eine offene Dienstreise zaehlt als sichtbar, damit nicht "Keine Fahrt" kommt.
+        dienstreise.sichtbar || standby.sichtbar || speicher.dienstAnfragen.contains { a in
             guard a.angenommen else { return true }
             // Angenommen: bis Dienstende (Nachtdienst: Folgetag).
             let tag = String((a.service_date ?? "").prefix(10))
@@ -43,7 +47,8 @@ struct HauptAnsicht: View {
                     oeffneProfil: { profilOffen = true },
                     oeffneFahrzeug: { fahrzeugOffen = true },
                     oeffneFahrt: { offeneFahrt = $0 },
-                    oeffneDienst: { offenerDienst = $0 }
+                    oeffneDienst: { offenerDienst = $0 },
+                    oeffneReise: { offeneReise = $0 }
                 )
             }
         }
@@ -53,6 +58,7 @@ struct HauptAnsicht: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             Task { await stunden.laden() }
             Task { await standby.laden() }
+            Task { await dienstreise.laden() }
         }
         .webVollbild(isPresented: $profilOffen) {
             ProfilFluss { profilOffen = false }
@@ -73,6 +79,9 @@ struct HauptAnsicht: View {
         .webVollbild(item: $offenerDienst) { dienst in
             DienstStartAnsicht(dienstID: dienst.id) { offenerDienst = nil }
                 .environmentObject(speicher)
+        }
+        .webVollbild(item: $offeneReise) { reise in
+            DienstreiseAnsicht(reiseID: reise.id) { offeneReise = nil }
         }
         .webVollbild(item: $offeneFahrt) { fahrt in
             if let fahrer = anmeldung.fahrerID {

@@ -120,7 +120,19 @@ object Routen {
 
     // MARK: Adresse -> Punkt
 
+    /**
+     * Koordinaten als Text ("48.1372, 11.6981", gleiche Regel wie der Server in tomtom-routing.ts).
+     * Werden direkt genommen, ohne Nominatim (das rueckt aufs naechste Gebaeude, rund 100 m daneben).
+     */
+    fun koordinatenAusText(text: String): GeoPunkt? {
+        val treffer = Regex("""^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$""").find(text) ?: return null
+        val lat = treffer.groupValues[1].toDoubleOrNull() ?: return null
+        val lng = treffer.groupValues[2].toDoubleOrNull() ?: return null
+        return if (kotlin.math.abs(lat) <= 90 && kotlin.math.abs(lng) <= 180) GeoPunkt(lat, lng) else null
+    }
+
     suspend fun punkt(ctx: Context, text: String): GeoPunkt? {
+        koordinatenAusText(text)?.let { return it }
         val schluessel = text.trim().lowercase().replace(Regex("\\s+"), " ")
         if (schluessel.isEmpty()) return null
         val gemerkt = orteLaden(ctx)

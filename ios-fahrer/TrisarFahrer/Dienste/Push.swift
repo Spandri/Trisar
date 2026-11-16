@@ -170,7 +170,7 @@ enum PushArten {
         Gruppe(id: "fahrten", titel: "Neue, geänderte und stornierte Fahrten",
                arten: ["fahrt_neu", "fahrt_geaendert", "fahrt_storniert", "fahrt_entzogen", "gaeste_geaendert", "fahrt_fahrzeug"]),
         Gruppe(id: "flug", titel: "Flug und Zug (Verspätung, Landung)",
-               arten: ["flug_zeit", "flug_gelandet", "flug_annulliert", "flug_umgeleitet", "zug_zeit"]),
+               arten: ["flug_zeit", "flug_gelandet", "flug_annulliert", "flug_umgeleitet", "zug_zeit", "reise_verspaetung", "reise_gleis"]),
         Gruppe(id: "chat", titel: "Kolonnen-Chat", arten: ["chat"]),
         Gruppe(id: "notiz", titel: "Notizen zur Fahrt", arten: ["notiz"]),
         Gruppe(id: "dienst", titel: "Dienstplan", arten: ["dienst_neu", "dienst_geaendert", "dienst_zurueck"]),

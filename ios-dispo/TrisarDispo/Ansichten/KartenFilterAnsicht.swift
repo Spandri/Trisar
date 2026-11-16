@@ -7,17 +7,25 @@ struct KartenFilterAnsicht: View {
     @ObservedObject var filter: KartenFilter
     let zurueck: () -> Void
     @StateObject private var stufen = TrackerStufenModell()
+    @StateObject private var dienststart = DienststartVorlaufModell()
     @ObservedObject private var orte = OrteSpeicher.geteilt
+    @ObservedObject private var ohneSignal = OhneSignalEinstellung.geteilt
+    /// Gerade lange ohne Signal (fuer die Zeile unter dem Schalter), von der Karte mitgegeben.
+    var langeOhneSignal: [KartenFahrer] = []
     @State private var ortEditor: OrtEditorZiel?
     private static let lime = Color(hex: 0xE3F654)
 
     // Wie im Web: Abschnitt "Punkte bei Fahrt" unter Feierabend (Web top 462, hier +20),
     // die Knoepfe darunter rutschen mit.
-    private var stufeTop: CGFloat { 482 }
+    /// Abschnitt "Ohne Signal ausblenden nach" unter Feierabend (Web 462 + 20), feste Hoehe 180.
+    /// Abschnitt "Dienststart automatisch" direkt unter Feierabend (Web 462 + 20), feste Hoehe 132.
+    private var dienststartTop: CGFloat { 482 }
+    private var ohneSignalTop: CGFloat { dienststart.verfuegbar ? dienststartTop + 132 : dienststartTop }
+    private var stufeTop: CGFloat { ohneSignalTop + 136 }
     private var stufeZeilenTop: CGFloat { stufeTop + 32 + 40 + 12 }
     /// Bereich "Orte" unter "Punkte bei Fahrt" (ohne Tracker gleich unter Feierabend).
     private var orteTop: CGFloat {
-        guard !stufen.tracker.isEmpty else { return 482 }
+        guard !stufen.tracker.isEmpty else { return stufeTop }
         return stufeZeilenTop + CGFloat(stufen.tracker.count + (stufen.fehler == nil ? 0 : 1)) * 24 + 20
     }
     private var speichernTop: CGFloat { orteTop + OrteAbschnitt.hoehe(anzahl: orte.orte.count) + 32 }
@@ -40,6 +48,38 @@ struct KartenFilterAnsicht: View {
                     ZweierKnopf(text: "Coupe", an: $filter.coupe).platz(207, 338, 175, 40)
 
                     FeierabendZeile(wert: $filter.feierabendMinuten).platz(20, 402, 362, 56)
+
+                    if dienststart.verfuegbar {
+                        Text("Dienststart automatisch").grotesk(16, .medium, abstand: 0.5)
+                            .foregroundStyle(Self.lime.opacity(0.6))
+                            .platz(20, dienststartTop, 362, 24)
+                        DienststartZeile(minuten: dienststart.minuten) { neu in
+                            Task { await dienststart.setzen(neu) }
+                        }
+                        .platz(20, dienststartTop + 32, 362, 56)
+                        Text(dienststart.fehler.map { "Speichern fehlgeschlagen: \($0)" }
+                             ?? "Gilt für alle Fahrer. Der Fahrer bestätigt den Dienst wie gewohnt.")
+                            .grotesk(12, .medium, abstand: 0.3)
+                            .foregroundStyle(dienststart.fehler == nil ? Self.lime.opacity(0.5) : Color(hex: 0xFF6B6B))
+                            .lineLimit(2)
+                            .platz(20, dienststartTop + 96, 362, 32)
+                    }
+
+                    Text("Ohne Signal ausblenden nach").grotesk(16, .medium, abstand: 0.5)
+                        .foregroundStyle(Self.lime.opacity(0.6))
+                        .platz(20, ohneSignalTop, 362, 24)
+                    OhneSignalStunden(einstellung: ohneSignal).platz(20, ohneSignalTop + 32, 236, 56)
+                    AusblendenKnopf(an: !ohneSignal.zeigen) { ohneSignal.zeigen.toggle() }
+                        .platz(264, ohneSignalTop + 32, 118, 56)
+                    if !langeOhneSignal.isEmpty {
+                        let liste = langeOhneSignal.prefix(4).map(OhneSignalEinstellung.seit).joined(separator: " · ")
+                            + (langeOhneSignal.count > 4 ? " …" : "")
+                        Text(ohneSignal.zeigen
+                             ? "\(langeOhneSignal.count) länger ohne Signal, mit letztem Standort sichtbar"
+                             : "\(langeOhneSignal.count) länger ohne Signal: \(liste)").grotesk(14, .medium, abstand: 0.3)
+                            .foregroundStyle(Self.lime.opacity(0.6)).lineLimit(1)
+                            .platz(20, ohneSignalTop + 96, 362, 24)
+                    }
 
                     if !stufen.tracker.isEmpty {
                         Text("Punkte bei Fahrt").grotesk(16, .medium, abstand: 0.5)
@@ -100,6 +140,7 @@ struct KartenFilterAnsicht: View {
             }
         }
         .task { await stufen.laufen() }
+        .task { await dienststart.laden() }
         .task { await orte.laden() }
     }
 }
@@ -162,6 +203,171 @@ final class TrackerStufenModell: ObservableObject {
             fehler = error.localizedDescription
         }
         await laden()
+    }
+}
+
+/// Dienststart automatisch vor der ersten Fahrt (15.11.), wie useDienststartVorlauf im Web.
+/// dispo_einstellungen 'dienststart_vorlauf_min', fehlt = aus. Der DB-Trigger trg_jobs_dienststart
+/// schickt damit beim Zuteilen einer Fahrt den Dienststart (Migration 20261115140000).
+@MainActor
+final class DienststartVorlaufModell: ObservableObject {
+    static let schluessel = "dienststart_vorlauf_min"
+    static let optionen = [15, 30, 45, 60, 90, 120]
+
+    @Published var minuten: Int?
+    /// false, wenn die Tabelle fehlt (Migration noch nicht da): Abschnitt bleibt weg.
+    @Published var verfuegbar = false
+    @Published var fehler: String?
+
+    private struct Zeile: Codable {
+        let schluessel: String
+        let wert: Double?
+
+        /// wert immer mitschicken, auch null (Aus), sonst bliebe beim Upsert der alte Wert stehen.
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(schluessel, forKey: .schluessel)
+            try c.encode(wert, forKey: .wert)
+        }
+    }
+
+    func laden() async {
+        do {
+            let zeilen: [Zeile] = try await Backend.client.from("dispo_einstellungen")
+                .select("schluessel, wert").eq("schluessel", value: Self.schluessel)
+                .execute().value
+            if let w = zeilen.first?.wert, w > 0 { minuten = Int(w) } else { minuten = nil }
+            verfuegbar = true
+        } catch {
+            verfuegbar = false
+        }
+    }
+
+    func setzen(_ neu: Int?) async {
+        let alt = minuten
+        minuten = neu
+        fehler = nil
+        do {
+            // Aus = wert null (Zeile bleibt), Standard 60 min setzt die Migration.
+            try await Backend.client.from("dispo_einstellungen")
+                .upsert([Zeile(schluessel: Self.schluessel, wert: neu.map(Double.init))], onConflict: "schluessel", returning: .minimal)
+                .execute()
+        } catch {
+            minuten = alt
+            fehler = error.localizedDescription
+        }
+    }
+}
+
+/// Wie FeierabendZeile: "Dienststart 30 min vor 1. Fahrt", aus "Dienststart automatisch aus".
+private struct DienststartZeile: View {
+    let minuten: Int?
+    let setzen: (Int?) -> Void
+    private static let lime = Color(hex: 0xE3F654)
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Menu {
+                Button("Aus") { setzen(nil) }
+                ForEach(DienststartVorlaufModell.optionen, id: \.self) { o in Button("\(o) min") { setzen(o) } }
+            } label: {
+                Group {
+                    if let minuten {
+                        (Text("Dienststart ").foregroundStyle(Self.lime.opacity(0.6))
+                         + Text("\(minuten) min").foregroundStyle(Self.lime)
+                         + Text(" vor 1. Fahrt").foregroundStyle(Self.lime.opacity(0.6)))
+                    } else {
+                        Text("Dienststart automatisch aus").foregroundStyle(Self.lime.opacity(0.6))
+                    }
+                }
+                .font(.grotesk(16, .medium)).tracking(0.5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Dienststart automatisch")
+            Group {
+                if minuten == nil {
+                    Image("clock-green").resizable().frame(width: 20, height: 20)
+                } else {
+                    Button { setzen(nil) } label: { Image("clear-field-green").resizable().frame(width: 20, height: 20) }
+                        .buttonStyle(.web)
+                        .accessibilityLabel("Dienststart automatisch ausschalten")
+                }
+            }
+            .frame(width: 40, height: 40)
+        }
+        .padding(.horizontal, 12)
+        .frame(width: 362, height: 56)
+        .overlay(Rectangle().strokeBorder(Self.lime, lineWidth: 2))
+    }
+}
+
+/// Stunden-Feld fuer die Schwelle "ohne Signal": "nach 0,5 h", ganzes Kaestchen tippbar,
+/// Zahlentastatur mit Komma. Gueltige Eingaben gelten sofort.
+private struct OhneSignalStunden: View {
+    @ObservedObject var einstellung: OhneSignalEinstellung
+    @State private var entwurf = ""
+    @FocusState private var fokus: Bool
+    private static let lime = Color(hex: 0xE3F654)
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text("nach ").grotesk(16, .medium, abstand: 0.5).foregroundStyle(Self.lime.opacity(0.6)).fixedSize()
+            TextField("", text: $entwurf)
+                .font(.grotesk(16, .medium)).tracking(0.5)
+                .foregroundStyle(Self.lime)
+                .tint(Self.lime)
+                .keyboardType(.decimalPad)
+                .focused($fokus)
+                // Breite folgt der Zahl, damit "h" direkt dahinter steht.
+                .frame(width: CGFloat(max(2, entwurf.count)) * 10 + 6)
+                .onChange(of: entwurf) { _, neu in
+                    let sauber = String(neu.filter { "0123456789,.".contains($0) }.prefix(5))
+                    if sauber != neu { entwurf = sauber; return }
+                    if fokus, let m = OhneSignalEinstellung.stundenLesen(sauber) { einstellung.minuten = m }
+                }
+            Text(" h").grotesk(16, .medium, abstand: 0.5).foregroundStyle(Self.lime.opacity(0.6))
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .frame(width: 236, height: 56)
+        .background(fokus ? Self.lime.opacity(0.08) : Color.clear)
+        .overlay(Rectangle().strokeBorder(Self.lime, lineWidth: 2))
+        .opacity(einstellung.zeigen ? 0.4 : 1)
+        .contentShape(Rectangle())
+        .onTapGesture { fokus = true }
+        .onAppear { entwurf = OhneSignalEinstellung.stundenText(einstellung.minuten) }
+        .onChange(of: fokus) { _, an in if !an { entwurf = OhneSignalEinstellung.stundenText(einstellung.minuten) } }
+        .onChange(of: einstellung.minuten) { _, m in if !fokus { entwurf = OhneSignalEinstellung.stundenText(m) } }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Fertig") { fokus = false }
+            }
+        }
+        .accessibilityLabel("Ohne Signal ausblenden nach Stunden")
+    }
+}
+
+/// Knopf neben dem Stunden-Feld: an = "Ausblenden" (Lime gefuellt, Auge zu), aus = "Alle zeigen".
+private struct AusblendenKnopf: View {
+    let an: Bool
+    let aktion: () -> Void
+    private static let lime = Color(hex: 0xE3F654)
+
+    var body: some View {
+        Button(action: aktion) {
+            HStack(spacing: 6) {
+                Image(systemName: an ? "eye.slash" : "eye").font(.system(size: 16, weight: .medium))
+                Text(an ? "Ausblenden" : "Alle zeigen").grotesk(14, .medium, abstand: 0.3)
+            }
+            .foregroundStyle(an ? Color(hex: 0x1D1C1D) : Self.lime)
+            .frame(width: 118, height: 56)
+            .background(an ? Self.lime : Color.clear)
+            .overlay(Rectangle().strokeBorder(Self.lime, lineWidth: 2))
+        }
+        .buttonStyle(.web)
+        .accessibilityAddTraits(an ? .isSelected : [])
     }
 }
 

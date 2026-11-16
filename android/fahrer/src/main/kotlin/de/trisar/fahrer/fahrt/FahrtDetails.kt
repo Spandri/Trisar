@@ -80,6 +80,8 @@ private data class FahrtZeileB(
     val pickup_ort_id: String? = null,
     val dropoff_ort_id: String? = null,
     val zwischenstopps: List<String>? = null,
+    /** Routenpunkte der Dispo (15.11.). select("*") liefert null, solange die Spalte live fehlt. */
+    val routen_punkte: kotlinx.serialization.json.JsonElement? = null,
 )
 
 internal data class FahrtKopf(
@@ -101,6 +103,8 @@ internal data class FahrtKopf(
     val abholOrtID: String? = null,
     val zielOrtID: String? = null,
     val zwischenstopps: List<String> = emptyList(),
+    /** Routenpunkte der Dispo: Zwischenziele im Google-Maps-Link, Chip „Route von Dispo“. */
+    val routenPunkte: List<de.trisar.kern.RoutenPunkt> = emptyList(),
 ) {
     val abholKurz get() = FahrtAdresse.kurz(abholName, abholAdresse)
     val zielKurz get() = FahrtAdresse.kurz(zielName, zielAdresse)
@@ -304,6 +308,7 @@ internal class FahrtDetails(val fahrtID: String, private val fahrerID: String, p
                     abholOrtID = z.pickup_ort_id,
                     zielOrtID = z.dropoff_ort_id,
                     zwischenstopps = z.zwischenstopps.orEmpty(),
+                    routenPunkte = de.trisar.kern.RoutenPunkte.lesen(z.routen_punkte),
                 )
             }
             if (zeile?.pickup_ort_id != null || zeile?.dropoff_ort_id != null) EigeneOrte.einmalLaden()

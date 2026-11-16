@@ -3,6 +3,7 @@ import { kurzAdresse } from '../../shared/adresseKurz';
 import { orteLaden, ortNachId } from '../../shared/orte';
 import { treffpunktAusZeile } from '../../shared/dienstTreffpunkt';
 import DienstStartDetail from './views/DienstStartDetail';
+import DienstreiseDetail from './views/DienstreiseDetail';
 import { fahrtRoutenPunkte } from '../../shared/utils/routenPunkt';
 import { SUPABASE_FUNCTIONS } from '../../shared/supabase/functions';
 import { supabase } from '../../shared/supabase/client';
@@ -66,6 +67,7 @@ import { MAP_FAHRER_STANDORT_URL, MAP_FLAG_PIN_URL, MAP_PERSON_PIN_URL } from '.
 import { routeTeilen, istAmEnde } from '../../shared/karte/routenFortschritt';
 import { gaesteText } from '../../shared/gaesteAnzeige';
 import { standbyEnde, useFahrerStandbys } from '../../shared/standby';
+import { useFahrerDienstreisen } from '../../shared/dienstreise';
 
 // Verhindert doppeltes Einloesen, wenn der Effekt zweimal laeuft.
 let nfcLaeuft = false;
@@ -1618,6 +1620,9 @@ const FahrerApp = () => {
   const [serviceRequests, setServiceRequests] = useState([]);
   // Standby am Event-Ort: eigene Anfragen und angenommene Standbys mit Zustand (live).
   const { liste: standbyListe, antworten: standbyAntworten, melden: standbyMelden } = useFahrerStandbys(session?.user?.id);
+  // Dienstreise: eigene Anfragen und angenommene, nicht beendete Dienstreisen (live).
+  const { liste: reiseListe, antworten: reiseAntworten, beenden: reiseBeenden } = useFahrerDienstreisen(session?.user?.id);
+  const [reiseAnsichtId, setReiseAnsichtId] = useState(null);
   const [serviceRequestActionBusyId, setServiceRequestActionBusyId] = useState(null);
   const [newJob, setNewJob] = useState({
     tripType: 'airport',
@@ -2553,6 +2558,8 @@ const FahrerApp = () => {
               routenPunkt: routenPunkte.nach,
             },
             zwischenstopps: Array.isArray(dbJob.zwischenstopps) ? dbJob.zwischenstopps : [],
+            // Routenpunkte der Dispo (15.11.): gehen als Zwischenziele mit nach Google Maps.
+            routenPunkte: Array.isArray(dbJob.routen_punkte) ? dbJob.routen_punkte : [],
             trainNumber: dbJob.train_number || null,
             rideDate: getRideDateFromJob(dbJob),
             etd: dbJob.etd ? dbJob.etd.substring(0, 5) : '12:00',
@@ -2673,6 +2680,8 @@ const FahrerApp = () => {
           zip: ownProfileFull?.zip || '',
           language: ownProfileFull?.language || '',
           avatarUrl: ownProfileFull?.avatar_url || '',
+          // Fahrernummer im blauen Standortpunkt (Dienstreise-Karte, wie bei Fahrten).
+          driverNumber: ownProfileFull?.driver_number ?? null,
         });
 
         if (isFiniteNumber(ownLiveLocation?.lat) && isFiniteNumber(ownLiveLocation?.lng)) {
@@ -3513,7 +3522,7 @@ await supabase.auth.signOut({ scope: 'local' });
   // Offene Dienstanfrage oder angenommener Dienst ab heute: Liste statt "Keine Fahrt"
   // (sonst sah der Fahrer nach der Push nichts, wenn er an dem Tag keine Fahrten hat, 12.11.).
   const heuteBerlin = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
-  const dienstSichtbar = standbyListe.some((st) => st.status === 'pending' || standbyEnde(st).getTime() > Date.now())
+  const dienstSichtbar = reiseListe.length > 0 || standbyListe.some((st) => st.status === 'pending' || standbyEnde(st).getTime() > Date.now())
     || (Array.isArray(serviceRequests) ? serviceRequests : []).some((r) => {
     const status = String(r?.status || 'pending').toLowerCase();
     const tag = String(r?.serviceDate || r?.service_date || '').slice(0, 10);
@@ -3750,7 +3759,7 @@ await supabase.auth.signOut({ scope: 'local' });
       case 'list':
         return jobs && jobs.length === 0 && !dienstSichtbar
           ? noTripsScreen
-          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} standbys={standbyListe} onStandbyAntworten={standbyAntworten} onStandbyMelden={standbyMelden} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} onOpenDienst={(request) => { setDienstAnsichtId(request?.id || null); setView('dienstStart'); }} />;
+          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} standbys={standbyListe} onStandbyAntworten={standbyAntworten} onStandbyMelden={standbyMelden} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} onOpenDienst={(request) => { setDienstAnsichtId(request?.id || null); setView('dienstStart'); }} dienstreisen={reiseListe} onDienstreiseAntworten={reiseAntworten} onOpenDienstreise={(reise) => { setReiseAnsichtId(reise?.id || null); setView('dienstreise'); }} />;
       case 'vehicle':
         return <VehicleView setView={setView} vehicle={currentVehicle} damages={vehicleDamages} onAddDamage={addVehicleDamage} standort={fahrzeugStandort} driverId={session?.user?.id || null} />;
       case 'details':
@@ -3759,6 +3768,11 @@ await supabase.auth.signOut({ scope: 'local' });
         const dienst = (Array.isArray(serviceRequests) ? serviceRequests : []).find((r) => String(r?.id) === String(dienstAnsichtId));
         if (!dienst) return noTripsScreen;
         return <DienstStartDetail dienst={dienst} standort={fahrzeugStandort} setView={setView} />;
+      }
+      case 'dienstreise': {
+        const reise = reiseListe.find((r) => String(r.id) === String(reiseAnsichtId));
+        if (!reise) return noTripsScreen;
+        return <DienstreiseDetail reise={reise} setView={setView} onBeenden={reiseBeenden} fahrerNummer={currentDriverProfile?.driverNumber} standort={fahrzeugStandort} />;
       }
       case 'chat':
         return <ChatView setView={setView} activeChat={activeChat} messages={messages} setMessages={setMessages} currentUserId={session?.user?.id} />;
@@ -3781,7 +3795,7 @@ await supabase.auth.signOut({ scope: 'local' });
       default:
         return jobs && jobs.length === 0 && !dienstSichtbar
           ? noTripsScreen
-          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} standbys={standbyListe} onStandbyAntworten={standbyAntworten} onStandbyMelden={standbyMelden} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} onOpenDienst={(request) => { setDienstAnsichtId(request?.id || null); setView('dienstStart'); }} />;
+          : <FahrtenScreen01View jobs={jobs} setView={setView} setSelectedJob={setSelectedJob} handleJobAction={handleJobAction} handleRefreshAll={handleRefreshAll} isRefreshing={isRefreshing} onLogout={handleLogout} onOpenChats={() => setView('chatList')} unreadChatTotal={unreadChatTotal} currentVehicle={currentVehicle} onOpenProfile={() => setView('profilFahrer')} serviceRequests={serviceRequests} standbys={standbyListe} onStandbyAntworten={standbyAntworten} onStandbyMelden={standbyMelden} onServiceRequestAction={handleServiceRequestAction} serviceActionBusyId={serviceRequestActionBusyId} unreadByChat={unreadByChat} onOpenDienst={(request) => { setDienstAnsichtId(request?.id || null); setView('dienstStart'); }} dienstreisen={reiseListe} onDienstreiseAntworten={reiseAntworten} onOpenDienstreise={(reise) => { setReiseAnsichtId(reise?.id || null); setView('dienstreise'); }} />;
     }
   };
 

@@ -54,10 +54,21 @@ export const dienstFrage = async (admin: any, frage: string, kontext: any): Prom
   const anfang = /\b(faengt|fangt|beginnt|anfang\w*|dienstbeginn|dienststart|startet)\b/.test(text);
   const ende = /\b(feierabend|hoert|hort|dienstende|endet|schluss)\b/.test(text);
   // "Hat Anna morgen Dienst?", "Arbeitet Tim heute?": ganzer Dienst des Tages.
-  const allgemein = /\b(dienst|dienste|schicht|arbeitet|arbeiten)\b/.test(text);
+  // "Hat Stefano die Dienstzeit angenommen?" (ki_protokoll 13.11.) zaehlt mit.
+  const allgemein = /\b(dienst\w*|schicht\w*|arbeitet|arbeiten)\b/.test(text);
   if (!pause && !anfang && !ende && !allgemein) return null;
   if (/\bfahrt\b/.test(text)) return null;
   const genannt = await genannteFahrer(admin, text);
+  // "Ist Joris noch im Dienst?", "Ist gerade irgendein Fahrer im Dienst?": Ja oder Nein bezogen auf jetzt.
+  const jetztFrage = /\b(noch|gerade|jetzt|aktuell|momentan|zurzeit|derzeit)\b/.test(text)
+    && /\b(im dienst|dienst|arbeitet|arbeiten|unterwegs|aktiv)\b/.test(text)
+    && !/\b(morgen|uebermorgen|gestern|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/.test(text)
+    && !pause && !anfang && !ende;
+  if (jetztFrage) {
+    const irgendwer = !genannt.length && /\b(wer|irgend\w*|jemand|einer|fahrer|alle|welche\w*|niemand|keiner)\b/.test(text);
+    const liste = genannt.length ? genannt : irgendwer ? await alleFahrer(admin) : await gespraechsFahrer(admin, kontext, text);
+    if (liste.length) return await jetztImDienst(admin, liste, genannt.length > 0 || !irgendwer, /^\s*wer\b/.test(text));
+  }
   // "Wer hat morgen Dienst?": alle Fahrer, nur die mit Dienst nennen. "Wer ist gerade im Dienst" beantwortet kiKern.
   const werAlle = !genannt.length && /^\s*wer\b/.test(text) && !/\b(gerade|jetzt|aktuell|momentan)\b/.test(text);
   const fahrer = genannt.length ? genannt : werAlle ? await alleFahrer(admin) : await gespraechsFahrer(admin, kontext, text);
@@ -90,6 +101,48 @@ export const dienstFrage = async (admin: any, frage: string, kontext: any): Prom
     if (ende && !anfang) return end ? `${f.name} hat ${tag} um ${end} Feierabend${offen}.` : `${f.name} hat ${tag} noch kein Dienstende eingetragen${start ? ` (Start ${start})` : ''}.`;
     return `${f.name} hat ${tag} Dienst ${start || '?'}–${end || 'offen'}${p ? `, Pause ${p}` : ''}${offen}.`;
   }).join('\n');
+};
+
+// Wo steht ein Fahrer gerade? Dienst von heute (und ein Nachtdienst von gestern, der ueber Mitternacht geht).
+const zuMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const jetztImDienst = async (admin: any, fahrer: Fahrer[], einzeln: boolean, werFrage = false) => {
+  const { datum: heute, minuten: jetzt } = jetztBerlin();
+  const ids = fahrer.map((f) => f.id);
+  const [h, g] = await Promise.all([dienstLaden(admin, ids, heute), dienstLaden(admin, ids, plusTage(heute, -1))]);
+  const stand = fahrer.map((f) => {
+    const gestern = g.neueste.get(f.id);
+    // Nachtdienst von gestern, der erst heute endet (Ende vor Start).
+    if (gestern?.service_start_time && gestern?.service_end_time) {
+      const s = zuMin(hm(gestern.service_start_time));
+      const e = zuMin(hm(gestern.service_end_time));
+      if (e < s && jetzt < e) return { f, im: true, text: `Ja, ${f.name} ist seit gestern ${hm(gestern.service_start_time)} im Dienst, Dienstende ${hm(gestern.service_end_time)}.`, ende: hm(gestern.service_end_time) };
+    }
+    const d = h.neueste.get(f.id);
+    // Datumsgrenze: Dienst von gestern ohne Ende laeuft ueber Mitternacht weiter, solange heute keiner eingetragen ist.
+    if (!d && gestern?.service_start_time && !gestern?.service_end_time) {
+      const offenG = String(gestern.status) === 'accepted' ? '' : ' (Dienst noch nicht bestätigt)';
+      return { f, im: true, text: `Ja, ${f.name} ist seit gestern ${hm(gestern.service_start_time)} im Dienst, noch ohne Dienstende${offenG}.` };
+    }
+    if (!d || !d.service_start_time) return { f, im: false, text: `Nein, ${f.name} hat heute keinen Dienst eingetragen.` };
+    const start = hm(d.service_start_time);
+    const end = hm(d.service_end_time);
+    const s = zuMin(start);
+    const e = end ? zuMin(end) : null;
+    const uebernacht = e !== null && e < s;
+    if (jetzt < s) return { f, im: false, text: `Nein, ${f.name} fängt heute erst um ${start} an.` };
+    if (e !== null && !uebernacht && jetzt >= e) return { f, im: false, text: `Nein, ${f.name} hat seit ${end} Dienstende.`, warEnde: end };
+    const offen = String(d.status) === 'accepted' ? '' : ' (Dienst noch nicht bestätigt)';
+    const pause = (h.pausen.get(String(d.id)) || []).find((p: any) => p?.von && p?.bis && zuMin(hm(p.von)) <= jetzt && jetzt < zuMin(hm(p.bis)));
+    if (pause) return { f, im: true, text: `Ja, ${f.name} ist im Dienst, gerade Pause bis ${hm(pause.bis)}${offen}.`, ende: end };
+    return { f, im: true, text: `Ja, ${f.name} ist seit ${start} im Dienst, ${end ? `Dienstende ${end}` : 'noch ohne Dienstende'}${offen}.`, ende: end };
+  });
+  if (einzeln) return stand.map((x) => x.text).join('\n');
+  const im = stand.filter((x) => x.im);
+  if (!im.length) {
+    const letzte = stand.filter((x: any) => x.warEnde).sort((a: any, b: any) => b.warEnde.localeCompare(a.warEnde))[0] as any;
+    return `${werFrage ? 'Gerade' : 'Nein, gerade'} ist niemand im Dienst.${letzte ? ` Zuletzt hatte ${letzte.f.name} um ${letzte.warEnde} Dienstende.` : ''}`;
+  }
+  return `${werFrage ? 'Gerade' : 'Ja, gerade'} im Dienst (${im.length}):\n${im.map((x: any) => `- ${x.f.name}${x.ende ? ` bis ${x.ende}` : ', noch ohne Dienstende'}`).join('\n')}`;
 };
 
 // ---- Stundenzettel -----------------------------------------------------------------------------------

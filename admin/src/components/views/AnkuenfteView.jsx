@@ -10,6 +10,7 @@ import MarkierungsVermerk from '../ui/MarkierungsVermerk';
 import { anonymeGaesteText, gaesteTeile } from '../../shared/gaesteAnzeige';
 import StandbyKacheln from '../ui/StandbyKacheln';
 import StandbyFahrten from '../ui/StandbyFahrten';
+import DienstreiseKacheln from '../ui/DienstreiseKacheln';
 
 // Fahrten mit hohem Risiko tragen "NEU", bis die Disposition sie einmal geoeffnet hat.
 const GESEHEN_SCHLUESSEL = 'trisar-demo-risiko-gesehen';
@@ -501,6 +502,7 @@ export default function AnkuenfteView({
   hasCoordinatorLocation = false,
   showArchiveOnly = false,
   onOpenStandby = null,
+  onOpenDienstreise = null,
   onRideDone = () => {},
   onRideArchive = () => {},
   onRideDuplicate = () => {},
@@ -1048,6 +1050,8 @@ export default function AnkuenfteView({
         {!showArchiveOnly && onOpenStandby ? <StandbyKacheln onOpen={onOpenStandby} /> : null}
         {/* Faehrt ein Fahrer vom Event los: Standby-Fahrt mit Unterwegs bzw. Rueckweg und Ankunft am Event. */}
         {!showArchiveOnly && onOpenStandby ? <StandbyFahrten onOpen={onOpenStandby} /> : null}
+        {/* Dienstreise: Start → Ziel, Zeit, Zug/Flug, wer angenommen hat. */}
+        {!showArchiveOnly && onOpenDienstreise ? <DienstreiseKacheln onOpen={onOpenDienstreise} /> : null}
 
         <div className="mt-6 space-y-3">
           {sortedFilteredRides.map((ride, index) => {

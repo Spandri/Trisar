@@ -7,6 +7,8 @@
 
 // deno-lint-ignore-file no-explicit-any
 
+import { ausnahmen, ausnahmenText, ohneAusnahmen } from './ausnahmen.ts';
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator', 'pruefung']);
 const FRIST_MS = 15 * 60 * 1000;
@@ -125,7 +127,8 @@ export const lohnVorschlag = async (admin: any, frage: string, markiert: { id: s
 
   if (!LOHN_RE.test(text)) return null;
 
-  const fahrer = await fahrerLaden(admin);
+  // Ausgenommene ("alle außer Tim") fallen weg, siehe ausnahmen.ts.
+  const fahrer = ohneAusnahmen(admin, await fahrerLaden(admin));
   let ziel: Fahrer[] = genannt(fahrer, text);
   let meinung = '';
   if (!ziel.length && ALLE_RE.test(text)) {
@@ -174,7 +177,7 @@ export const lohnVorschlag = async (admin: any, frage: string, markiert: { id: s
     return { answer: `${ziel.length === 1 ? `${ziel[0].name} hat` : 'Alle genannten Fahrer haben'} schon ${euro(betrag)}. Es ist nichts zu ändern.`, kontext: ohneOffenen(kontext) };
   }
   const wer = meinung === 'alle'
-    ? `alle ${ziel.length} Fahrer`
+    ? (ausnahmen(admin).length ? `${ziel.length > 3 ? `${ziel.length} Fahrer` : namenText(ziel)}${ausnahmenText(admin)}` : `alle ${ziel.length} Fahrer`)
     : meinung === 'markierte'
       ? (ziel.length === 1 ? `den markierten Fahrer (${ziel[0].name})` : `die ${ziel.length} markierten Fahrer (${namenText(ziel)})`)
       : ziel.length === 1 ? ziel[0].name : `${ziel.length} Fahrer (${namenText(ziel)})`;

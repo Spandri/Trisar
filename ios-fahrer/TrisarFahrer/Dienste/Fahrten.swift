@@ -91,6 +91,8 @@ struct Fahrt: Identifiable, Equatable {
     var abholOrtID: UUID? = nil
     var zielOrtID: UUID? = nil
     var zwischenstopps: [String] = []
+    /// Routenpunkte der Dispo (jobs.routen_punkte, 15.11.), leer = schnellste Route.
+    var routenPunkte: [RoutenPunkt] = []
 
     /// Kurzname fuer die Karte (wie toShortFormattedAddress + kurzAdresse).
     var abholKurz: String { Adresse.kurz(name: abholName, adresse: abholAdresse) }
@@ -115,6 +117,74 @@ struct Fahrt: Identifiable, Equatable {
     /// Angenommen = Lime-Rand um die Karte.
     var angenommen: Bool {
         istKolonne ? meineAntwort.lowercased() == "accepted" : status.lowercased() == "assigned"
+    }
+}
+
+/// Routenpunkt einer Fahrt (jobs.routen_punkte, 15.11.): die Dispo legt die Route ueber Punkte fest.
+/// nach = Abschnitt: 0 = Start bis erster Zwischenstopp (ohne Stopps: Ziel), k = nach Zwischenstopp k.
+/// Die Liste steht in Fahrtreihenfolge. Gleich wie admin/src/shared/routenPunkte.js.
+struct RoutenPunkt: Codable, Equatable, Hashable {
+    var lat: Double
+    var lng: Double
+    var nach: Int
+
+    /// Google Maps nimmt 9 Zwischenziele, Abholung und Stopps zaehlen mit.
+    static let googleZwischenziele = 9
+    static func maximum(stopps: Int) -> Int { max(0, googleZwischenziele - 1 - stopps) }
+
+    init(lat: Double, lng: Double, nach: Int) {
+        self.lat = lat
+        self.lng = lng
+        self.nach = max(0, nach)
+    }
+
+    private enum Schluessel: String, CodingKey { case lat, lng, lon, nach }
+
+    /// Tolerant wie routenPunkteLesen: Zahlen auch als Text, lon statt lng, nach fehlt = 0.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Schluessel.self)
+        func zahl(_ k: Schluessel) -> Double? {
+            if let d = try? c.decode(Double.self, forKey: k) { return d }
+            if let t = try? c.decode(String.self, forKey: k) { return Double(t) }
+            return nil
+        }
+        guard let lat = zahl(.lat), let lng = zahl(.lng) ?? zahl(.lon), lat.isFinite, lng.isFinite else {
+            throw DecodingError.dataCorruptedError(forKey: .lat, in: c, debugDescription: "Routenpunkt ohne lat/lng")
+        }
+        self.init(lat: lat, lng: lng, nach: Int((zahl(.nach) ?? 0).rounded(.down)))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Schluessel.self)
+        try c.encode(lat, forKey: .lat)
+        try c.encode(lng, forKey: .lng)
+        try c.encode(nach, forKey: .nach)
+    }
+
+    /// "lat,lng" mit 6 Nachkommastellen fuer Google Maps.
+    var googleText: String { String(format: "%.6f,%.6f", lat, lng) }
+
+    /// Zwischenziele nach der Abholung: Punkte(nach 0), Stopp 1, Punkte(nach 1), ..., Stopp n, Punkte(nach n).
+    /// Ohne Punkte genau die Stopps.
+    static func zwischenziele(stopps: [String], punkte: [RoutenPunkt]) -> [String] {
+        var liste: [String] = []
+        for abschnitt in 0...stopps.count {
+            liste += punkte.filter { min($0.nach, stopps.count) == abschnitt }.map(\.googleText)
+            if abschnitt < stopps.count { liste.append(stopps[abschnitt]) }
+        }
+        return liste
+    }
+}
+
+/// Eine Liste von Routenpunkten, die eine einzelne kaputte Zeile ueberspringt.
+struct RoutenPunktListe: Decodable {
+    let punkte: [RoutenPunkt]
+    private struct Vielleicht: Decodable {
+        let punkt: RoutenPunkt?
+        init(from decoder: Decoder) throws { punkt = try? RoutenPunkt(from: decoder) }
+    }
+    init(from decoder: Decoder) throws {
+        punkte = ((try? decoder.singleValueContainer().decode([Vielleicht].self)) ?? []).compactMap(\.punkt)
     }
 }
 
@@ -277,6 +347,14 @@ final class FahrtenSpeicher: ObservableObject {
                     zwischenstopps: zeile.zwischenstopps ?? []
                 )
             }
+            // Routenpunkte der Dispo in eigener Abfrage: fehlt die Spalte noch, bleibt es die schnellste Route.
+            if !fahrten.isEmpty {
+                struct RoutenZeile: Decodable { let id: UUID; let routen_punkte: RoutenPunktListe? }
+                let routen: [RoutenZeile] = (try? await Backend.client.from("jobs").select("id,routen_punkte")
+                    .in("id", values: fahrten.map(\.id.uuidString)).execute().value) ?? []
+                let punkteJe = Dictionary(routen.map { ($0.id, $0.routen_punkte?.punkte ?? []) }, uniquingKeysWith: { a, _ in a })
+                for i in fahrten.indices { fahrten[i].routenPunkte = punkteJe[fahrten[i].id] ?? [] }
+            }
             // Orte einmal laden, neu nur wenn eine Fahrt einen unbekannten Ort nennt.
             let orte = OrteSpeicher.geteilt
             await orte.ladenFallsNoetig()
@@ -376,8 +454,10 @@ final class FahrtenSpeicher: ObservableObject {
 
     @Published private(set) var dienstArbeitetID: UUID?
 
-    func dienstAntworten(_ anfrage: DienstAnfrage, annehmen: Bool) async {
-        guard let fahrer = fahrerID else { return }
+    /// true, wenn die Antwort gespeichert ist (CarPlay und Uhr zeigen sonst einen Fehler).
+    @discardableResult
+    func dienstAntworten(_ anfrage: DienstAnfrage, annehmen: Bool) async -> Bool {
+        guard let fahrer = fahrerID else { return false }
         dienstArbeitetID = anfrage.id
         defer { dienstArbeitetID = nil }
         do {
@@ -414,8 +494,10 @@ final class FahrtenSpeicher: ObservableObject {
                     return nil
                 }
             }
+            return true
         } catch {
             fehler = "Dienstplan-Anfrage konnte nicht gespeichert werden: \(error.localizedDescription)"
+            return false
         }
     }
 

@@ -24,6 +24,9 @@ class HauptAktivitaet : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Startvideo nur nach echtem Schliessen (aus der Liste weggewischt): Hat Android den Prozess
+        // im Hintergrund selbst beendet, kommt die Activity mit gespeichertem Zustand zurueck.
+        if (savedInstanceState != null) de.trisar.kern.StartVideo.gezeigt = true
         // Startvideo so frueh wie moeglich laden, damit es ohne Verzoegerung losgeht.
         de.trisar.kern.StartVideo.vorbereiten(applicationContext)
         // Helle Symbole in Status- und Navigationsleiste, der Hintergrund ist immer dunkel (wie iOS).

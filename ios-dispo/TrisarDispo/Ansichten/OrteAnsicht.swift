@@ -338,6 +338,13 @@ struct OrtBearbeitenAnsicht: View {
             vorschlaege = []
             return
         }
+        // Koordinaten getippt ("48.1372, 11.6981"): Pin sofort dorthin, keine Vorschlaege.
+        if let direkt = Routen.koordinatenAusText(suche) {
+            vorschlaege = []
+            punkt = direkt
+            einpassen += 1
+            return
+        }
         vorschlagLauf = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(250))
             if Task.isCancelled { return }

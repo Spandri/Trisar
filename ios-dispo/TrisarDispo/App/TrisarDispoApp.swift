@@ -28,6 +28,9 @@ struct TrisarDispoApp: App {
                     NaviTestAnsicht()
                 } else if ProcessInfo.processInfo.arguments.contains("-fahrerTest") {
                     FahrerKartenTest()
+                } else if ProcessInfo.processInfo.arguments.contains("-fahrtTest") {
+                    // Fahrt erstellen ohne Anmeldung ansehen (Vorschau Pin am Ziel).
+                    FahrtFormularAnsicht(fahrtID: nil, zurueck: {})
                 } else if ProcessInfo.processInfo.arguments.contains("-kiTest") {
                     // Verlauf des KI-Assistenten ohne Anmeldung ansehen (Fragen von der Apple Watch).
                     KiAssistentAnsicht(zeigen: { _ in })
@@ -42,9 +45,17 @@ struct TrisarDispoApp: App {
             .environmentObject(anmeldung)
             .onChange(of: anmeldung.fahrerID, initial: true) { _, id in
                 if id != nil { Task { await Push.shared.nachAnmeldung() } }
-                // Apple Watch (TrisarDispoUhr): Uebersicht nur fuer angemeldete Dispo-Konten.
+            }
+            .onChange(of: anmeldung.zustand, initial: true) { _, zustand in
+                // Apple Watch (TrisarDispoUhr) und CarPlay: Uebersicht nur fuer angemeldete Dispo-Konten.
+                // Waehrend .pruefe nichts abmelden, sonst wirft der Kaltstart eine von CarPlay
+                // schon gepruefte Anmeldung wieder weg. Abmelden nur bei echter Abmeldung.
                 DispoUhrBruecke.shared.einrichten()
-                DispoUhrBruecke.shared.setzeAngemeldet(id != nil)
+                switch zustand {
+                case .angemeldet: DispoUhrBruecke.shared.setzeAngemeldet(true)
+                case .abgemeldet: DispoUhrBruecke.shared.setzeAngemeldet(false)
+                case .pruefe: break
+                }
             }
             // Ganze App auf die Breite des iPhones skalieren (Raster 402 wie im Web).
             .webMassstab()
@@ -102,11 +113,17 @@ enum DispoZugang {
     /// ist die Sitzung im Client evtl. noch nicht abgelegt, dann liefe die Abfrage ohne Konto,
     /// RLS gaebe nichts zurueck und ein Dispo-Konto wuerde faelschlich abgewiesen.
     static func erlaubt(_ sitzung: Session) async -> Bool {
+        await ergebnis(sitzung) ?? false
+    }
+
+    /// Wie erlaubt, aber nil, wenn der Server nicht zu erreichen war (CarPlay merkt sich nur
+    /// ein echtes Nein und fragt dann nicht jede Minute neu).
+    static func ergebnis(_ sitzung: Session) async -> Bool? {
         for versuch in 0..<3 {
             if let ja = await einmal(sitzung) { return ja }
             try? await Task.sleep(nanoseconds: UInt64(versuch + 1) * 700_000_000)
         }
-        return false
+        return nil
     }
 
     private static func einmal(_ sitzung: Session) async -> Bool? {

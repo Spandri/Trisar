@@ -12,6 +12,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { kontoAnlegen, NAME_MUSTER } from './konto.ts';
 import { genannteFahrer } from './dienst.ts';
+import { ohneAusnahmen } from './ausnahmen.ts';
 
 const FRIST_MS = 15 * 60 * 1000;
 
@@ -411,7 +412,8 @@ const fahrzeugeJeFahrer = async (admin: any, roh: string, text: string, istFahrz
   let schonMit: string[] = [];
   if (alle) {
     const { data } = await admin.from('profiles').select('id, first_name, last_name, role, is_dispo, vehicle_id');
-    const liste = (Array.isArray(data) ? data : [])
+    // Ausgenommene ("allen außer Tim") fallen weg, siehe ausnahmen.ts.
+    const liste = ohneAusnahmen(admin, (Array.isArray(data) ? data : []).map((p: any) => ({ ...p, id: String(p.id) })))
       .filter((p: any) => p.is_dispo !== true && !['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator', 'pruefung'].includes(String(p.role || '').toLowerCase()));
     // Wer schon ein Fahrzeug hat, bekommt keins dazu, ausser es heisst "auch" ("auch die mit Fahrzeug").
     const auch = /\bauch\b.*\b(mit|schon)\b/.test(text);

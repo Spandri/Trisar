@@ -86,16 +86,23 @@ private const val SCHRITT = 68f
 private const val ZEILE = 56f
 private const val FAHRER_OBEN = 478f
 
-/** "Fahrt | Standby" oben mittig zwischen Zurueck und Import (ArtUmschalter.jsx). */
+/**
+ * "Fahrt | Standby | Dienstreise" oben mittig zwischen Zurueck und Import (ArtUmschalter.jsx).
+ * art: "fahrt", "standby" oder "dienstreise". Drei Knoepfe passen mit Padding 10 und Schrift 14 dazwischen.
+ */
 @Composable
-fun ArtUmschalter(standby: Boolean, modifier: Modifier, fahrt: () -> Unit, standbyWahl: () -> Unit) {
+fun ArtUmschalter(art: String, modifier: Modifier, fahrt: () -> Unit, standbyWahl: () -> Unit, dienstreiseWahl: () -> Unit) {
     Box(modifier, contentAlignment = Alignment.TopCenter) {
         Row(Modifier.border(2.dp, LIME)) {
-            for ((text, an, aktion) in listOf(Triple("Fahrt", !standby, fahrt), Triple("Standby", standby, standbyWahl))) {
+            for ((text, an, aktion) in listOf(
+                Triple("Fahrt", art == "fahrt", fahrt),
+                Triple("Standby", art == "standby", standbyWahl),
+                Triple("Dienstreise", art == "dienstreise", dienstreiseWahl),
+            )) {
                 Box(
-                    Modifier.height(36.dp).background(if (an) LIME else Color.Transparent).tippen(aktion).padding(horizontal = 16.dp),
+                    Modifier.height(36.dp).background(if (an) LIME else Color.Transparent).tippen(aktion).padding(horizontal = 10.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text(text, style = grotesk(15f, 700, farbe = if (an) Color.Black else LIME)) }
+                ) { Text(text, style = grotesk(14f, 700, farbe = if (an) Color.Black else LIME)) }
             }
         }
     }
@@ -103,7 +110,7 @@ fun ArtUmschalter(standby: Boolean, modifier: Modifier, fahrt: () -> Unit, stand
 
 /** Notizen wie in Fahrt hinzufuegen: graue Flaeche, weisses Feld (402 breit, 224 hoch). */
 @Composable
-private fun NotizFeld(notiz: String, aendern: (String) -> Unit, modifier: Modifier) {
+internal fun NotizFeld(notiz: String, aendern: (String) -> Unit, modifier: Modifier) {
     Box(modifier.background(hex(0x1A1A1A), RoundedCornerShape(12.dp))) {
         Column(Modifier.platz(20f, 20f, 362f, 184f).background(Color.White).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -126,11 +133,11 @@ private fun NotizFeld(notiz: String, aendern: (String) -> Unit, modifier: Modifi
 }
 
 /** "TT.MM.JJJJ" fuer die Datumszeile. */
-private fun datumText(iso: String): String = iso.split("-").let { if (it.size == 3) "${it[2]}.${it[1]}.${it[0]}" else iso }
-private fun minuten(hhmm: String): Int? = hhmm.split(":").mapNotNull { it.toIntOrNull() }.let { if (it.size >= 2) it[0] * 60 + it[1] else null }
+internal fun datumText(iso: String): String = iso.split("-").let { if (it.size == 3) "${it[2]}.${it[1]}.${it[0]}" else iso }
+internal fun minuten(hhmm: String): Int? = hhmm.split(":").mapNotNull { it.toIntOrNull() }.let { if (it.size >= 2) it[0] * 60 + it[1] else null }
 
 /** Fahrerzeilen: leere Zeile immer am Ende. */
-private fun fahrerSetzen(alt: List<String>, i: Int, wert: String): List<String> {
+internal fun fahrerSetzen(alt: List<String>, i: Int, wert: String): List<String> {
     val neu = alt.mapIndexed { j, n -> if (j == i) wert else n }.filter { it.isNotBlank() }
     return neu + ""
 }
@@ -143,6 +150,8 @@ private fun fahrerSetzen(alt: List<String>, i: Int, wert: String): List<String> 
 @Composable
 fun StandbyNeuSeite(
     zurueck: () -> Unit, zurFahrt: () -> Unit, gesendet: (String) -> Unit, zeigen: (DispoZiel) -> Unit,
+    /** Schalter "Dienstreise": wechselt zu Dienstreise verschicken. */
+    zurDienstreise: () -> Unit = {},
     /** Standby-Karte des KI-Assistenten: Felder vorbelegt, ohne Umschalter Fahrt/Standby. */
     vorlage: StandbyVorlage? = null,
 ) {
@@ -244,7 +253,7 @@ fun StandbyNeuSeite(
             Box(Modifier.fillMaxWidth().height(hoehe.dp)) {
                 DispoHintergrund(Modifier.fillMaxWidth().height(hoehe.dp))
                 ZurueckKnopf(Modifier.platz(20f, 60f), zurueck)
-                if (vorlage == null) ArtUmschalter(true, Modifier.platz(0f, 67f, 402f, 40f), fahrt = zurFahrt, standbyWahl = {})
+                if (vorlage == null) ArtUmschalter("standby", Modifier.platz(0f, 67f, 402f, 40f), fahrt = zurFahrt, standbyWahl = {}, dienstreiseWahl = zurDienstreise)
                 Text("Standby", style = css(42f, 700, 42f, farbe = LIME), modifier = Modifier.platz(20f, 140f, 320f))
 
                 FormularZeile("Datum", datum, Modifier.platz(20f, 206f, 362f, ZEILE), zuruecksetzen = { datum = "" }) {
@@ -477,7 +486,7 @@ fun StandbyBearbeitenSeite(standbyId: String, zurueck: () -> Unit, zeigen: (Disp
 }
 
 /** Kurzer Tag fuer die Kacheln: "Heute" oder "Mi., 12.11.". */
-private fun tagKurz(iso: String): String {
+internal fun tagKurz(iso: String): String {
     if (iso == heuteBerlin()) return "Heute"
     val d = runCatching { LocalDate.parse(iso) }.getOrNull() ?: return iso
     val w = d.format(java.time.format.DateTimeFormatter.ofPattern("EE", java.util.Locale.GERMAN))

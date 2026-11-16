@@ -1,0 +1,101 @@
+[
+  {
+    "fall": "Fahrer loeschen, ja reicht nicht, loeschen",
+    "gruppe": "Loeschen",
+    "schritt": 1,
+    "frage": "Lösche den Fahrer Marvin Keller",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Fahrer endgültig löschen: Marvin Keller. Konto, Login, Standorte, Dienste und Stundenzettel sind danach weg, offene Fahrten werden wieder frei. Die Fahrten selbst bleiben.\nDas geht nicht rückgängig. Schreib „löschen“, dann lösche ich es. Mit „nein“ breche ich ab.",
+    "felder": {},
+    "ms": 1962
+  },
+  {
+    "fall": "Fahrer loeschen, ja reicht nicht, loeschen",
+    "gruppe": "Loeschen",
+    "schritt": 2,
+    "frage": "ja",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Löschen geht nicht rückgängig. Schreib zur Sicherheit „löschen“, dann lösche ich es. Mit „nein“ breche ich ab.",
+    "felder": {},
+    "ms": 5
+  },
+  {
+    "fall": "Fahrer loeschen, ja reicht nicht, loeschen",
+    "gruppe": "Loeschen",
+    "schritt": 3,
+    "frage": "löschen",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Marvin Keller gelöscht.",
+    "felder": {},
+    "ms": 2
+  },
+  {
+    "fall": "Fahrzeug loeschen, nein",
+    "gruppe": "Loeschen",
+    "schritt": 1,
+    "frage": "Lösche das Fahrzeug M-TR 103",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Fahrzeug endgültig löschen: BMW X5 (M-TR 103). Fahrer- und Tracker-Zuordnung fallen weg, Fahrten bleiben.\nDas geht nicht rückgängig. Schreib „löschen“, dann lösche ich es. Mit „nein“ breche ich ab.",
+    "felder": {},
+    "ms": 1976
+  },
+  {
+    "fall": "Fahrzeug loeschen, nein",
+    "gruppe": "Loeschen",
+    "schritt": 2,
+    "frage": "nein",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Okay, ich habe nichts gelöscht.",
+    "felder": {},
+    "ms": 1
+  },
+  {
+    "fall": "Alle loeschen geht nicht",
+    "gruppe": "Loeschen",
+    "schritt": 1,
+    "frage": "Lösche alle Fahrzeuge",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Alle auf einmal lösche ich nicht. Nenne mir die Fahrer oder Fahrzeuge einzeln, z. B. „Lösche Fahrer Max Mustermann und das Fahrzeug M-TR 105“.",
+    "felder": {},
+    "ms": 1782
+  },
+  {
+    "fall": "Zwei Fahrer loeschen",
+    "gruppe": "Loeschen",
+    "schritt": 1,
+    "frage": "Entferne die Fahrer Tim Schedler und Anna Berger",
+    "ok": false,
+    "fehler": [
+      "Antwort ohne \"Tim Schedler\"",
+      "Antwort ohne \"Anna Berger\""
+    ],
+    "art": "antwort",
+    "antwort": "Welchen Fahrer soll ich löschen? Sag mir den vollen Namen oder die Fahrernummer.",
+    "felder": {},
+    "ms": 2648
+  },
+  {
+    "fall": "Fahrt loeschen bleibt bei der Fahrt",
+    "gruppe": "Loeschen",
+    "schritt": 1,
+    "frage": "Lösche die Fahrt von Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Fahrt heute 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten, Tim Schedler stornieren? Mit „ja“ storniere ich sie, rückgängig geht danach mit „rückgängig“.",
+    "felder": {},
+    "ms": 12651
+  }
+]

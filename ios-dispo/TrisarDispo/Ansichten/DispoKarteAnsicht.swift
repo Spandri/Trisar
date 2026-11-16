@@ -13,7 +13,10 @@ struct DispoKarteAnsicht: View {
     @State private var kartenAuswahl = false
     /// Flagge als Filter (nur Fahrer mit dieser Flagge), ausserhalb der Auswahl.
     @State private var flaggenFilter: Set<String> = Set(FahrerMarkierung.geteilt.flaggen)
+    /// Zaehler der Profil-Abfrage zum Flaggenfilter, damit nur die letzte Antwort zaehlt.
+    @State private var flaggenAbfrage = 0
     @ObservedObject private var filter = KartenFilter.geteilt
+    @ObservedObject private var ohneSignal = OhneSignalEinstellung.geteilt
     @State private var gewaehltID: String?
     @State private var schnellFilter: [FahrerZustand] = FahrerZustand.allCases
     @State private var blatt: CGFloat = Self.blattMin
@@ -34,6 +37,11 @@ struct DispoKarteAnsicht: View {
     @State private var erklaerungSichtbar = false
     /// Eigener Bereich (13.11.): mit dem Finger frei zeichnen, "Karte" zoomt dann darauf.
     @ObservedObject private var bereich = KartenBereich.geteilt
+    /// Fahrer auf Dienstreise (14.11.): statt des Pins das Fahrzeug auf der Strecke.
+    @ObservedObject private var dienstreisen = DispoDienstreiseSpeicher.gemeinsam
+    @ObservedObject private var reiseLive = DispoReiseLive.gemeinsam
+    @State private var reiseUhr = Date()
+    private let reiseTakt = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     @State private var kartenZugang = KartenZugang()
     @State private var bereichZeichnen = false
     @State private var zugPfad: [CGPoint] = []
@@ -68,8 +76,23 @@ struct DispoKarteAnsicht: View {
         }
     }
 
+    /// Lange ohne Signal (Schwelle im Karten-Filter), ausser gezielt ausgewaehlt oder "trotzdem zeigen".
+    private var langeOhneSignal: [KartenFahrer] {
+        passendeFahrer.filter { ohneSignal.zuLange($0, jetzt: reiseUhr) }
+    }
+
+    private var ohneSignalAusblenden: Bool {
+        !ohneSignal.zeigen && filter.gewaehlteFahrerIDs.isEmpty && !langeOhneSignal.isEmpty
+    }
+
+    private var sichtbareFahrer: [KartenFahrer] {
+        guard ohneSignalAusblenden else { return passendeFahrer }
+        let weg = Set(langeOhneSignal.map(\.id))
+        return passendeFahrer.filter { !weg.contains($0.id) }
+    }
+
     private var gefiltert: [KartenFahrer] {
-        passendeFahrer.filter { schnellFilter.contains($0.zustand) }
+        sichtbareFahrer.filter { schnellFilter.contains($0.zustand) }
             .filter { kartenAuswahl || flaggenFilter.isEmpty || flaggenFilter.contains($0.flagge ?? "") }
     }
 
@@ -80,8 +103,139 @@ struct DispoKarteAnsicht: View {
 
     private var gewaehlt: KartenFahrer? { gefiltert.first { $0.id == gewaehltID } }
 
+    // MARK: Dienstreisen auf der Karte (DienstreiseKartenSchicht.jsx)
+
+    private var laufendeReisen: [(reise: DispoDienstreiseSpeicher.Reise, fahrer: DispoDienstreiseSpeicher.Fahrer)] {
+        (dienstreisen.liste ?? []).flatMap { r -> [(reise: DispoDienstreiseSpeicher.Reise, fahrer: DispoDienstreiseSpeicher.Fahrer)] in
+            // 15 min nach der letzten Ankunft (15.11.): Reise raus, der normale Pin kommt zurueck.
+            let abgeschlossen = ReiseLage.berechnen(teile: DispoDienstreiseSpeicher.teile(r), liveJe: reiseLive.je,
+                                                    datum: r.datum, standort: nil, jetzt: reiseUhr)?.abgeschlossen ?? false
+            if abgeschlossen { return [] }
+            return r.fahrer.filter { DispoDienstreiseSpeicher.laeuft(r, $0, jetzt: reiseUhr) }.map { (r, $0) }
+        }
+    }
+
+    private var reiseFahrerIDs: Set<String> { Set(laufendeReisen.map { $0.fahrer.driverID.uuidString.lowercased() }) }
+
+    /// Normale Pins ohne die Fahrer, die gerade auf Dienstreise sind (auch die Reise vor dem Start im Blatt).
+    private var kartenPins: [KartenFahrer] {
+        var ids = reiseFahrerIDs
+        if let v = vorschauReise.first { ids.insert(v.driverID.lowercased()) }
+        return ids.isEmpty ? gefiltert : gefiltert.filter { !ids.contains($0.id.lowercased()) }
+    }
+
+    /// Eine Dienstreise auf der Karte: Strecke offen/gefahren, Fahrzeug am errechneten oder GPS-Ort mit Nummer in
+    /// Statusfarbe, Umstieg-Marker und Zielflagge. Text vor Start und im Umstieg "Bus 192 ab 06:45",
+    /// sonst "ICE 612 → Mannheim 10:29 +3".
+    private func reiseEintrag(_ reise: DispoDienstreiseSpeicher.Reise, fahrerID id: String, nummer: String, key: String) -> ReiseKartenEintrag? {
+        let d = daten.fahrer.first { $0.id.lowercased() == id }
+        // Live-Standort nur vom Handy (ios_app/android_app), sonst errechnet.
+        let quelle = (d?.standortQuelle ?? "").lowercased()
+        let standort = d.flatMap { f -> ReiseLage.Standort? in
+            quelle == "ios_app" || quelle == "android_app"
+                ? .init(lat: f.lat, lng: f.lng, erfasst: f.letztesSignal, quelle: quelle) : nil
+        }
+        let teile = DispoDienstreiseSpeicher.teile(reise)
+        guard let lage = ReiseLage.berechnen(teile: teile, liveJe: reiseLive.je,
+                                             datum: reise.datum, standort: standort, jetzt: reiseUhr) else { return nil }
+        let a = lage.aktuell
+        let live = reiseLive.je[a.id]
+        let text: String
+        if lage.vorStart || lage.imUmstieg {
+            let ab = (live?.abfahrt).flatMap { $0.isEmpty ? nil : String($0.prefix(5)) } ?? a.ab_zeit
+            text = "\(a.nummer)\(ab.isEmpty ? "" : " ab \(ab)")".trimmingCharacters(in: .whitespaces)
+        } else {
+            let an = (live?.ankunft).flatMap { $0.isEmpty ? nil : $0 } ?? a.an_zeit
+            let spaet = ReiseLage.verspaetungMin(live) ?? 0
+            let ziel = Self.kurzOrt(a.nach_name)
+            text = "\(a.nummer) → \(ziel)\(an.isEmpty ? "" : " \(an)")\(spaet > 0 ? " +\(spaet)" : "")"
+                .trimmingCharacters(in: .whitespaces)
+        }
+        let farbe: UInt32 = switch d?.zustand {
+        case .aktiv?: 0xFF6F63
+        case .inaktiv?: 0xE3F654
+        default: 0x59BE80
+        }
+        // Strecke, Umstiege und Zielflagge nur beim gewaehlten Fahrer (mitLinie im Web), sonst nur das Fahrzeug.
+        let mitLinie = gewaehltID?.lowercased() == id
+        let zielOrt = reise.zielLat.flatMap { lat in reise.zielLng.map { CLLocationCoordinate2D(latitude: lat, longitude: $0) } }
+            ?? teile.last?.nachPunkt
+        return ReiseKartenEintrag(key: key, driverID: d?.id ?? id,
+                                  offen: mitLinie ? lage.offen : [], gefahren: mitLinie ? lage.gefahren : [],
+                                  position: lage.position,
+                                  art: lage.art, nummer: nummer, text: text, farbe: farbe,
+                                  umstiege: mitLinie && teile.count > 1 ? ReiseLage.umstiegPunkte(teile, reiseLive.je) : [],
+                                  ziel: mitLinie ? zielOrt : nil)
+    }
+
+    private var reiseEintraege: [ReiseKartenEintrag] {
+        laufendeReisen.compactMap { x in
+            let id = x.fahrer.driverID.uuidString.lowercased()
+            return reiseEintrag(x.reise, fahrerID: id, nummer: x.fahrer.profil?.nummer ?? "", key: "\(x.reise.id.uuidString)-\(id)")
+        }
+    }
+
+    /// Vor dem Start (14.11., KartenView "Vor dem Start"): zeigt das Blatt eine Dienstreise, die noch nicht laeuft,
+    /// dann genau wie eine laufende Reise (Fahrzeug mit Nummer und Text), der normale Pin dieses Fahrers ist aus.
+    private var vorschauReise: [ReiseKartenEintrag] {
+        guard let f = gewaehlt, !reiseFahrerIDs.contains(f.id.lowercased()), let r = blattReise(f) else { return [] }
+        let id = f.id.lowercased()
+        let nummer = r.fahrer.first { $0.driverID.uuidString.lowercased() == id }?.profil?.nummer ?? ""
+        return reiseEintrag(r, fahrerID: id, nummer: nummer, key: "vorschau-\(r.id.uuidString)-\(id)").map { [$0] } ?? []
+    }
+
+    /// Reisen, fuer die reiseLive den Live-Stand je Abschnitt holt (alle 2 min): laufende und die Reise vor dem
+    /// Start im Fahrerblatt (wie useAbschnittVerbindungen mit nurLinie im Web), damit Zuege schon auf den Gleisen liegen.
+    private var liveReisen: [DispoDienstreiseSpeicher.Reise] {
+        var liste = laufendeReisen.map(\.reise)
+        if let f = gewaehlt, !reiseFahrerIDs.contains(f.id.lowercased()), let r = blattReise(f),
+           !liste.contains(where: { $0.id == r.id }) {
+            liste.append(r)
+        }
+        var gesehen = Set<UUID>()
+        return liste.filter { gesehen.insert($0.id).inserted }
+    }
+
+    /// Dienstreise fuers Fahrerblatt (14.11., wie blattFahrer im Web): laeuft schon (ab 30 min vor Start bis
+    /// zur Ankunft) oder kommt heute vor der naechsten Fahrt. Sonst nil, dann die normale naechste Fahrt.
+    private func blattReise(_ f: KartenFahrer) -> DispoDienstreiseSpeicher.Reise? {
+        let id = f.id.lowercased()
+        let tag = Datum.tagWert(reiseUhr)
+        let info = f.info
+        let fahrtStart: Date? = info.hatFahrt && info.abfahrt.range(of: #"^\d{1,2}:\d{2}"#, options: .regularExpression) != nil
+            ? Stunden.zeitpunkt(tag, String(info.abfahrt.prefix(5))) : nil
+        let passend = (dienstreisen.liste ?? []).compactMap { r -> (reise: DispoDienstreiseSpeicher.Reise, start: Date)? in
+            guard r.fahrer.contains(where: { $0.driverID.uuidString.lowercased() == id && $0.status == "accepted" && $0.beendet == nil }),
+                  let start = Stunden.zeitpunkt(r.datum, r.startZeit), let ende = Self.reiseEnde(r, start: start),
+                  reiseUhr < ende else { return nil }
+            if reiseUhr >= start.addingTimeInterval(-30 * 60) { return (r, start) } // laeuft (oder gleich)
+            if r.datum != tag || info.unterwegs { return nil }
+            if let fs = fahrtStart, start > fs { return nil }
+            return (r, start)
+        }
+        return passend.min { $0.start < $1.start }?.reise
+    }
+
+    /// Ankunft des letzten Abschnitts (reiseEnde), ohne Ankunft Start + 18 h.
+    private static func reiseEnde(_ r: DispoDienstreiseSpeicher.Reise, start: Date) -> Date? {
+        let teile = DispoDienstreiseSpeicher.teile(r)
+        guard let l = teile.last, !l.an_zeit.isEmpty,
+              var ende = Stunden.zeitpunkt(l.an_datum ?? l.ab_datum ?? r.datum, l.an_zeit) else {
+            return start.addingTimeInterval(18 * 3600)
+        }
+        if ende < start { ende = ende.addingTimeInterval(86400) }
+        return ende
+    }
+
+    /// Ziel ohne Adresse und ohne "Hbf".
+    static func kurzOrt(_ t: String) -> String {
+        let erster = String(t.split(separator: ",", omittingEmptySubsequences: false).first ?? "")
+        return erster.replacingOccurrences(of: #"\s*Hbf$"#, with: "", options: [.regularExpression, .caseInsensitive])
+            .trimmingCharacters(in: .whitespaces)
+    }
+
     private var zaehler: [FahrerZustand: Int] {
-        Dictionary(grouping: passendeFahrer.filter { kartenAuswahl || flaggenFilter.isEmpty || flaggenFilter.contains($0.flagge ?? "") }, by: \.zustand).mapValues(\.count)
+        Dictionary(grouping: sichtbareFahrer.filter { kartenAuswahl || flaggenFilter.isEmpty || flaggenFilter.contains($0.flagge ?? "") }, by: \.zustand).mapValues(\.count)
     }
 
     /// selectedDriverForSheet: fehlt die Ankunft, aus Abfahrt + Fahrdauer der Route.
@@ -107,13 +261,16 @@ struct DispoKarteAnsicht: View {
             let blattMax = max(Self.blattMin, rasterHoehe - Self.blattUnten - 54)
             ZStack(alignment: .topLeading) {
                 DispoKarte(
-                    fahrer: gefiltert, gewaehlt: gewaehlt, route: route,
+                    fahrer: kartenPins, gewaehlt: gewaehlt,
+                    // Zeigt das Blatt eine Dienstreise, keine Anfahrt-Route zur spaeteren Fahrt.
+                    route: gewaehlt.flatMap(blattReise) == nil ? route : nil,
                     blattHoehe: gewaehlt == nil ? 0 : min(max(blatt, Self.blattMin), blattMax),
                     rasterHoehe: rasterHoehe, massstab: s, einpassenSignal: einpassen,
                     waehlen: fahrerTippen, leerTippen: auswahlAufheben, abseits: abseitsGemeldet,
                     orte: orte.orte, gewaehlterOrt: gewaehlterOrt, ortWaehlen: { gewaehlterOrt = $0 },
                     markiert: kartenAuswahl && markierung.aktiv ? Set(markierung.ids) : nil,
-                    bereich: bereich.punkte, zugang: kartenZugang
+                    bereich: bereich.punkte, zugang: kartenZugang,
+                    reisen: reiseEintraege + vorschauReise
                 )
                 .frame(width: geo.size.width, height: geo.size.height)
 
@@ -139,7 +296,7 @@ struct DispoKarteAnsicht: View {
                 }
 
                 if filterOffen {
-                    KartenFilterAnsicht(filter: filter, zurueck: { filterOffen = false })
+                    KartenFilterAnsicht(filter: filter, zurueck: { filterOffen = false }, langeOhneSignal: langeOhneSignal)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -149,6 +306,11 @@ struct DispoKarteAnsicht: View {
         .task { await daten.starten() }
         .task { await orte.beobachten() }
         .task { await bereich.laden() }
+        .task { await dienstreisen.starten() }
+        .task(id: liveReisen.map { "\($0.id)" }.joined(separator: ",")) {
+            await reiseLive.laufen(liveReisen)
+        }
+        .onReceive(reiseTakt) { reiseUhr = $0 }
         .onDisappear {
             Task { await daten.beenden() }
             Task { await orte.beenden() }
@@ -244,6 +406,22 @@ struct DispoKarteAnsicht: View {
                 .mittig(201, 142, 362, 44)
             }
 
+            // Hinweis unter der Statusleiste: so viele lange ohne Signal ausgeblendet, Tippen oeffnet den Filter.
+            if !kartenAuswahl && ohneSignalAusblenden {
+                Button { filterOffen = true } label: {
+                    Text("\(langeOhneSignal.count) ohne Signal ausgeblendet ›").grotesk(12, .medium, abstand: 0.3)
+                        .foregroundStyle(Color(hex: 0xE3F654))
+                        .padding(.horizontal, 10)
+                        .frame(height: 30)
+                        .background(Color.black)
+                        .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654).opacity(0.5), lineWidth: 1))
+                        .fixedSize()
+                }
+                .buttonStyle(.web)
+                .platz(20, 196, nil, 30)
+                .zIndex(31)
+            }
+
             // Flaggen (Figma 2832:12528): unter den Knoepfen, nur im Auswahlmodus.
             if kartenAuswahl {
                 FlaggenKnoepfe(ids: markierung.ids,
@@ -279,7 +457,8 @@ struct DispoKarteAnsicht: View {
 
             if let f = blattFahrer {
                 let hoehe = min(max(blatt, Self.blattMin), blattMax)
-                FahrerBlatt(fahrer: f, hoehe: $blatt, zieht: $ziehtBlatt, minimum: Self.blattMin, maximum: blattMax) {
+                FahrerBlatt(fahrer: f, reise: blattReise(f), liveJe: reiseLive.je, jetzt: reiseUhr,
+                            hoehe: $blatt, zieht: $ziehtBlatt, minimum: Self.blattMin, maximum: blattMax) {
                     profilOffen = true
                 }
                 .frame(width: 402, height: hoehe)
@@ -418,11 +597,32 @@ struct DispoKarteAnsicht: View {
     }
 
     private func flaggenAlsMarkierung() {
+        // Jede neue Lage macht eine noch laufende Profil-Abfrage ungueltig (auch Filter leer oder Auswahl an).
+        flaggenAbfrage += 1
         guard !kartenAuswahl else { return }
         let ids = Flaggen.alle.map(\.id).filter { flaggenFilter.contains($0) }
         let mit = daten.fahrer.filter { ids.contains($0.flagge ?? "") }
             .map { FahrerMarkierung.Eintrag(id: $0.id, name: $0.name, vehicleId: $0.vehicleId) }
         markierung.flaggenSetzen(ids, fahrer: mit)
+        guard !ids.isEmpty else { return }
+        // Alle Fahrer mit diesen Flaggen, nicht nur die mit Standort auf der Karte (14.11., wie KartenView.jsx).
+        let nummer = flaggenAbfrage
+        Task { @MainActor in
+            struct Zeile: Decodable { let id: String; let first_name: String?; let last_name: String?; let vehicle_id: String? }
+            guard let zeilen: [Zeile] = try? await Backend.client.from("profiles")
+                .select("id, first_name, last_name, vehicle_id, flagge")
+                .in("flagge", values: ids).execute().value else { return }
+            // Inzwischen anderer Filter oder Auswahlmodus an: Ergebnis verwerfen.
+            guard nummer == flaggenAbfrage, !kartenAuswahl else { return }
+            var liste = mit
+            var gesehen = Set(mit.map(\.id))
+            for z in zeilen where gesehen.insert(z.id).inserted {
+                let name = [z.first_name, z.last_name].compactMap { $0?.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }.joined(separator: " ")
+                liste.append(FahrerMarkierung.Eintrag(id: z.id, name: name, vehicleId: z.vehicle_id ?? ""))
+            }
+            markierung.flaggenSetzen(ids, fahrer: liste)
+        }
     }
 
     /// Flagge bei allen markierten Fahrern setzen (nil = entfernen), danach die Karte neu laden.
@@ -605,6 +805,10 @@ private struct InaktivFenster: View {
 
 private struct FahrerBlatt: View {
     let fahrer: KartenFahrer
+    /// Dienstreise statt der naechsten Fahrt (blattReise), dazu Live-Stand je Abschnitt.
+    var reise: DispoDienstreiseSpeicher.Reise? = nil
+    var liveJe: [UUID: DienstreiseVerbindung] = [:]
+    var jetzt = Date()
     @Binding var hoehe: CGFloat
     @Binding var zieht: Bool
     let minimum: CGFloat
@@ -692,10 +896,18 @@ private struct FahrerBlatt: View {
                 .frame(maxWidth: .infinity, alignment: .leading).frame(height: 18)
                 .padding(.top, 12)
 
-            Text("Nächste Fahrt").grotesk(22, .bold, abstand: -1).foregroundStyle(Self.lime).frame(height: 21)
-                .padding(.top, 6)
+            HStack(spacing: 8) {
+                Text(reise != nil ? "Dienstreise" : "Nächste Fahrt").grotesk(22, .bold, abstand: -1).foregroundStyle(Self.lime)
+                if reise != nil {
+                    Image("Rollkoffer_Trisar_Icons_01_Lime").resizable().scaledToFit().frame(width: 20, height: 20)
+                }
+            }
+            .frame(height: 21)
+            .padding(.top, 6)
 
-            if info.hatFahrt {
+            if let reise {
+                reiseBlock(reise)
+            } else if info.hatFahrt {
                 zeitPaar(links: ("ETD", info.abfahrt), rechts: ("ETA", info.ankunft), unterRechts: fahrText(info))
                     .padding(.top, 12)
 
@@ -722,6 +934,82 @@ private struct FahrerBlatt: View {
         }
     }
 
+    // MARK: Dienstreise (DienstreiseBlatt im Web)
+
+    private func reiseBlock(_ r: DispoDienstreiseSpeicher.Reise) -> some View {
+        let teile = DispoDienstreiseSpeicher.teile(r)
+        let erster = teile.first, letzter = teile.last
+        func wert(_ t: String?) -> String? { (t ?? "").isEmpty ? nil : t }
+        let start = wert(erster.flatMap { liveJe[$0.id]?.abfahrt }) ?? wert(erster?.ab_zeit) ?? wert(r.startZeit) ?? "--:--"
+        let ankunft = wert(letzter.flatMap { liveJe[$0.id]?.ankunft }) ?? wert(letzter?.an_zeit) ?? "--:--"
+        let haupt = teile.first { ["zug", "sbahn", "flug"].contains($0.art) } ?? erster
+        let nummer = wert(haupt?.nummer) ?? wert(r.zugnummer) ?? wert(r.flugnummer)
+        let umstiege = teile.count - 1
+        let unter = [nummer, umstiege > 0 ? (umstiege == 1 ? "1 Umstieg" : "\(umstiege) Umstiege") : nil]
+            .compactMap { $0 }.joined(separator: " · ")
+        let lage = ReiseLage.berechnen(teile: teile, liveJe: liveJe, datum: r.datum, standort: nil, jetzt: jetzt)
+        let ziel = Self.kurz(r.zielName.isEmpty ? (letzter?.nach_name ?? "") : r.zielName)
+        return VStack(alignment: .leading, spacing: 0) {
+            // Verspaetet: Zeit Orange mit Kachel „+5“, puenktlich Lime.
+            zeitPaar(links: ("START", start), rechts: ("ANKUNFT", ankunft), unterRechts: unter.isEmpty ? nil : unter,
+                     spaetLinks: erster.flatMap { liveJe[$0.id]?.abfahrtSpaet } ?? 0,
+                     spaetRechts: letzter.flatMap { liveJe[$0.id]?.ankunftSpaet } ?? 0)
+                .padding(.top, 12)
+
+            HStack(spacing: 16) {
+                ortKachel(DienstreiseAbschnitt.icon(erster?.art ?? (r.flug ? "flug" : "zug")))
+                Image("Arrow_Trisar_Icons_01_Lime").resizable().scaledToFit().frame(width: 59, height: 38).frame(maxWidth: .infinity)
+                ortKachel("Pin_Nav_Trisar_Icons_01_grau")
+            }
+            .frame(width: 362)
+            .padding(.top, 24)
+
+            HStack(alignment: .top, spacing: 24) {
+                reiseOrt(Self.kurz(r.startName), rechts: false)
+                reiseOrt(ziel, rechts: true)
+            }
+            .frame(width: 362)
+            .padding(.top, 12)
+
+            if let lage, let zeile = reiseZeile(lage, teile) {
+                (Text(zeile.marke).foregroundColor(Self.lime)
+                 + Text("  \(zeile.text)").foregroundColor(.white)
+                 + Text(zeile.spaet > 0 ? " +\(zeile.spaet)" : "").foregroundColor(Color(hex: 0xF0997B)))
+                    .grotesk(14, .bold, abstand: -0.3)
+                    .lineLimit(1).truncationMode(.tail)
+                    .padding(.vertical, 10).padding(.horizontal, 12)
+                    .frame(width: 362, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(hex: 0x242525)))
+                    .padding(.top, 14)
+            }
+        }
+    }
+
+    /// JETZT (Abschnitt laeuft) oder UMSTIEG, vor dem Start und nach der Ankunft keine Zeile.
+    private func reiseZeile(_ lage: ReiseLage, _ teile: [DienstreiseAbschnitt]) -> (marke: String, text: String, spaet: Int)? {
+        guard !lage.vorStart, !lage.vorbei, teile.indices.contains(lage.index) else { return nil }
+        let a = teile[lage.index]
+        let live = liveJe[a.id]
+        func wert(_ t: String?) -> String? { (t ?? "").isEmpty ? nil : t }
+        if lage.imUmstieg {
+            let ab = wert(live?.abfahrt) ?? a.ab_zeit
+            return ("UMSTIEG", "→ \(a.nummer) ab \(ab)".replacingOccurrences(of: "  ", with: " ").trimmingCharacters(in: .whitespaces), 0)
+        }
+        guard lage.status.indices.contains(lage.index), lage.status[lage.index] == "jetzt" else { return nil }
+        let an = wert(live?.ankunft) ?? a.an_zeit
+        let text = "\(a.nummer) → \(Self.kurz(a.nach_name))\(an.isEmpty ? "" : " \(an)")".trimmingCharacters(in: .whitespaces)
+        return ("JETZT", text, ReiseLage.verspaetungMin(live) ?? 0)
+    }
+
+    private func reiseOrt(_ name: String, rechts: Bool) -> some View {
+        WebText(text: name.isEmpty ? "-" : name, groesse: 18, gewicht: .bold, zeilenHoehe: 18 * 1.05, abstand: -0.5,
+                ausrichtung: rechts ? .right : .left)
+            .frame(maxWidth: .infinity, alignment: rechts ? .trailing : .leading)
+    }
+
+    /// Ort ohne Adresse und ohne "Hbf" (reiseKurz).
+    private static func kurz(_ t: String) -> String { DispoKarteAnsicht.kurzOrt(t) }
+
     /// Ohne laufende oder naechste Fahrt: Hinweis statt leerer Zeiten und Orte.
     private var keineFahrt: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -740,16 +1028,27 @@ private struct FahrerBlatt: View {
         return "- min Fahrt"
     }
 
-    private func zeitPaar(links: (String, String), rechts: (String, String), unterRechts: String?) -> some View {
+    private func zeitPaar(links: (String, String), rechts: (String, String), unterRechts: String?,
+                          spaetLinks: Int = 0, spaetRechts: Int = 0) -> some View {
         HStack(alignment: .top, spacing: 24) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(links.0).grotesk(12, .bold, abstand: -0.3).foregroundStyle(Self.grau).frame(height: 12)
-                Text(links.1).grotesk(42, .bold, abstand: -1).foregroundStyle(Self.lime).frame(height: 38)
+                HStack(spacing: 8) {
+                    Text(links.1).grotesk(42, .bold, abstand: -1).foregroundStyle(spaetLinks > 0 ? ReiseFarben.orange : Self.lime)
+                        .lineLimit(1).fixedSize()
+                    if spaetLinks != 0 { VerspaetungKachel(minuten: spaetLinks) }
+                }
+                .frame(height: 38)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             VStack(alignment: .trailing, spacing: 0) {
                 Text(rechts.0).grotesk(12, .bold, abstand: -0.3).foregroundStyle(Self.grau).frame(height: 12)
-                Text(rechts.1).grotesk(42, .bold, abstand: -1).foregroundStyle(Self.lime).frame(height: 38).padding(.top, 8)
+                HStack(spacing: 8) {
+                    Text(rechts.1).grotesk(42, .bold, abstand: -1).foregroundStyle(spaetRechts > 0 ? ReiseFarben.orange : Self.lime)
+                        .lineLimit(1).fixedSize()
+                    if spaetRechts != 0 { VerspaetungKachel(minuten: spaetRechts) }
+                }
+                .frame(height: 38).padding(.top, 8)
                 if let unterRechts {
                     Text(unterRechts).grotesk(12, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0xF4F5F4)).opacity(0.5)
                         .padding(.top, 6)

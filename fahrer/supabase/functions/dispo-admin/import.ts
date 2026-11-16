@@ -141,7 +141,8 @@ const ollamaFragen = async (url: string, model: string, prompt: string, ms: numb
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: false, format: 'json', options: { temperature: 0 }, keep_alive: '30m' }),
+      // Kontext wie verstehen.ts (4096), nur lange Importe 8192 (sonst Neuladen bzw. Abschneiden, 15.11.).
+      body: JSON.stringify({ model, prompt, stream: false, format: 'json', options: { temperature: 0, num_ctx: String(prompt).length / 3 + 800 > 4000 ? 8192 : 4096 }, keep_alive: -1 }),
     });
     if (!r.ok) return null;
     const daten = await r.json();

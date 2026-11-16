@@ -12,6 +12,7 @@ import { demoAlert, demoConfirm, tutorialLaeuft } from '../ui/demoDialoge';
 import RisikoAbschnitt from './RisikoAbschnitt';
 import { fahrerPasst, risikoFahrt, risikoTag, useRisikoDaten } from '../../demo/risikoErgebnisse';
 import { DEMO_MODE } from '../../datenquelle';
+import useRoutenZeile from './useRoutenZeile';
 
 const GREEN = '#E3F654';
 // Erstes Feld 24 px unter dem Titel (140 + 42 + 24 = 206), Reihen alle 68 px.
@@ -140,6 +141,9 @@ function FormRow({
   onLabelClick = null,
   value2 = '',
   onChange2 = null,
+  // Route (15.11.): Zeile als Knopf, Tipp oeffnet den Routen-Editor. chip = Lime-Marke rechts.
+  onClick = null,
+  chip = '',
 }) {
   const { t, locale } = useI18n();
   const normalizedValue = String(value || '').trim().toLowerCase();
@@ -173,7 +177,23 @@ function FormRow({
               {label}
             </div>
           )}
-          {mode === 'timeRange' ? (
+          {mode === 'knopf' ? (
+            <button
+              type="button"
+              data-tutorial={marker}
+              onClick={onClick}
+              className="flex-1 min-w-0 self-stretch flex items-center gap-2 bg-transparent border-none p-0 text-left"
+            >
+              <span className="flex-1 min-w-0 truncate text-[16px] font-medium leading-6 tracking-[0.5px]" style={{ color: GREEN, fontFamily: 'Space Grotesk' }}>
+                {value}
+              </span>
+              {chip ? (
+                <span className="shrink-0 rounded-[10px] px-2 py-[2px] text-[12px] font-bold text-black" style={{ background: '#E3F654', fontFamily: 'Space Grotesk' }}>
+                  {chip}
+                </span>
+              ) : null}
+            </button>
+          ) : mode === 'timeRange' ? (
             <div className="flex-1 min-w-0 flex items-center gap-2">
               <input
                 data-tutorial={marker}
@@ -320,7 +340,7 @@ function FormRow({
                 <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="w-[10px] h-[13px]" />
               )}
             </button>
-          ) : isFilled ? (
+          ) : isFilled && mode !== 'knopf' ? (
             <button
               type="button"
               onClick={onReset || (() => onChange(''))}
@@ -383,6 +403,12 @@ export default function FahrtBearbeitenView({
   const fahrtGeplant = fahrerPasst(risikoDieserFahrt, Array.isArray(initialData?.fahrerNamen) ? initialData.fahrerNamen : []);
   const [placePredictions, setPlacePredictions] = useState({ start: [], ziel: [] });
   const stopps = useZwischenstopps({ start: formValues.start, anfang: initialData?.zwischenstopps || [], onFetchPlaceSuggestions, t });
+  // Route (15.11.): Routenpunkte der Dispo, Zeile unter Ziel.
+  const routenZeile = useRoutenZeile({
+    adressen: [formValues.startAdresse || formValues.start, ...stopps.gefuellt, formValues.zielAdresse || formValues.ziel],
+    anfang: initialData?.routenPunkte || [],
+    marker: 'feld-route',
+  });
   const [activeAddressField, setActiveAddressField] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [flightEtaIndicator, setFlightEtaIndicator] = useState({ text: '', colorClass: 'text-[#808080]' });
@@ -417,6 +443,12 @@ export default function FahrtBearbeitenView({
     setFormValues(buildInitialFormValues(initialData || {}));
     setZeitraum(Boolean(initialData?.startZeitBis));
     stopps.zuruecksetzen(initialData?.zwischenstopps || []);
+    {
+      const neu = buildInitialFormValues(initialData || {});
+      routenZeile.zuruecksetzen(initialData?.routenPunkte || [], [
+        neu.startAdresse || neu.start, ...(initialData?.zwischenstopps || []), neu.zielAdresse || neu.ziel,
+      ]);
+    }
     setFlightEtaIndicator({ text: '', colorClass: 'text-[#808080]' });
     setFlightValidationState({ status: 'empty', etaLabel: '', valid: false, startLocation: '' });
     setAppliedFlightNumber('');
@@ -687,6 +719,7 @@ export default function FahrtBearbeitenView({
   const rows = [
     ...stopps.rows,
     { key: 'ziel', label: t('fahrt.ziel'), mode: 'select', options: placePredictions.ziel, marker: 'feld-ziel' },
+    ...(routenZeile.row ? [routenZeile.row] : []),
     {
       key: 'flugnummer',
       label: t('fahrt.flugnummer'),
@@ -813,6 +846,7 @@ export default function FahrtBearbeitenView({
       anonymeGaeste: String(formValues.anonymeGaeste || '0'),
       fahrerNamen: fahrerNamenForSave,
       zwischenstopps,
+      routenPunkte: routenZeile.fuersSpeichern,
       flugZielFlughafen: flightAirportOverride,
       flugAnkunftGeplant: flightScheduledOverride,
       notes,
@@ -1027,6 +1061,8 @@ export default function FahrtBearbeitenView({
                 etaIndicator={row.etaIndicator}
                 rightAction={row.rightAction}
                 marker={row.marker}
+                onClick={row.onClick}
+                chip={row.chip}
               />
             );
           })}
@@ -1186,6 +1222,7 @@ export default function FahrtBearbeitenView({
 
       {/* Footer fest am unteren Rand der Ansicht, nicht im Scrollbereich. */}
       <TrisarFooter className="absolute bottom-0 left-0 right-0 h-10 bg-black z-[60]" />
+      {routenZeile.editor}
     </div>
   );
 }

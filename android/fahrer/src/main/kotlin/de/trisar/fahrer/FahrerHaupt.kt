@@ -50,6 +50,8 @@ private sealed interface Seite {
     data class Fahrt(val id: String) : Seite
     /** Dienststart mit Treffpunkt und Notiz (13.11.), Ansicht wie eine Fahrt. */
     data class Dienst(val id: String) : Seite
+    /** Dienstreise mit Karte, Abfahrt/Ankunft und Notiz (13.11.), Ansicht wie eine Fahrt. */
+    data class Dienstreise(val id: String) : Seite
 }
 
 /** Unterseiten des Profils (wie setView in der Web-App: profilFahrer -> verlauf / settingsFahrer / ansprechpartner). */
@@ -72,6 +74,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
     val fahrten by speicher.fahrten.collectAsState()
     val anfragen by speicher.dienstAnfragen.collectAsState()
     val standbyListe by de.trisar.fahrer.haupt.StandbySpeicher.liste.collectAsState()
+    val reiseListe by de.trisar.fahrer.haupt.DienstreiseSpeicher.liste.collectAsState()
     val fahrzeug by speicher.fahrzeug.collectAsState()
     var seite by remember { mutableStateOf<Seite?>(null) }
     var profilSeite by remember { mutableStateOf(ProfilUnterseite.PROFIL) }
@@ -87,14 +90,17 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
 
     // Tipp auf eine Mitteilung: Fahrt, Chat (Fahrt der Kolonne) oder Fahrzeug oeffnen.
     val pushZiel by de.trisar.kern.Push.ziel.collectAsState()
-    androidx.compose.runtime.LaunchedEffect(pushZiel, geladen, fahrten) {
+    androidx.compose.runtime.LaunchedEffect(pushZiel, geladen, fahrten, reiseListe) {
         val z = pushZiel ?: return@LaunchedEffect
         if (!geladen) return@LaunchedEffect
+        // Dienstreise-Benachrichtigung: warten, bis die Dienstreisen geladen sind.
+        if (z["ziel"] == "dienstreise" && reiseListe.none { it.id == z["dienstreise_id"] } && reiseListe.isEmpty()) return@LaunchedEffect
         de.trisar.kern.Push.ziel.value = null
         seite = when (z["ziel"]) {
             "fahrt" -> fahrten.firstOrNull { it.id == z["job_id"] }?.let { Seite.Fahrt(it.id) }
             "chat" -> fahrten.firstOrNull { it.kolonnenID != null && it.kolonnenID == z["kolonne_id"] }?.let { Seite.Fahrt(it.id) }
             "fahrzeug" -> Seite.Fahrzeug
+            "dienstreise" -> reiseListe.firstOrNull { it.id == z["dienstreise_id"] }?.let { Seite.Dienstreise(it.id) }
             "verlauf" -> { profilSeite = ProfilUnterseite.VERLAUF; stundenStand++; Seite.Profil }
             else -> null
         }
@@ -112,6 +118,9 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
         FahrerOrtung.setzeFahrer(fahrerID)
         speicher.setzeFahrer(fahrerID)
         de.trisar.fahrer.haupt.StandbySpeicher.setzeFahrer(fahrerID)
+        de.trisar.fahrer.haupt.DienstreiseSpeicher.setzeFahrer(fahrerID)
+        // Dauerhafte Benachrichtigung waehrend einer Dienstreise (folgt der Liste oben).
+        de.trisar.fahrer.haupt.DienstreiseLive.starten(ctx)
         if (FahrerOrtung.vorneFragen()) {
             val liste = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
             // Ohne Benachrichtigungs-Erlaubnis sieht der Fahrer „TRISAR ortet“ nicht (Android 13+).
@@ -138,6 +147,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                 bereich.launch { anmeldung.profilLaden() }
                 bereich.launch { StundenSpeicher.laden() }
                 bereich.launch { de.trisar.fahrer.haupt.StandbySpeicher.laden() }
+                bereich.launch { de.trisar.fahrer.haupt.DienstreiseSpeicher.laden() }
             }
         }
         lebenszyklus.addObserver(beobachter)
@@ -149,6 +159,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
             FahrerOrtung.setzeFahrer(null)
             speicher.setzeFahrer(null)
             de.trisar.fahrer.haupt.StandbySpeicher.setzeFahrer(null)
+            de.trisar.fahrer.haupt.DienstreiseSpeicher.setzeFahrer(null)
         }
     }
 
@@ -161,6 +172,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                     null -> seite = Seite.Support
                     Seite.Profil -> profilSeite = ProfilUnterseite.SUPPORT
                     is Seite.Dienst -> seite = Seite.Support
+                    is Seite.Dienstreise -> seite = Seite.Support
                     else -> {}
                 }
             }
@@ -177,7 +189,8 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
             !geladen -> TrisarHintergrund()
             // Liste statt "Keine Fahrt", sobald Stundenkarten da sind.
             // Offene Dienstanfrage oder angenommener Dienst ab heute: auch Liste (12.11., sonst nach der Push nichts zu sehen).
-            fahrten.isEmpty() && stundenKarten.isEmpty() && standbyListe.none { it.offen || !it.vorbei } && anfragen.none { a ->
+            // Offene Dienstreise zaehlt auch (13.11.).
+            fahrten.isEmpty() && stundenKarten.isEmpty() && reiseListe.isEmpty() && standbyListe.none { it.offen || !it.vorbei } && anfragen.none { a ->
                 if (!a.angenommen) return@none true
                 // Angenommen: bis Dienstende (Nachtdienst: Folgetag).
                 val tag = a.service_date.orEmpty().take(10)
@@ -197,6 +210,7 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                 oeffneFahrt = { seite = Seite.Fahrt(it.id) },
                 fahrerID = fahrerID,
                 oeffneDienst = { seite = Seite.Dienst(it.id) },
+                oeffneDienstreise = { seite = Seite.Dienstreise(it.id) },
                 stundenBearbeiten = { stundenBearbeiten = it },
                 stundenAblehnen = { stundenAblehnen = it },
             )
@@ -228,6 +242,12 @@ fun FahrerHaupt(anmeldung: Anmeldung, fahrerID: String) {
                 val dienst = anfragen.firstOrNull { it.id == aktuell.id }
                 if (dienst == null) LaunchedEffect(aktuell.id) { seite = null }
                 else Vollbild { de.trisar.fahrer.fahrt.DienstStartSeite(dienst) { seite = null } }
+            }
+            is Seite.Dienstreise -> {
+                // Aktueller Stand aus dem Speicher (live), beendet oder zurueckgezogen: zurueck zur Liste.
+                val reise = reiseListe.firstOrNull { it.id == aktuell.id }
+                if (reise == null) LaunchedEffect(aktuell.id) { seite = null }
+                else Vollbild { de.trisar.fahrer.fahrt.DienstreiseSeite(reise) { seite = null } }
             }
             is Seite.Fahrt -> Vollbild {
                 FahrtSeite(aktuell.id, fahrerID) {

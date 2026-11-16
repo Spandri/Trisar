@@ -1412,7 +1412,7 @@ export default function KoloneFlughafen({ job, setView, onCancelRide, onEndRide,
   const fromName = getDisplayLocationName(job?.from, 'München MUC');
   const toName = getDisplayLocationName(job?.to, 'Bayrischer Hof');
   // Beide Adressen oeffnen dieselbe Route: Standort -> Gast -> Endort.
-  const routeNavUrl = getRouteNavigationUrl(job?.from, job?.to, job?.zwischenstopps);
+  const routeNavUrl = getRouteNavigationUrl(job?.from, job?.to, job?.zwischenstopps, job?.routenPunkte);
   const fromNavUrl = routeNavUrl;
   const toNavUrl = routeNavUrl;
   const fromTypeLabel = getLocationTypeLabel(job?.from, t);
@@ -1715,7 +1715,7 @@ export default function KoloneFlughafen({ job, setView, onCancelRide, onEndRide,
               <img src={ortIconFuer(job?.to) || pickRideIcon(`${job?.to?.name || ''} ${job?.to?.address || ''} ${getDisplayLocationName(job?.to, "")}`)} alt="" className="w-[30px] h-[30px] object-contain" />
             </div>
 
-            <ZwischenstoppZeile stopps={job?.zwischenstopps} top={352} />
+            <ZwischenstoppZeile stopps={job?.zwischenstopps} routenPunkte={job?.routenPunkte} top={352} />
 
             <div className="absolute left-[20px] right-[20px] top-[289px] grid grid-cols-[minmax(0,1fr)_18px_minmax(0,1fr)] items-start">
               <div className="min-w-0">

@@ -11,7 +11,10 @@ private func grotesk(_ groesse: CGFloat, _ gewicht: Font.Weight = .regular) -> F
 
 @main
 struct TrisarFahrerWidgets: WidgetBundle {
-    var body: some Widget { FahrtWidget() }
+    var body: some Widget {
+        FahrtWidget()
+        DienstreiseWidget()
+    }
 }
 
 /// Live-Aktivitaet im TRISAR-Look: Sperrbildschirm und Dynamic Island auf dem iPhone,

@@ -1,0 +1,74 @@
+[
+  {
+    "fall": "Wer ist frei um",
+    "gruppe": "Neu",
+    "schritt": 1,
+    "frage": "Wer ist frei um 18 Uhr?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Frei heute um 18:00 (gerechnet mit etwa 45 min, Ort noch offen):\n- Stefano Spandri: im Dienst (ab 08:00), davor 14:00-Fahrt, frei ab etwa 14:54 in Messe München\n- Anna Berger: kein Dienst eingetragen, heute keine Fahrt\n- Marvin Keller: kein Dienst eingetragen, heute keine Fahrt\n- Tim Schedler: kein Dienst eingetragen, davor 09:00-Fahrt, frei ab etwa 09:21 in Hotel Vier Jahreszeiten",
+    "felder": {},
+    "ms": 2282
+  },
+  {
+    "fall": "Tagesfrage: wer hat Luft",
+    "gruppe": "Neu",
+    "schritt": 1,
+    "frage": "Wer hat heute noch Luft?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Am meisten Luft heute ab 11:00: Anna Berger, Marvin Keller, Tim Schedler.\n- Anna Berger: heute keine Fahrt mehr, kein Dienst eingetragen\n- Marvin Keller: heute keine Fahrt mehr, kein Dienst eingetragen\n- Tim Schedler: heute keine Fahrt mehr, kein Dienst eingetragen\n- Stefano Spandri: noch 2 Fahrten (10:30, 14:00), gerade unterwegs, Dienst ab 08:00",
+    "felder": {},
+    "ms": 3303
+  },
+  {
+    "fall": "Konflikt prüfen",
+    "gruppe": "Neu",
+    "schritt": 1,
+    "frage": "Schafft Stefano die 14 Uhr Fahrt nach der um 10:30?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Ja, Stefano Spandri schafft die 14:00-Fahrt nach der um 10:30, es bleiben etwa 2 h 35 min Puffer.\nDie 10:30-Fahrt Hotel Bayerischer Hof → Flughafen München Terminal 2 dauert etwa 38 min (Route), mit 10 min zum Aussteigen ist Stefano gegen 11:18 frei.\nAnfahrt zu Flughafen München Terminal 1 etwa 7 min (geschätzt), Ankunft gegen 11:25.",
+    "felder": {},
+    "ms": 9480
+  },
+  {
+    "fall": "Konflikt: geht nicht",
+    "gruppe": "Neu",
+    "schritt": 1,
+    "frage": "Schafft Anna übermorgen die 8 Uhr Fahrt nach der um 7?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Nein, Anna Berger schafft die 08:00-Fahrt nach der um 07:00 nicht, es fehlen etwa 8 min.\nDie 07:00-Fahrt Hauptbahnhof München → Flughafen München Terminal 2 dauert etwa 51 min (geschätzt aus der Entfernung), mit 10 min zum Aussteigen ist Anna gegen 08:01 frei.\nAnfahrt zu Flughafen München Terminal 1 etwa 7 min (geschätzt), Ankunft gegen 08:08.",
+    "felder": {},
+    "ms": 1266
+  },
+  {
+    "fall": "Konflikt: kann X übernehmen",
+    "gruppe": "Neu",
+    "schritt": 1,
+    "frage": "Kann Marvin die Fahrt um 18 Uhr übernehmen?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Ja, Marvin Keller kann die 18:00-Fahrt Messe München → Hotel Bayerischer Hof übernehmen.\n- Keine andere Fahrt heute, die sich damit überschneidet\n- Heute ist für Marvin Keller kein Dienst eingetragen\n- Die Fahrt hat noch keinen Fahrer",
+    "felder": {},
+    "ms": 1741
+  },
+  {
+    "fall": "Fahrervorschlag",
+    "gruppe": "Neu",
+    "schritt": 1,
+    "frage": "Wer kann die offene Fahrt um 18 Uhr übernehmen?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Für die 18:00-Fahrt Messe München → Hotel Bayerischer Hof (heute, Dauer etwa 30 min):\n1. Stefano Spandri: im Dienst (ab 08:00), vorher 14:00 nach Messe München, 3 h 3 min Puffer, steht schon dort\n2. Anna Berger: kein Dienst eingetragen, an dem Tag keine Fahrt\n3. Marvin Keller: kein Dienst eingetragen, an dem Tag keine Fahrt\n4. Tim Schedler: kein Dienst eingetragen, vorher 09:00 nach Hotel Vier Jahreszeiten, 8 h 11 min Puffer\nSoll ich einen davon eintragen? Schreib z. B. „Gib die Fahrt Stefano“.",
+    "felder": {},
+    "ms": 1253
+  }
+]

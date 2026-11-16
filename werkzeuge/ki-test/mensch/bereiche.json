@@ -1,0 +1,15 @@
+[
+  {"name": "Standby", "saetze": ["Tim soll morgen von 10 bis 18 am Bayerischen Hof bereitstehen", "welche standbys gibt es morgen", "lösch den standby von tim morgen"]},
+  {"name": "Fahrer und Fahrzeug anlegen", "saetze": ["leg einen neuen fahrer an, Max Huber, telefon 0171 2345678", "leg ein fahrzeug an M-AB 123 Mercedes S-Klasse schwarz", "ordne Marvin das Auto M-TR 103 zu"]},
+  {"name": "Fahrer ändern", "saetze": ["ändere die telefonnummer von tim auf 0170 111222", "ja", "gib marvin die fahrernummer 77", "ja", "neues passwort für tim"]},
+  {"name": "Löschen", "saetze": ["lösch den fahrer marvin keller", "nein", "lösch das fahrzeug M-TR 103", "ja"]},
+  {"name": "Gäste", "saetze": ["welche telefonnummer hat frau weber", "braucht frau weber einen kindersitz", "leg einen gast an: Dr. Peter Lang, BMW, 0172 999", "ändere die firma von julia weber auf Audi"]},
+  {"name": "Ort und Fahrt dorthin", "saetze": ["leg den ort Käfer Schänke an, Prinzregentenstraße 73 München", "fahrt morgen 19 uhr vom bayerischen hof zum hauptbahnhof für frau weber mit anna"]},
+  {"name": "Flug", "saetze": ["wann landet LH2034", "fahrt morgen um 10 vom flughafen terminal 2 zum bayerischen hof für herrn engel, flug LH 2034"]},
+  {"name": "Stundenzettel", "saetze": ["bestätige den stundenzettel von marvin", "ja", "wie viele stunden hatte tim diese woche", "wer hat seinen stundenzettel noch offen"]},
+  {"name": "Tracker", "saetze": ["stell den tracker auf fein", "ja"]},
+  {"name": "Fragen", "saetze": ["wer ist gerade frei", "welche fahrten sind verspätet", "wie viele fahrer brauche ich morgen", "wer hat morgen dienst", "was macht stefano heute", "schafft anna die 8 uhr fahrt übermorgen", "wo sind alle"]},
+  {"name": "Fahrten steuern", "saetze": ["markier die fahrt von tim als erledigt", "ja", "kopier die fahrt von herrn engel auf morgen", "ja", "notiz zur fahrt von müller: gast hat viel gepäck", "storniere die 18 uhr fahrt", "ja", "rückgängig"]},
+  {"name": "Dienst Woche", "saetze": ["plan tim nächste woche montag bis freitag 8 bis 16", "ja", "lösch die dienste von tim nächste woche", "ja", "ja, löschen"]},
+  {"name": "Sprache", "saetze": ["servus, schick an tim hoam", "please send tim home", "Tim morgen um sieben Uhr dreißig Dienstbeginn", "ähm also der tim der soll ähm morgen so um acht anfangen", "TIM MORGEN 7 UHR DIENSTSTART!!!", "tim morgen 7 uhr dienststart 🙏", "tim morgen viertel vor acht dienstbeginn"]}
+]

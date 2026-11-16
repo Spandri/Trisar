@@ -374,6 +374,10 @@ const summarizeLufthansaFlight = (flightInfo: Record<string, unknown>, fallbackF
     scheduled_arrival_local: scheduledArrivalLocal,
     estimated_arrival_local: estimatedArrivalLocal,
     actual_arrival_local: actualArrivalLocal,
+    // Abflug (Dienstreise): Zeiten am Abflughafen.
+    scheduled_departure_local: pickLufthansaDateTime(flightInfo, 'Departure', 'Scheduled'),
+    estimated_departure_local: pickLufthansaDateTime(flightInfo, 'Departure', 'Estimated'),
+    actual_departure_local: pickLufthansaDateTime(flightInfo, 'Departure', 'Actual'),
     aircraft_code: pickFirstString(
       readPath(flightInfo, ['Equipment', 'AircraftCode']),
       readPath(flightInfo, ['AircraftInfo', 'AircraftCode']),
@@ -419,6 +423,10 @@ const summarizeAviationstackFlight = (flightInfo: Record<string, unknown>, fallb
     scheduled_arrival_local: scheduledArrivalLocal,
     estimated_arrival_local: estimatedArrivalLocal,
     actual_arrival_local: actualArrivalLocal,
+    // Abflug (Dienstreise): Zeiten am Abflughafen.
+    scheduled_departure_local: pickFirstString(readPath(flightInfo, ['departure', 'scheduled'])),
+    estimated_departure_local: pickFirstString(readPath(flightInfo, ['departure', 'estimated'])),
+    actual_departure_local: pickFirstString(readPath(flightInfo, ['departure', 'actual'])),
     aircraft_code: pickFirstString(
       readPath(flightInfo, ['aircraft', 'iata']),
       readPath(flightInfo, ['aircraft', 'icao']),

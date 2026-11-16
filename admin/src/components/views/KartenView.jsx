@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import DienstreiseKartenSchicht from '../ui/DienstreiseKartenSchicht';
+import { hm as reiseHm, minutenSpaet, reiseLaeuft, useAbschnittVerbindungen, useDienstreisen, zeitFarbe } from '../../shared/dienstreise';
+import { SpaetKachel } from '../ui/ZugHalte';
+import { reiseLage, verspaetungMin } from '../../shared/reiseLage';
 import NaviFooterKomponente from '../navigation/NaviFooterKomponente';
 import { hasSupabaseAdminConfig, supabase, supabaseAdmin } from '../../services/supabase';
 import { useI18n } from '../../i18n';
@@ -15,6 +19,7 @@ import AuswahlErklaerung from '../ui/AuswahlErklaerung';
 import FlaggenKnoepfe from '../ui/FlaggenKnoepfe';
 import { kartenBereich, pfadAusduennen, useKartenBereich } from '../../shared/kartenBereich';
 import { FLAGGEN, FLAGGE_UMRISS, flaggeId, flaggeNachId, flaggeSetzen } from '../../shared/flaggen';
+import { ausgeblendetMerken, useOhneSignal, zuLangeOhneSignal } from '../../shared/ohneSignal';
 
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
@@ -2098,6 +2103,107 @@ function DriverProfilePopup({ driver, onClose }) {
   );
 }
 
+// Dienstreise im Fahrerblatt (14.11.): solange sie laeuft oder vor der naechsten Fahrt kommt, statt "Naechste Fahrt".
+const REISE_ICON_GRAU = {
+  bus: '/icon/_Icon_Grau/Bus_Trisar_Icons_01_grau.svg',
+  ubahn: '/icon/_Icon_Grau/U_Bahn_Trisar_Icons_01_grau.svg',
+  tram: '/icon/_Icon_Grau/U_Bahn_Trisar_Icons_01_grau.svg',
+  flug: '/icon/_Icon_Grau/Plain_Abflug_Trisar_Icons_01_grau.svg',
+};
+const reiseKurz = (t) => String(t || '').split(',')[0].replace(/\s*Hbf$/i, '').trim();
+const reiseTeile = (reise) => ((reise?.abschnitte || []).length ? reise.abschnitte : [{
+  id: 'haupt', art: reise?.flugnummer ? 'flug' : 'zug', nummer: reise?.zugnummer || reise?.flugnummer || '',
+  von_name: reise?.start_name, von_lat: reise?.start_lat, von_lng: reise?.start_lng,
+  nach_name: reise?.ziel_name, nach_lat: reise?.ziel_lat, nach_lng: reise?.ziel_lng,
+  ab_datum: reise?.datum, ab_zeit: reise?.start_zeit, an_zeit: null,
+}]);
+const reiseZeitpunkt = (tag, uhr) => {
+  if (!tag || !/^\d{1,2}:\d{2}/.test(String(uhr || ''))) return null;
+  const t = new Date(`${tag}T${reiseHm(uhr).padStart(5, '0')}:00`).getTime();
+  return Number.isFinite(t) ? t : null;
+};
+// Ende der Reise (Ankunft letzter Abschnitt) in ms, ohne Ankunft Start + 18 h.
+const reiseEnde = (reise) => {
+  const teile = reiseTeile(reise);
+  const start = reiseZeitpunkt(reise.datum, reise.start_zeit);
+  const l = teile[teile.length - 1];
+  let ende = reiseZeitpunkt(l?.an_datum || l?.ab_datum || reise.datum, l?.an_zeit);
+  if (ende != null && start != null && ende < start) ende += 24 * 3600000;
+  return ende ?? (start != null ? start + 18 * 3600000 : null);
+};
+
+function DienstreiseBlatt({ reise }) {
+  const liveJe = useAbschnittVerbindungen(reise);
+  const [jetzt, setJetzt] = useState(() => Date.now());
+  useEffect(() => { const uhr = setInterval(() => setJetzt(Date.now()), 30000); return () => clearInterval(uhr); }, []);
+  const teile = useMemo(() => reiseTeile(reise), [reise]);
+  const lage = useMemo(() => reiseLage({ teile, liveJe, datum: reise.datum, jetzt }), [teile, liveJe, reise.datum, jetzt]);
+  const erster = teile[0];
+  const letzter = teile[teile.length - 1];
+  const start = liveJe[erster?.id]?.abfahrt || reiseHm(erster?.ab_zeit || reise.start_zeit) || '--:--';
+  const ankunft = liveJe[letzter?.id]?.ankunft || reiseHm(letzter?.an_zeit) || '--:--';
+  // Verspaetet: Zeit orange, daneben "+5" (Entwurf 14.11.).
+  const startSpaet = minutenSpaet(liveJe[erster?.id]?.abfahrt_plan, liveJe[erster?.id]?.abfahrt);
+  const ankunftSpaet = minutenSpaet(liveJe[letzter?.id]?.ankunft_plan, liveJe[letzter?.id]?.ankunft);
+  const haupt = teile.find((a) => ['zug', 'sbahn', 'flug'].includes(a.art)) || erster;
+  const umstiege = teile.length - 1;
+  const unterzeile = [haupt?.nummer || reise.zugnummer || reise.flugnummer, umstiege > 0 ? (umstiege === 1 ? '1 Umstieg' : `${umstiege} Umstiege`) : '']
+    .filter(Boolean).join(' · ');
+  const icon = REISE_ICON_GRAU[erster?.art] || '/icon/_Icon_Grau/Bahnhof_Zug_Trisar_Icons_01_grau.svg';
+  const zeile = (() => {
+    if (!lage || lage.vorStart || lage.vorbei) return null;
+    const a = teile[lage.index];
+    const live = liveJe[a?.id];
+    if (lage.imUmstieg) return { marke: 'UMSTIEG', text: `→ ${a?.nummer || ''} ab ${live?.abfahrt || reiseHm(a?.ab_zeit)}`.trim(), spaet: null };
+    const an = live?.ankunft || reiseHm(a?.an_zeit);
+    return { marke: 'JETZT', text: `${a?.nummer || ''} → ${reiseKurz(a?.nach_name)}${an ? ` ${an}` : ''}`.trim(), spaet: verspaetungMin(live) };
+  })();
+  const gs = "font-['Space_Grotesk']";
+  return (
+    <>
+      <div className="mt-3 grid grid-cols-2 gap-6">
+        <div>
+          <div className={`text-[#868687] text-[12px] leading-[1] font-bold tracking-[-0.3px] ${gs}`}>START</div>
+          <div className="mt-[8px] flex items-center gap-[8px]">
+            <span className={`text-[42px] leading-[0.9] font-bold tracking-[-1px] ${gs}`} style={{ color: zeitFarbe(startSpaet) }}>{start}</span>
+            <SpaetKachel min={startSpaet} />
+          </div>
+        </div>
+        <div className="text-right">
+          <div className={`text-[#868687] text-[12px] leading-[1] font-bold tracking-[-0.3px] ${gs}`}>ANKUNFT</div>
+          <div className="mt-[8px] flex items-center justify-end gap-[8px]">
+            <span className={`text-[42px] leading-[0.9] font-bold tracking-[-1px] ${gs}`} style={{ color: zeitFarbe(ankunftSpaet) }}>{ankunft}</span>
+            <SpaetKachel min={ankunftSpaet} />
+          </div>
+          {unterzeile ? <div className={`mt-[6px] text-[#f4f5f4] text-[12px] font-bold tracking-[-0.5px] opacity-50 ${gs}`}>{unterzeile}</div> : null}
+        </div>
+      </div>
+      <div className="mt-6 grid grid-cols-[64px_1fr_64px] items-center gap-4">
+        <div className="h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
+          <img src={icon} alt="" className="w-[30px] h-[30px] object-contain" />
+        </div>
+        <div className="flex justify-center">
+          <img src="/icon/_Icon_Lime/Arrow_Trisar_Icons_01_Lime.svg" alt="" className="w-[59px] h-[38px] object-contain" />
+        </div>
+        <div className="h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
+          <img src="/icon/_Icon_Grau/Pin_Nav_Trisar_Icons_01_grau.svg" alt="" className="w-[30px] h-[30px] object-contain" />
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-6">
+        <div className={`text-white text-[18px] leading-[1.05] font-bold tracking-[-0.5px] ${gs}`}>{reiseKurz(reise.start_name)}</div>
+        <div className={`text-right text-white text-[18px] leading-[1.05] font-bold tracking-[-0.5px] ${gs}`}>{reiseKurz(reise.ziel_name || letzter?.nach_name)}</div>
+      </div>
+      {zeile ? (
+        <div className={`mt-[14px] bg-[#242525] rounded-[12px] px-[12px] py-[10px] text-[14px] font-bold tracking-[-0.3px] ${gs}`}>
+          <span className="text-[#E3F654]">{zeile.marke}</span>
+          <span className="text-white">{`  ${zeile.text}`}</span>
+          {zeile.spaet ? <span className="text-[#F0997B]">{` +${zeile.spaet}`}</span> : null}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function ActiveRideSheet({ driver, sheetPercent, setSheetPercent }) {
   const { t } = useI18n();
   const ride = driver?.rideInfo || {
@@ -2340,9 +2446,14 @@ function ActiveRideSheet({ driver, sheetPercent, setSheetPercent }) {
           </div>
         ) : null}
 
-        <h3 className={`${DEMO_MODE ? 'mt-[36px]' : 'mt-[6px]'} text-[#E3F654] text-[22px] leading-[0.95] font-bold tracking-[-1px] font-['Space_Grotesk']`}>{t('karten.nextRide')}</h3>
+        <h3 className={`${DEMO_MODE ? 'mt-[36px]' : 'mt-[6px]'} text-[#E3F654] text-[22px] leading-[0.95] font-bold tracking-[-1px] font-['Space_Grotesk'] ${driver?.dienstreise ? 'flex items-center gap-[8px]' : ''}`}>
+          {driver?.dienstreise ? 'Dienstreise' : t('karten.nextRide')}
+          {driver?.dienstreise ? <img src="/icon/_Icon_Lime/Rollkoffer_Trisar_Icons_01_Lime.svg" alt="" className="w-[20px] h-[20px] object-contain" /> : null}
+        </h3>
 
-        {ride.hatFahrt === false ? (
+        {driver?.dienstreise ? (
+          <DienstreiseBlatt reise={driver.dienstreise} />
+        ) : ride.hatFahrt === false ? (
           // Ohne laufende oder naechste Fahrt: Hinweis statt leerer Zeiten und Orte.
           <div className="mt-3 w-full bg-[#242525] rounded-[16px] p-[18px] font-['Space_Grotesk'] font-bold">
             <div className="text-[#F4F5F4] text-[22px] leading-[1.1] tracking-[-0.8px]">{t('karten.keineFahrt')}</div>
@@ -2612,12 +2723,12 @@ export default function KartenView({ setView, filters = {} }) {
         }
         if (profileResult.error) throw profileResult.error;
 
-        let liveResult = await supabase.from('driver_live_locations').select('driver_id, lat, lng, captured_at, active_job_id');
+        let liveResult = await supabase.from('driver_live_locations').select('driver_id, lat, lng, captured_at, active_job_id, source');
         if (liveResult.error && ADMIN_FALLBACK_ERROR_RE.test(liveResult.error.message || '')) {
-          liveResult = await supabaseAdmin.from('driver_live_locations').select('driver_id, lat, lng, captured_at, active_job_id');
+          liveResult = await supabaseAdmin.from('driver_live_locations').select('driver_id, lat, lng, captured_at, active_job_id, source');
         }
         if (!liveResult.error && (liveResult.data || []).length === 0) {
-          const maybeAdminLive = await supabaseAdmin.from('driver_live_locations').select('driver_id, lat, lng, captured_at, active_job_id');
+          const maybeAdminLive = await supabaseAdmin.from('driver_live_locations').select('driver_id, lat, lng, captured_at, active_job_id, source');
           if (!maybeAdminLive.error && (maybeAdminLive.data || []).length > 0) {
             liveResult = maybeAdminLive;
           }
@@ -2867,6 +2978,8 @@ export default function KartenView({ setView, filters = {} }) {
               avatarUrl,
               zuendungAus: zuendungByDriver.get(id) === false,
               letztesSignal: row?.captured_at || null,
+              // Quelle des Standorts (ios_app/android_app/Tracker): fuer die Dienstreise zaehlt nur das Handy.
+              standortQuelle: row?.source || null,
               flagge: flaggeId(profile?.flagge),
               driverNumber: profile?.driver_number ?? null,
               phone: String(profile?.phone || '').trim(),
@@ -2962,7 +3075,7 @@ export default function KartenView({ setView, filters = {} }) {
             const naechste = (prev || []).map((d) => {
               if (d?.id !== fahrerId) return d;
               geaendert = true;
-              return { ...d, lat, lng, letztesSignal: neu.captured_at || d.letztesSignal };
+              return { ...d, lat, lng, letztesSignal: neu.captured_at || d.letztesSignal, standortQuelle: neu.source || d.standortQuelle };
             });
             return geaendert ? naechste : prev;
           });
@@ -3039,14 +3152,33 @@ export default function KartenView({ setView, filters = {} }) {
     });
   }, [driversMatchingSelection, normalizedDriverSearchTerms]);
 
+  // Lange ohne Signal (Schwelle im Karten-Filter): verschwinden von der Karte, ausser der Schalter
+  // "Letzten Standort trotzdem zeigen" ist an oder die Fahrer wurden gezielt ausgewaehlt.
+  const ohneSignalEinst = useOhneSignal();
+  const [signalUhr, setSignalUhr] = useState(() => Date.now());
+  useEffect(() => { const uhr = setInterval(() => setSignalUhr(Date.now()), 30000); return () => clearInterval(uhr); }, []);
+  const langeOhneSignal = useMemo(
+    () => (DEMO_MODE ? [] : driversMatchingSearch.filter((d) => zuLangeOhneSignal(d.letztesSignal, ohneSignalEinst.minuten, signalUhr))),
+    [driversMatchingSearch, ohneSignalEinst.minuten, signalUhr],
+  );
+  useEffect(() => {
+    ausgeblendetMerken(langeOhneSignal.map((d) => ({ id: d.id, nummer: d.driverNumber, name: d.name, letztesSignal: d.letztesSignal })));
+  }, [langeOhneSignal]);
+  const ohneSignalAusblenden = !ohneSignalEinst.zeigen && selectedDriverIdsFilter.size === 0 && langeOhneSignal.length > 0;
+  const driversSichtbar = useMemo(() => {
+    if (!ohneSignalAusblenden) return driversMatchingSearch;
+    const weg = new Set(langeOhneSignal.map((d) => d.id));
+    return driversMatchingSearch.filter((d) => !weg.has(d.id));
+  }, [driversMatchingSearch, langeOhneSignal, ohneSignalAusblenden]);
+
   // Flagge als Filter: nur Fahrer mit dieser Flagge (Tippen auf eine benutzte Flagge rechts unter der Statusleiste).
   const [flaggenFilter, setFlaggenFilter] = useState(() => [...fahrerMarkierung.lesen().flaggen]);
   // Auswahlmodus der Karte: beginnt bei jedem Oeffnen der Karte aus, auch wenn Fahrer noch markiert sind.
   const [kartenAuswahl, setKartenAuswahl] = useState(false);
   // Zaehler der Statusleiste folgen dem Flaggenfilter.
   const driversMitFlagge = useMemo(
-    () => (kartenAuswahl || flaggenFilter.length === 0 ? driversMatchingSearch : driversMatchingSearch.filter((d) => flaggenFilter.includes(d?.flagge))),
-    [driversMatchingSearch, flaggenFilter, kartenAuswahl],
+    () => (kartenAuswahl || flaggenFilter.length === 0 ? driversSichtbar : driversSichtbar.filter((d) => flaggenFilter.includes(d?.flagge))),
+    [driversSichtbar, flaggenFilter, kartenAuswahl],
   );
 
   const driverCounts = useMemo(() => {
@@ -3213,10 +3345,25 @@ export default function KartenView({ setView, filters = {} }) {
       fahrerMarkierung.flaggenSetzen([], []);
       return;
     }
-    const mit = drivers
+    // Alle Fahrer mit diesen Flaggen, nicht nur die mit Standort auf der Karte (14.11.).
+    const aufKarte = drivers
       .filter((d) => flaggenFilter.includes(d.flagge))
       .map((d) => ({ id: String(d.id), name: d.name || '', vehicleId: d.vehicleId || '' }));
-    fahrerMarkierung.flaggenSetzen(flaggenFilter, mit);
+    fahrerMarkierung.flaggenSetzen(flaggenFilter, aufKarte);
+    let aktiv = true;
+    supabase.from('profiles').select('id, first_name, last_name, vehicle_id, flagge').in('flagge', flaggenFilter)
+      .then(({ data, error }) => {
+        if (!aktiv || error || !Array.isArray(data)) return;
+        const nachId = new Map(aufKarte.map((f) => [f.id, f]));
+        data.forEach((p) => {
+          const id = String(p.id);
+          if (!nachId.has(id)) {
+            nachId.set(id, { id, name: [p.first_name, p.last_name].filter(Boolean).join(' ').trim(), vehicleId: String(p.vehicle_id || '') });
+          }
+        });
+        fahrerMarkierung.flaggenSetzen(flaggenFilter, [...nachId.values()]);
+      });
+    return () => { aktiv = false; };
   }, [flaggenFilter, drivers, kartenAuswahl]);
   // Namen und Fahrzeuge der markierten Fahrer aktuell halten (fuer Fahrt anlegen, Fahrzeuge, KI).
   useEffect(() => {
@@ -3309,12 +3456,54 @@ export default function KartenView({ setView, filters = {} }) {
 
   filteredDriversRef.current = filteredDrivers;
 
+  // Fahrer auf Dienstreise (14.11.): statt des Pins das Fahrzeug auf der Strecke (DienstreiseKartenSchicht).
+  const { liste: reiseListe } = useDienstreisen();
+  const [reiseUhr, setReiseUhr] = useState(() => Date.now());
+  useEffect(() => { const uhr = setInterval(() => setReiseUhr(Date.now()), 60000); return () => clearInterval(uhr); }, []);
+  // Reisen, die laut DienstreiseKartenSchicht seit 15 min angekommen sind (15.11.): wieder normaler Pin.
+  const [abgeschlosseneReisen, setAbgeschlosseneReisen] = useState(() => new Set());
+  const reiseAbgeschlossen = useCallback((schluessel) => setAbgeschlosseneReisen((alt) => (alt.has(schluessel) ? alt : new Set([...alt, schluessel]))), []);
+  const laufendeReisen = useMemo(() => (reiseListe || []).flatMap((r) => (r.fahrer || [])
+    .filter((f) => reiseLaeuft(r, f, reiseUhr) && !abgeschlosseneReisen.has(`${r.id}-${f.driver_id}`))
+    .map((f) => ({ reise: r, fahrer: f }))), [reiseListe, reiseUhr, abgeschlosseneReisen]);
+  const reiseFahrerIds = useMemo(() => new Set(laufendeReisen.map((x) => String(x.fahrer.driver_id))), [laufendeReisen]);
+  const kartenFahrer = useMemo(() => (reiseFahrerIds.size ? filteredDrivers.filter((d) => !reiseFahrerIds.has(String(d.id))) : filteredDrivers), [filteredDrivers, reiseFahrerIds]);
+  const fahrerJeId = useMemo(() => new Map((drivers || []).map((d) => [String(d.id), d])), [drivers]);
+  // Dienstreise fuers Fahrerblatt: laeuft schon oder kommt heute vor der naechsten Fahrt.
+  const blattFahrer = useMemo(() => {
+    if (!selectedDriverForSheet) return null;
+    const heute = new Date(reiseUhr);
+    const tag = `${heute.getFullYear()}-${String(heute.getMonth() + 1).padStart(2, '0')}-${String(heute.getDate()).padStart(2, '0')}`;
+    const info = selectedDriverForSheet.rideInfo || {};
+    const fahrtStart = info.hatFahrt !== false && /^\d{1,2}:\d{2}/.test(String(info.nextStart || '')) ? reiseZeitpunkt(tag, info.nextStart) : null;
+    const passend = (reiseListe || []).flatMap((r) => (r.fahrer || [])
+      .filter((f) => String(f.driver_id) === String(selectedDriverForSheet.id) && f.status === 'accepted' && !f.beendet)
+      .map(() => r))
+      .map((r) => ({ r, start: reiseZeitpunkt(r.datum, r.start_zeit), ende: reiseEnde(r) }))
+      .filter(({ start, ende }) => start != null && ende != null && reiseUhr < ende)
+      .filter(({ r, start }) => {
+        if (reiseUhr >= start - 30 * 60000) return true; // laeuft (oder gleich)
+        if (r.datum !== tag || info.unterwegs) return false;
+        return fahrtStart == null || start <= fahrtStart;
+      })
+      .sort((a, b) => a.start - b.start);
+    return passend.length ? { ...selectedDriverForSheet, dienstreise: passend[0].r } : selectedDriverForSheet;
+  }, [selectedDriverForSheet, reiseListe, reiseUhr]);
+  // Dienstreise vor dem Start (Blatt zeigt sie): wie eine laufende zeichnen, Pin des Fahrers aus, und die
+  // Anfahrt zur spaeteren Fahrt nicht zeigen (sonst zwei Linien uebereinander).
+  const vorschauReise = blattFahrer?.dienstreise && !reiseFahrerIds.has(String(blattFahrer.id)) ? blattFahrer.dienstreise : null;
+  const kartenFahrerSichtbar = useMemo(() => (vorschauReise ? kartenFahrer.filter((d) => String(d.id) !== String(blattFahrer?.id)) : kartenFahrer),
+    [kartenFahrer, vorschauReise, blattFahrer?.id]);
+  const kartenGewaehlt = useMemo(() => (selectedDriver && blattFahrer?.dienstreise ? { ...selectedDriver, activeRide: null } : selectedDriver),
+    [selectedDriver, blattFahrer?.dienstreise]);
+  const STATUS_FARBE = { [DRIVER_STATE_ACTIVE]: '#FF6F63', [DRIVER_STATE_INACTIVE]: '#E3F654', [DRIVER_STATE_FREE]: '#59BE80' };
+
   return (
     <div className="w-[min(402px,100vw)] h-dvh relative mx-auto overflow-hidden overscroll-none" style={gradientStyle}>
       <GoogleMapSurface
         markierung={markierteIds}
-        drivers={filteredDrivers}
-        selectedDriver={selectedDriver}
+        drivers={kartenFahrerSichtbar}
+        selectedDriver={kartenGewaehlt}
         onDriverSelect={handleSelectDriver}
         onMapEmptyClick={handleMapEmptyClick}
         sheetPercent={selectedDriver ? sheetPercent : 0}
@@ -3326,6 +3515,38 @@ export default function KartenView({ setView, filters = {} }) {
         bereich={bereich}
         kartenRef={kartenRef}
       />
+      {laufendeReisen.map(({ reise, fahrer }) => {
+        const d = fahrerJeId.get(String(fahrer.driver_id));
+        return (
+          <DienstreiseKartenSchicht
+            key={`${reise.id}-${fahrer.driver_id}`}
+            kartenRef={kartenRef}
+            reise={reise}
+            fahrer={fahrer}
+            standort={d ? { lat: d.lat, lng: d.lng, erfasst: d.letztesSignal, quelle: d.standortQuelle } : null}
+            punktFarbe={STATUS_FARBE[d?.driverState] || '#59BE80'}
+            onWaehlen={handleSelectDriver}
+            mitLinie={String(selectedDriver?.id ?? '') === String(fahrer.driver_id)}
+            onAbgeschlossen={() => reiseAbgeschlossen(`${reise.id}-${fahrer.driver_id}`)}
+          />
+        );
+      })}
+      {/* Vor dem Start: Dienstreise des gewaehlten Fahrers (Blatt zeigt sie) wie in der Fahrer-App,
+          Fahrzeug am Start mit "Bus 192 ab 06:45". */}
+      {vorschauReise ? (() => {
+        const d = fahrerJeId.get(String(blattFahrer.id));
+        return (
+          <DienstreiseKartenSchicht
+            key={`vorschau-${vorschauReise.id}-${blattFahrer.id}`}
+            kartenRef={kartenRef}
+            reise={vorschauReise}
+            fahrer={{ driver_id: blattFahrer.id, profil: { driver_number: d?.driverNumber ?? blattFahrer.driverNumber } }}
+            standort={d ? { lat: d.lat, lng: d.lng, erfasst: d.letztesSignal, quelle: d.standortQuelle } : null}
+            punktFarbe={STATUS_FARBE[d?.driverState] || '#59BE80'}
+            onWaehlen={handleSelectDriver}
+          />
+        );
+      })() : null}
 
       {driversError ? (
         <div className="absolute left-5 right-5 top-[196px] z-20 bg-[#171717] border border-[#3a3a3a] p-3 whitespace-pre-line text-[#ff8e8e] text-[12px] leading-[1.35] font-medium font-['Space_Grotesk']">
@@ -3484,6 +3705,18 @@ export default function KartenView({ setView, filters = {} }) {
         />
       )}
 
+      {/* Hinweis unter der Statusleiste: so viele Fahrer sind lange ohne Signal ausgeblendet, Tippen oeffnet den Filter. */}
+      {!kartenAuswahl && ohneSignalAusblenden ? (
+        <button
+          type="button"
+          data-tutorial="karte-ohne-signal"
+          onClick={() => setView('kartenFilter')}
+          className="absolute left-[20px] top-[196px] z-[31] h-[30px] px-[10px] bg-black border border-[#E3F654]/50 text-[#E3F654] text-[12px] leading-[28px] font-medium font-['Space_Grotesk'] tracking-[0.3px]"
+        >
+          {t('karten.ohneSignalAusgeblendet', { anzahl: langeOhneSignal.length })} ›
+        </button>
+      ) : null}
+
       {showInactiveLookaheadSlider ? (
         <div data-tutorial="karte-inaktiv-fenster" className="absolute left-1/2 -translate-x-1/2 top-[190px] z-20 w-[362px] bg-black/90 border border-[#2c2c2c] rounded-xl px-3 py-3">
           <button
@@ -3527,7 +3760,7 @@ export default function KartenView({ setView, filters = {} }) {
 
       {selectedDriverForSheet ? (
         <ActiveRideSheet
-          driver={selectedDriverForSheet}
+          driver={blattFahrer}
           sheetPercent={sheetPercent}
           setSheetPercent={setSheetPercent}
         />

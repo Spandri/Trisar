@@ -1,0 +1,168 @@
+[
+  {
+    "fall": "Uhrzeit über Gastnamen",
+    "gruppe": "Ändern",
+    "schritt": 1,
+    "frage": "Verschieb die Fahrt von Herrn Engel auf 11 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_aendern",
+    "antwort": "Änderung an der Fahrt heute, Fr 13.11. 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2:\n- Abfahrt: 10:30 → 11:00\nSoll ich die Fahrt so speichern?",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "11:00",
+      "start": "Hotel Bayerischer Hof",
+      "ziel": "Flughafen München Terminal 2",
+      "fahrgaeste": "Horst Engel",
+      "fahrerNamen": "Stefano Spandri",
+      "fahrtId": "00000000-0000-4000-8000-000000000101",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 1820
+  },
+  {
+    "fall": "Fahrer über Uhrzeit",
+    "gruppe": "Ändern",
+    "schritt": 1,
+    "frage": "Die 14 Uhr Fahrt soll Anna fahren",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_aendern",
+    "antwort": "Änderung an der Fahrt heute, Fr 13.11. 14:00 Flughafen München Terminal 1 → Messe München:\n- Fahrer: Stefano Spandri → Anna Berger\nSoll ich die Fahrt so speichern?",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "14:00",
+      "start": "Flughafen München Terminal 1",
+      "ziel": "Messe München",
+      "fahrgaeste": "Markus Müller",
+      "fahrerNamen": "Anna Berger",
+      "fahrtId": "00000000-0000-4000-8000-000000000102",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 1695
+  },
+  {
+    "fall": "Ziel ändern",
+    "gruppe": "Ändern",
+    "schritt": 1,
+    "frage": "Ändere bei der Fahrt von Julia Weber das Ziel auf Terminal 1",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_aendern",
+    "antwort": "Änderung an der Fahrt morgen, Sa 14.11. 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2:\n- Ziel: Flughafen München Terminal 2 → Flughafen München Terminal 1\nSoll ich die Fahrt so speichern?",
+    "felder": {
+      "datum": "2026-11-14",
+      "startZeit": "07:15",
+      "start": "Hotel Bayerischer Hof",
+      "ziel": "Flughafen München Terminal 1",
+      "fahrgaeste": "Julia Weber",
+      "fahrerNamen": "Anna Berger",
+      "fahrtId": "00000000-0000-4000-8000-000000000104",
+      "startOrtId": "",
+      "zielOrtId": "o3"
+    },
+    "ms": 1787
+  },
+  {
+    "fall": "Offene Fahrt vergeben",
+    "gruppe": "Ändern",
+    "schritt": 1,
+    "frage": "Gib die offene Fahrt um 18 Uhr Marvin",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_aendern",
+    "antwort": "Änderung an der Fahrt heute, Fr 13.11. 18:00 Messe München → Hotel Bayerischer Hof:\n- Fahrer: keiner → Marvin Keller\nSoll ich die Fahrt so speichern?",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "18:00",
+      "start": "Messe München",
+      "ziel": "Hotel Bayerischer Hof",
+      "fahrgaeste": "",
+      "fahrerNamen": "Marvin Keller",
+      "fahrtId": "00000000-0000-4000-8000-000000000103",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 1796
+  },
+  {
+    "fall": "Schick X auf die Fahrt",
+    "gruppe": "Ändern",
+    "schritt": 1,
+    "frage": "Schick Marvin auf die offene Fahrt um 18 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_aendern",
+    "antwort": "Änderung an der Fahrt heute, Fr 13.11. 18:00 Messe München → Hotel Bayerischer Hof:\n- Fahrer: keiner → Marvin Keller\nSoll ich die Fahrt so speichern?",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "18:00",
+      "start": "Messe München",
+      "ziel": "Hotel Bayerischer Hof",
+      "fahrgaeste": "",
+      "fahrerNamen": "Marvin Keller",
+      "fahrtId": "00000000-0000-4000-8000-000000000103",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 1853
+  },
+  {
+    "fall": "Plan X für die Fahrt ein",
+    "gruppe": "Ändern",
+    "schritt": 1,
+    "frage": "Plan Anna für die 14 Uhr Fahrt ein",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_aendern",
+    "antwort": "Änderung an der Fahrt heute, Fr 13.11. 14:00 Flughafen München Terminal 1 → Messe München:\n- Fahrer: Stefano Spandri → Anna Berger\nSoll ich die Fahrt so speichern?",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "14:00",
+      "start": "Flughafen München Terminal 1",
+      "ziel": "Messe München",
+      "fahrgaeste": "Markus Müller",
+      "fahrerNamen": "Anna Berger",
+      "fahrtId": "00000000-0000-4000-8000-000000000102",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 1390
+  },
+  {
+    "fall": "Änderung warnt bei Überschneidung",
+    "gruppe": "Ändern",
+    "schritt": 1,
+    "frage": "Verschieb die Fahrt von Herrn Müller auf 11 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_aendern",
+    "antwort": "Änderung an der Fahrt heute, Fr 13.11. 14:00 Flughafen München Terminal 1 → Messe München:\n- Abfahrt: 14:00 → 11:00\n- Achtung, das passt bei Stefano Spandri nicht: die 10:30-Fahrt davor endet erst gegen 11:18, mit Anfahrt am Start gegen 11:25, also 25 min zu spät\nSoll ich die Fahrt so speichern?",
+    "felder": {
+      "datum": "2026-11-13",
+      "startZeit": "11:00",
+      "start": "Flughafen München Terminal 1",
+      "ziel": "Messe München",
+      "fahrgaeste": "Markus Müller",
+      "fahrerNamen": "Stefano Spandri",
+      "fahrtId": "00000000-0000-4000-8000-000000000102",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 1742
+  },
+  {
+    "fall": "Stornieren nur mit Hinweis",
+    "gruppe": "Ändern",
+    "schritt": 1,
+    "frage": "Storniere die Fahrt von Herrn Müller",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Fahrt heute 14:00 Flughafen München Terminal 1 → Messe München, Markus Müller, Stefano Spandri stornieren? Mit „ja“ storniere ich sie, rückgängig geht danach mit „rückgängig“.",
+    "felder": {},
+    "ms": 13089
+  }
+]

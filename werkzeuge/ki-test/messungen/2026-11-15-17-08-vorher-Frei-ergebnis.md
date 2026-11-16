@@ -1,0 +1,22 @@
+# KI-Testsatz 2026-11-15-11-01
+
+Modell: qwen2.5:14b
+
+Gesamt 14/14 richtig. Frei: 14/14
+
+| | Gruppe | Fall | Frage | Problem | Antwort | Sekunden |
+|---|---|---|---|---|---|---|
+| OK | Frei | Frei: halb 8 morgen | tim soll morgen um halb acht anfangen |  | Dienststart 07:30 morgen für Tim Schedler. Soll ich das senden? | 8.8 |
+| OK | Frei | Frei: viertel nach sechs | Marvin übermorgen viertel nach sechs bis halb drei |  | Dienststart 06:15, Dienstende 14:30 Di 17.11. für Marvin Keller. Soll ich das senden? | 9.1 |
+| OK | Frei | Frei: Feierabend jetzt | Tim kann jetzt nach Hause gehen |  | Dienstende 11:00 heute für Tim Schedler. Soll ich das senden? | 8.1 |
+| OK | Frei | Frei: Schicht mit Pause | Tim morgen Schicht 7 bis 16, Mittagspause 12 bis halb eins |  | Dienststart 07:00, Pause 12:00–12:30, Dienstende 16:00 morgen für Tim Schedler. Soll ich das senden? | 10.3 |
+| OK | Frei | Frei: Wochentag | Anna arbeitet nächsten Montag von 9 bis 17 |  | Dienststart 09:00, Dienstende 17:00 Mo 23.11. für Anna Berger. Soll ich das senden? | 9.4 |
+| OK | Frei | Frei: Dienst von gestern weg | stefanos schicht gestern war doch nicht, bitte raus damit |  | Bei Stefano Spandri, gestern (22:00–23:30, angenommen) den ganzen Dienst löschen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab. | 5.9 |
+| OK | Frei | Frei: nur Dienstende weg | bei Anna morgen das Ende rausnehmen, die bleibt offen |  | Bei Anna Berger, morgen (07:00–15:00, angenommen) das Dienstende entfernen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab. | 5.7 |
+| OK | Frei | Frei: Pause weg | Anna braucht morgen keine Pause |  | Bei Anna Berger, morgen (07:00–15:00, angenommen) alle Pausen entfernen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab. | 5.5 |
+| OK | Frei | Frei: Standby anzeigen | wer steht morgen alles auf standby? |  | Standby morgen: - morgen 10:00–18:00, Kongress, Tim Schedler, Marvin Keller | 1.2 |
+| OK | Frei | Frei: Standby verschieben | den standby morgen bitte erst ab 12 und dafür bis 20 |  | Standby morgen 10:00–18:00, Kongress, Tim Schedler, Marvin Keller auf 12:00–20:00 ändern? Die Fahrer sehen die neue Zeit in der App. Mit „ja | 6.9 |
+| OK | Frei | Frei: Fahrt absagen | Herr Engel hat abgesagt, die Fahrt um halb elf fällt weg |  | Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri stornieren? Mit „ja“ storniere ich sie, | 8.2 |
+| OK | Frei | Frei: Fahrt erledigt | Engel ist abgeliefert, kannst die Fahrt abhaken |  | Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri als erledigt markieren? Mit „ja“ speich | 6.7 |
+| OK | Frei | Frei: Fahrt kopieren | die Fahrt von Frau Weber brauch ich nächsten Montag nochmal genauso |  | Fahrt morgen 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2, Julia Weber, Anna Berger auf Fr 27.11. kopieren, gleiche Uhrzeit, n | 8.8 |
+| OK | Frei | Frei: Notiz | bei der Engel-Fahrt bitte vermerken: Gast hat zwei Koffer |  | Notiz „Gast hat zwei Koffer“ zur Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri? Mit „ | 8.2 |

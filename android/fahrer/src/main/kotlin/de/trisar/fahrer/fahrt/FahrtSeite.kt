@@ -448,14 +448,19 @@ private fun merkmalIcon(m: String) = when (m) {
     else -> "Rollstuhl_Trisar_Icons_01_Lime"
 }
 
-/** getRouteNavigationUrl: Abholort als Zwischenziel, Ziel als Endpunkt. */
+/**
+ * getRouteNavigationUrl: Abholort als Zwischenziel, Ziel als Endpunkt.
+ * Mit Routenpunkten der Dispo: Abholung, Punkte(nach 0), Stopp 1, Punkte(nach 1), ..., hoechstens 9 Zwischenziele.
+ */
 private fun navigationsURL(f: FahrtKopf): String? {
     val abhol = FahrtAdresse.fuerNavigation(f.abholName, f.abholAdresse, f.abholOrtID != null)
     val ziel = FahrtAdresse.fuerNavigation(f.zielName, f.zielAdresse, f.zielOrtID != null)
     if (abhol.isEmpty() && ziel.isEmpty()) return null
     fun k(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
     val basis = "https://www.google.com/maps/dir/?api=1&travelmode=driving"
-    return if (abhol.isNotEmpty() && ziel.isNotEmpty()) "$basis&waypoints=${k((listOf(abhol) + f.zwischenstopps.take(8)).joinToString("|"))}&destination=${k(ziel)}"
+    val zwischen = if (f.routenPunkte.isEmpty()) f.zwischenstopps.take(8)
+        else de.trisar.kern.RoutenPunkte.zwischenziele(f.zwischenstopps, f.routenPunkte)
+    return if (abhol.isNotEmpty() && ziel.isNotEmpty()) "$basis&waypoints=${k((listOf(abhol) + zwischen).take(de.trisar.kern.RoutenPunkte.GOOGLE_ZWISCHENZIELE).joinToString("|"))}&destination=${k(ziel)}"
     else "$basis&destination=${k(ziel.ifEmpty { abhol })}"
 }
 
@@ -515,14 +520,24 @@ private fun BlattInhalt(
             OrtText(ortArt(fahrt.zielName, fahrt.zielAdresse), fahrt.zielKurz, nav, true, Modifier.weight(1f))
         }
 
-        if (fahrt.zwischenstopps.isNotEmpty()) {
-            Text(
-                "Über: " + fahrt.zwischenstopps.joinToString("  ·  "),
-                style = grotesk(13f, 700, abstand = -0.3f, farbe = androidx.compose.ui.graphics.Color(0xFFE2F754)),
-                maxLines = 2,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.bei(20f, y(352f)).width(innen.dp),
-            )
+        // Routenpunkte der Dispo: Lime-Chip „Route von Dispo“ vor der Stopp-Zeile.
+        if (fahrt.zwischenstopps.isNotEmpty() || fahrt.routenPunkte.isNotEmpty()) {
+            Row(Modifier.bei(20f, y(352f)).width(innen.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (fahrt.routenPunkte.isNotEmpty()) {
+                    Box(Modifier.background(lime, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                        Text("Route von Dispo", style = grotesk(12f, 700, farbe = androidx.compose.ui.graphics.Color.Black), maxLines = 1)
+                    }
+                }
+                if (fahrt.zwischenstopps.isNotEmpty()) {
+                    Text(
+                        "Über: " + fahrt.zwischenstopps.joinToString("  ·  "),
+                        style = grotesk(13f, 700, abstand = -0.3f, farbe = androidx.compose.ui.graphics.Color(0xFFE2F754)),
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
         }
 
         if (merkmale.isNotEmpty()) {

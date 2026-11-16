@@ -925,7 +925,19 @@ const ortMerken = (schluessel, punkt) => {
   } catch (fehler) { /* Speicher voll oder gesperrt */ }
 };
 
+// Koordinaten als Text ("48.1372, 11.6981", gleiche Regel wie der Server in tomtom-routing.ts).
+// Werden direkt genommen, ohne Nominatim (das rueckt auf das naechste Gebaeude, rund 100 m daneben).
+export const koordinatenAusText = (text) => {
+  const treffer = /^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/.exec(String(text || ''));
+  if (!treffer) return null;
+  const lat = Number(treffer[1]);
+  const lng = Number(treffer[2]);
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+};
+
 export const adresseAufloesen = (text) => {
+  const koordinaten = koordinatenAusText(text);
+  if (koordinaten) return Promise.resolve(koordinaten);
   const schluessel = ortNormalisieren(text);
   if (!schluessel) return Promise.resolve(null);
   if (ORTE_TABELLE.has(schluessel)) return Promise.resolve(ORTE_TABELLE.get(schluessel));

@@ -1,0 +1,15 @@
+[
+  {"name": "Unbekannter Name nach bekanntem Fahrer", "saetze": ["Wo ist Tim gerade", "Wo ist der Band gerade", "Und wo ist er jetzt"]},
+  {"name": "Unbekannter Name ohne Verlauf", "saetze": ["Wo ist der Band gerade", "Wo ist Klaus", "Wo ist Fahrer 12", "wo ist tim"]},
+  {"name": "Echte Folgefrage", "saetze": ["Wie viele Stunden hat Tim heute", "Was macht der gerade"]},
+  {"name": "Kein Bezug im Verlauf", "saetze": ["welche fahrten sind noch offen", "Was macht der gerade"]},
+  {"name": "Ganz ohne Verlauf", "saetze": ["Was macht der gerade"]},
+  {"name": "Ohne Verlauf, sie", "saetze": ["Hat sie schon Feierabend"]},
+  {"name": "Kein Pronomen, normale Fragen", "saetze": ["Wer hat die meisten Stunden diese Woche", "Wo ist die noch offene Fahrt heute", "Wer fährt heute den X5"]},
+  {"name": "Zuordnen mit Marke", "saetze": ["Gib Tim den BMW", "den X5", "ja"]},
+  {"name": "Zuordnen Marke, andere Antwort", "saetze": ["Gib Tim den BMW", "Wo ist Marvin gerade"]},
+  {"name": "Zuordnen Marke, erst unklar, dann Kennzeichen", "saetze": ["Marvin bekommt den BMW", "den BMW", "M-TR 101", "nein"]},
+  {"name": "Zuordnen eindeutig ohne Kennzeichen", "saetze": ["Gib Anna den Mercedes"]},
+  {"name": "Kein Zuordnen", "saetze": ["Tim soll den BMW waschen", "Bekommt Tim den BMW"]},
+  {"name": "24 Uhr", "saetze": ["Dienstende für Tim heute 24 Uhr", "Tim Dienst morgen von 16 bis 24 Uhr", "Dienststart für Tim morgen um 24 Uhr", "Pause für Anna morgen von 23 bis 24 Uhr", "Stundenlohn 24 Euro für Tim"]}
+]

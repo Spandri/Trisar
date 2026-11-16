@@ -1,0 +1,10 @@
+[
+  {"name": "Push offen, dann neuer Auftrag", "saetze": ["Schreib allen: morgen Westen anziehen", "Schick Tim in den Feierabend"]},
+  {"name": "Dienst löschen offen, dann neuer Auftrag", "saetze": ["lösch den dienst von anna morgen", "Bitte gib Tim morgen 7 Uhr Dienststart"]},
+  {"name": "Zwei Dienste offen, dann anderes Löschen", "saetze": ["lösch alle dienste", "lösch alle gäste"]},
+  {"name": "Stundenlohn offen, dann Frage", "saetze": ["stundenlohn 30 euro für alle fahrer", "Passt das mit Tim morgen um 8?"]},
+  {"name": "Notiz offen, dann Storno", "saetze": ["notiz zur fahrt von müller: gast hat viel gepäck", "storniere die 18 uhr fahrt"]},
+  {"name": "Echte Bestätigungen gehen weiter", "saetze": ["lösch den dienst von anna morgen", "ja bitte löschen", "stundenlohn 30 euro für tim", "ok mach das", "Schreib Tim: komm zum Hbf", "ja schick ab", "notiz zur fahrt von müller: viel gepäck", "passt so"]},
+  {"name": "Text-Antwort mit Bitte bleibt", "saetze": ["Schick Tim eine Nachricht", "Bitte zum Terminal 2 kommen", "ja"]},
+  {"name": "Nein plus neuer Auftrag", "saetze": ["lösch den dienst von anna morgen", "Nein, gib ihr lieber Dienststart 9 Uhr morgen"]}
+]

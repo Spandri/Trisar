@@ -2,6 +2,8 @@
 // Push-Dienst: schickt Mitteilungen aus push_ausgang an iPhones (APNs) und Android (FCM)
 // und ruft jede Minute push_erinnerungen() fuer die zeitgesteuerten Erinnerungen und
 // push_dispo_warnungen() (Fahrer ohne Signal, Fahrt ohne Fahrer, Fahrer zu spaet) auf.
+// Alle 2 min: Live-Stand der laufenden Dienstreise-Zuege ueber train-validate holen und an
+// dienstreise_live_setzen() geben, das bei Verspaetung oder Gleisaenderung meldet (15.11.).
 //
 // Ohne Zusatzpakete (nur Node 22): Supabase ueber REST, APNs ueber HTTP/2, FCM ueber HTTP v1.
 // Zugangsdaten stehen in integration_settings (nur service_role liest dort):
@@ -37,6 +39,7 @@ const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL 
 const DIENST_SCHLUESSEL = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const TAKT_MS = Number(process.env.PUSH_TAKT_MS || 3000);
 const ERINNERUNG_MS = 60_000;
+const REISE_MS = 120_000;
 const BUNDLE = { fahrer: 'de.trisar.fahrer', dispo: 'de.trisar.dispo' };
 // iOS-Kategorien (Push.swift): Annehmen/Ablehnen direkt in der Mitteilung, Dispo-Warnungen mit Oeffnen.
 const KATEGORIE = {
@@ -290,8 +293,71 @@ const erinnern = async () => {
   }
 };
 
+// --- Dienstreise: Zuege beobachten ------------------------------------------------
+
+const hm = (v) => {
+  const t = /^(\d{1,2}):(\d{2})/.exec(String(v || ''));
+  return t ? `${t[1].padStart(2, '0')}:${t[2]}` : '';
+};
+
+// Wie verbindungHolen in fahrer/src/shared/dienstreise.js: Abfahrt am Start, Ausstieg am Ziel des Abschnitts.
+const zugHolen = async (a) => {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/train-validate`, {
+    method: 'POST',
+    headers: { apikey: DIENST_SCHLUESSEL, Authorization: `Bearer ${DIENST_SCHLUESSEL}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      train_number: a.nummer,
+      ride_date: a.datum,
+      start_station: a.von_name,
+      ...(a.ab_zeit ? { start_zeit: a.ab_zeit } : {}),
+      ...(a.nach_name ? { target_station: a.nach_name } : {}),
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const d = await res.json().catch(() => null);
+  if (!res.ok || !d?.valid) return null;
+  const s = d.summary || {};
+  return {
+    abschnitt_id: a.abschnitt_id,
+    abfahrt_plan: hm(String(s.planned_departure || '').slice(11)),
+    abfahrt: d.etd_label || hm(String(s.predicted_departure || '').slice(11)),
+    ankunft_plan: hm(String(s.planned_arrival || '').slice(11)),
+    ankunft: d.eta_label || '',
+    gleis_ab: s.departure_platform || d.departure_platform || '',
+    gleis_ab_plan: s.departure_platform_planned || '',
+    gleis_an: s.arrival_platform || '',
+    gleis_an_plan: s.arrival_platform_planned || '',
+  };
+};
+
+let reiseLaeuft = false;
+const reisenBeobachten = async () => {
+  if (reiseLaeuft) return;
+  reiseLaeuft = true;
+  try {
+    const offen = await rest('rpc/dienstreise_live_offen', { methode: 'POST', koerper: {} });
+    for (const a of offen || []) {
+      try {
+        const stand = await zugHolen(a);
+        if (!stand) continue;
+        const anzahl = await rest('rpc/dienstreise_live_setzen', { methode: 'POST', koerper: { p: stand } });
+        if (anzahl) log(`Dienstreise ${a.nummer}: ${anzahl} Mitteilung(en)`);
+      } catch (e) {
+        log(`Dienstreise ${a.nummer}:`, e.message || e);
+      }
+    }
+  } catch (e) {
+    // Fehlt die Migration 20261115121000 noch, nicht alle 2 min laut werden.
+    if (!/dienstreise_live|PGRST202/.test(String(e.message || e))) log('Fehler bei Dienstreisen:', e.message || e);
+  } finally {
+    reiseLaeuft = false;
+  }
+};
+
 log(`gestartet, ${SUPABASE_URL}`);
 setInterval(ausgangAbarbeiten, TAKT_MS);
 setInterval(erinnern, ERINNERUNG_MS);
+setInterval(reisenBeobachten, REISE_MS);
 ausgangAbarbeiten();
 erinnern();
+reisenBeobachten();

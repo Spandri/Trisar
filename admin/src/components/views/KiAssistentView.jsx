@@ -8,6 +8,8 @@ import FahrtBearbeitenView, { buildInitialFormValues } from './FahrtBearbeitenVi
 import { askDatabaseAssistant, dienstSenden, invalidateDatabaseAssistantCache, kiAnlegen } from '../../services/kiAssistant';
 import { fahrerMarkierung, useFahrerMarkierung } from '../../shared/fahrerMarkierung';
 import MarkierungsVermerk from '../ui/MarkierungsVermerk';
+import SprachModus, { SprechenKnopf } from '../ui/SprachModus';
+import KiModusSchalter from '../ui/KiModusSchalter';
 import { supabase } from '../../services/supabase';
 import { demoStore } from '../../demo/demoClient';
 import { DEMO_MODE } from '../../datenquelle';
@@ -286,6 +288,8 @@ export default function KiAssistentView({
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  // Sperre gegen doppeltes Senden, die sofort gilt (der State kommt erst mit dem naechsten Render an).
+  const sendetRef = useRef(false);
   const [composerHeight, setComposerHeight] = useState(48);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [layoutHeight] = useState(window.innerHeight);
@@ -353,7 +357,8 @@ export default function KiAssistentView({
   const HEADER_HEIGHT = 50;
   // Der Verlauf beginnt 30 px unter dem Zurueck-Knopf, dort wo auf den
   // uebrigen Seiten der Titel steht. Vorher lag die erste Blase direkt an.
-  const CHAT_TOP = HEADER_TOP + HEADER_HEIGHT + 30;
+  // Unter dem Titel sitzt der Umschalter Regeln/Frei (24 hoch + Abstand).
+  const CHAT_TOP = HEADER_TOP + HEADER_HEIGHT + 30 + 28;
 
   const gradientStyle = useMemo(
     () => ({
@@ -392,9 +397,11 @@ export default function KiAssistentView({
     setView('list');
   };
 
-  const handleSend = () => {
-    const text = inputText.trim();
-    if (!text || isSending) return;
+  // vorgabe: Text aus dem Voice-Modus, sonst das Eingabefeld. Gibt die fertige Antwort zurueck.
+  const handleSend = (vorgabe, { stimme = false } = {}) => {
+    const text = (typeof vorgabe === 'string' ? vorgabe : inputText).trim();
+    if (!text || isSending || sendetRef.current) return Promise.resolve(null);
+    sendetRef.current = true;
     const nowLabel = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMessageId = `msg-user-${Date.now()}`;
     const pendingAssistantId = `msg-ai-pending-${Date.now() + 1}`;
@@ -431,11 +438,12 @@ export default function KiAssistentView({
     setIsSending(true);
     // Die Demo antwortet sofort aus festen Texten. Ein echtes Modell braucht
     // einen Moment, also denkt der Assistent mindestens 3 s, bevor er antwortet.
-    const nachdenken = new Promise((resolve) => { window.setTimeout(resolve, DENKZEIT_MS); });
+    // Im Voice-Modus zaehlt jede Sekunde, dort ohne Mindest-Denkzeit.
+    const nachdenken = new Promise((resolve) => { window.setTimeout(resolve, stimme ? 0 : DENKZEIT_MS); });
     const offenerVorschlag = [...sourceMessages].reverse().find((msg) => msg.bookingStatus === 'pending')?.bookingProposal || null;
     const letzteFahrtId = [...sourceMessages].reverse().find((msg) => msg.bookingRideId)?.bookingRideId || null;
     const markierteFahrer = fahrerMarkierung.wirkt() ? fahrerMarkierung.lesen().fahrer.map(({ id, name }) => ({ id, name })) : [];
-    Promise.allSettled([askDatabaseAssistant({
+    return Promise.allSettled([askDatabaseAssistant({
       prompt: text, chatHistory: historyForModel, offenerVorschlag, letzteFahrtId, markierteFahrer,
     }), nachdenken])
       .then(([antwort]) => (antwort.status === 'fulfilled' ? antwort.value : Promise.reject(antwort.reason)))
@@ -483,6 +491,16 @@ export default function KiAssistentView({
               }
             : msg
         )));
+        return {
+          id: pendingAssistantId,
+          role: 'assistant',
+          text: answerText || t('assist.noAnswerGenerated'),
+          bookingProposal,
+          bookingStatus: bookingProposal ? 'pending' : undefined,
+          karten,
+          dienstVorschlag,
+          dienstStatus: dienstVorschlag ? 'offen' : undefined,
+        };
       })
       .catch((error) => {
         setMessages((prev) => prev.map((msg) => (
@@ -495,8 +513,10 @@ export default function KiAssistentView({
               }
             : msg
         )));
+        return { id: pendingAssistantId, role: 'assistant', text: t('assist.errorWithMessage', { message: error?.message || t('assist.unknownAiError') }) };
       })
       .finally(() => {
+        sendetRef.current = false;
         setIsSending(false);
       });
   };
@@ -526,8 +546,10 @@ export default function KiAssistentView({
         fahrerIds: (vorschlag.fahrer || []).map((f) => f.id),
       });
       setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, dienstStatus: 'gesendet', dienstAnzahl: ergebnis.anzahl } : msg)));
+      return 'Gesendet.';
     } catch (fehler) {
       setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, dienstStatus: 'offen', dienstFehler: String(fehler?.message || fehler) } : msg)));
+      return `Das hat nicht geklappt. ${String(fehler?.message || fehler)}`;
     }
   };
 
@@ -565,7 +587,7 @@ export default function KiAssistentView({
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]));
-      return;
+      return t('assist.bookingMissingFields');
     }
 
     setMessages((prev) => prev.map((msg) => (
@@ -602,6 +624,7 @@ export default function KiAssistentView({
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]));
+      return proposal?.fahrtId ? t('assist.aenderungGespeichert') : t('assist.bookedInfo');
     } catch (error) {
       setMessages((prev) => ([
         ...prev.map((msg) => (
@@ -614,6 +637,7 @@ export default function KiAssistentView({
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]));
+      return t('assist.bookingFailedWithMessage', { message: error?.message || t('assist.unknownError') });
     }
   };
 
@@ -710,6 +734,246 @@ export default function KiAssistentView({
       msg.id === messageId ? { ...msg, bookingStatus: 'cancelled' } : msg
     )));
   };
+
+  // Vorschlaege einer Antwort (Dienst, Fahrt, weitere Karten) mit ihren Knoepfen. Gleich im Chat und im Voice-Modus.
+  const vorschlaegeVon = (message, imSprachModus = false) => {
+    const tutorialMarker = (name) => (!imSprachModus && message.id === latestProposalMessageId ? name : undefined);
+    return (
+    <>
+                {message.dienstVorschlag ? (
+                  <div className="mt-3 w-full max-w-[362px]">
+                    {message.dienstStatus === 'offen' ? (
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleDienstSenden(message.id, message.dienstVorschlag)}
+                          className="flex-1 h-[51px] bg-[#59BE80] flex items-center justify-center"
+                        >
+                          <span className="text-[#202020] text-[20px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">
+                            {dienstKnopfText(message.dienstVorschlag)}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMessages((prev) => prev.map((msg) => (msg.id === message.id ? { ...msg, dienstStatus: 'verworfen' } : msg)))}
+                          className="w-[110px] h-[51px] border-2 border-[#ff6f63] flex items-center justify-center"
+                        >
+                          <span className="text-[#ff6f63] text-[20px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">Nein</span>
+                        </button>
+                      </div>
+                    ) : null}
+                    {message.dienstFehler && message.dienstStatus === 'offen' ? (
+                      <div className="mt-2 text-[#ff8e8e] text-[11px] font-medium font-['Space_Grotesk']">{message.dienstFehler}</div>
+                    ) : null}
+                    {message.dienstStatus === 'sendet' ? (
+                      <div className="text-[#E3F654] text-[11px] font-medium font-['Space_Grotesk']">Wird gesendet …</div>
+                    ) : null}
+                    {message.dienstStatus === 'gesendet' ? (
+                      <div className="text-[#59BE80] text-[11px] font-medium font-['Space_Grotesk']">
+                        {`${dienstKnopfText(message.dienstVorschlag).replace(/ senden$/, '')} an ${message.dienstAnzahl ?? message.dienstVorschlag.fahrer.length} Fahrer gesendet.`}
+                      </div>
+                    ) : null}
+                    {message.dienstStatus === 'verworfen' ? (
+                      <div className="text-white/70 text-[11px] font-medium font-['Space_Grotesk']">Nicht gesendet.</div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {message.bookingProposal ? (
+                  <div className="mt-3 flex flex-col items-center">
+                    <div data-tutorial={tutorialMarker('ki-vorschlag')} className="w-full max-w-[362px]">
+                      <BookingPreviewCard
+                        proposal={message.bookingProposal}
+                        onOeffnen={!DEMO_MODE && !imSprachModus && message.bookingStatus === 'pending'
+                          ? () => setFormular({
+                            id: message.id,
+                            proposal: message.bookingProposal,
+                            editor: message.bookingProposal.fahrtId ? rideEditorAusListe(message.bookingProposal.fahrtId) : null,
+                          })
+                          : undefined}
+                      />
+                    </div>
+                    {message.bookingStatus === 'pending' ? (
+                      <div className="mt-3 flex items-center gap-3 w-full max-w-[362px]">
+                        <button
+                          type="button"
+                          data-tutorial={tutorialMarker('ki-buchen')}
+                          onClick={() => handleBookingConfirm(message.id, message.bookingProposal)}
+                          className="flex-1 h-[51px] bg-[#e3f754] flex items-center justify-center"
+                        >
+                          <span className="text-black text-[24px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">{t('assist.book')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          data-tutorial={tutorialMarker('ki-nicht-buchen')}
+                          onClick={() => handleBookingCancel(message.id)}
+                          className="flex-1 h-[51px] border-2 border-[#ff6f63] flex items-center justify-center"
+                        >
+                          <span className="text-[#ff6f63] text-[24px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">{t('assist.dontBook')}</span>
+                        </button>
+                      </div>
+                    ) : null}
+                    {message.bookingStatus === 'saving' ? (
+                      <div className="mt-3 text-[#E3F654] text-[11px] font-medium font-['Space_Grotesk']">{t('assist.bookingSaving')}</div>
+                    ) : null}
+                    {message.bookingStatus === 'booked' ? (
+                      <div className="mt-3 w-full max-w-[362px]">
+                        <div className="text-[#59BE80] text-[11px] font-medium font-['Space_Grotesk']">{t('assist.booked')}</div>
+                        <button
+                          type="button"
+                          data-tutorial={tutorialMarker('ki-fahrt-bearbeiten')}
+                          onClick={() => {
+                            const rideId = String(message?.bookingRideId || '').trim();
+                            if (!rideId || typeof onOpenRideEditorById !== 'function') return;
+                            onOpenRideEditorById(rideId);
+                          }}
+                          className="mt-2 w-full h-11 bg-[#E3F654] text-black text-sm font-bold font-['Space_Grotesk']"
+                        >
+                          {t('assist.editRide')}
+                        </button>
+                      </div>
+                    ) : null}
+                    {message.bookingStatus === 'cancelled' ? (
+                      <div className="mt-3 text-white/70 text-[11px] font-medium font-['Space_Grotesk']">{t('assist.bookingDiscarded')}</div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {(message.karten || []).map((karte) => (
+                  <div key={karte.id} className="mt-3 flex flex-col items-center">
+                    <div className="w-full max-w-[362px]">
+                      {karte.art === 'fahrer' || karte.art === 'fahrzeug' ? (
+                        <AnlegenPreviewCard
+                          art={karte.art}
+                          daten={karte.daten}
+                          offen={Boolean(karte.offen) && karte.status === 'pending'}
+                          onUmschalten={() => { if (!DEMO_MODE && karte.status === 'pending') karteSetzen(message.id, karte.id, { offen: !karte.offen }); }}
+                          onAendern={(daten) => karteSetzen(message.id, karte.id, { daten })}
+                        />
+                      ) : karte.art === 'standby' ? (
+                        <StandbyPreviewCard
+                          standby={karte.standby}
+                          onOeffnen={!DEMO_MODE && !imSprachModus && karte.status === 'pending'
+                            ? () => setFormular({ id: message.id, karteId: karte.id, standby: karte.standby })
+                            : undefined}
+                        />
+                      ) : (
+                        <BookingPreviewCard
+                          proposal={karte.proposal}
+                          onOeffnen={!DEMO_MODE && !imSprachModus && karte.status === 'pending'
+                            ? () => setFormular({ id: message.id, karteId: karte.id, proposal: karte.proposal })
+                            : undefined}
+                        />
+                      )}
+                    </div>
+                    {karte.status === 'pending' ? (
+                      <div className="mt-3 flex items-center gap-3 w-full max-w-[362px]">
+                        <button
+                          type="button"
+                          onClick={() => handleKarteBuchen(message.id, karte)}
+                          className="flex-1 h-[51px] bg-[#e3f754] flex items-center justify-center"
+                        >
+                          <span className="text-black text-[24px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">{t('assist.book')}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => karteSetzen(message.id, karte.id, { status: 'cancelled' })}
+                          className="flex-1 h-[51px] border-2 border-[#ff6f63] flex items-center justify-center"
+                        >
+                          <span className="text-[#ff6f63] text-[24px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">{t('assist.dontBook')}</span>
+                        </button>
+                      </div>
+                    ) : null}
+                    {karte.status === 'saving' ? (
+                      <div className="mt-3 text-[#E3F654] text-[11px] font-medium font-['Space_Grotesk']">{t('assist.bookingSaving')}</div>
+                    ) : null}
+                    {karte.status === 'booked' ? (
+                      <div className="mt-3 w-full max-w-[362px] text-[#59BE80] text-[11px] font-medium font-['Space_Grotesk']">
+                        {karte.art === 'standby' ? 'Standby angelegt' : karte.art === 'fahrer' ? 'Fahrer angelegt' : karte.art === 'fahrzeug' ? 'Fahrzeug angelegt' : t('assist.booked')}
+                      </div>
+                    ) : null}
+                    {karte.status === 'cancelled' ? (
+                      <div className="mt-3 text-white/70 text-[11px] font-medium font-['Space_Grotesk']">{t('assist.bookingDiscarded')}</div>
+                    ) : null}
+                  </div>
+                ))}
+    </>
+    );
+  };
+
+  // --- Voice-Modus (13.11.) ----------------------------------------------
+  // Die Sprache laeuft durch denselben Chat wie getippte Nachrichten, alles bleibt im Verlauf.
+  const [sprachModus, setSprachModus] = useState(false);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+
+  const offeneKarten = (m) => (m?.karten || []).filter((k) => k.status === 'pending');
+  const istOffen = (m) => Boolean((m?.bookingStatus === 'pending' && m?.bookingProposal)
+    || (m?.dienstStatus === 'offen' && m?.dienstVorschlag) || offeneKarten(m).length);
+
+  // Was wartet nach dieser Antwort auf ein „ja“? Karten bestaetigt die App selbst (lokal), die Karten
+  // stehen im Voice-Modus wie im Chat mit ihren Knoepfen. Rueckfragen des Servers („Mit „ja“ sende ich sie.“)
+  // gehen als Text an den Server.
+  const fuerStimme = (msg) => {
+    if (!msg) return { text: 'Das hat nicht geklappt. Sag es bitte noch einmal.' };
+    let text = msg.text || '';
+    let offen = null;
+    if (istOffen(msg)) {
+      // Ganzer Antworttext auf der Karte (vorher fehlte er bei Vorschlaegen ganz).
+      offen = { lokal: true, id: msg.id, titel: String(msg.text || '').trim() };
+      const frage = msg.dienstStatus === 'offen' ? 'Soll ich das senden?' : 'Soll ich das so machen?';
+      if (!/\?\s*$/.test(text)) text = `${text} ${frage}`;
+    } else if (/„ja“|"ja"|\bmit ja\b/i.test(text) || /\?\s*$/.test(text)) {
+      // Ganzer Text, nicht nur die ersten 80 Zeichen.
+      offen = { lokal: false, titel: String(text || '').trim() };
+    }
+    return { text, offen };
+  };
+
+  // Laeuft noch eine Anfrage, kurz warten statt sie zu verwerfen.
+  const stimmeSenden = async (satz) => {
+    for (let i = 0; i < 600 && sendetRef.current; i += 1) {
+      await new Promise((r) => { window.setTimeout(r, 100); });
+    }
+    return fuerStimme(await handleSend(satz, { stimme: true }));
+  };
+
+  const letzteOffene = () => [...messagesRef.current].reverse().find(istOffen);
+
+  const stimmeJa = async () => {
+    const m = letzteOffene();
+    if (!m) return { text: 'Da wartet nichts mehr.' };
+    // Mit Ausnahme ("alle außer Tim") zaehlt nur der Knopf, nicht ein gesprochenes "ja".
+    if (m.dienstStatus === 'offen' && m.dienstVorschlag?.nurKnopf) {
+      return { text: 'Hier ist jemand ausgenommen. Prüf bitte die Fahrer und tipp auf Senden.' };
+    }
+    const texte = [];
+    if (m.dienstStatus === 'offen' && m.dienstVorschlag) texte.push(await handleDienstSenden(m.id, m.dienstVorschlag));
+    if (m.bookingStatus === 'pending' && m.bookingProposal) texte.push(await handleBookingConfirm(m.id, m.bookingProposal));
+    for (const karte of offeneKarten(m)) {
+      await handleKarteBuchen(m.id, karte);
+    }
+    if (offeneKarten(m).length && !texte.length) texte.push('Erledigt.');
+    return { text: texte.filter(Boolean).join(' ') || 'Erledigt.' };
+  };
+
+  const stimmeNein = async () => {
+    const m = letzteOffene();
+    if (m?.bookingStatus === 'pending') handleBookingCancel(m.id);
+    if (m) {
+      setMessages((prev) => prev.map((x) => (x.id === m.id ? {
+        ...x,
+        dienstStatus: x.dienstStatus === 'offen' ? 'verworfen' : x.dienstStatus,
+        karten: (x.karten || []).map((k) => (k.status === 'pending' ? { ...k, status: 'cancelled' } : k)),
+      } : x)));
+    }
+    return { text: 'Okay, verworfen.' };
+  };
+
+  // Juengste Antwort mit Vorschlaegen fuer den Voice-Modus (auch nach dem Bestaetigen, damit man das Ergebnis sieht).
+  const sprachVorschlag = [...messages].reverse().find((m) => m.role === 'assistant' && !m.pending
+    && (m.bookingProposal || m.dienstVorschlag || (m.karten || []).length));
+  const sprachVorschlagOffen = istOffen(sprachVorschlag);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -941,6 +1205,11 @@ export default function KiAssistentView({
           <span className="text-[#E3F654] text-[10px] font-bold font-['Space_Grotesk'] leading-4">{t('assist.kiAssistant')}</span>
         </div>
       </div>
+      {!DEMO_MODE ? (
+        <div className="absolute left-0 right-0 z-50 flex justify-center" style={{ top: `${HEADER_TOP + HEADER_HEIGHT + 8}px` }}>
+          <KiModusSchalter />
+        </div>
+      ) : null}
 
       <div
         ref={chatScrollRef}
@@ -949,7 +1218,6 @@ export default function KiAssistentView({
         style={{ top: `${CHAT_TOP}px`, bottom: `${chatBottom}px`, touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
       >
         {messages.map((message) => {
-          const tutorialMarker = (name) => (message.id === latestProposalMessageId ? name : undefined);
           // Demo-Tutorial: die juengste fertige Antwort des Assistenten.
           const letzteAntwortId = [...messages].reverse().find((entry) => entry.role === 'assistant' && !entry.pending)?.id;
           if (message.role === 'user') {
@@ -1052,163 +1320,7 @@ export default function KiAssistentView({
                   </div>
                 ) : null}
 
-                {message.dienstVorschlag ? (
-                  <div className="mt-3 w-full max-w-[362px]">
-                    {message.dienstStatus === 'offen' ? (
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => handleDienstSenden(message.id, message.dienstVorschlag)}
-                          className="flex-1 h-[51px] bg-[#59BE80] flex items-center justify-center"
-                        >
-                          <span className="text-[#202020] text-[20px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">
-                            {dienstKnopfText(message.dienstVorschlag)}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMessages((prev) => prev.map((msg) => (msg.id === message.id ? { ...msg, dienstStatus: 'verworfen' } : msg)))}
-                          className="w-[110px] h-[51px] border-2 border-[#ff6f63] flex items-center justify-center"
-                        >
-                          <span className="text-[#ff6f63] text-[20px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">Nein</span>
-                        </button>
-                      </div>
-                    ) : null}
-                    {message.dienstFehler && message.dienstStatus === 'offen' ? (
-                      <div className="mt-2 text-[#ff8e8e] text-[11px] font-medium font-['Space_Grotesk']">{message.dienstFehler}</div>
-                    ) : null}
-                    {message.dienstStatus === 'sendet' ? (
-                      <div className="text-[#E3F654] text-[11px] font-medium font-['Space_Grotesk']">Wird gesendet …</div>
-                    ) : null}
-                    {message.dienstStatus === 'gesendet' ? (
-                      <div className="text-[#59BE80] text-[11px] font-medium font-['Space_Grotesk']">
-                        {`${dienstKnopfText(message.dienstVorschlag).replace(/ senden$/, '')} an ${message.dienstAnzahl ?? message.dienstVorschlag.fahrer.length} Fahrer gesendet.`}
-                      </div>
-                    ) : null}
-                    {message.dienstStatus === 'verworfen' ? (
-                      <div className="text-white/70 text-[11px] font-medium font-['Space_Grotesk']">Nicht gesendet.</div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {message.bookingProposal ? (
-                  <div className="mt-3 flex flex-col items-center">
-                    <div data-tutorial={tutorialMarker('ki-vorschlag')} className="w-full max-w-[362px]">
-                      <BookingPreviewCard
-                        proposal={message.bookingProposal}
-                        onOeffnen={!DEMO_MODE && message.bookingStatus === 'pending'
-                          ? () => setFormular({
-                            id: message.id,
-                            proposal: message.bookingProposal,
-                            editor: message.bookingProposal.fahrtId ? rideEditorAusListe(message.bookingProposal.fahrtId) : null,
-                          })
-                          : undefined}
-                      />
-                    </div>
-                    {message.bookingStatus === 'pending' ? (
-                      <div className="mt-3 flex items-center gap-3 w-full max-w-[362px]">
-                        <button
-                          type="button"
-                          data-tutorial={tutorialMarker('ki-buchen')}
-                          onClick={() => handleBookingConfirm(message.id, message.bookingProposal)}
-                          className="flex-1 h-[51px] bg-[#e3f754] flex items-center justify-center"
-                        >
-                          <span className="text-black text-[24px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">{t('assist.book')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          data-tutorial={tutorialMarker('ki-nicht-buchen')}
-                          onClick={() => handleBookingCancel(message.id)}
-                          className="flex-1 h-[51px] border-2 border-[#ff6f63] flex items-center justify-center"
-                        >
-                          <span className="text-[#ff6f63] text-[24px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">{t('assist.dontBook')}</span>
-                        </button>
-                      </div>
-                    ) : null}
-                    {message.bookingStatus === 'saving' ? (
-                      <div className="mt-3 text-[#E3F654] text-[11px] font-medium font-['Space_Grotesk']">{t('assist.bookingSaving')}</div>
-                    ) : null}
-                    {message.bookingStatus === 'booked' ? (
-                      <div className="mt-3 w-full max-w-[362px]">
-                        <div className="text-[#59BE80] text-[11px] font-medium font-['Space_Grotesk']">{t('assist.booked')}</div>
-                        <button
-                          type="button"
-                          data-tutorial={tutorialMarker('ki-fahrt-bearbeiten')}
-                          onClick={() => {
-                            const rideId = String(message?.bookingRideId || '').trim();
-                            if (!rideId || typeof onOpenRideEditorById !== 'function') return;
-                            onOpenRideEditorById(rideId);
-                          }}
-                          className="mt-2 w-full h-11 bg-[#E3F654] text-black text-sm font-bold font-['Space_Grotesk']"
-                        >
-                          {t('assist.editRide')}
-                        </button>
-                      </div>
-                    ) : null}
-                    {message.bookingStatus === 'cancelled' ? (
-                      <div className="mt-3 text-white/70 text-[11px] font-medium font-['Space_Grotesk']">{t('assist.bookingDiscarded')}</div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {(message.karten || []).map((karte) => (
-                  <div key={karte.id} className="mt-3 flex flex-col items-center">
-                    <div className="w-full max-w-[362px]">
-                      {karte.art === 'fahrer' || karte.art === 'fahrzeug' ? (
-                        <AnlegenPreviewCard
-                          art={karte.art}
-                          daten={karte.daten}
-                          offen={Boolean(karte.offen) && karte.status === 'pending'}
-                          onUmschalten={() => { if (!DEMO_MODE && karte.status === 'pending') karteSetzen(message.id, karte.id, { offen: !karte.offen }); }}
-                          onAendern={(daten) => karteSetzen(message.id, karte.id, { daten })}
-                        />
-                      ) : karte.art === 'standby' ? (
-                        <StandbyPreviewCard
-                          standby={karte.standby}
-                          onOeffnen={!DEMO_MODE && karte.status === 'pending'
-                            ? () => setFormular({ id: message.id, karteId: karte.id, standby: karte.standby })
-                            : undefined}
-                        />
-                      ) : (
-                        <BookingPreviewCard
-                          proposal={karte.proposal}
-                          onOeffnen={!DEMO_MODE && karte.status === 'pending'
-                            ? () => setFormular({ id: message.id, karteId: karte.id, proposal: karte.proposal })
-                            : undefined}
-                        />
-                      )}
-                    </div>
-                    {karte.status === 'pending' ? (
-                      <div className="mt-3 flex items-center gap-3 w-full max-w-[362px]">
-                        <button
-                          type="button"
-                          onClick={() => handleKarteBuchen(message.id, karte)}
-                          className="flex-1 h-[51px] bg-[#e3f754] flex items-center justify-center"
-                        >
-                          <span className="text-black text-[24px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">{t('assist.book')}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => karteSetzen(message.id, karte.id, { status: 'cancelled' })}
-                          className="flex-1 h-[51px] border-2 border-[#ff6f63] flex items-center justify-center"
-                        >
-                          <span className="text-[#ff6f63] text-[24px] font-bold tracking-[-0.5px] leading-none font-['Space_Grotesk']">{t('assist.dontBook')}</span>
-                        </button>
-                      </div>
-                    ) : null}
-                    {karte.status === 'saving' ? (
-                      <div className="mt-3 text-[#E3F654] text-[11px] font-medium font-['Space_Grotesk']">{t('assist.bookingSaving')}</div>
-                    ) : null}
-                    {karte.status === 'booked' ? (
-                      <div className="mt-3 w-full max-w-[362px] text-[#59BE80] text-[11px] font-medium font-['Space_Grotesk']">
-                        {karte.art === 'standby' ? 'Standby angelegt' : karte.art === 'fahrer' ? 'Fahrer angelegt' : karte.art === 'fahrzeug' ? 'Fahrzeug angelegt' : t('assist.booked')}
-                      </div>
-                    ) : null}
-                    {karte.status === 'cancelled' ? (
-                      <div className="mt-3 text-white/70 text-[11px] font-medium font-['Space_Grotesk']">{t('assist.bookingDiscarded')}</div>
-                    ) : null}
-                  </div>
-                ))}
+                {vorschlaegeVon(message)}
               </div>
             )
           );
@@ -1254,6 +1366,9 @@ export default function KiAssistentView({
         </label>
         {/* Senden und — beim Bearbeiten — Abbrechen links daneben. Die Leiste
             wird dafuer um 60 px schmaler (48 px Knopf + 12 px Abstand). */}
+        {!hasInput && !bearbeitet && !imWandel ? (
+          <SprechenKnopf onClick={() => setSprachModus(true)} />
+        ) : (
         <div
           className={`ki-aktionen${bearbeitet ? ' mit-abbrechen' : ''}${imWandel ? ' im-wandel' : ''}${hasInput && !isSending ? '' : ' senden-gedimmt'}`}
         >
@@ -1293,9 +1408,23 @@ export default function KiAssistentView({
             <img src={sendIconSrc} alt="" className="w-[20px] h-[20px]" />
           </button>
         </div>
+        )}
       </div>
 
-      {!isMobileKeyboardMode ? (
+      {/* Oeffnet ein Formular (fehlende Angaben), tritt der Voice-Modus zur Seite und kommt danach wieder. */}
+      {sprachModus && !formular ? (
+        <SprachModus
+          vorschlag={sprachVorschlag ? vorschlaegeVon(sprachVorschlag, true) : null}
+          vorschlagId={sprachVorschlag?.id || null}
+          vorschlagOffen={sprachVorschlagOffen}
+          onSenden={stimmeSenden}
+          onJa={stimmeJa}
+          onNein={stimmeNein}
+          onSchliessen={() => setSprachModus(false)}
+        />
+      ) : null}
+
+      {!isMobileKeyboardMode && !sprachModus ? (
         <NaviFooterKomponente
           onNavigateHome={() => setView('list')}
           onNavigateToFahrten={() => setView('ankuenfte')}

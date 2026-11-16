@@ -34,6 +34,8 @@ const loginGewuenscht = () => typeof window !== 'undefined'
 import { demoAlert, tutorialLaeuft } from './components/ui/demoDialoge';
 import StandbyAdd from './components/views/StandbyAdd';
 import StandbyView from './components/views/StandbyView';
+import DienstreiseAdd from './components/views/DienstreiseAdd';
+import DienstreiseView from './components/views/DienstreiseView';
 
 const buildTodayIsoDate = () => {
   const now = new Date();
@@ -64,7 +66,9 @@ const MISSING_TRAIN_TIMES_COLUMNS_RE = /column .*train_planned_time|column .*tra
 const MISSING_JOBS_EXT_COLUMN_RE = /column .*ext_flight_payload|column .*ext_flight_last_sync_at|could not find the ['"]?ext_flight_payload['"]? column|could not find the ['"]?ext_flight_last_sync_at['"]? column/i;
 const MISSING_AI_BOOKED_COLUMN_RE = /column .*ai_booked|could not find the ['"]?ai_booked['"]? column/i;
 // Eigene Orte (Migration 20261107090000_orte_radien): fehlt die Spalte noch, ohne sie weiter.
-const MISSING_ORT_COLUMN_RE = /column .*((pickup|dropoff)_ort_id|zwischenstopps)|could not find the ['"]?((pickup|dropoff)_ort_id|zwischenstopps)['"]? column/i;
+const MISSING_ORT_COLUMN_RE = /column .*((pickup|dropoff)_ort_id|zwischenstopps|routen_punkte)|could not find the ['"]?((pickup|dropoff)_ort_id|zwischenstopps|routen_punkte)['"]? column/i;
+// Routenpunkte der Dispo (Migration 20261115130000_routen_punkte): nur mitschicken, wenn das Formular sie liefert.
+const routenPunkteAusPayload = (payload) => (Array.isArray(payload?.routenPunkte) ? { routen_punkte: payload.routenPunkte } : {});
 // Zwischenstopps aus dem Formular, ohne leere Zeilen.
 const stoppsAusPayload = (payload) => (Array.isArray(payload?.zwischenstopps) ? payload.zwischenstopps.map((t) => String(t || '').trim()).filter(Boolean) : []);
 // Start/Ziel aus dem Formular: mit eigenem Ort ist start/ziel der Ortsname, die Adresse
@@ -928,6 +932,8 @@ export default function App() {
   const [rideEditorData, setRideEditorData] = useState(null);
   // Standby am Event-Ort: welcher Standby gerade offen ist (Ansicht 'standby').
   const [standbyOffenId, setStandbyOffenId] = useState(null);
+  // Dienstreise: welche gerade offen ist (Ansicht 'dienstreise').
+  const [reiseOffenId, setReiseOffenId] = useState(null);
   const [driverEditorData, setDriverEditorData] = useState(null);
   // Fahrer-Ansicht (Klick auf einen Fahrer): Ablauf, Dienste, Stunden.
   // In sessionStorage gemerkt, damit die Ansicht ein Neuladen uebersteht (die Ansicht selbst steht in history.state).
@@ -1307,6 +1313,8 @@ export default function App() {
         const fallbackReadClient = hasSupabaseAdminConfig ? supabase : supabaseAdmin;
         const jobSelectBase = 'id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins';
         const jobSelectCandidates = [
+          // Routenpunkte der Dispo (15.11.), ohne die Spalte weiter mit den naechsten.
+          `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis, routen_punkte`,
           // Start Zeitraum (13.11.): etd_bis = Ende des Zeitraums.
           `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis`,
           `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps`,
@@ -1797,6 +1805,7 @@ export default function App() {
             startZeit: effectiveEtd || originalEtd || '--:--',
             startZeitBis: normalizeClockValue(job.etd_bis, ''),
             zwischenstopps: Array.isArray(job.zwischenstopps) ? job.zwischenstopps : [],
+            routenPunkte: Array.isArray(job.routen_punkte) ? job.routen_punkte : [],
             fahrerNamen,
             // Fuer die Mehrfachauswahl der Karte (Fahrten nur der markierten Fahrer).
             fahrerIds: mergedDriverEntries.map((entry) => String(entry?.id || '').trim()).filter(Boolean),
@@ -2350,6 +2359,7 @@ export default function App() {
         zielOrtId: ride.zielOrtId || '',
         zielOrtName: ride.zielOrtName || '',
         zwischenstopps: Array.isArray(ride.zwischenstopps) ? ride.zwischenstopps : [],
+        routenPunkte: Array.isArray(ride.routenPunkte) ? ride.routenPunkte : [],
         konvoi: ride.konvoi || '',
         anzahlFahrzeuge: String(ride.anzahlFahrzeuge || ''),
         fahrerNamen: Array.isArray(ride.fahrerNamen) && ride.fahrerNamen.length > 0 ? ride.fahrerNamen : [''],
@@ -2789,6 +2799,7 @@ export default function App() {
         pickup_ort_id: startOrtId || null,
         dropoff_ort_id: zielOrtId || null,
         zwischenstopps: stoppsAusPayload(payload),
+        ...routenPunkteAusPayload(payload),
         ride_date: rideDate,
         etd: (hasValidatedTrain ? trainEtdValues.etd : startZeit) || null,
         original_etd: (hasValidatedTrain ? trainEtdValues.originalEtd : startZeit) || null,
@@ -2846,6 +2857,7 @@ export default function App() {
         delete updatePayload.pickup_ort_id;
         delete updatePayload.dropoff_ort_id;
         delete updatePayload.zwischenstopps;
+        delete updatePayload.routen_punkte;
         updateResult = await runJobUpdate(supabase, updatePayload);
         if (
           (updateResult.error && ADMIN_FALLBACK_ERROR_RE.test(updateResult.error.message || ''))
@@ -3179,6 +3191,7 @@ export default function App() {
         ...(startOrtId ? { pickup_ort_id: startOrtId } : {}),
         ...(zielOrtId ? { dropoff_ort_id: zielOrtId } : {}),
         ...(stoppsAusPayload(payload).length ? { zwischenstopps: stoppsAusPayload(payload) } : {}),
+        ...routenPunkteAusPayload(payload),
         ride_date: rideDate,
         etd: (hasValidatedTrain ? trainEtdValues.etd : startZeit) || null,
         original_etd: (hasValidatedTrain ? trainEtdValues.originalEtd : startZeit) || null,
@@ -3206,6 +3219,7 @@ export default function App() {
         delete insertPayload.pickup_ort_id;
         delete insertPayload.dropoff_ort_id;
         delete insertPayload.zwischenstopps;
+        delete insertPayload.routen_punkte;
         createResult = await supabase.from('jobs').insert(insertPayload).select('id').single();
         if (createResult.error && ADMIN_FALLBACK_ERROR_RE.test(createResult.error.message || '')) {
           createResult = await supabaseAdmin.from('jobs').insert(insertPayload).select('id').single();
@@ -3773,6 +3787,7 @@ export default function App() {
       return (
         <AnkuenfteView 
           onOpenStandby={(id) => { setStandbyOffenId(id); navigateTo('standby'); }}
+          onOpenDienstreise={(id) => { setReiseOffenId(id); navigateTo('dienstreise'); }}
           onBack={() => navigateTo('list')}
           onSwitchToAbfahrten={() => navigateTo('abfahrten')}
           onNavigateHome={() => navigateTo('list')}
@@ -3930,6 +3945,18 @@ export default function App() {
     }
     if (view === 'standby') {
       return <StandbyView standbyId={standbyOffenId} onBack={() => navigateTo('ankuenfte')} setView={navigateTo} />;
+    }
+    if (view === 'dienstreiseAdd') {
+      return (
+        <DienstreiseAdd
+          setView={navigateTo}
+          onFetchPlaceSuggestions={handleFetchPlaceSuggestions}
+          onGesendet={(id) => { setReiseOffenId(id); navigateTo('dienstreise'); }}
+        />
+      );
+    }
+    if (view === 'dienstreise') {
+      return <DienstreiseView reiseId={reiseOffenId} onBack={() => navigateTo('ankuenfte')} setView={navigateTo} />;
     }
     if (view === 'fahrtBearbeiten') {
       return (

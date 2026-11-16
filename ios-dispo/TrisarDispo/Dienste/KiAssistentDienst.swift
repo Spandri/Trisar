@@ -36,6 +36,8 @@ enum KiAssistentDienst {
         let markierteFahrer: [MarkierterFahrer]
         /// Diese Ansicht zeigt alle Vorschlaege als Karten (Standby eigene Karte, mehrere Auftraege einzeln).
         let karten: Bool?
+        /// Umschalter Regeln/Frei (13.11.): "frei" laesst reine Fragen vom Modell beantworten.
+        let modus: String
     }
     private struct MarkierterFahrer: Encodable { let id: String; let name: String }
     private struct ServerAntwort: Decodable {
@@ -148,7 +150,7 @@ enum KiAssistentDienst {
                               offenerVorschlag: offenerVorschlag, letzteFahrtId: letzteFahrtId,
                               markierteFahrer: FahrerMarkierung.geteilt.wirkt
                                 ? FahrerMarkierung.geteilt.fahrer.map { MarkierterFahrer(id: $0.id, name: $0.name) } : [],
-                              karten: karten ? true : nil)
+                              karten: karten ? true : nil, modus: KiModus.aktuell)
         let antwort: ServerAntwort = try await Backend.client.functions.invoke("dispo-admin", options: FunctionInvokeOptions(body: anfrage))
         if let neu = antwort.kontext { kontext = neu }
         let aktionen = antwort.aktionen ?? (antwort.action.map { [$0] } ?? [])
@@ -373,4 +375,13 @@ final class KiAssistentLive {
         if let kanal { await Backend.client.removeChannel(kanal) }
         kanal = nil
     }
+}
+
+
+/// Umschalter Regeln/Frei im KI-Assistenten (13.11.), wie shared/kiModus.js im Web. Pro Geraet gemerkt,
+/// gilt auch fuer Fragen von der Apple Watch (laufen ueber diesen Dienst).
+enum KiModus {
+    static let schluessel = "trisar_ki_modus"
+    /// Standard ist "frei" (Wunsch 13.11.), "regeln" nur wenn ausdruecklich gewaehlt.
+    static var aktuell: String { UserDefaults.standard.string(forKey: schluessel) == "regeln" ? "regeln" : "frei" }
 }

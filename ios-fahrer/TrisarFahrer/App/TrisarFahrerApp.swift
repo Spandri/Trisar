@@ -23,6 +23,8 @@ struct TrisarFahrerApp: App {
         // "Arbeitszeit beginnt" weckt die App im Hintergrund: Ortung pruefen und starten.
         Push.shared.wecken = { await Geteilt.ortung.wecken() }
         LiveFahrt.shared.beobachten(Geteilt.fahrten)
+        // Live-Aktivitaet Dienstreise (nur wenn keine Fahrt laeuft).
+        LiveDienstreise.shared.beobachten()
         // Apple Watch (TrisarFahrerUhr): Stand schicken, Annehmen/Ablehnen von der Uhr ausfuehren.
         UhrBruecke.shared.starten()
     }
@@ -75,6 +77,7 @@ struct TrisarFahrerApp: App {
                 ortung.setzeFahrer(id)
                 fahrten.setzeFahrer(id)
                 Task { await StandbySpeicher.shared.setzeFahrer(id) }
+                Task { await DienstreiseSpeicher.shared.setzeFahrer(id) }
                 if id != nil && ortung.berechtigung == .unbekannt {
                     ortung.berechtigungAnfragen()
                 }
@@ -85,6 +88,7 @@ struct TrisarFahrerApp: App {
                 if neu == .active {
                     ortung.vordergrund()
                     LiveFahrt.shared.imVordergrund()
+                    LiveDienstreise.shared.imVordergrund()
                     Task { await fahrten.laden() }
                     Task { await anmeldung.profilLaden() }
                 }

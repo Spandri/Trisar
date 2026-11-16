@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import AVFoundation
 
 /// Startvideo 1:1 wie BootSplashGate in main.jsx (Web): startvideo.mp4 (= loadScreen.mp4),
@@ -11,7 +12,25 @@ import AVFoundation
 enum StartVideo {
     /// Einmal je Prozess: nach dem ersten Ablauf (oder Abbruch) bleibt es aus.
     static var gezeigt = false
-    static let hoechstens: TimeInterval = 6
+    static let hoechstens: TimeInterval = 8
+
+    /// Nur nach echtem Schliessen (im App-Umschalter weggewischt), nicht wenn iOS die App im
+    /// Hintergrund selbst beendet hat. Unterscheidung ueber die Fenster-Sitzung: Wegwischen verwirft
+    /// sie (neue ID beim naechsten Start), nach einem System-Ende kommt dieselbe Sitzung wieder.
+    static let sollZeigen: Bool = {
+        guard !gezeigt else { return false }
+        let szene = UIApplication.shared.connectedScenes.first { $0.session.role == .windowApplication }
+        guard let id = szene?.session.persistentIdentifier else { return true }
+        let schluessel = "startvideo_sitzung_v1"
+        let vorher = UserDefaults.standard.string(forKey: schluessel)
+        UserDefaults.standard.set(id, forKey: schluessel)
+        if vorher == id {
+            gezeigt = true
+            freigeben()
+            return false
+        }
+        return true
+    }()
     private(set) static var spieler: AVPlayer?
 
     /// So frueh wie moeglich aufrufen (init der App): Datei oeffnen und puffern, noch ohne Abspielen.
@@ -23,7 +42,9 @@ enum StartVideo {
         let s = AVPlayer(playerItem: eintrag)
         // Stumm und ohne eigene Audio-Sitzung: laufende Musik oder Navigation wird nicht unterbrochen.
         s.isMuted = true
-        s.automaticallyWaitsToMinimizeStalling = false
+        // Warten statt Bilder ueberspringen: sonst laeuft die Uhr des Videos schon, bevor es zeichnet, und
+        // der Pfeil (0,5 bis 3,2 s) ist vorbei, wenn das erste Bild kommt (14.11.).
+        s.automaticallyWaitsToMinimizeStalling = true
         s.preventsDisplaySleepDuringVideoPlayback = false
         spieler = s
     }
@@ -36,7 +57,7 @@ enum StartVideo {
 
 /// Legt das Startvideo ueber den Inhalt, solange es laeuft.
 struct StartVideoTor: ViewModifier {
-    @State private var sichtbar = !StartVideo.gezeigt
+    @State private var sichtbar = StartVideo.sollZeigen
 
     func body(content: Content) -> some View {
         content.overlay {
@@ -49,6 +70,7 @@ struct StartVideoTor: ViewModifier {
                 }
                 .ignoresSafeArea()
                 .task {
+                    // Notbremse, falls das Video nie zeichnet. Laeuft es, endet es selbst nach 4 s.
                     try? await Task.sleep(nanoseconds: UInt64(StartVideo.hoechstens * 1_000_000_000))
                     fertig()
                 }
@@ -87,7 +109,20 @@ private struct StartVideoAnsicht: UIViewRepresentable {
         context.coordinator.fehler = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemFailedToPlayToEndTime, object: spieler.currentItem, queue: .main
         ) { _ in fertig() }
+        // Sofort abspielen. Sobald die Ebene das erste Bild wirklich zeigt, einmal an den Anfang springen:
+        // sonst ist der Pfeil (0,5 bis 3,2 s) schon vorbei, wenn die App beim Start lange rechnet (14.11.).
         spieler.play()
+        let vonVorn = { spieler.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) }
+        if !flaeche.spielerEbene.isReadyForDisplay {
+            context.coordinator.bereit = flaeche.spielerEbene.observe(\.isReadyForDisplay, options: [.new]) { ebene, _ in
+                guard ebene.isReadyForDisplay else { return }
+                DispatchQueue.main.async {
+                    context.coordinator.bereit?.invalidate()
+                    context.coordinator.bereit = nil
+                    vonVorn()
+                }
+            }
+        }
         return flaeche
     }
 
@@ -95,6 +130,7 @@ private struct StartVideoAnsicht: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: SpielerFlaeche, coordinator: Beobachter) {
         uiView.spielerEbene.player = nil
+        coordinator.bereit?.invalidate()
         if let e = coordinator.ende { NotificationCenter.default.removeObserver(e) }
         if let f = coordinator.fehler { NotificationCenter.default.removeObserver(f) }
     }
@@ -104,6 +140,7 @@ private struct StartVideoAnsicht: UIViewRepresentable {
     final class Beobachter {
         var ende: NSObjectProtocol?
         var fehler: NSObjectProtocol?
+        var bereit: NSKeyValueObservation?
     }
 
     final class SpielerFlaeche: UIView {

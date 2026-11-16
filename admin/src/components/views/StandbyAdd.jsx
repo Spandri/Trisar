@@ -135,7 +135,7 @@ export default function StandbyAdd({
       <div className="h-full overflow-y-auto overflow-x-hidden overscroll-none pb-[151px]">
         <div className="w-[402px] relative overflow-hidden" style={{ height: `${hoehe}px`, background: HINTERGRUND }}>
           <BackCircleButton onClick={() => (onVorlageZurueck ? onVorlageZurueck() : setView('ankuenfte'))} className="absolute left-[20px] top-[60px]" />
-          {!vorlage ? <ArtUmschalter standby onFahrt={() => setView('fahrtAdd')} onStandby={() => {}} /> : null}
+          {!vorlage ? <ArtUmschalter art="standby" onFahrt={() => setView('fahrtAdd')} onStandby={() => {}} onDienstreise={() => setView('dienstreiseAdd')} /> : null}
 
           <div className="absolute left-[20px] top-[140px] text-[42px] leading-[42px] font-bold font-['Space_Grotesk']" style={{ color: GREEN }}>
             Standby

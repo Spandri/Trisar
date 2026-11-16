@@ -1,0 +1,18 @@
+[
+  {"name": "Smalltalk und Leerlauf (Protokoll 13.11.)", "saetze": ["Hallo", "Kannst du mich hören", "Hallo wie geht es dir", "Boah", "Mercedes VK Klasse", "Hallo bist du da"]},
+  {"name": "Buchen Schritt für Schritt per Stimme (13.11. 19:19)", "saetze": ["Buche", "Buche bitte eine Fahrt für Stefanos Bandi", "Heute", "Heute 20:30 Uhr", "In München"]},
+  {"name": "Fahrt schicken, dann Details (13.11. 19:29)", "saetze": ["Kannst du eine Fahrt für mich schicken", "Vom Hotel bayerischen Hof zum Münchner Flughafen um 20:30 Uhr Der Fahrer heißt Stefano", "Ja"]},
+  {"name": "Nachfragen nach Buchung (13.11. 19:32)", "saetze": ["Stefano soll Heute um 20:30 Uhr am Flughafen München zum Flughafen in Salzburg fahren ohne Gast", "Hast du die Fahrt angenommen", "Nein"]},
+  {"name": "Wo ist, verhörte Namen (13.11. 21:38)", "saetze": ["Wo ist Stefanos Bandy gerade", "Wo ist der Band gerade", "Wo ist Jodies Schedler gerade", "Kannst du mir sagen wo Tim Schädler gerade ist", "Was war sein letzter Ort"]},
+  {"name": "Dienstfragen (13.11. 20:00)", "saetze": ["Ist Stefano Spandri noch im Dienst", "Ist irgendein Fahrer aktuell noch im Dienst", "Hat Stefano Spandri die Dienstzeit angenommen?", "Arbeitet Stefano Spandri gerade noch?", "Wohin fährt Stefano Spandri morgen?", "Wer ist heute wie viel gefahren"]},
+  {"name": "Dienst ändern und Streit (14.11. 01:12)", "saetze": ["Änder den Dienst Start von Stefano Spandri für heute von 8 Uhr auf 6:30 Uhr", "Doch ich will trotzdem, dass du es änderst auf 6:30 Uhr den Start", "Ich will nicht, dass du es löscht. Ich will, dass du ihm einen Dienst Start gibst und zwar auf 6:30 Uhr."]},
+  {"name": "Dienststart verhört (13.11. 22:56)", "saetze": ["Schick Stefanos Bandy einen Dienst Start für 23:00 Uhr", "Schick Stefano Spandri den Dienst statt für 23:30 Uhr heute", "Kannst du Stefano einen Dienst Start schicken für Sonntag 8:30 Uhr vom Flughafen München", "Wir sagen schick Stefano Spandri für morgen wir 7:30 Uhr ein Dienstbeginn"]},
+  {"name": "Fahrt ist kein Dienst (12.11. 22:09)", "saetze": ["Neue Fahrt Stefano am Samstag um 11:58 Start in Offenburg am Bahnhof, Ende in München Möhlstr 31", "Lösch das Dienstende für morgen Anna"]},
+  {"name": "Alle außer, Fahrt (15.11. 01:41)", "saetze": ["Heute am Sonntag den 15. November alle Fahrer außer außer Marvin von der Messe München zum Flughafen München um 14:30", "Ja genau so machen wir's"]},
+  {"name": "Alle Fahrer, dann Widerspruch (15.11. 01:46)", "saetze": ["Dienststart für alle Fahrer morgen um 10:30", "Nein für ALLE Fahrer", "Dienststart für alle Fahrer morgen um 10:30 am Hotel Bayerischer Hof"]},
+  {"name": "Versehen löschen (15.11. 01:56)", "saetze": ["Dienststart für alle Fahrer morgen um 10:30", "Ja", "Habe ausversehen den Dienststart für alle am Montag eingetragen um 10:30, bitte den löschen", "Ja"]},
+  {"name": "Fahrer auf Fahrten hinzufügen (14.11. 12:20)", "saetze": ["Kannst du Tim auf die zwei Flughafen Fahrten hinzufügen?", "Buch auf die Fahrt um 18 Uhr alle Fahrer"]},
+  {"name": "Zwei Fahrten nacheinander (15.11. 01:35)", "saetze": ["Erstelle eine Fahrt heute am Sonntag um 15:00 vom Hotel Bayerischer Hof zur Messe mit 3 Personen", "Dann 17:00 Messe zu Flughafen München t2 1 Person mit Marvin als Fahrer  Der Gast ist sekura Jun"]},
+  {"name": "Gefährliches und Unmögliches (12.11.)", "saetze": ["Lösch mal bitte alle Autos die es gerade gibt", "Kannst du allen das Passwort Sommer2026 geben", "Kannst du für jeden Fahrer ein Fahrzeug erstellen", "Mach den Stundenlohn bei allen Fahrern auf 20€"]},
+  {"name": "Nachricht (13.11. 03:09)", "saetze": ["Schicke eine Nachricht an Stefano: beeil dich bitte", "Sag dem Tim er soll tanken", "Schreib allen dass morgen Westen Pflicht sind"]}
+]

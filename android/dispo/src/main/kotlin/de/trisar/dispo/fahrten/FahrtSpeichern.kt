@@ -50,6 +50,8 @@ data class GeladeneFahrt(
     val mitStoppSpalte: Boolean = false,
     /** jobs.etd_bis gibt es in der Datenbank (Migration start_zeitraum). */
     val mitBisSpalte: Boolean = false,
+    /** Routenpunkte der Dispo (jobs.routen_punkte), leer ohne Spalte oder ohne Punkte. */
+    val routenPunkte: List<de.trisar.kern.RoutenPunkt> = emptyList(),
 )
 
 /** payload an onCreateRide / onSave. */
@@ -65,6 +67,8 @@ data class FahrtEingabe(
     val aiBooked: Boolean = false,
     /** KI-Assistent: Flug nicht bestaetigt und trotzdem gebucht, Nummer ohne Flugdaten behalten (Web: flugOhnePruefung). */
     val flugOhnePruefung: Boolean = false,
+    /** Routenpunkte: null = Spalte nicht mitschicken (sonst bricht Speichern, solange die Spalte live fehlt). */
+    val routenPunkte: List<de.trisar.kern.RoutenPunkt>? = null,
 )
 
 /** Vorschlag des KI-Assistenten als Startwerte fuer „Fahrt erstellen“. */
@@ -185,6 +189,13 @@ object FahrtSpeichern {
         })
             ?: error("Fahrt nicht gefunden.")
 
+        // Routenpunkte in eigener Abfrage: die Spalte kann live noch fehlen, dann still leer.
+        val routenPunkte = still(emptyList()) {
+            de.trisar.kern.RoutenPunkte.lesen(c.from("jobs").select(Columns.raw("routen_punkte")) {
+                filter { eq("id", id) }
+                limit(1)
+            }.decodeList<JsonObject>().firstOrNull()?.get("routen_punkte"))
+        }
         val archiv = still(emptyList()) { c.from("jobs_archive").select(Columns.raw("job_id")) { filter { eq("job_id", id) } }.decodeList<JsonObject>() }
         val zuordnungen = still(emptyList()) { c.from("convoy_assignments").select(Columns.raw("driver_id, response_status")) { filter { eq("job_id", id) } }.decodeList<JsonObject>() }
         val jobFahrer = W.t(job["driver_id"])
@@ -299,7 +310,7 @@ object FahrtSpeichern {
         )
         return GeladeneFahrt(W.t(job["id"]).ifEmpty { id }, werte, namen.ifEmpty { listOf("") }, wirksam.joinToString(", "), dispoText, aiBooked,
             zwischenstopps = (job["zwischenstopps"] as? JsonArray)?.map { FahrtText.getrimmt(stringWert(it)) }?.filter { it.isNotEmpty() } ?: emptyList(),
-            mitStoppSpalte = mitStoppSpalte, mitBisSpalte = mitBisSpalte)
+            mitStoppSpalte = mitStoppSpalte, mitBisSpalte = mitBisSpalte, routenPunkte = routenPunkte)
     }
 
     // MARK: Gemeinsame Vorbereitung (Pruefungen vor dem Schreiben)
@@ -453,7 +464,9 @@ object FahrtSpeichern {
             for (n in v.fahrerNamen) fahrerID(n, fahrer)?.let { if (it !in fahrerIDs) fahrerIDs.add(it) }
             val kolonnenSync = kolonne != null || v.fahrerNamen.size > 1 || fahrerIDs.size > 1
 
-            val zeile = JsonObject(jobSpalten(v, FahrtText.jobStatus(e.werte.aktuellerStatus), kolonne, fahrerIDs.firstOrNull(), e.aiBooked))
+            val zeile = JsonObject(jobSpalten(v, FahrtText.jobStatus(e.werte.aktuellerStatus), kolonne, fahrerIDs.firstOrNull(), e.aiBooked).also {
+                e.routenPunkte?.let { p -> it["routen_punkte"] = de.trisar.kern.RoutenPunkte.json(p) }
+            })
             val neu = Backend.client.from("jobs").insert(zeile) {
                 select(Columns.raw("id"))
             }.decodeList<JsonObject>().first()
@@ -530,6 +543,7 @@ object FahrtSpeichern {
                 spalten["driver_response_status"] = JsonPrimitive("pending")
                 spalten["driver_responded_at"] = JsonNull
             }
+            e.routenPunkte?.let { spalten["routen_punkte"] = de.trisar.kern.RoutenPunkte.json(it) }
             if (zeitUnberuehrt) {
                 spalten.remove("etd")
                 spalten.remove("original_etd")

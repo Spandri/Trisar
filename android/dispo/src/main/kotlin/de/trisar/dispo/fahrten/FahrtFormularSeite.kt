@@ -83,11 +83,12 @@ fun FahrtFormularSeite(
     nachAnlegen: ((String?) -> Unit)? = null,
     /** Aenderungsvorschlag: Startwerte aus der geladenen Fahrt. */
     anpassen: ((GeladeneFahrt) -> FahrtVorlage)? = null,
-    /** Schalter "Fahrt | Standby" (nur beim Anlegen): wechselt zu Standby verschicken. */
+    /** Schalter "Fahrt | Standby | Dienstreise" (nur beim Anlegen): wechselt zu Standby bzw. Dienstreise verschicken. */
     standbyWahl: (() -> Unit)? = null,
+    dienstreiseWahl: (() -> Unit)? = null,
 ) {
     if (fahrtID == null) {
-        FormularInhalt(null, zurueck, zeigen, vorlage, nachAnlegen, standbyWahl)
+        FormularInhalt(null, zurueck, zeigen, vorlage, nachAnlegen, standbyWahl, dienstreiseWahl)
         return
     }
     var geladen by remember(fahrtID) { mutableStateOf<GeladeneFahrt?>(null) }
@@ -110,7 +111,7 @@ fun FahrtFormularSeite(
     }
 }
 
-private enum class ZeilenArt { ADRESSE, STOPP, TEXT, ZAHL, AUSWAHL, FAHRER, GAST }
+private enum class ZeilenArt { ADRESSE, STOPP, TEXT, ZAHL, AUSWAHL, FAHRER, GAST, ROUTE }
 
 private fun stoppZeilen(werte: List<String>): List<String> {
     val gefuellt = werte.filter { FahrtText.getrimmt(it).isNotEmpty() }.take(8)
@@ -131,6 +132,7 @@ private fun FormularInhalt(
     geladen: GeladeneFahrt?, zurueck: () -> Unit, zeigen: ((DispoZiel) -> Unit)?,
     vorlage: FahrtVorlage? = null, nachAnlegen: ((String?) -> Unit)? = null,
     standbyWahl: (() -> Unit)? = null,
+    dienstreiseWahl: (() -> Unit)? = null,
 ) {
     // Raster aus FahrtAdd.jsx: Titel 140, Felder ab 206, Reihen alle 68, Zeilenhoehe 56.
     val reihenStart = 410f
@@ -151,6 +153,9 @@ private fun FormularInhalt(
     var zwischenstopps by remember { mutableStateOf(stoppZeilen(geladen?.zwischenstopps ?: emptyList())) }
     var adressHinweis by remember { mutableStateOf<String?>(null) }
     var speichert by remember { mutableStateOf(false) }
+    // Route bearbeiten (15.11.): Routenpunkte der Dispo, Editor als Vollbild ueber dem Formular.
+    var routenPunkte by remember { mutableStateOf(geladen?.routenPunkte ?: emptyList()) }
+    var routeOffen by remember { mutableStateOf(false) }
 
     var vorschlaege by remember { mutableStateOf<Map<String, List<String>>>(mapOf("start" to emptyList(), "ziel" to emptyList())) }
     var aktivesAdressFeld by remember { mutableStateOf<String?>(null) }
@@ -210,6 +215,8 @@ private fun FormularInhalt(
             add(ZeilenDaten("stopp-$i", if (i == 0) t("fahrt.zwischenstopp") else t("fahrt.zwischenstoppNumbered", mapOf("n" to "${i + 1}")), ZeilenArt.STOPP, i))
         }
         add(ZeilenDaten("ziel", t("fahrt.ziel"), ZeilenArt.ADRESSE))
+        // Route nur mit Start und Ziel (leerer Start = Fahrerstandort, dann gibt es nichts zu planen).
+        if (stoppsSichtbar && FahrtText.getrimmt(werte.ziel).isNotEmpty()) add(ZeilenDaten("route", "Route", ZeilenArt.ROUTE))
         add(ZeilenDaten("flugnummer", t("fahrt.flugnummer"), ZeilenArt.TEXT))
         add(ZeilenDaten("zugnummer", t("fahrt.zugnummer"), ZeilenArt.TEXT))
         add(ZeilenDaten("konvoi", t("fahrt.konvoi"), ZeilenArt.TEXT))
@@ -453,6 +460,19 @@ private fun FormularInhalt(
         listenLaden = false
     }
 
+    // Start, Ziel oder Stopps geaendert: die Routenpunkte passen nicht mehr, zurueck auf die schnellste Route.
+    val routenSchluessel = listOf(FahrtText.getrimmt(werte.start), FahrtText.getrimmt(werte.ziel)) + gefuellteStopps
+    var letzterRoutenSchluessel by remember { mutableStateOf(routenSchluessel) }
+    LaunchedEffect(routenSchluessel) {
+        if (routenSchluessel != letzterRoutenSchluessel) {
+            letzterRoutenSchluessel = routenSchluessel
+            routenPunkte = emptyList()
+        }
+    }
+    /** Adressen fuer die Route: Start, Stopps, Ziel (eigener Ort mit seiner Adresse). */
+    fun routenAdressen(): List<String> =
+        listOf(EigeneOrte.zuID(werte.startOrtID)?.adresse ?: werte.start) + gefuellteStopps + (EigeneOrte.zuID(werte.zielOrtID)?.adresse ?: werte.ziel)
+
     // MARK: Speichern
 
     fun speichern(geprueft: Boolean = false) {
@@ -476,7 +496,8 @@ private fun FormularInhalt(
             speichert = true
             val w = werte.copy(anonymeGaeste = werte.anonymeGaeste.ifEmpty { "0" })
             scope.launch {
-                val e = FahrtSpeichern.anlegen(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), fahrerNamen, flughafenWahl, ankunftWahl, notiz, gefuellteStopps, aiBooked = vorlage != null))
+                val e = FahrtSpeichern.anlegen(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), fahrerNamen, flughafenWahl, ankunftWahl, notiz, gefuellteStopps, aiBooked = vorlage != null,
+                    routenPunkte = routenPunkte.ifEmpty { null }))
                 speichert = false
                 if (!e.ok) { meldung = t("fahrt.saveError", mapOf("error" to (e.fehler ?: t("fahrt.unknownError")))); return@launch }
                 if (nachAnlegen != null) { nachAnlegen(e.id); return@launch }
@@ -494,7 +515,9 @@ private fun FormularInhalt(
             )
             speichert = true
             scope.launch {
-                val e = FahrtSpeichern.aendern(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), namen, flughafenWahl, ankunftWahl, notiz, gefuellteStopps), g)
+                val e = FahrtSpeichern.aendern(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), namen, flughafenWahl, ankunftWahl, notiz, gefuellteStopps,
+                    // Nur mitschicken, wenn Punkte gesetzt sind oder vorher welche da waren (Spalte kann live fehlen).
+                    routenPunkte = if (routenPunkte.isNotEmpty() || g.routenPunkte.isNotEmpty()) routenPunkte else null), g)
                 speichert = false
                 if (!e.ok) { meldung = t("fahrt.saveError", mapOf("error" to (e.fehler ?: t("fahrt.unknownError")))); return@launch }
                 if (nachAnlegen != null) { nachAnlegen(g.id); return@launch }
@@ -550,9 +573,10 @@ private fun FormularInhalt(
                     // Sammel-Import aus Excel/CSV statt Einzelanlage (setView('importFahrten')).
                     Icon("import-fahrten", Modifier.platz(402f - 20f - 42f, 65f, 42f, 40f).tippen { importOffen = true })
                 }
-                // Fahrt oder Standby am Event-Ort (nicht beim Vorschlag des KI-Assistenten).
+                // Fahrt, Standby am Event-Ort oder Dienstreise (nicht beim Vorschlag des KI-Assistenten).
                 if (!bearbeiten && vorlage == null && standbyWahl != null) {
-                    de.trisar.dispo.standby.ArtUmschalter(false, Modifier.platz(0f, 67f, 402f, 40f), fahrt = {}, standbyWahl = standbyWahl)
+                    de.trisar.dispo.standby.ArtUmschalter("fahrt", Modifier.platz(0f, 67f, 402f, 40f), fahrt = {}, standbyWahl = standbyWahl,
+                        dienstreiseWahl = dienstreiseWahl ?: {})
                 }
                 Text(t(if (bearbeiten) "fahrt.editTitle" else "fahrt.createTitle"), style = css(42f, 700, 42f, farbe = LIME),
                     modifier = Modifier.platz(20f, 140f, if (bearbeiten) 400f else 320f))
@@ -614,7 +638,11 @@ private fun FormularInhalt(
                 reihen.forEachIndexed { i, z ->
                     key(z.id) {
                         val m = Modifier.platz(20f, reihenStart + i * schritt, 362f, 56f)
-                        if (z.art == ZeilenArt.AUSWAHL) {
+                        if (z.art == ZeilenArt.ROUTE) {
+                            FormularZeile(z.beschriftung, "", m, rechts = RechtsArt.PFEIL, rechtsAktion = { fokusManager.clearFocus(); routeOffen = true }, zuruecksetzen = {}) {
+                                RoutenZeilenWert(routenPunkte.size) { fokusManager.clearFocus(); routeOffen = true }
+                            }
+                        } else if (z.art == ZeilenArt.AUSWAHL) {
                             FormularZeile(z.beschriftung, werte.aktuellerStatus, m, zuruecksetzen = { werte = werte.copy(aktuellerStatus = "") }) {
                                 Box {
                                     ZeilenWert(statusText(werte.aktuellerStatus)) { fokusManager.clearFocus(); statusOffen = true }
@@ -751,6 +779,13 @@ private fun FormularInhalt(
         meldung?.let { Hinweis(it, null) { meldung = null } }
         adressHinweis?.let { h -> Rueckfrage("$h\n\n${t("fahrt.trotzdemSpeichern")}?", { adressHinweis = null; speichern(geprueft = true) }, { adressHinweis = null }) }
         if (stornoFrage) Rueckfrage(t("fahrt.confirmCancelRide"), { stornoFrage = false; stornieren() }, { stornoFrage = false })
+        if (routeOffen) {
+            BackHandler { routeOffen = false }
+            RoutenEditorSeite(routenAdressen(), gefuellteStopps.size, routenPunkte, abbrechen = { routeOffen = false }) {
+                routenPunkte = it
+                routeOffen = false
+            }
+        }
         if (importOffen) {
             BackHandler { importOffen = false }
             ImportSeite(ImportModus.FAHRTEN, zurueck = { importOffen = false }, zumZiel = {

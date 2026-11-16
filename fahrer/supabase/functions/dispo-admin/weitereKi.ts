@@ -37,7 +37,8 @@ export const gastFrage = async (admin: any, frage: string) => {
   if (!was) return null;
   // Nur Fragen. "Gib der Fahrt von Herrn Engel die Notiz Kindersitz" ist ein Auftrag an der Fahrt.
   if (/\b(aender\w*|setz\w*|trag\w*|neue|gib|geb\w*|mach\w*|schreib\w*|fueg\w*|fahrt|fahrten)\b/.test(text)) return null;
-  if (!/^\s*(wie|was|welche\w*|wo|wer|hat|ist|gibt|zeig\w*|sag\w*|nenn\w*|bei)\b/.test(text) && !/\?\s*$/.test(String(frage || ''))) return null;
+  // "Braucht Frau Weber einen Kindersitz" ist auch ohne Fragezeichen eine Frage (15.11.).
+  if (!/^\s*(wie|was|welche\w*|wo|wer|hat|ist|gibt|zeig\w*|sag\w*|nenn\w*|bei|braucht|benoetigt|bekommt|muss|sitzt)\b/.test(text) && !/\?\s*$/.test(String(frage || ''))) return null;
   // Fahrer gehen vor ("Welche Telefonnummer hat Tim?"): Telefon und E-Mail direkt aus dem Profil.
   const fahrer = await genannteFahrer(admin, text);
   if (fahrer.length === 1 && (was === 'telefon' || was === 'email')) {

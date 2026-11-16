@@ -292,13 +292,14 @@ final class UhrBruecke: NSObject {
             guard let id = (nachricht["id"] as? String).flatMap(UUID.init(uuidString:)),
                   let fahrt = speicher.fahrten.first(where: { $0.id == id }),
                   let annehmen = nachricht["annehmen"] as? Bool else { return false }
-            return await speicher.antworten(fahrt, annehmen: annehmen, grund: annehmen ? nil : "Auf der Apple Watch abgelehnt")
+            // CarPlay schickt "quelle": "carplay", die Uhr nichts.
+            let grund = (nachricht["quelle"] as? String) == "carplay" ? "In CarPlay abgelehnt" : "Auf der Apple Watch abgelehnt"
+            return await speicher.antworten(fahrt, annehmen: annehmen, grund: annehmen ? nil : grund)
         case UhrAktion.dienst:
             guard let id = (nachricht["id"] as? String).flatMap(UUID.init(uuidString:)),
                   let anfrage = speicher.dienstAnfragen.first(where: { $0.id == id }),
                   let annehmen = nachricht["annehmen"] as? Bool else { return false }
-            await speicher.dienstAntworten(anfrage, annehmen: annehmen)
-            return true
+            return await speicher.dienstAntworten(anfrage, annehmen: annehmen)
         case UhrAktion.schritt:
             guard let id = (nachricht["id"] as? String).flatMap(UUID.init(uuidString:)),
                   let ziel = nachricht["ziel"] as? String else { return false }

@@ -16,8 +16,8 @@ struct FahrtFormularAnsicht: View {
 
     @State private var geladen: GeladeneFahrt?
     @State private var ladeFehler: String?
-    /// Schalter „Fahrt | Standby“ beim Anlegen (StandbyAdd.jsx).
-    @State private var standby = false
+    /// Schalter „Fahrt | Standby | Dienstreise“ beim Anlegen (ArtUmschalter.jsx).
+    @State private var art: ArtUmschalter.Art = .fahrt
 
     var body: some View {
         if let fahrtID {
@@ -43,16 +43,21 @@ struct FahrtFormularAnsicht: View {
                     do { geladen = try await FahrtSpeichern.laden(fahrtID) } catch { ladeFehler = error.localizedDescription }
                 }
             }
-        } else if standby && vorlage == nil {
-            StandbyFormularAnsicht(zurueck: zurueck, zuFahrt: { standby = false }, zeigen: { zeigen?($0) })
+        } else if art == .standby && vorlage == nil {
+            StandbyFormularAnsicht(zurueck: zurueck, zuFahrt: { art = .fahrt }, zurDienstreise: { art = .dienstreise },
+                                   zeigen: { zeigen?($0) })
+        } else if art == .dienstreise && vorlage == nil {
+            DienstreiseFormularAnsicht(zurueck: zurueck, zuFahrt: { art = .fahrt }, zumStandby: { art = .standby },
+                                       zeigen: { zeigen?($0) })
         } else {
             FahrtFormularInhalt(geladen: nil, zurueck: zurueck, zeigen: zeigen, vorlage: vorlage, nachAnlegen: nachAnlegen,
-                                zuStandby: vorlage == nil ? { standby = true } : nil)
+                                zuStandby: vorlage == nil ? { art = .standby } : nil,
+                                zurDienstreise: vorlage == nil ? { art = .dienstreise } : nil)
         }
     }
 }
 
-private enum ZeilenArt { case adresse, stopp, text, zahl, auswahl, fahrer, gast }
+private enum ZeilenArt { case adresse, stopp, text, zahl, auswahl, fahrer, gast, route }
 
 private struct ZeilenDaten: Identifiable {
     let id: String
@@ -77,6 +82,7 @@ private struct FahrtFormularInhalt: View {
     let vorlage: FahrtVorlage?
     let nachAnlegen: ((UUID?) -> Void)?
     var zuStandby: (() -> Void)?
+    var zurDienstreise: (() -> Void)?
 
     // Raster aus FahrtAdd.jsx: Titel 140, Felder ab 206, Reihen alle 68, Zeilenhoehe 56.
     private let reihenStart: CGFloat = 410
@@ -131,10 +137,15 @@ private struct FahrtFormularInhalt: View {
     // Risiko je Fahrt (nur an Tagen, die die Engine gerechnet hat, siehe NebenRisikoSpeicher).
     @ObservedObject private var risiko = NebenRisikoSpeicher.geteilt
     @State private var risikoHoehe: CGFloat = 0
+    /// Routenpunkte der Dispo (jobs.routen_punkte), leer = schnellste Route. Editor als Vollbild.
+    @State private var routenPunkte: [RoutenPunkt]
+    @State private var routenEditorOffen = false
 
     init(geladen: GeladeneFahrt?, zurueck: @escaping () -> Void, zeigen: ((DispoZiel) -> Void)?,
-         vorlage: FahrtVorlage?, nachAnlegen: ((UUID?) -> Void)?, zuStandby: (() -> Void)? = nil) {
+         vorlage: FahrtVorlage?, nachAnlegen: ((UUID?) -> Void)?, zuStandby: (() -> Void)? = nil,
+         zurDienstreise: (() -> Void)? = nil) {
         self.zuStandby = zuStandby
+        self.zurDienstreise = zurDienstreise
         self.vorlage = vorlage
         self.nachAnlegen = nachAnlegen
         self.geladen = geladen
@@ -151,6 +162,7 @@ private struct FahrtFormularInhalt: View {
         _fahrerNamen = State(initialValue: fahrer.isEmpty ? [""] : fahrer)
         _zwischenstopps = State(initialValue: Self.stoppZeilen(geladen?.zwischenstopps ?? []))
         _gaesteNamen = State(initialValue: FahrtText.gaesteTeilen(vorlage?.fahrgaeste ?? geladen?.fahrgaeste) + [""])
+        _routenPunkte = State(initialValue: geladen?.routenPunkte ?? [])
     }
 
     private var bearbeiten: Bool { geladen != nil }
@@ -176,6 +188,16 @@ private struct FahrtFormularInhalt: View {
     }
     private var gefuellteStopps: [String] { zwischenstopps.map(FahrtText.getrimmt).filter { !$0.isEmpty } }
     private var stoppsSichtbar: Bool { !FahrtText.getrimmt(werte.start).isEmpty }
+    /// Zeile „Route“ nur mit Start und Ziel (leerer Start = Fahrerstandort, dann keine Route).
+    private var routeSichtbar: Bool { stoppsSichtbar && !FahrtText.getrimmt(werte.ziel).isEmpty }
+    /// Adressen fuer die Routen-Vorschau: Start, Stopps, Ziel (bei eigenem Ort die Ortsadresse).
+    private var routenAdressen: [String] {
+        let start = werte.startOrtAdresse.isEmpty ? werte.start : werte.startOrtAdresse
+        let ziel = werte.zielOrtAdresse.isEmpty ? werte.ziel : werte.zielOrtAdresse
+        return [FahrtText.getrimmt(start)] + gefuellteStopps + [FahrtText.getrimmt(ziel)]
+    }
+    /// Kennung der Adressen wie routenBasis im Web. Aendert sie sich, passen die Punkte nicht mehr.
+    private var routenBasis: String { routenAdressen.map { $0.lowercased() }.joined(separator: "|") }
 
     private var fahrerAnzahl: Int { mitFahrzeugen ? max(1, Int(werte.anzahlFahrzeuge) ?? 1) : 1 }
     private var gefuellteGaeste: [String] { gaesteNamen.map(FahrtText.getrimmt).filter { !$0.isEmpty } }
@@ -193,6 +215,9 @@ private struct FahrtFormularInhalt: View {
         } : []
         z += [
             .init(id: "ziel", beschriftung: t("fahrt.ziel"), art: .adresse),
+        ]
+        if routeSichtbar { z.append(.init(id: "route", beschriftung: "Route", art: .route)) }
+        z += [
             .init(id: "flugnummer", beschriftung: t("fahrt.flugnummer"), art: .text),
             .init(id: "zugnummer", beschriftung: t("fahrt.zugnummer"), art: .text),
             .init(id: "konvoi", beschriftung: t("fahrt.konvoi"), art: .text),
@@ -291,6 +316,10 @@ private struct FahrtFormularInhalt: View {
             let zeilen = Self.stoppZeilen(neu)
             if zeilen != neu { zwischenstopps = zeilen }
         }
+        .onChange(of: routenBasis) { _, _ in
+            // Start, Ziel oder Stopps geaendert: die Punkte passen nicht mehr (wieder „Schnellste“).
+            if !routenPunkte.isEmpty { routenPunkte = [] }
+        }
         .onChange(of: gaesteNamen) { _, neu in
             // normalizeGuestRows: gefuellte Zeilen + eine leere. Der Text bleibt beim Tippen ungetrimmt.
             let gefuellt = neu.filter { !FahrtText.getrimmt($0).isEmpty } + [""]
@@ -331,6 +360,14 @@ private struct FahrtFormularInhalt: View {
             Button("Abbrechen", role: .cancel) {}
             Button("OK") { Task { await stornieren() } }
         }
+        .webVollbild(isPresented: $routenEditorOffen) {
+            RoutenEditorAnsicht(adressen: routenAdressen, punkte: routenPunkte,
+                                abbrechen: { routenEditorOffen = false },
+                                uebernehmen: { neu in
+                                    routenPunkte = neu
+                                    routenEditorOffen = false
+                                })
+        }
         .webVollbild(isPresented: $importOffen) {
             ImportAnsicht(modus: .fahrten, zurueck: { importOffen = false }, zumZiel: {
                 importOffen = false
@@ -346,7 +383,7 @@ private struct FahrtFormularInhalt: View {
             ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
             // Fahrt oder Standby am Event-Ort (nicht beim Vorschlag des KI-Assistenten).
             if !bearbeiten, let zuStandby {
-                ArtUmschalter(standby: false, fahrt: {}, zumStandby: zuStandby).platz(0, 67, 402, 36)
+                ArtUmschalter(art: .fahrt, fahrt: {}, zumStandby: zuStandby, zurDienstreise: zurDienstreise ?? {}).platz(0, 67, 402, 36)
             }
             if !bearbeiten && vorlage == nil {
                 // Sammel-Import aus Excel/CSV statt Einzelanlage (setView('importFahrten')).
@@ -481,7 +518,9 @@ private struct FahrtFormularInhalt: View {
     // MARK: Reihen
 
     @ViewBuilder private func zeileAnsicht(_ z: ZeilenDaten) -> some View {
-        if z.art == .auswahl {
+        if z.art == .route {
+            routeZeile(z)
+        } else if z.art == .auswahl {
             FormularZeile(beschriftung: z.beschriftung, wert: werte.aktuellerStatus, zuruecksetzen: { werte.aktuellerStatus = "" }) {
                 statusMenue
             }
@@ -497,6 +536,35 @@ private struct FahrtFormularInhalt: View {
                     .disabled(listenLaden && (z.art == .fahrer || z.art == .gast))
             }
         }
+    }
+
+    /// Zeile „Route“: „Schnellste“ oder „Angepasst“ mit Lime-Chip „N Punkte“, Tipp oeffnet den Editor.
+    private func routeZeile(_ z: ZeilenDaten) -> some View {
+        FormularZeile(beschriftung: z.beschriftung, wert: "", rechts: .pfeil, rechtsAktion: { routeOeffnen() },
+                      zuruecksetzen: { routenPunkte = [] }) {
+            Button { routeOeffnen() } label: {
+                HStack(spacing: 8) {
+                    Text(routenPunkte.isEmpty ? "Schnellste" : "Angepasst")
+                        .font(.grotesk(16, .medium)).tracking(0.5).foregroundStyle(formularLime).lineLimit(1)
+                    Spacer(minLength: 0)
+                    if !routenPunkte.isEmpty {
+                        Text(routenPunkte.count == 1 ? "1 Punkt" : "\(routenPunkte.count) Punkte")
+                            .font(.grotesk(12, .bold)).foregroundStyle(.black)
+                            .padding(.horizontal, 9).padding(.vertical, 3)
+                            .background(Capsule().fill(formularLime))
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.web)
+            .accessibilityLabel("Route bearbeiten")
+        }
+    }
+
+    private func routeOeffnen() {
+        fokus = nil
+        routenEditorOffen = true
     }
 
     private static let statusWerte = ["offen", "beendet", "stoniert", "unterwegs"]
@@ -984,7 +1052,8 @@ private struct FahrtFormularInhalt: View {
         let ergebnis = await FahrtSpeichern.anlegen(FahrtEingabe(
             werte: w, fahrgaeste: gefuellteGaeste.joined(separator: "; "), fahrerNamen: fahrerNamen,
             zwischenstopps: gefuellteStopps,
-            flugZielFlughafen: flughafenWahl, flugAnkunftGeplant: ankunftWahl, notiz: notiz, aiBooked: vorlage != nil))
+            flugZielFlughafen: flughafenWahl, flugAnkunftGeplant: ankunftWahl, notiz: notiz, aiBooked: vorlage != nil,
+            routenPunkte: routeSichtbar ? routenPunkte : []))
         speichert = false
         if !ergebnis.ok {
             meldung = t("fahrt.saveError", ["error": ergebnis.fehler ?? t("fahrt.unknownError")])
@@ -1009,7 +1078,8 @@ private struct FahrtFormularInhalt: View {
         let ergebnis = await FahrtSpeichern.aendern(FahrtEingabe(
             werte: w, fahrgaeste: gefuellteGaeste.joined(separator: "; "), fahrerNamen: namen,
             zwischenstopps: gefuellteStopps,
-            flugZielFlughafen: flughafenWahl, flugAnkunftGeplant: ankunftWahl, notiz: notiz), geladen: geladen)
+            flugZielFlughafen: flughafenWahl, flugAnkunftGeplant: ankunftWahl, notiz: notiz,
+            routenPunkte: routeSichtbar ? routenPunkte : []), geladen: geladen)
         speichert = false
         if !ergebnis.ok {
             meldung = t("fahrt.saveError", ["error": ergebnis.fehler ?? t("fahrt.unknownError")])

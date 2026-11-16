@@ -1626,10 +1626,10 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
     }
   }, [selectedDriverIds]);
 
-  // Ist die Mehrfachauswahl der Karte an, gilt eine Aenderung hier auch dort
-  // (und damit fuer Fahrzeuge, Fahrten, Fahrt anlegen und KI-Assistent).
+  // Die Auswahl hier gilt als Markierung in der ganzen Dispo (Karte, Fahrzeuge, Fahrten, Fahrt anlegen,
+  // KI-Assistent), auch wenn die Mehrfachauswahl der Karte aus ist (14.11.).
   useEffect(() => {
-    if (!fahrerMarkierung.lesen().aktiv) return;
+    if (!isSelectionMode && !fahrerMarkierung.lesen().aktiv) return;
     const nachId = new Map(drivers.map((d) => [String(d.id), d]));
     const neu = selectedDriverIds.map((id) => {
       const d = nachId.get(String(id));
@@ -1640,7 +1640,7 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
     if (vorher !== neu.map((f) => f.id).join('|') || neu.some((f, i) => f.name !== fahrerMarkierung.lesen().fahrer[i]?.name)) {
       fahrerMarkierung.ersetzen(neu);
     }
-  }, [selectedDriverIds, drivers]);
+  }, [selectedDriverIds, drivers, isSelectionMode]);
 
   const handleNavigateToMap = () => {
     const normalizedSelectedIds = Array.from(

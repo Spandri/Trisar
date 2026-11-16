@@ -83,7 +83,10 @@ private enum class Teil {
  * und Fahrten-Filter. Tipp auf eine Fahrt ruft `oeffneFahrt` mit der Job-ID („Fahrt bearbeiten“).
  */
 @Composable
-fun FahrtenSeite(zeigen: (DispoZiel) -> Unit, oeffneFahrt: (String) -> Unit, oeffneStandby: ((String) -> Unit)? = null) {
+fun FahrtenSeite(
+    zeigen: (DispoZiel) -> Unit, oeffneFahrt: (String) -> Unit, oeffneStandby: ((String) -> Unit)? = null,
+    oeffneDienstreise: ((String) -> Unit)? = null,
+) {
     val speicher = DispoFahrtenSpeicher
     var teil by remember { mutableStateOf(Teil.ANKUENFTE) }
     /** Fuer „Zurueck“ im Filter (window.history.back im Web). */
@@ -108,7 +111,7 @@ fun FahrtenSeite(zeigen: (DispoZiel) -> Unit, oeffneFahrt: (String) -> Unit, oef
         } else {
             // Suche wie im Web: bleibt beim Wechsel ins Archiv, neu bei Ankuenfte <-> Abfahrten.
             key(teil.istAbfahrten) {
-                Liste(teil, ::wechseln, zeigen, oeffneFahrt, oeffneStandby)
+                Liste(teil, ::wechseln, zeigen, oeffneFahrt, oeffneStandby, oeffneDienstreise)
             }
             Navileiste(DispoZiel.FAHRTEN) { ziel ->
                 // onNavigateToFahrten fuehrt im Web immer zu den Ankuenften.
@@ -124,7 +127,10 @@ fun FahrtenSeite(zeigen: (DispoZiel) -> Unit, oeffneFahrt: (String) -> Unit, oef
 private data class Eintrag(val fahrt: DispoFahrt, val zeiten: FahrtZeiten, val neuerTag: String?)
 
 @Composable
-private fun Liste(teil: Teil, wechseln: (Teil) -> Unit, zeigen: (DispoZiel) -> Unit, oeffneFahrt: (String) -> Unit, oeffneStandby: ((String) -> Unit)? = null) {
+private fun Liste(
+    teil: Teil, wechseln: (Teil) -> Unit, zeigen: (DispoZiel) -> Unit, oeffneFahrt: (String) -> Unit,
+    oeffneStandby: ((String) -> Unit)? = null, oeffneDienstreise: ((String) -> Unit)? = null,
+) {
     val speicher = DispoFahrtenSpeicher
     var suche by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -232,6 +238,10 @@ private fun Liste(teil: Teil, wechseln: (Teil) -> Unit, zeigen: (DispoZiel) -> U
             if (!archiv && oeffneStandby != null) {
                 de.trisar.dispo.standby.StandbyKacheln(Modifier.padding(top = 24.dp), oeffneStandby)
                 de.trisar.dispo.standby.StandbyFahrten(Modifier.padding(top = 24.dp), oeffneStandby)
+            }
+            // Dienstreise: Start → Ziel, Zeit, Zug/Flug, wer angenommen hat.
+            if (!archiv && oeffneDienstreise != null) {
+                de.trisar.dispo.dienstreise.DienstreiseKacheln(Modifier.padding(top = 24.dp), oeffneDienstreise)
             }
 
             Column(Modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

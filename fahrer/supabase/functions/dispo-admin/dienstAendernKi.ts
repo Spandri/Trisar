@@ -10,10 +10,14 @@
 // offeneDienste: mehrere Dienste aus einer Nachricht ("heute 22:00 und Samstag 7:30"), siehe dienst.ts.
 
 // deno-lint-ignore-file no-explicit-any
-import { TAG_RE, alleFahrer, datumAusText, dienstSenden, genannteFahrer, jetztBerlin, normal, tagLesbar, wocheBereich } from './dienst.ts';
+import { TAG_RE, alleFahrer, datumAusText, dienstSenden, genannteFahrer, jetztBerlin, normal, plusTage, tagLesbar, wocheBereich } from './dienst.ts';
 
 type Fahrer = { id: string; name: string };
 const FRIST_MS = 15 * 60 * 1000;
+// Ab so vielen Diensten reicht ein blosses "ja" nicht (15.11.). Gesprochen ist "ja" schnell gesagt.
+const VIELE = 3;
+const sicherWort = (art: string) => (art === 'dienst' ? 'ja, löschen' : 'ja, ändern');
+const SICHER_RE = /\b(l(oe|ö)sch\w*|entfern\w*|(ae|ä)nder\w*|bestaetig\w*|bestätig\w*)\b/;
 const JA_RE = /^\s*(ja|jo|jap|japp|yes|ok|okay|okey|klar|genau|passt|stimmt|richtig|mach(s|e)?( das)?|machen|senden|schick(s|e)?( ab)?|loesch(e|en)?|bestaetig(e|en|t)?|in ordnung|gerne|bitte|los)\b/;
 const NEIN_RE = /^\s*(nein|ne|nee|nope|nicht|abbrechen|abbruch|stopp?|lass(e|en)? (es|das)|vergiss|verwerfen|doch nicht)\b/;
 // Nicht "sag ... ab": "Sag Tim Dienststart ab 8" ist ein Start.
@@ -57,6 +61,10 @@ export const dienstOffenAntwort = async (admin: any, frage: string, kontext: any
   if (offen && Date.now() - Number(offen.zeit || 0) < FRIST_MS) {
     if (NEIN_RE.test(text)) return { answer: 'Okay, ich habe nichts geändert.', kontext: ohne(kontext, 'offeneDienstLoeschung') };
     if (JA_RE.test(text)) {
+      const n = (offen.dienste || []).length;
+      if (n >= VIELE && !SICHER_RE.test(text)) {
+        return { answer: `Das betrifft ${n} Dienste. Zur Sicherheit sag „${sicherWort(offen.art)}“. Mit „nein“ breche ich ab.`, kontext };
+      }
       const fertig: string[] = [];
       for (const e of (offen.dienste || []) as Eintrag[]) {
         const f = await ausfuehren(admin, offen.art as Art, e);
@@ -128,9 +136,11 @@ export const dienstLoeschenVorschlag = async (admin: any, frage: string, kontext
     .select('id, driver_id, service_date, service_start_time, service_end_time, status, created_at')
     .in('driver_id', fahrer.map((f) => f.id)).in('status', ['pending', 'accepted']);
   q = woche ? q.gte('service_date', woche.von < heute ? heute : woche.von).lte('service_date', woche.bis)
-    : datum ? q.eq('service_date', datum) : q.gte('service_date', heute);
+    : datum ? q.eq('service_date', datum) : q.gte('service_date', jetztBerlin().minuten < 6 * 60 ? plusTage(heute, -1) : heute);
   const { data } = await q.order('service_date', { ascending: true });
-  const zeilen = Array.isArray(data) ? data : [];
+  // Datumsgrenze: nachts zaehlt der Dienst von gestern nur, wenn er noch laeuft (ohne Ende oder ueber Mitternacht).
+  const laeuft = (d: any) => !d.service_end_time || (!!d.service_start_time && String(d.service_end_time) < String(d.service_start_time));
+  const zeilen = (Array.isArray(data) ? data : []).filter((d: any) => datum || woche || String(d.service_date) >= heute || laeuft(d));
   // Je Fahrer der erste passende (juengste Anfrage des Tages).
   const dienste: Eintrag[] = [];
   for (const f of fahrer) {
@@ -150,7 +160,9 @@ export const dienstLoeschenVorschlag = async (admin: any, frage: string, kontext
   }
   const tagWort = woche ? 'in der Woche' : datum ? tagLesbar(datum, heute) : 'ab heute';
   if (!dienste.length) {
-    return { answer: `${fahrer.length === 1 ? `${fahrer[0].name} hat` : 'Keiner der Fahrer hat'} ${tagWort} keinen Dienst. Es gibt nichts zu löschen.`, kontext };
+    // "Mo 23.11." braucht ein "am", "heute", "morgen" und "in der Woche" nicht.
+    const wann = /^[A-Z][a-z] \d/.test(tagWort) ? `am ${tagWort}` : tagWort;
+    return { answer: `${fahrer.length === 1 ? `${fahrer[0].name} hat ${wann} keinen Dienst` : `Kein Fahrer hat ${wann} einen Dienst`}. Es gibt nichts zu löschen.`, kontext };
   }
   const ohneDienst = fahrer.filter((f) => !dienste.some((d) => d.fahrerId === f.id));
   // Pruefen, ob es das Feld ueberhaupt gibt.
@@ -164,7 +176,9 @@ export const dienstLoeschenVorschlag = async (admin: any, frage: string, kontext
   return {
     answer: `Bei ${zeilenText.join(' und ')} ${ART_TEXT[art]}?${folge}`
       + `${ohneDienst.length ? ` ${ohneDienst.map((f) => f.name).join(', ')} ${ohneDienst.length === 1 ? 'hat' : 'haben'} ${tagWort} keinen Dienst.` : ''}`
-      + ' Mit „ja“ ändere ich es, mit „nein“ breche ich ab.',
+      + (dienste.length >= VIELE
+        ? ` Das betrifft ${dienste.length} Dienste. Zur Sicherheit sag „${sicherWort(art)}“, mit „nein“ breche ich ab.`
+        : ' Mit „ja“ ändere ich es, mit „nein“ breche ich ab.'),
     kontext: { ...ohne(kontext, 'offeneDienste'), offeneDienstLoeschung: { art, dienste, zeit: Date.now() } },
   };
 };

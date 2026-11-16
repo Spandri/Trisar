@@ -31,9 +31,19 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
     private var abos: Set<AnyCancellable> = []
     private var takt: Timer?
     private var stand: UhrStand = .leer
-    /// Fahrten und Dienstanfragen, die beim Verbinden schon da waren oder fuer die der Hinweis schon kam.
+    /// Fahrten und Dienstanfragen, fuer die kein Hinweis (mehr) kommt: Hinweis schon gezeigt, nicht offen
+    /// oder beim Verbinden schon da. Offene, die hier fehlen, warten auf ihren Hinweis.
     private var bekannt: Set<String> = []
     private var ersterStand = true
+    /// Hinweis, der gerade zu sehen ist (ID der Fahrt oder Dienstanfrage und die Vorlage dazu).
+    private var hinweisID: String?
+    private var hinweisVorlage: CPAlertTemplate?
+    /// Geoeffnete Fahrt (Ebene 2), wird bei jedem neuen Stand aufgefrischt.
+    private var fahrtVorlage: CPInformationTemplate?
+    private var fahrtAngezeigt: UhrFahrt?
+    private var fahrtSteht: Bool?
+    /// Laeuft gerade eine Aktion (Annehmen, Schritt, ...): keine weiteren Fragen und Aktionen.
+    private var arbeitet = false
 
     func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene,
                                   didConnect interfaceController: CPInterfaceController) {
@@ -43,7 +53,7 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         vorlage.emptyViewTitleVariants = ["Keine Fahrten"]
         vorlage.emptyViewSubtitleVariants = ["Neue Fahrten erscheinen hier von selbst."]
         liste = vorlage
-        interfaceController.setRootTemplate(vorlage, animated: false, completion: nil)
+        interfaceController.setRootTemplate(vorlage, animated: false, completion: CarPlayFehler.melden)
 
         Geteilt.anmeldung.$zustand
             .receive(on: RunLoop.main)
@@ -59,8 +69,14 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] neu in
                 guard let self, !Self.beispielAktiv else { return }
+                // Jede Standort-Sendung schickt einen neuen Stand. Nur neu zeichnen, wenn sich fuer CarPlay etwas aendert.
+                guard Self.relevant(neu) != Self.relevant(stand) else {
+                    if ersterStand, Geteilt.fahrten.geladen { ersterStand = false }
+                    return
+                }
                 stand = neu
                 listeFuellen()
+                fahrtAuffrischen()
                 neuesMelden()
             }
             .store(in: &abos)
@@ -89,9 +105,22 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         steuerung = nil
         szene = nil
         liste = nil
+        hinweisID = nil
+        hinweisVorlage = nil
+        fahrtVorlage = nil
+        fahrtAngezeigt = nil
     }
 
     private var angemeldet: Bool { Self.beispielAktiv || Geteilt.anmeldung.fahrerID != nil }
+
+    /// Stand ohne Felder, die sich bei jeder Standort-Sendung aendern (Zeitstempel, Tempo).
+    private static func relevant(_ s: UhrStand) -> UhrStand {
+        var kopie = s
+        kopie.stand = .distantPast
+        kopie.letzteSendung = nil
+        kopie.tempoKmh = nil
+        return kopie
+    }
 
     // MARK: Liste
 
@@ -102,19 +131,10 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
                                                                    detailText: "TRISAR auf dem iPhone öffnen und anmelden.")])])
             return
         }
-        var abschnitte: [CPListSection] = []
+        let grenze = CPListTemplate.maximumItemCount
 
-        // Fahrten untereinander, nach Tag getrennt.
-        let fahrten = Array(stand.fahrten.prefix(CPListTemplate.maximumItemCount - 4))
-        for (nummer, tag) in Self.eindeutig(fahrten.map(\.tag)).enumerated() {
-            let zeilen = fahrten.filter { $0.tag == tag }.map(fahrtZeile)
-            // Ueber dem ersten Tag das Lime-Zeichen: Header-Bilder zeigt CarPlay in Originalfarbe.
-            abschnitte.append(CPListSection(items: zeilen, header: Datum.tagEtikett(tag), headerSubtitle: nil,
-                                            headerImage: nummer == 0 ? CarPlayBild.logo : nil, headerButton: nil, sectionIndexTitle: nil))
-        }
-
-        // Dienst: nur wenn es etwas zu zeigen gibt.
-        var dienst: [CPListItem] = []
+        // Dienst zuerst zaehlen: offene Dienstanfragen duerfen nie wegfallen, die Fahrten bekommen den Rest.
+        var sonstige: [CPListItem] = []
         if let h = stand.heute {
             let min = h.minuten()
             var detail = "seit " + Self.uhrzeit(h.start) + (h.pauseLaeuft() ? " · Pause läuft" : "")
@@ -124,7 +144,7 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
                 z.accessoryType = .disclosureIndicator
                 z.handler = { [weak self] _, fertig in self?.stundenFragen(h); fertig() }
             }
-            dienst.append(z)
+            sonstige.append(z)
         }
         // Angenommener Dienst mit Treffpunkt (heute oder spaeter): "Dienststart 07:00 – Bayerischer Hof".
         // Antippen fuehrt wie bei einer Fahrt zur Navigation dorthin.
@@ -135,16 +155,33 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
                                image: CarPlayBild.zeichen("mappin.and.ellipse"))
             z.accessoryType = .disclosureIndicator
             z.handler = { [weak self] _, fertig in self?.treffpunktNavigation(d); fertig() }
-            dienst.append(z)
+            sonstige.append(z)
         }
+        var anfragen: [CPListItem] = []
         for d in stand.dienste where d.offen {
             let zeit = [d.start, d.ende].compactMap { $0 }.joined(separator: "–")
             let z = CPListItem(text: "Dienstanfrage " + Datum.tagEtikett(d.tag), detailText: zeit.isEmpty ? "Antwort offen" : "\(zeit) · Antwort offen",
                                image: CarPlayBild.zeichen("calendar.badge.clock"))
             z.accessoryType = .disclosureIndicator
             z.handler = { [weak self] _, fertig in self?.dienstFragen(d); fertig() }
-            dienst.append(z)
+            anfragen.append(z)
         }
+        let anfrageZeilen = Array(anfragen.prefix(grenze))
+        let dienst = Array(sonstige.prefix(max(0, grenze - anfrageZeilen.count))) + anfrageZeilen
+
+        // Fahrten untereinander, nach Tag getrennt, nur so viele wie Zeilen und Abschnitte frei sind.
+        let platz = max(0, grenze - dienst.count)
+        let abschnittPlatz = max(0, CPListTemplate.maximumSectionCount - (dienst.isEmpty ? 0 : 1))
+        let kandidaten = Array(stand.fahrten.prefix(platz))
+        let tage = Array(Self.eindeutig(kandidaten.map(\.tag)).prefix(abschnittPlatz))
+        var abschnitte: [CPListSection] = []
+        for (nummer, tag) in tage.enumerated() {
+            let zeilen = kandidaten.filter { $0.tag == tag }.map(fahrtZeile)
+            // Ueber dem ersten Tag das Lime-Zeichen: Header-Bilder zeigt CarPlay in Originalfarbe.
+            abschnitte.append(CPListSection(items: zeilen, header: Datum.tagEtikett(tag), headerSubtitle: nil,
+                                            headerImage: nummer == 0 ? CarPlayBild.logo : nil, headerButton: nil, sectionIndexTitle: nil))
+        }
+        // Dienst: nur wenn es etwas zu zeigen gibt.
         if !dienst.isEmpty { abschnitte.append(CPListSection(items: dienst, header: "Dienst", sectionIndexTitle: nil)) }
 
         liste.updateSections(abschnitte)
@@ -161,25 +198,73 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
 
     // MARK: Fahrt
 
+    private func fahrtTitel(_ f: UhrFahrt) -> String { "\(f.zeit) · \(f.status)" }
+
     private func fahrtZeigen(_ id: String) {
-        guard let steuerung, let f = stand.fahrten.first(where: { $0.id == id }) else { return }
-        let vorlage = CPInformationTemplate(title: "\(f.zeit) · \(f.status)", layout: .leading,
+        guard let steuerung, !arbeitet, let f = stand.fahrten.first(where: { $0.id == id }) else { return }
+        let vorlage = CPInformationTemplate(title: fahrtTitel(f), layout: .leading,
                                             items: infos(f), actions: knoepfe(f))
+        let steht = stand.steht
+        let schieben = { [weak self] in
+            self?.steuerung?.pushTemplate(vorlage, animated: true) { [weak self] ok, fehler in
+                CarPlayFehler.melden(ok, fehler)
+                // Merken, damit die Fahrt bei neuem Stand aufgefrischt wird.
+                guard ok, let self else { return }
+                fahrtVorlage = vorlage
+                fahrtAngezeigt = f
+                fahrtSteht = steht
+            }
+        }
         // Ebene 2 ist die tiefste. Liegt schon eine Fahrt oben, ersetzen statt stapeln.
         if steuerung.templates.count > 1 {
-            steuerung.popToRootTemplate(animated: false) { _, _ in
-                steuerung.pushTemplate(vorlage, animated: true, completion: nil)
+            fahrtVorlage = nil
+            fahrtAngezeigt = nil
+            steuerung.popToRootTemplate(animated: false) { ok, fehler in
+                CarPlayFehler.melden(ok, fehler)
+                schieben()
             }
         } else {
-            steuerung.pushTemplate(vorlage, animated: true, completion: nil)
+            schieben()
         }
     }
 
+    /// Ist genau diese Fahrt gerade oben zu sehen?
+    private func zeigtFahrt(_ id: String) -> Bool {
+        guard let steuerung, let vorlage = fahrtVorlage else { return false }
+        return steuerung.topTemplate === vorlage && fahrtAngezeigt?.id == id
+    }
+
+    /// Offene Fahrt mit dem neuen Stand auffrischen (Titel, Zeilen, Knoepfe). Ist sie weg, zurueck zur Liste.
+    private func fahrtAuffrischen() {
+        guard let steuerung, let vorlage = fahrtVorlage, let alt = fahrtAngezeigt else { return }
+        // Mit "Zurueck" verlassen: nichts mehr aufzufrischen.
+        guard steuerung.templates.contains(where: { $0 === vorlage }) else {
+            fahrtVorlage = nil
+            fahrtAngezeigt = nil
+            return
+        }
+        guard let f = stand.fahrten.first(where: { $0.id == alt.id }) else {
+            // Waehrend einer Aktion (ablehnen, beenden) fuehrt ausfuehren selbst zurueck.
+            guard !arbeitet else { return }
+            fahrtVorlage = nil
+            fahrtAngezeigt = nil
+            zurueckZurListe { [weak self] in self?.meldung("Fahrt \(alt.zeit) ist nicht mehr zugeteilt.") }
+            return
+        }
+        guard f != alt || stand.steht != fahrtSteht else { return }
+        vorlage.title = fahrtTitel(f)
+        vorlage.items = infos(f)
+        vorlage.actions = knoepfe(f)
+        fahrtAngezeigt = f
+        fahrtSteht = stand.steht
+    }
+
+    /// Hoechstens 10 Zeilen (CarPlay-Grenze).
     private func infos(_ f: UhrFahrt) -> [CPInformationItem] {
-        var punkte = [
-            CPInformationItem(title: "Abholung", detail: navigationsAdresse(f, zumZiel: false)),
-            CPInformationItem(title: "Ziel", detail: navigationsAdresse(f, zumZiel: true)),
-        ]
+        var punkte = [CPInformationItem(title: "Abholung", detail: navigationsAdresse(f, zumZiel: false))]
+        let stopps = fahrt(f.id)?.zwischenstopps ?? []
+        if !stopps.isEmpty { punkte.append(CPInformationItem(title: "Stopps", detail: stopps.joined(separator: " · "))) }
+        punkte.append(CPInformationItem(title: "Ziel", detail: navigationsAdresse(f, zumZiel: true)))
         if let g = f.gaeste, !g.isEmpty { punkte.append(CPInformationItem(title: "Gäste", detail: g.joined(separator: ", "))) }
         if !f.flug.isEmpty {
             let landung = f.flugAnkunft.map { " · Landung \($0)" + Self.verspaetung(f.flugVerspaetung) } ?? ""
@@ -187,7 +272,7 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         }
         if let n = f.notiz { punkte.append(CPInformationItem(title: "Notiz", detail: n)) }
         if f.kolonne { punkte.append(CPInformationItem(title: "Kolonne", detail: "Fahrt mit mehreren Fahrern")) }
-        return punkte
+        return Array(punkte.prefix(10))
     }
 
     /// Hoechstens drei Knoepfe (CarPlay-Grenze).
@@ -223,7 +308,7 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
             : Adresse.fuerNavigation(name: fahrt.abholOrtID != nil && !fahrt.abholAdresse.isEmpty ? "" : fahrt.abholName, adresse: fahrt.abholAdresse)
     }
 
-    /// Unterwegs geht es zum Fahrtziel, sonst zum Abholort (Karten-Apps nehmen nur ein Ziel).
+    /// Unterwegs geht es zum Fahrtziel, sonst zum Abholort.
     private func navigationsZiel(_ f: UhrFahrt) -> (titel: String, adresse: String) {
         let zumZiel = f.phase == "unterwegs"
         return (zumZiel ? "zum Ziel" : "zur Abholung", navigationsAdresse(f, zumZiel: zumZiel))
@@ -234,25 +319,20 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         guard let steuerung, steuerung.presentedTemplate == nil else { return }
         var aktionen = [
             CPAlertAction(title: "Apple Karten", style: .default) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                self?.navigieren(f, google: false)
+                self?.schliessen { self?.navigieren(f, google: false) }
             },
             CPAlertAction(title: "Google Maps", style: .default) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                self?.navigieren(f, google: true)
+                self?.schliessen { self?.navigieren(f, google: true) }
             },
         ]
         if let tel = f.gastTelefon {
             aktionen.append(CPAlertAction(title: "Gast anrufen", style: .default) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                self?.anrufen(tel)
+                self?.schliessen { self?.anrufen(tel) }
             })
         }
-        aktionen.append(CPAlertAction(title: "Abbrechen", style: .cancel) { [weak self] _ in
-            self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-        })
+        aktionen.append(CPAlertAction(title: "Abbrechen", style: .cancel) { [weak self] _ in self?.schliessen() })
         steuerung.presentTemplate(CPActionSheetTemplate(title: "Navigation \(navigationsZiel(f).titel)", message: nil, actions: aktionen),
-                                  animated: true, completion: nil)
+                                  animated: true, completion: CarPlayFehler.melden)
     }
 
     /// Ziel fuer den Treffpunkt: Koordinaten, sonst Adresse oder Name (aus dem Dienst im FahrtenSpeicher).
@@ -270,36 +350,63 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         guard !ziel.isEmpty else { return }
         let aktionen = [
             CPAlertAction(title: "Apple Karten", style: .default) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                self?.navigieren(zu: ziel, google: false)
+                self?.schliessen { self?.navigieren(zu: ziel, google: false) }
             },
             CPAlertAction(title: "Google Maps", style: .default) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                self?.navigieren(zu: ziel, google: true)
+                self?.schliessen { self?.navigieren(zu: ziel, google: true) }
             },
-            CPAlertAction(title: "Abbrechen", style: .cancel) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-            },
+            CPAlertAction(title: "Abbrechen", style: .cancel) { [weak self] _ in self?.schliessen() },
         ]
         steuerung.presentTemplate(CPActionSheetTemplate(title: "Navigation zum Treffpunkt", message: d.treffpunkt, actions: aktionen),
-                                  animated: true, completion: nil)
+                                  animated: true, completion: CarPlayFehler.melden)
     }
 
+    /// Unterwegs mit Zwischenstopps: die Stopps (und Routenpunkte der Dispo) gehen bei Google Maps als Zwischenziele mit.
     private func navigieren(_ f: UhrFahrt, google: Bool) {
-        navigieren(zu: navigationsZiel(f).adresse, google: google)
+        // Routenpunkte der Dispo in Fahrtreihenfolge zwischen den Stopps (wie der Link im Fahrtblatt).
+        let stopps = f.phase == "unterwegs"
+            ? fahrt(f.id).map { RoutenPunkt.zwischenziele(stopps: $0.zwischenstopps, punkte: $0.routenPunkte) } ?? []
+            : []
+        navigieren(zu: navigationsZiel(f).adresse, ueber: stopps, google: google)
     }
 
-    private func navigieren(zu adresse: String, google: Bool) {
-        guard !adresse.isEmpty else { return }
-        var teile = URLComponents(string: google ? "comgooglemaps://" : "maps://")!
-        teile.queryItems = google
-            ? [.init(name: "daddr", value: adresse), .init(name: "directionsmode", value: "driving")]
-            : [.init(name: "daddr", value: adresse), .init(name: "dirflg", value: "d")]
-        guard let url = teile.url else { return }
-        szene?.open(url, options: nil) { [weak self] ok in
-            guard !ok, google else { return }
-            Task { @MainActor in self?.meldung("Google Maps ist auf dem iPhone nicht installiert.") }
+    private func navigieren(zu adresse: String, ueber stopps: [String] = [], google: Bool) {
+        guard !adresse.isEmpty, let szene else { return }
+        guard google else {
+            guard let url = Self.url("maps://", [("daddr", adresse), ("dirflg", "d")]) else { return }
+            szene.open(url, options: nil) { _ in }
+            return
         }
+        // Erst der Universal Link: den nimmt Google Maps auch an, wenn dort schon eine Navigation laeuft
+        // (comgooglemaps:// mit daddr wird dann ignoriert). Google erlaubt 9 Zwischenziele.
+        var werte = [("api", "1"), ("destination", adresse), ("travelmode", "driving"), ("dir_action", "navigate")]
+        if !stopps.isEmpty { werte.append(("waypoints", stopps.prefix(9).joined(separator: "|"))) }
+        let web = Self.url("https://www.google.com/maps/dir/", werte)
+        let app = Self.url("comgooglemaps://", [("daddr", adresse), ("directionsmode", "driving")])
+        let fehlgeschlagen: () -> Void = { [weak self] in
+            Task { @MainActor in
+                self?.meldung("Google Maps konnte nicht geöffnet werden. Läuft dort schon eine Navigation, diese zuerst beenden.")
+            }
+        }
+        let ersatz: () -> Void = { [weak szene] in
+            guard let app, let szene else { return fehlgeschlagen() }
+            szene.open(app, options: nil) { ok in if !ok { fehlgeschlagen() } }
+        }
+        guard let web else { return ersatz() }
+        let nurApp = UIScene.OpenExternalURLOptions()
+        nurApp.universalLinksOnly = true
+        szene.open(web, options: nurApp) { ok in
+            if !ok { Task { @MainActor in ersatz() } }
+        }
+    }
+
+    /// Nur diese Zeichen bleiben in Query-Werten stehen, alles andere (& + = ? # , | Umlaute) wird kodiert.
+    private static let erlaubt = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+
+    private static func url(_ basis: String, _ werte: [(String, String)]) -> URL? {
+        guard var teile = URLComponents(string: basis) else { return nil }
+        teile.percentEncodedQueryItems = werte.map { URLQueryItem(name: $0.0, value: $0.1.addingPercentEncoding(withAllowedCharacters: erlaubt)) }
+        return teile.url
     }
 
     private func anrufen(_ nummer: String) {
@@ -310,19 +417,45 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
 
     // MARK: Aktionen (gleiche Wege wie die Uhr)
 
-    private func ausfuehren(_ nachricht: [String: Any]) {
-        Task {
+    /// `fahrtID`: Fahrt, fuer die die Aktion ist. Nur wenn genau die noch offen ist, geht es zurueck zur Liste.
+    private func ausfuehren(_ nachricht: [String: Any], fahrtID: String? = nil) {
+        guard !arbeitet else { return }
+        arbeitet = true
+        Task { [weak self] in
             #if DEBUG
-            if Self.beispielLauf { steuerung?.popToRootTemplate(animated: true, completion: nil); return }
-            #endif
+            let ok = Self.beispielLauf ? true : await UhrBruecke.shared.aktion(nachricht)
+            #else
             let ok = await UhrBruecke.shared.aktion(nachricht)
-            steuerung?.popToRootTemplate(animated: true, completion: nil)
-            if !ok { meldung("Hat nicht geklappt. Bitte am iPhone prüfen.") }
+            #endif
+            guard let self else { return }
+            arbeitet = false
+            // Meldung erst, wenn das Zurueck fertig ist (sonst schlaegt sie fehl).
+            let danach = { [weak self] in
+                guard let self else { return }
+                if ok { neuesMelden() } else { meldung("Hat nicht geklappt. Bitte am iPhone prüfen.") }
+            }
+            if let fahrtID, zeigtFahrt(fahrtID) {
+                zurueckZurListe(dann: danach)
+            } else {
+                fahrtAuffrischen()
+                danach()
+            }
+        }
+    }
+
+    /// Nur zurueck, wenn eine Fahrt offen ist (auf der Liste selbst schlaegt popToRoot fehl). `dann` nach dem Zurueck.
+    private func zurueckZurListe(dann: (() -> Void)? = nil) {
+        guard let steuerung, steuerung.templates.count > 1 else { dann?(); return }
+        fahrtVorlage = nil
+        fahrtAngezeigt = nil
+        steuerung.popToRootTemplate(animated: true) { ok, fehler in
+            CarPlayFehler.melden(ok, fehler)
+            dann?()
         }
     }
 
     private func antworten(_ f: UhrFahrt, annehmen: Bool) {
-        ausfuehren([UhrAktion.art: UhrAktion.fahrt, "id": f.id, "annehmen": annehmen])
+        ausfuehren([UhrAktion.art: UhrAktion.fahrt, "id": f.id, "annehmen": annehmen, "quelle": "carplay"], fahrtID: f.id)
     }
 
     private func ablehnenFragen(_ f: UhrFahrt) {
@@ -331,27 +464,38 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
 
     private func schrittFragen(_ f: UhrFahrt, _ schritt: (titel: String, ziel: String, symbol: String)) {
         frage("\(schritt.titel)?", ja: schritt.titel, stil: schritt.ziel == "done" ? .destructive : .default) { [weak self] in
-            self?.ausfuehren([UhrAktion.art: UhrAktion.schritt, "id": f.id, "ziel": schritt.ziel])
+            self?.ausfuehren([UhrAktion.art: UhrAktion.schritt, "id": f.id, "ziel": schritt.ziel], fahrtID: f.id)
         }
     }
 
+    private func dienstNachricht(_ d: UhrDienst, annehmen: Bool) -> [String: Any] {
+        [UhrAktion.art: UhrAktion.dienst, "id": d.id, "annehmen": annehmen, "quelle": "carplay"]
+    }
+
+    /// Dienstanfrage aus der Liste: Annehmen, Ablehnen (mit eigener Rueckfrage) oder Abbrechen.
     private func dienstFragen(_ d: UhrDienst) {
-        guard let steuerung, steuerung.presentedTemplate == nil else { return }
+        guard let steuerung, steuerung.presentedTemplate == nil, !arbeitet else { return }
         let zeit = [d.start, d.ende].compactMap { $0 }.joined(separator: "–")
-        let frage = CPAlertTemplate(titleVariants: ["Dienst \(Datum.tagEtikett(d.tag)) \(zeit)", "Neuer Dienst"], actions: [
+        let titel = "Dienst \(Datum.tagEtikett(d.tag)) \(zeit)".trimmingCharacters(in: .whitespaces)
+        let aktionen = [
             CPAlertAction(title: "Annehmen", style: .default) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                self?.ausfuehren([UhrAktion.art: UhrAktion.dienst, "id": d.id, "annehmen": true])
+                self?.schliessen { [weak self] in
+                    guard let self else { return }
+                    ausfuehren(dienstNachricht(d, annehmen: true))
+                }
             },
             CPAlertAction(title: "Ablehnen", style: .destructive) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                self?.ausfuehren([UhrAktion.art: UhrAktion.dienst, "id": d.id, "annehmen": false])
+                self?.schliessen { [weak self] in
+                    self?.frage("\(titel) ablehnen?", ja: "Ablehnen", stil: .destructive) { [weak self] in
+                        guard let self else { return }
+                        ausfuehren(dienstNachricht(d, annehmen: false))
+                    }
+                }
             },
-            CPAlertAction(title: "Später", style: .cancel) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-            },
-        ])
-        steuerung.presentTemplate(frage, animated: true, completion: nil)
+            CPAlertAction(title: "Abbrechen", style: .cancel) { [weak self] _ in self?.schliessen() },
+        ]
+        steuerung.presentTemplate(CPActionSheetTemplate(title: titel, message: "Antwort offen", actions: aktionen),
+                                  animated: true, completion: CarPlayFehler.melden)
     }
 
     private func stundenFragen(_ h: UhrStunden) {
@@ -361,61 +505,108 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
     }
 
     private func frage(_ titel: String, ja: String, stil: CPAlertAction.Style, _ aktion: @escaping () -> Void) {
-        guard let steuerung, steuerung.presentedTemplate == nil else { return }
-        let vorlage = CPAlertTemplate(titleVariants: [titel], actions: [
-            CPAlertAction(title: ja, style: stil) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                aktion()
-            },
-            CPAlertAction(title: "Abbrechen", style: .cancel) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-            },
+        guard !arbeitet else { return }
+        alarm([titel], [
+            CPAlertAction(title: ja, style: stil) { [weak self] _ in self?.schliessen(dann: aktion) },
+            CPAlertAction(title: "Abbrechen", style: .cancel) { [weak self] _ in self?.schliessen() },
         ])
-        steuerung.presentTemplate(vorlage, animated: true, completion: nil)
     }
 
     private func meldung(_ text: String) {
-        guard let steuerung, steuerung.presentedTemplate == nil else { return }
-        steuerung.presentTemplate(CPAlertTemplate(titleVariants: [text], actions: [
-            CPAlertAction(title: "OK", style: .cancel) { [weak self] _ in self?.steuerung?.dismissTemplate(animated: true, completion: nil) },
-        ]), animated: true, completion: nil)
+        alarm([text], [CPAlertAction(title: "OK", style: .cancel) { [weak self] _ in self?.schliessen() }])
+    }
+
+    /// Hinweis, Frage oder Meldung zeigen, hoechstens mit CPAlertTemplate.maximumActionCount Knoepfen.
+    /// `fertig` bekommt, ob die Vorlage wirklich zu sehen ist.
+    @discardableResult
+    private func alarm(_ titel: [String], _ aktionen: [CPAlertAction], fertig: ((Bool) -> Void)? = nil) -> CPAlertTemplate? {
+        guard let steuerung, steuerung.presentedTemplate == nil else { return nil }
+        let vorlage = CPAlertTemplate(titleVariants: titel, actions: Array(aktionen.prefix(Int(CPAlertTemplate.maximumActionCount))))
+        steuerung.presentTemplate(vorlage, animated: true) { ok, fehler in
+            CarPlayFehler.melden(ok, fehler)
+            fertig?(ok)
+        }
+        return vorlage
+    }
+
+    /// Gezeigte Vorlage (Hinweis, Frage, Auswahl) schliessen. Danach `dann` und der naechste wartende Hinweis.
+    private func schliessen(dann: (() -> Void)? = nil) {
+        guard let steuerung, let oben = steuerung.presentedTemplate else { dann?(); return }
+        if oben === hinweisVorlage {
+            hinweisID = nil
+            hinweisVorlage = nil
+        }
+        steuerung.dismissTemplate(animated: true) { [weak self] ok, fehler in
+            CarPlayFehler.melden(ok, fehler)
+            guard let dann else { self?.neuesMelden(); return }
+            dann()
+            // Zeigt `dann` selbst etwas (Frage, Meldung), bleibt der Hinweis wartend, bis das zu ist.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self?.neuesMelden() }
+        }
     }
 
     // MARK: Neue Fahrt, neue Dienstanfrage
 
     /// Kommt eine neue Fahrt oder Dienstanfrage dazu, die noch eine Antwort braucht, sofort fragen.
+    /// Ist gerade etwas anderes zu sehen, wartet der Hinweis und kommt, sobald es geschlossen ist.
     private func neuesMelden() {
-        let offeneFahrten = stand.fahrten.filter(\.offen)
-        let offeneDienste = stand.dienste.filter(\.offen)
-        defer {
-            bekannt.formUnion(stand.fahrten.map(\.id))
-            bekannt.formUnion(stand.dienste.map(\.id))
+        let offen = Set(stand.fahrten.filter(\.offen).map(\.id) + stand.dienste.filter(\.offen).map(\.id))
+        // Gezeigter Hinweis gilt nicht mehr (woanders beantwortet oder weg): schliessen.
+        if let id = hinweisID, !offen.contains(id), let steuerung, let vorlage = hinweisVorlage,
+           steuerung.presentedTemplate === vorlage {
+            schliessen()
+            return
         }
+        // Nicht offene brauchen nie einen Hinweis.
+        bekannt.formUnion(stand.fahrten.filter { !$0.offen }.map(\.id))
+        bekannt.formUnion(stand.dienste.filter { !$0.offen }.map(\.id))
         // Der erste Stand nach dem Verbinden steht schon in der Liste, dafuer kein Hinweis.
         if ersterStand {
+            bekannt.formUnion(offen)
             if Geteilt.fahrten.geladen { ersterStand = false }
             return
         }
-        if let neu = offeneFahrten.first(where: { !bekannt.contains($0.id) }) { hinweisFahrt(neu); return }
-        if let neu = offeneDienste.first(where: { !bekannt.contains($0.id) }) { dienstFragen(neu) }
+        guard hinweisID == nil, !arbeitet, let steuerung, steuerung.presentedTemplate == nil else { return }
+        if let neu = stand.fahrten.first(where: { $0.offen && !bekannt.contains($0.id) }) {
+            hinweisFahrt(neu)
+        } else if let neu = stand.dienste.first(where: { $0.offen && !bekannt.contains($0.id) }) {
+            hinweisDienst(neu)
+        }
     }
 
     private func hinweisFahrt(_ neu: UhrFahrt) {
-        guard let steuerung, steuerung.presentedTemplate == nil else { return }
-        let hinweis = CPAlertTemplate(
-            titleVariants: ["Neue Fahrt um \(neu.zeit): \(neu.von) nach \(neu.nach)", "Neue Fahrt um \(neu.zeit)"],
-            actions: [
-                CPAlertAction(title: "Annehmen", style: .default) { [weak self] _ in
-                    self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                    self?.ausfuehren([UhrAktion.art: UhrAktion.fahrt, "id": neu.id, "annehmen": true])
-                },
-                // Nur zwei Knoepfe: bei drei kuerzt CarPlay "Annehmen". Ablehnen geht in der Fahrt-Ansicht,
-                // so lehnt auch niemand waehrend der Fahrt aus Versehen ab.
-                CPAlertAction(title: "Später", style: .cancel) { [weak self] _ in
-                    self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                },
-            ])
-        steuerung.presentTemplate(hinweis, animated: true, completion: nil)
+        // Nicht heute: Tag mit nennen ("Neue Fahrt morgen um 18:10").
+        let tag = neu.tag == Datum.tagWert(Date()) ? "" : " " + Datum.tagEtikett(neu.tag).lowercased()
+        hinweisZeigen(neu.id, titel: ["Neue Fahrt\(tag) um \(neu.zeit): \(neu.von) nach \(neu.nach)", "Neue Fahrt\(tag) um \(neu.zeit)"],
+                      annehmen: [UhrAktion.art: UhrAktion.fahrt, "id": neu.id, "annehmen": true, "quelle": "carplay"], fahrtID: neu.id)
+    }
+
+    private func hinweisDienst(_ neu: UhrDienst) {
+        let zeit = [neu.start, neu.ende].compactMap { $0 }.joined(separator: "–")
+        hinweisZeigen(neu.id, titel: ["Neuer Dienst \(Datum.tagEtikett(neu.tag)) \(zeit)".trimmingCharacters(in: .whitespaces), "Neuer Dienst"],
+                      annehmen: dienstNachricht(neu, annehmen: true), fahrtID: nil)
+    }
+
+    /// Nur zwei Knoepfe: bei drei kuerzt CarPlay "Annehmen". Ablehnen geht in der Fahrt-Ansicht bzw. ueber
+    /// die Dienstanfrage in der Liste, so lehnt auch niemand waehrend der Fahrt aus Versehen ab.
+    /// Als bekannt gilt der Hinweis erst, wenn er wirklich zu sehen war.
+    private func hinweisZeigen(_ id: String, titel: [String], annehmen: [String: Any], fahrtID: String?) {
+        hinweisID = id
+        let vorlage = alarm(titel, [
+            CPAlertAction(title: "Annehmen", style: .default) { [weak self] _ in
+                self?.schliessen { self?.ausfuehren(annehmen, fahrtID: fahrtID) }
+            },
+            CPAlertAction(title: "Später", style: .cancel) { [weak self] _ in self?.schliessen() },
+        ]) { [weak self] ok in
+            guard let self else { return }
+            if ok {
+                bekannt.insert(id)
+            } else if hinweisID == id {
+                hinweisID = nil
+                hinweisVorlage = nil
+            }
+        }
+        if let vorlage { hinweisVorlage = vorlage } else { hinweisID = nil }
     }
 
     // MARK: Hilfen
@@ -530,21 +721,35 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
 
     /// Zeigt nacheinander die Liste, eine Fahrt, die Navigation und den Hinweis auf eine neue Fahrt.
     private func beispielDurchlauf() {
-        Task {
-            while steuerung != nil {
+        Task { [weak self] in
+            var schritt = 0
+            while self?.steuerung != nil {
                 try? await Task.sleep(for: .seconds(7))
-                fahrtZeigen(stand.fahrten[0].id)
-                try? await Task.sleep(for: .seconds(7))
-                navigationWaehlen(stand.fahrten[0])
-                try? await Task.sleep(for: .seconds(6))
-                steuerung?.dismissTemplate(animated: false, completion: nil)
-                fahrtZeigen(stand.fahrten[2].id)
-                try? await Task.sleep(for: .seconds(7))
-                steuerung?.popToRootTemplate(animated: false, completion: nil)
-                hinweisFahrt(stand.fahrten[4])
-                try? await Task.sleep(for: .seconds(7))
-                steuerung?.dismissTemplate(animated: false, completion: nil)
+                self?.beispielSchritt(schritt % 5)
+                schritt += 1
             }
+        }
+    }
+
+    private func beispielSchritt(_ nummer: Int) {
+        let f = stand.fahrten
+        switch nummer {
+        case 0:
+            if f.indices.contains(0) { fahrtZeigen(f[0].id) }
+        case 1:
+            if f.indices.contains(0) { navigationWaehlen(f[0]) }
+        case 2:
+            schliessen { [weak self] in
+                guard let self, f.indices.contains(2) else { return }
+                fahrtZeigen(f[2].id)
+            }
+        case 3:
+            zurueckZurListe { [weak self] in
+                guard let self, f.indices.contains(4) else { return }
+                hinweisFahrt(f[4])
+            }
+        default:
+            schliessen()
         }
     }
     #endif
@@ -557,8 +762,8 @@ enum CarPlayBild {
     static let lime = UIColor(red: 0xE3 / 255, green: 0xF6 / 255, blue: 0x54 / 255, alpha: 1)
     static let dunkel = UIColor(red: 0x1D / 255, green: 0x1C / 255, blue: 0x1D / 255, alpha: 1)
 
-    /// TRISAR-Schriftzug in Lime fuer den Listenkopf.
-    static var logo: UIImage? {
+    /// TRISAR-Schriftzug in Lime fuer den Listenkopf. Einmal gezeichnet, nicht bei jedem Neuaufbau der Liste.
+    static let logo: UIImage? = {
         guard let vorlage = UIImage(named: "TrisarLogo")?.withRenderingMode(.alwaysTemplate) else { return nil }
         let hoehe: CGFloat = 16
         let groesse = CGSize(width: hoehe * vorlage.size.width / max(vorlage.size.height, 1), height: hoehe)
@@ -566,7 +771,7 @@ enum CarPlayBild {
             lime.set()
             vorlage.draw(in: CGRect(origin: .zero, size: groesse))
         }.withRenderingMode(.alwaysOriginal)
-    }
+    }()
 
     /// Schlichtes Symbol fuer Zeilen, CarPlay faerbt es selbst (hell auf dunkel).
     static func zeichen(_ name: String) -> UIImage? {
@@ -597,5 +802,14 @@ enum CarPlayBild {
             (text as NSString).draw(at: CGPoint(x: (groesse.width - mass.width) / 2, y: (groesse.height - mass.height) / 2),
                                     withAttributes: attribute)
         }
+    }
+}
+
+/// CarPlay wirft eine Ausnahme (App-Absturz), wenn ein Vorlagen-Wechsel fehlschlaegt und kein
+/// completion-Block gesetzt ist (z. B. Hinweis zeigen, waehrend schon einer offen ist, oder zurueck
+/// am Anfang). Absturz 13.11. Build 44. Darum ueberall diesen Block mitgeben: Fehler nur loggen.
+enum CarPlayFehler {
+    static let melden: (Bool, Error?) -> Void = { _, fehler in
+        if let fehler { print("CarPlay:", fehler.localizedDescription) }
     }
 }

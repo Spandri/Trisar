@@ -11,6 +11,7 @@ import { adressWarnung, fahrerFuersSpeichern, gleicheZeilen, useZwischenstopps, 
 import { orteZurEingabe, useOrte } from '../../shared/orte';
 import { demoAlert, demoConfirm, tutorialLaeuft } from '../ui/demoDialoge';
 import { fahrerMarkierung } from '../../shared/fahrerMarkierung';
+import useRoutenZeile from './useRoutenZeile';
 
 const GREEN = '#E3F654';
 // Erstes Feld 24 px unter dem Titel (140 + 42 + 24 = 206), Reihen alle 68 px.
@@ -63,6 +64,9 @@ export function FormRow({
   onLabelClick = null,
   value2 = '',
   onChange2 = null,
+  // Route (15.11.): Zeile als Knopf, Tipp oeffnet den Routen-Editor. chip = Lime-Marke rechts ("2 Punkte").
+  onClick = null,
+  chip = '',
 }) {
   const { t, locale } = useI18n();
   const normalizedValue = String(value || '').trim().toLowerCase();
@@ -96,7 +100,23 @@ export function FormRow({
               {label}
             </div>
           )}
-          {mode === 'timeRange' ? (
+          {mode === 'knopf' ? (
+            <button
+              type="button"
+              data-tutorial={marker}
+              onClick={onClick}
+              className="flex-1 min-w-0 self-stretch flex items-center gap-2 bg-transparent border-none p-0 text-left"
+            >
+              <span className="flex-1 min-w-0 truncate text-[16px] font-medium leading-6 tracking-[0.5px]" style={{ color: GREEN, fontFamily: 'Space Grotesk' }}>
+                {value}
+              </span>
+              {chip ? (
+                <span className="shrink-0 rounded-[10px] px-2 py-[2px] text-[12px] font-bold text-black" style={{ background: '#E3F654', fontFamily: 'Space Grotesk' }}>
+                  {chip}
+                </span>
+              ) : null}
+            </button>
+          ) : mode === 'timeRange' ? (
             <div className="flex-1 min-w-0 flex items-center gap-2">
               <input
                 data-tutorial={marker}
@@ -224,7 +244,8 @@ export function FormRow({
                 className={`text-[12px] font-bold font-['Space_Grotesk'] ${etaIndicator.colorClass || 'text-[#808080]'}`}
                 aria-label={t('fahrt.etaValue', { eta: etaIndicator.text })}
               >
-                {etaIndicator.text}
+                {/* inhalt: eigene Darstellung (z. B. Zeit orange + "+5" bei Dienstreisen), text bleibt fuer die Ansage. */}
+                {etaIndicator.inhalt || etaIndicator.text}
               </div>
             )
           ) : null}
@@ -243,7 +264,7 @@ export function FormRow({
                 <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="w-[10px] h-[13px]" />
               )}
             </button>
-          ) : isFilled ? (
+          ) : isFilled && mode !== 'knopf' ? (
             <button
               type="button"
               onClick={onReset || (() => onChange(''))}
@@ -344,6 +365,11 @@ export default function FahrtAdd({
     setFormValues((prev) => ({ ...prev, [key]: value }));
   };
   const stopps = useZwischenstopps({ start: formValues.start, onFetchPlaceSuggestions, t });
+  // Route (15.11.): Routenpunkte der Dispo, Zeile unter Ziel.
+  const routenZeile = useRoutenZeile({
+    adressen: [formValues.startAdresse || formValues.start, ...stopps.gefuellt, formValues.zielAdresse || formValues.ziel],
+    marker: 'anlegen-route',
+  });
   // Flug-/Zugpruefung mit der Adresse, bei eigenem Ort nicht mit seinem Namen.
   const pruefStart = formValues.startAdresse || formValues.start;
   const showVehicleCount = String(formValues.konvoi || '').trim().length > 0;
@@ -595,6 +621,7 @@ export default function FahrtAdd({
   const rows = [
     ...stopps.rows,
     { key: 'ziel', label: t('fahrt.ziel'), mode: 'select', options: placePredictions.ziel, marker: 'anlegen-ziel' },
+    ...(routenZeile.row ? [routenZeile.row] : []),
     {
       key: 'flugnummer',
       label: t('fahrt.flugnummer'),
@@ -719,6 +746,7 @@ export default function FahrtAdd({
         anonymeGaeste: String(formValues.anonymeGaeste || '0'),
         fahrerNamen: fahrerFuersSpeichern(fahrerNamen, fahrerPlaetze),
         zwischenstopps,
+        ...(routenZeile.fuersSpeichern ? { routenPunkte: routenZeile.fuersSpeichern } : {}),
         flugZielFlughafen: flightAirportOverride,
         flugAnkunftGeplant: flightScheduledOverride,
         notes,
@@ -752,7 +780,7 @@ export default function FahrtAdd({
         >
           <BackCircleButton onClick={handleBack} className="absolute left-[20px] top-[60px]" marker="anlegen-zurueck" />
           {/* Fahrt oder Standby am Event-Ort (nicht beim Vorschlag des KI-Assistenten). */}
-          {!vorlage ? <ArtUmschalter standby={false} onFahrt={() => {}} onStandby={() => setView('standbyAdd')} /> : null}
+          {!vorlage ? <ArtUmschalter art="fahrt" onFahrt={() => {}} onStandby={() => setView('standbyAdd')} onDienstreise={() => setView('dienstreiseAdd')} /> : null}
 
           {/* Sammel-Import aus Excel/CSV statt Einzelanlage */}
           {!vorlage && (
@@ -929,6 +957,8 @@ export default function FahrtAdd({
                 etaIndicator={row.etaIndicator}
                 rightAction={row.rightAction}
                 marker={row.marker}
+                onClick={row.onClick}
+                chip={row.chip}
               />
             );
           })}
@@ -1078,6 +1108,7 @@ export default function FahrtAdd({
         onNavigateToMap={() => setView('karten')}
         activeTab="add"
       />
+      {routenZeile.editor}
     </div>
   );
 }

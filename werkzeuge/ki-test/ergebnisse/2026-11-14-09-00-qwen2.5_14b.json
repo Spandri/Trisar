@@ -1,0 +1,202 @@
+[
+  {
+    "fall": "Frei: halb 8 morgen",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "tim soll morgen um halb acht anfangen",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 07:30 morgen für Tim Schedler. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-15",
+      "start": "07:30",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Tim Schedler"
+    },
+    "ms": 9402
+  },
+  {
+    "fall": "Frei: viertel nach sechs",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "Marvin übermorgen viertel nach sechs bis halb drei",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 06:15, Dienstende 14:30 Mo 16.11. für Marvin Keller. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-16",
+      "start": "06:15",
+      "ende": "14:30",
+      "pausen": "",
+      "fahrer": "Marvin Keller"
+    },
+    "ms": 9851
+  },
+  {
+    "fall": "Frei: Feierabend jetzt",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "Tim kann jetzt nach Hause gehen",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienstende 09:00 heute für Tim Schedler. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-14",
+      "start": "",
+      "ende": "09:00",
+      "pausen": "",
+      "fahrer": "Tim Schedler"
+    },
+    "ms": 8873
+  },
+  {
+    "fall": "Frei: Schicht mit Pause",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "Tim morgen Schicht 7 bis 16, Mittagspause 12 bis halb eins",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 07:00, Pause 12:00–12:30, Dienstende 16:00 morgen für Tim Schedler. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-15",
+      "start": "07:00",
+      "ende": "16:00",
+      "pausen": "12:00-12:30",
+      "fahrer": "Tim Schedler"
+    },
+    "ms": 10903
+  },
+  {
+    "fall": "Frei: Wochentag",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "Anna arbeitet nächsten Montag von 9 bis 17",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 09:00, Dienstende 17:00 Mo 16.11. für Anna Berger. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-16",
+      "start": "09:00",
+      "ende": "17:00",
+      "pausen": "",
+      "fahrer": "Anna Berger"
+    },
+    "ms": 10067
+  },
+  {
+    "fall": "Frei: Dienst von gestern weg",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "stefanos schicht gestern war doch nicht, bitte raus damit",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Bei Stefano Spandri, gestern (22:00–23:30, angenommen) den ganzen Dienst löschen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
+    "felder": {},
+    "ms": 11953
+  },
+  {
+    "fall": "Frei: nur Dienstende weg",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "bei Anna morgen das Ende rausnehmen, die bleibt offen",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Bei Anna Berger, morgen (07:00–15:00, angenommen) das Dienstende entfernen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
+    "felder": {},
+    "ms": 6400
+  },
+  {
+    "fall": "Frei: Pause weg",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "Anna braucht morgen keine Pause",
+    "ok": false,
+    "fehler": [
+      "Antwort ohne \"Pausen entfernen\""
+    ],
+    "art": "antwort",
+    "antwort": "Anna Berger hat für morgen, den 15. November 2026, eine Fahrt von 07:15 Uhr ohne Pause gebucht. Möchten Sie die Fahrt ändern oder einen neuen Eintrag hinzufügen? Bitte geben Sie genau an, was Sie möchten.",
+    "felder": {},
+    "ms": 32556
+  },
+  {
+    "fall": "Frei: Standby anzeigen",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "wer steht morgen alles auf standby?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Standby morgen:\n- morgen 10:00–18:00, Kongress, Tim Schedler, Marvin Keller",
+    "felder": {},
+    "ms": 18288
+  },
+  {
+    "fall": "Frei: Standby verschieben",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "den standby morgen bitte erst ab 12 und dafür bis 20",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Standby morgen 10:00–18:00, Kongress, Tim Schedler, Marvin Keller auf 12:00–20:00 ändern? Die Fahrer sehen die neue Zeit in der App. Mit „ja“ speichere ich es.",
+    "felder": {},
+    "ms": 11888
+  },
+  {
+    "fall": "Frei: Fahrt absagen",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "Herr Engel hat abgesagt, die Fahrt um halb elf fällt weg",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri stornieren? Mit „ja“ storniere ich sie, rückgängig geht danach mit „rückgängig“.",
+    "felder": {},
+    "ms": 14375
+  },
+  {
+    "fall": "Frei: Fahrt erledigt",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "Engel ist abgeliefert, kannst die Fahrt abhaken",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri als erledigt markieren? Mit „ja“ speichere ich es.",
+    "felder": {},
+    "ms": 7360
+  },
+  {
+    "fall": "Frei: Fahrt kopieren",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "die Fahrt von Frau Weber brauch ich nächsten Montag nochmal genauso",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Fahrt morgen 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2, Julia Weber, Anna Berger auf Fr 20.11. kopieren, gleiche Uhrzeit, noch ohne Fahrer? Mit „ja“ lege ich die Kopie an.",
+    "felder": {},
+    "ms": 9223
+  },
+  {
+    "fall": "Frei: Notiz",
+    "gruppe": "Frei",
+    "schritt": 1,
+    "frage": "bei der Engel-Fahrt bitte vermerken: Gast hat zwei Koffer",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Notiz „Gast hat zwei Koffer“ zur Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri? Mit „ja“ speichere ich sie, der Fahrer sieht sie in der App.",
+    "felder": {},
+    "ms": 7807
+  }
+]

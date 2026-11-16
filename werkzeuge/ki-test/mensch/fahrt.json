@@ -1,0 +1,9 @@
+[
+  {"name": "am…zum", "saetze": ["Stefano soll Heute um 20:30 Uhr am Flughafen München zum Flughafen in Salzburg fahren ohne Gast"]},
+  {"name": "alle außer Fahrt", "saetze": ["Heute am Sonntag den 15. November alle Fahrer außer außer Marvin von der Messe München zum Flughafen München um 14:30", "Ja genau so machen wir's"]},
+  {"name": "zwei Fahrten", "saetze": ["Erstelle eine Fahrt heute am Sonntag um 15:00 vom Hotel Bayerischer Hof zur Messe mit 3 Personen", "Dann 17:00 Messe zu Flughafen München t2 1 Person mit Marvin als Fahrer  Der Gast ist sekura Jun"]},
+  {"name": "Korrektur bleibt Korrektur", "saetze": ["Erstelle eine Fahrt heute um 15:00 vom Hotel Bayerischer Hof zur Messe mit 3 Personen", "doch lieber 16 uhr", "Fahrer ist Tim"]},
+  {"name": "Schritt für Schritt", "saetze": ["Buche", "Heute", "Heute 20:30 Uhr", "vom Hauptbahnhof", "zur Messe"]},
+  {"name": "umgangssprachlich", "saetze": ["brauch ne fahrt um halb 4 vom bayerischen hof zum flughafen für herrn engel, tim fährt"]},
+  {"name": "Ja nach Karte", "saetze": ["Dienststart für Tim morgen um 7", "Ja", "nee doch nicht", "Ok dann schick Tim heim"]}
+]

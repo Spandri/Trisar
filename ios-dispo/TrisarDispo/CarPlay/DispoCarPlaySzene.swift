@@ -8,9 +8,10 @@ import UIKit
 ///             Fahrer im Dienst ohne Signal, Fahrt angefragt und noch nicht angenommen.
 ///   Fahrer  – Standbys mit Zaehlung, darunter die Fahrer im Dienst mit Zustand und naechster Fahrt.
 ///             Tipp: Fahrzeug, aktuelle und naechste Fahrt, Ankunft, Navigation zum Fahrer.
-///   Fahrten – die naechsten Fahrten von heute. Tipp: Abholung, Ziel, Gast, Fahrer, Status,
+///             Tipp auf einen Standby: Ort, Zeiten, Fahrer, Navigation zum Standby.
+///   Fahrten – die offenen Fahrten von heute. Tipp: Abholung, Ziel, Gast, Fahrer, Status,
 ///             Navigation zur Abholung.
-/// Kommt eine neue Warnung dazu, zeigt CarPlay sie sofort als Hinweis.
+/// Kommt eine neue Warnung dazu, zeigt CarPlay sie sofort als Hinweis (mehrere nacheinander).
 /// Daten aus denselben Speichern wie Handy und Apple Watch (DispoUhrBruecke.karte,
 /// DispoFahrtenSpeicher.gemeinsam, DispoStandbySpeicher.gemeinsam) mit deren Realtime.
 /// Laeuft auf dem Geraet erst, wenn de.trisar.dispo die Freigabe carplay-driving-task hat,
@@ -28,7 +29,41 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
     private var stand = DispoCarPlayStand.leer
     /// Warnungen, die beim Verbinden schon da waren oder fuer die der Hinweis schon kam.
     private var bekannt: Set<String> = []
+    /// Neue Warnungen, deren Hinweis noch kommt (einer nach dem anderen).
+    private var offeneHinweise: [DispoCarPlayWarnung] = []
     private var ersterStand = true
+    /// Erster angemeldeter Stand, solange die Fahrten noch laden (dann kein Hinweis-Schwall).
+    private var angemeldetSeit: Date?
+    /// Konto mit gueltiger Sitzung, aber ohne Dispo-Rolle: nicht jede Minute neu fragen.
+    private var ohneZugangFuer: UUID?
+    private var prueftGerade = false
+    /// Inhalt der Listen beim letzten Fuellen, damit nur bei echter Aenderung neu gesetzt wird.
+    private var schluesselAchtung: [String]?
+    private var schluesselFahrer: [String]?
+    private var schluesselFahrten: [String]?
+    /// Offene Einzelansicht, wird bei neuem Stand nachgefuehrt.
+    private var offen: OffeneAnsicht?
+
+    private enum Ansicht: Equatable {
+        case fahrt(String), fahrer(String), standby(String)
+    }
+
+    private struct OffeneAnsicht {
+        let ansicht: Ansicht
+        let vorlage: CPInformationTemplate
+        var schluessel: String
+        /// Erst nach dem push auf dem Stapel, vorher nicht als "weg" werten.
+        var gezeigt = false
+    }
+
+    private struct Inhalt {
+        let titel: String
+        let punkte: [(String, String)]
+        let knoepfe: [(String, () -> Void)]
+        var schluessel: String {
+            ([titel] + punkte.map { "\($0.0)=\($0.1)" } + knoepfe.map(\.0)).joined(separator: "|")
+        }
+    }
 
     func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene,
                                   didConnect interfaceController: CPInterfaceController) {
@@ -43,7 +78,7 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         fahrtenListe.emptyViewTitleVariants = ["Keine Fahrten mehr heute"]
         let reiter = CPTabBarTemplate(templates: [achtungListe, fahrerListe, fahrtenListe])
         self.reiter = reiter
-        interfaceController.setRootTemplate(reiter, animated: false, completion: nil)
+        interfaceController.setRootTemplate(reiter, animated: false, completion: CarPlayFehler.melden)
 
         #if DEBUG
         if Self.beispielLauf {
@@ -65,10 +100,7 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         // dann jede Minute neu bewerten (Fahrt in der naechsten Stunde, Signal).
         Task { await anmeldungPruefen() }
         takt = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                await self?.anmeldungPruefen()
-                self?.neuerStand()
-            }
+            Task { @MainActor in await self?.anmeldungPruefen() }
         }
         fuellen()
     }
@@ -82,36 +114,85 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         steuerung = nil
         szene = nil
         reiter = nil
+        offen = nil
+        offeneHinweise = []
+        schluesselAchtung = nil
+        schluesselFahrer = nil
+        schluesselFahrten = nil
     }
 
     /// Ohne Handy-Fenster meldet niemand die Anmeldung an die Bruecke, deshalb selbst nachsehen.
     private func anmeldungPruefen() async {
+        guard !prueftGerade else { return }
+        prueftGerade = true
+        defer { prueftGerade = false }
         let bruecke = DispoUhrBruecke.shared
         if let sitzung = try? await Backend.client.auth.session, !sitzung.isExpired {
-            if !bruecke.angemeldet, await DispoZugang.erlaubt(sitzung) {
-                bruecke.setzeAngemeldet(true)
-                bruecke.carPlayVerbunden(true)
-                DispoFahrtenSpeicher.gemeinsam.starten()
+            if bruecke.angemeldet {
+                ohneZugangFuer = nil
+            } else if ohneZugangFuer != sitzung.user.id {
+                // nil = Server nicht erreicht, in einer Minute wieder versuchen.
+                switch await DispoZugang.ergebnis(sitzung) {
+                case true?:
+                    ohneZugangFuer = nil
+                    if !bruecke.angemeldet {
+                        bruecke.setzeAngemeldet(true)
+                        DispoFahrtenSpeicher.gemeinsam.starten()
+                    }
+                case false?:
+                    ohneZugangFuer = sitzung.user.id
+                case nil:
+                    break
+                }
             }
-            if DispoStandbySpeicher.gemeinsam.liste == nil { await DispoStandbySpeicher.gemeinsam.starten() }
+            // Waehrend der Pruefung getrennt: nichts mehr anzeigen (carPlayVerbunden bleibt aus).
+            guard steuerung != nil else { return }
+            if bruecke.angemeldet, DispoStandbySpeicher.gemeinsam.liste == nil { await DispoStandbySpeicher.gemeinsam.starten() }
+        } else {
+            ohneZugangFuer = nil
         }
+        guard steuerung != nil else { return }
         neuerStand()
     }
 
     private func neuerStand() {
+        let warAngemeldet = stand.angemeldet
         stand = DispoCarPlayStand.bauen()
+        if warAngemeldet && !stand.angemeldet { abgemeldetAufraeumen() }
         fuellen()
+        offeneAnsichtNachfuehren()
         neuesMelden()
+    }
+
+    /// Abmeldung: Zahl am Reiter weg, Einzelansicht und Hinweis schliessen, Hinweise vergessen.
+    private func abgemeldetAufraeumen() {
+        offeneHinweise = []
+        ersterStand = true
+        angemeldetSeit = nil
+        offen = nil
+        reiterTitelSetzen("Achtung")
+        guard let steuerung else { return }
+        if steuerung.presentedTemplate != nil {
+            steuerung.dismissTemplate(animated: false, completion: CarPlayFehler.melden)
+        }
+        if steuerung.templates.count > 1 {
+            steuerung.popToRootTemplate(animated: false, completion: CarPlayFehler.melden)
+        }
     }
 
     // MARK: Listen
 
     private func fuellen() {
         guard stand.angemeldet else {
-            let hinweis = [CPListSection(items: [CPListItem(text: "Bitte in TRISAR Dispo auf dem iPhone anmelden.", detailText: nil)])]
-            achtungListe.updateSections(hinweis)
-            fahrerListe.updateSections(hinweis)
-            fahrtenListe.updateSections(hinweis)
+            let text = ohneZugangFuer != nil ? "Dieses Konto hat keinen Zugang zur Disposition."
+                                             : "Bitte in TRISAR Dispo auf dem iPhone anmelden."
+            let schluessel = ["hinweis|" + text]
+            // Je Vorlage eigene Abschnitte und Zeilen, CarPlay teilt sie nicht zwischen Listen.
+            func hinweis() -> [CPListSection] { [CPListSection(items: [CPListItem(text: text, detailText: nil)])] }
+            if schluesselAchtung != schluessel { schluesselAchtung = schluessel; achtungListe.updateSections(hinweis()) }
+            if schluesselFahrer != schluessel { schluesselFahrer = schluessel; fahrerListe.updateSections(hinweis()) }
+            if schluesselFahrten != schluessel { schluesselFahrten = schluessel; fahrtenListe.updateSections(hinweis()) }
+            reiterTitelSetzen("Achtung")
             return
         }
         achtungFuellen()
@@ -119,49 +200,71 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         fahrtenFuellen()
     }
 
-    private func achtungFuellen() {
-        let zeilen = stand.warnungen.prefix(CPListTemplate.maximumItemCount).map { w -> CPListItem in
-            let z = CPListItem(text: w.titel, detailText: w.detail, image: DispoCarPlayBild.zeichen(w.art.symbol))
-            if w.fahrtID != nil || w.fahrerID != nil {
-                z.accessoryType = .disclosureIndicator
-                z.handler = { [weak self] _, fertig in
-                    if let f = w.fahrtID { self?.fahrtZeigen(f) } else if let f = w.fahrerID { self?.fahrerZeigen(f) }
-                    fertig()
-                }
-            }
-            return z
-        }
-        achtungListe.updateSections(zeilen.isEmpty ? [] : [CPListSection(items: Array(zeilen), header: "Jetzt", headerSubtitle: nil,
-                                                                          headerImage: DispoCarPlayBild.logo, headerButton: nil, sectionIndexTitle: nil)])
-        // Zahl der Warnungen am Reiter.
-        achtungListe.tabTitle = stand.warnungen.isEmpty ? "Achtung" : "Achtung \(stand.warnungen.count)"
+    /// Titel am Reiter nur bei Aenderung setzen (updateTemplates baut die Leiste neu).
+    private func reiterTitelSetzen(_ titel: String) {
+        guard achtungListe.tabTitle != titel else { return }
+        achtungListe.tabTitle = titel
         reiter?.updateTemplates([achtungListe, fahrerListe, fahrtenListe])
     }
 
-    private func fahrerFuellen() {
-        var abschnitte: [CPListSection] = []
-        var platz = CPListTemplate.maximumItemCount
-        if !stand.standbys.isEmpty {
-            let zeilen = stand.standbys.prefix(4).map { s in
-                CPListItem(text: "Standby \(s.ort)", detailText: s.zaehlung, image: DispoCarPlayBild.zeichen("mappin.and.ellipse"))
+    private func achtungFuellen() {
+        let warnungen = stand.warnungen.prefix(CPListTemplate.maximumItemCount)
+        let schluessel = warnungen.map { "\($0.id)|\($0.titel)|\($0.detail)" }
+        if schluessel != schluesselAchtung {
+            schluesselAchtung = schluessel
+            let zeilen = warnungen.map { w -> CPListItem in
+                let z = CPListItem(text: w.titel, detailText: w.detail, image: DispoCarPlayBild.zeichen(w.art.symbol))
+                if w.fahrtID != nil || w.fahrerID != nil {
+                    z.accessoryType = .disclosureIndicator
+                    z.handler = { [weak self] _, fertig in
+                        if let f = w.fahrtID { self?.fahrtZeigen(f) } else if let f = w.fahrerID { self?.fahrerZeigen(f) }
+                        fertig()
+                    }
+                }
+                return z
             }
-            platz -= zeilen.count
-            abschnitte.append(CPListSection(items: Array(zeilen), header: "Standby", sectionIndexTitle: nil))
+            achtungListe.updateSections(zeilen.isEmpty ? [] : [CPListSection(items: Array(zeilen), header: "Jetzt", headerSubtitle: nil,
+                                                                              headerImage: DispoCarPlayBild.logo, headerButton: nil, sectionIndexTitle: nil)])
         }
-        let fahrer = stand.fahrer.prefix(max(0, platz)).map { f -> CPListItem in
+        // Zahl der Warnungen am Reiter.
+        reiterTitelSetzen(stand.warnungen.isEmpty ? "Achtung" : "Achtung \(stand.warnungen.count)")
+    }
+
+    private func fahrerFuellen() {
+        let standbys = Array(stand.standbys.prefix(4))
+        let fahrer = Array(stand.fahrer.prefix(max(0, CPListTemplate.maximumItemCount - standbys.count)))
+        let schluessel = standbys.map { "s|\($0.id)|\($0.ort)|\($0.zaehlung)" }
+            + fahrer.map { "f|\($0.id)|\($0.name)|\($0.zeile)|\($0.farbe)" }
+        guard schluessel != schluesselFahrer else { return }
+        schluesselFahrer = schluessel
+        var abschnitte: [CPListSection] = []
+        if !standbys.isEmpty {
+            let zeilen = standbys.map { s -> CPListItem in
+                let z = CPListItem(text: "Standby \(s.ort)", detailText: s.zaehlung, image: DispoCarPlayBild.zeichen("mappin.and.ellipse"))
+                z.accessoryType = .disclosureIndicator
+                z.handler = { [weak self] _, fertig in self?.ansichtZeigen(.standby(s.id)); fertig() }
+                return z
+            }
+            abschnitte.append(CPListSection(items: zeilen, header: "Standby", sectionIndexTitle: nil))
+        }
+        let zeilen = fahrer.map { f -> CPListItem in
             let z = CPListItem(text: f.name, detailText: f.zeile, image: DispoCarPlayBild.punkt(f.farbe))
             z.accessoryType = .disclosureIndicator
             z.handler = { [weak self] _, fertig in self?.fahrerZeigen(f.id); fertig() }
             return z
         }
-        if !fahrer.isEmpty {
-            abschnitte.append(CPListSection(items: Array(fahrer), header: "Im Dienst", sectionIndexTitle: nil))
+        if !zeilen.isEmpty {
+            abschnitte.append(CPListSection(items: zeilen, header: "Im Dienst", sectionIndexTitle: nil))
         }
         fahrerListe.updateSections(abschnitte)
     }
 
     private func fahrtenFuellen() {
-        let zeilen = stand.fahrten.prefix(CPListTemplate.maximumItemCount).map { f -> CPListItem in
+        let fahrten = stand.fahrten.prefix(CPListTemplate.maximumItemCount)
+        let schluessel = fahrten.map { "\($0.id)|\($0.zeit)|\($0.von)|\($0.nach)|\($0.status)|\($0.fahrer)" }
+        guard schluessel != schluesselFahrten else { return }
+        schluesselFahrten = schluessel
+        let zeilen = fahrten.map { f -> CPListItem in
             let wer = f.fahrer.isEmpty ? "ohne Fahrer" : f.fahrer
             let z = CPListItem(text: f.von, detailText: "\(f.status) · \(wer) · nach \(f.nach)",
                                image: DispoCarPlayBild.zeit(f.zeit, gefuellt: !f.fahrer.isEmpty))
@@ -175,46 +278,128 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
 
     // MARK: Einzelansichten
 
-    private func zeigen(_ vorlage: CPTemplate) {
+    private func zeigen(_ vorlage: CPTemplate, dann: @escaping () -> Void) {
         guard let steuerung else { return }
+        let fertig: (Bool, Error?) -> Void = { ok, fehler in
+            CarPlayFehler.melden(ok, fehler)
+            if ok { Task { @MainActor in dann() } }
+        }
         // Liegt schon eine Ansicht oben, ersetzen statt stapeln.
         if steuerung.templates.count > 1 {
-            steuerung.popToRootTemplate(animated: false) { _, _ in steuerung.pushTemplate(vorlage, animated: true, completion: nil) }
+            steuerung.popToRootTemplate(animated: false) { _, _ in steuerung.pushTemplate(vorlage, animated: true, completion: fertig) }
         } else {
-            steuerung.pushTemplate(vorlage, animated: true, completion: nil)
+            steuerung.pushTemplate(vorlage, animated: true, completion: fertig)
         }
     }
 
-    private func fahrerZeigen(_ id: String) {
-        guard let f = stand.fahrer.first(where: { $0.id == id }) ?? stand.alleFahrer.first(where: { $0.id == id }) else { return }
-        var punkte = [CPInformationItem(title: "Zustand", detail: f.status)]
-        if !f.fahrzeug.isEmpty { punkte.append(CPInformationItem(title: "Fahrzeug", detail: f.fahrzeug)) }
-        if let a = f.aktuell { punkte.append(CPInformationItem(title: "Aktuelle Fahrt", detail: a)) }
-        if let n = f.naechste { punkte.append(CPInformationItem(title: "Nächste Fahrt", detail: n)) }
-        if let a = f.ankunft { punkte.append(CPInformationItem(title: "Ankunft", detail: a)) }
-        if let d = f.dienst { punkte.append(CPInformationItem(title: "Dienst", detail: d)) }
-        punkte.append(CPInformationItem(title: "Signal", detail: f.signal))
-        var knoepfe: [CPTextButton] = []
+    private func fahrerZeigen(_ id: String) { ansichtZeigen(.fahrer(id)) }
+    private func fahrtZeigen(_ id: String) { ansichtZeigen(.fahrt(id)) }
+
+    private func ansichtZeigen(_ ansicht: Ansicht) {
+        guard let inhalt = inhalt(ansicht) else { return }
+        let vorlage = CPInformationTemplate(title: inhalt.titel, layout: .leading, items: punkte(inhalt), actions: knoepfe(inhalt))
+        offen = OffeneAnsicht(ansicht: ansicht, vorlage: vorlage, schluessel: inhalt.schluessel)
+        zeigen(vorlage) { [weak self] in
+            if self?.offen?.vorlage === vorlage { self?.offen?.gezeigt = true }
+        }
+    }
+
+    /// Neuer Stand: offene Ansicht mit frischen Werten fuellen (title/items/actions sind seit
+    /// iOS 14 aenderbar). Ist die Fahrt oder der Fahrer weg, zurueck zur Liste.
+    private func offeneAnsichtNachfuehren() {
+        guard let o = offen, o.gezeigt, let steuerung else { return }
+        guard steuerung.templates.contains(where: { $0 === o.vorlage }) else {
+            offen = nil
+            return
+        }
+        guard let neu = inhalt(o.ansicht) else {
+            offen = nil
+            steuerung.popToRootTemplate(animated: true, completion: CarPlayFehler.melden)
+            return
+        }
+        guard neu.schluessel != o.schluessel else { return }
+        o.vorlage.title = neu.titel
+        o.vorlage.items = punkte(neu)
+        o.vorlage.actions = knoepfe(neu)
+        offen?.schluessel = neu.schluessel
+    }
+
+    private func punkte(_ inhalt: Inhalt) -> [CPInformationItem] {
+        inhalt.punkte.map { CPInformationItem(title: $0.0, detail: $0.1) }
+    }
+
+    private func knoepfe(_ inhalt: Inhalt) -> [CPTextButton] {
+        inhalt.knoepfe.map { titel, aktion in CPTextButton(title: titel, textStyle: .confirm) { _ in aktion() } }
+    }
+
+    private func inhalt(_ ansicht: Ansicht) -> Inhalt? {
+        switch ansicht {
+        case .fahrer(let id): return fahrerInhalt(id)
+        case .fahrt(let id): return fahrtInhalt(id)
+        case .standby(let id): return standbyInhalt(id)
+        }
+    }
+
+    private func fahrerSuchen(_ id: String) -> DispoCarPlayFahrer? {
+        stand.fahrer.first(where: { $0.id == id }) ?? stand.alleFahrer.first(where: { $0.id == id })
+    }
+
+    private func fahrtSuchen(_ id: String) -> DispoCarPlayFahrt? {
+        stand.fahrten.first(where: { $0.id == id }) ?? stand.alleFahrten.first(where: { $0.id == id })
+    }
+
+    private func fahrerInhalt(_ id: String) -> Inhalt? {
+        guard let f = fahrerSuchen(id) else { return nil }
+        var punkte = [("Zustand", f.status)]
+        if !f.fahrzeug.isEmpty { punkte.append(("Fahrzeug", f.fahrzeug)) }
+        if let a = f.aktuell { punkte.append(("Aktuelle Fahrt", a)) }
+        if let n = f.naechste { punkte.append(("Nächste Fahrt", n)) }
+        if let a = f.ankunft { punkte.append(("Ankunft", a)) }
+        if let d = f.dienst { punkte.append(("Dienst", d)) }
+        punkte.append(("Signal", f.signal))
+        var knoepfe: [(String, () -> Void)] = []
         if f.lat != 0 || f.lng != 0 {
-            knoepfe.append(CPTextButton(title: "Navigation zum Fahrer", textStyle: .confirm) { [weak self] _ in
-                self?.navigieren("\(f.lat),\(f.lng)")
-            })
+            // Koordinaten erst beim Tippen holen, der Fahrer faehrt weiter.
+            knoepfe.append(("Navigation zum Fahrer", { [weak self] in
+                guard let self, let jetzt = self.fahrerSuchen(id), jetzt.lat != 0 || jetzt.lng != 0 else { return }
+                self.navigieren("\(jetzt.lat),\(jetzt.lng)")
+            }))
         }
-        zeigen(CPInformationTemplate(title: f.name, layout: .leading, items: punkte, actions: knoepfe))
+        return Inhalt(titel: f.name, punkte: punkte, knoepfe: knoepfe)
     }
 
-    private func fahrtZeigen(_ id: String) {
-        guard let f = stand.fahrten.first(where: { $0.id == id }) ?? stand.alleFahrten.first(where: { $0.id == id }) else { return }
-        var punkte = [
-            CPInformationItem(title: "Abholung", detail: f.von),
-            CPInformationItem(title: "Ziel", detail: f.nach),
-        ]
-        if !f.gast.isEmpty { punkte.append(CPInformationItem(title: "Gast", detail: f.gast)) }
-        punkte.append(CPInformationItem(title: "Fahrer", detail: f.fahrer.isEmpty ? "Ohne Fahrer" : f.fahrer))
-        punkte.append(CPInformationItem(title: "Status", detail: f.status + (f.verspaetet ? " · verspätet" : "")))
-        if let a = f.ankunft { punkte.append(CPInformationItem(title: "Ankunft", detail: a)) }
-        let knoepfe = [CPTextButton(title: "Navigation zur Abholung", textStyle: .confirm) { [weak self] _ in self?.navigieren(f.von) }]
-        zeigen(CPInformationTemplate(title: "\(f.zeit) · \(f.status)", layout: .leading, items: punkte, actions: knoepfe))
+    private func fahrtInhalt(_ id: String) -> Inhalt? {
+        guard let f = fahrtSuchen(id) else { return nil }
+        var punkte = [("Abholung", f.von), ("Ziel", f.nach)]
+        if !f.gast.isEmpty { punkte.append(("Gast", f.gast)) }
+        punkte.append(("Fahrer", f.fahrer.isEmpty ? "Ohne Fahrer" : f.fahrer))
+        punkte.append(("Status", f.status + (f.verspaetet ? " · verspätet" : "")))
+        if let n = f.neueZeit { punkte.append(("Neue Zeit", n)) }
+        if let a = f.ankunft { punkte.append(("Ankunft", a)) }
+        var knoepfe: [(String, () -> Void)] = []
+        if !f.von.isEmpty {
+            knoepfe.append(("Navigation zur Abholung", { [weak self] in
+                guard let self, let jetzt = self.fahrtSuchen(id) else { return }
+                self.navigieren(jetzt.von)
+            }))
+        }
+        return Inhalt(titel: "\(f.zeit) · \(f.status)", punkte: punkte, knoepfe: knoepfe)
+    }
+
+    private func standbyInhalt(_ id: String) -> Inhalt? {
+        guard let s = stand.standbys.first(where: { $0.id == id }) else { return nil }
+        var punkte = [("Ort", s.ort), ("Zeit", s.zeit)]
+        if !s.adresse.isEmpty { punkte.append(("Adresse", s.adresse)) }
+        for (i, f) in s.fahrer.enumerated() { punkte.append((i == 0 ? "Fahrer" : "", f)) }
+        if s.fahrer.isEmpty { punkte.append(("Fahrer", "Noch keiner")) }
+        var knoepfe: [(String, () -> Void)] = []
+        if s.lat != 0 || s.lng != 0 || !s.adresse.isEmpty {
+            knoepfe.append(("Navigation zum Standby", { [weak self] in
+                guard let self, let jetzt = self.stand.standbys.first(where: { $0.id == id }) else { return }
+                self.navigieren(jetzt.lat != 0 || jetzt.lng != 0 ? "\(jetzt.lat),\(jetzt.lng)" : jetzt.adresse)
+            }))
+        }
+        return Inhalt(titel: "Standby \(s.ort)", punkte: punkte, knoepfe: knoepfe)
     }
 
     /// Apple Karten mit Ziel (Adresse oder "lat,lng").
@@ -229,14 +414,32 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
     // MARK: Neue Warnung
 
     private func neuesMelden() {
-        defer { bekannt.formUnion(stand.warnungen.map(\.id)) }
-        // Der erste geladene Stand steht schon in der Liste, dafuer kein Hinweis.
+        guard stand.angemeldet else { return }
+        let aktuell = Set(stand.warnungen.map(\.id))
+        // Der erste geladene Stand steht schon in der Liste, dafuer kein Hinweis. Er endet mit dem
+        // ersten angemeldeten Stand, sobald Fahrten da sind oder spaetestens nach 20 s (Tag ohne Fahrten).
         if ersterStand {
-            if stand.angemeldet && !DispoFahrtenSpeicher.gemeinsam.fahrten.isEmpty { ersterStand = false }
+            let seit = angemeldetSeit ?? Date()
+            angemeldetSeit = seit
+            bekannt.formUnion(aktuell)
+            if !DispoFahrtenSpeicher.gemeinsam.fahrten.isEmpty || Date().timeIntervalSince(seit) > 20 { ersterStand = false }
             return
         }
-        guard let neu = stand.warnungen.first(where: { !bekannt.contains($0.id) }) else { return }
-        hinweis(neu)
+        // Erledigte Warnungen nicht mehr melden, neue hinten anstellen.
+        offeneHinweise.removeAll { !aktuell.contains($0.id) }
+        for w in stand.warnungen where !bekannt.contains(w.id) && !offeneHinweise.contains(where: { $0.id == w.id }) {
+            offeneHinweise.append(w)
+        }
+        naechsterHinweis()
+    }
+
+    /// Zeigt den naechsten wartenden Hinweis, wenn gerade keiner offen ist. Als bekannt gilt nur,
+    /// was wirklich gezeigt wurde.
+    private func naechsterHinweis() {
+        guard let steuerung, steuerung.presentedTemplate == nil, !offeneHinweise.isEmpty else { return }
+        let w = offeneHinweise.removeFirst()
+        bekannt.insert(w.id)
+        hinweis(w)
     }
 
     private func hinweis(_ w: DispoCarPlayWarnung) {
@@ -244,15 +447,29 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         var aktionen: [CPAlertAction] = []
         if w.fahrtID != nil || w.fahrerID != nil {
             aktionen.append(CPAlertAction(title: "Ansehen", style: .default) { [weak self] _ in
-                self?.steuerung?.dismissTemplate(animated: true, completion: nil)
-                if let f = w.fahrtID { self?.fahrtZeigen(f) } else if let f = w.fahrerID { self?.fahrerZeigen(f) }
+                // Erst nach dem Schliessen die Ansicht zeigen, sonst schlaegt der push fehl.
+                self?.hinweisSchliessen {
+                    if let f = w.fahrtID { self?.fahrtZeigen(f) } else if let f = w.fahrerID { self?.fahrerZeigen(f) }
+                }
             })
         }
         aktionen.append(CPAlertAction(title: "OK", style: .cancel) { [weak self] _ in
-            self?.steuerung?.dismissTemplate(animated: true, completion: nil)
+            self?.hinweisSchliessen(dann: nil)
         })
         steuerung.presentTemplate(CPAlertTemplate(titleVariants: ["\(w.titel): \(w.detail)", w.titel], actions: aktionen),
-                                  animated: true, completion: nil)
+                                  animated: true, completion: CarPlayFehler.melden)
+    }
+
+    /// Hinweis schliessen, danach (im completion) weitermachen und den naechsten wartenden zeigen.
+    private func hinweisSchliessen(dann: (() -> Void)?) {
+        guard let steuerung else { return }
+        steuerung.dismissTemplate(animated: true) { [weak self] ok, fehler in
+            CarPlayFehler.melden(ok, fehler)
+            Task { @MainActor in
+                dann?()
+                self?.naechsterHinweis()
+            }
+        }
     }
 
     // MARK: Beispiel (nur Debug, Startargument -carplayBeispiel)
@@ -281,7 +498,7 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
             DispoCarPlayFahrt(id: "j2", zeit: "18:30", von: "Hauptbahnhof Augsburg", nach: "Hotel Maximilian's", fahrer: "",
                               gast: "Dr. Anna Weber", status: "Offen", verspaetet: false, ankunft: "18:45"),
             DispoCarPlayFahrt(id: "j3", zeit: "19:05", von: "Flughafen München, Terminal 2", nach: "Kongress am Park", fahrer: "Stefano Spandri",
-                              gast: "LH 2471 · Herr Kaiser", status: "Offen", verspaetet: true, ankunft: "20:10"),
+                              gast: "LH 2471 · Herr Kaiser", status: "Offen", verspaetet: true, ankunft: "20:10", neueZeit: "19:20"),
             DispoCarPlayFahrt(id: "j4", zeit: "20:30", von: "Hotel Maximilian's", nach: "Flughafen München, Terminal 1", fahrer: "Gregor Lang",
                               gast: "Frau Ilic", status: "Offen", verspaetet: false, ankunft: "21:30"),
         ]
@@ -292,7 +509,9 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
             DispoCarPlayWarnung(id: "w4", art: .antwortOffen, titel: "Antwort offen 20:30", detail: "Gregor Lang hat noch nicht angenommen", fahrtID: "j4", fahrerID: nil),
         ]
         return DispoCarPlayStand(angemeldet: true, warnungen: warnungen, fahrer: fahrer, alleFahrer: fahrer, fahrten: fahrten, alleFahrten: fahrten,
-                                 standbys: [DispoCarPlayStandby(ort: "Kongress am Park", zaehlung: "2 vor Ort · 1 mit Gast · 1 Rückweg")])
+                                 standbys: [DispoCarPlayStandby(id: "s1", ort: "Kongress am Park", zaehlung: "17:00–23:00 · 2 vor Ort · 1 mit Gast · 1 Rückweg",
+                                                                zeit: "17:00–23:00", adresse: "Gögginger Str. 10, Augsburg", lat: 48.357, lng: 10.886,
+                                                                fahrer: ["Gregor Lang · vor Ort", "Stefano Spandri · mit Gast"])])
     }()
 
     /// Zeigt nacheinander die Reiter, eine Fahrt, einen Fahrer und den Hinweis auf eine neue Warnung.
@@ -304,16 +523,16 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
                 try? await Task.sleep(for: .seconds(6))
                 fahrerZeigen("f1")
                 try? await Task.sleep(for: .seconds(6))
-                steuerung?.popToRootTemplate(animated: false, completion: nil)
+                steuerung?.popToRootTemplate(animated: false, completion: CarPlayFehler.melden)
                 reiter?.select(fahrtenListe)
                 try? await Task.sleep(for: .seconds(6))
                 fahrtZeigen("j3")
                 try? await Task.sleep(for: .seconds(6))
-                steuerung?.popToRootTemplate(animated: false, completion: nil)
+                steuerung?.popToRootTemplate(animated: false, completion: CarPlayFehler.melden)
                 reiter?.select(achtungListe)
                 hinweis(Self.beispielStand.warnungen[0])
                 try? await Task.sleep(for: .seconds(6))
-                steuerung?.dismissTemplate(animated: false, completion: nil)
+                steuerung?.dismissTemplate(animated: false, completion: CarPlayFehler.melden)
             }
         }
     }
@@ -361,6 +580,7 @@ struct DispoCarPlayFahrer {
 
 struct DispoCarPlayFahrt {
     let id: String
+    /// Geplante Abholzeit (bei Verspaetung die urspruengliche, nicht "jetzt").
     let zeit: String
     let von: String
     let nach: String
@@ -369,11 +589,20 @@ struct DispoCarPlayFahrt {
     let status: String
     let verspaetet: Bool
     let ankunft: String?
+    /// Neue Abholzeit bei geaenderter Zeit (Zug/Flug), nicht bei bloss ueberfaelligen Fahrten.
+    var neueZeit: String? = nil
 }
 
 struct DispoCarPlayStandby {
+    let id: String
     let ort: String
     let zaehlung: String
+    let zeit: String
+    let adresse: String
+    let lat: Double
+    let lng: Double
+    /// "Name · Zustand" je Fahrer.
+    let fahrer: [String]
 }
 
 struct DispoCarPlayStand {
@@ -383,7 +612,7 @@ struct DispoCarPlayStand {
     var fahrer: [DispoCarPlayFahrer]
     /// Alle Fahrer, damit eine Warnung auch einen Fahrer ausserhalb der Liste oeffnen kann.
     var alleFahrer: [DispoCarPlayFahrer]
-    /// Die naechsten Fahrten von heute.
+    /// Die offenen Fahrten von heute.
     var fahrten: [DispoCarPlayFahrt]
     var alleFahrten: [DispoCarPlayFahrt]
     var standbys: [DispoCarPlayStandby]
@@ -398,6 +627,13 @@ struct DispoCarPlayStand {
     private static func zeit(_ wert: String) -> String? {
         let z = String(wert.prefix(5))
         return z.isEmpty || z == "--:--" ? nil : z
+    }
+
+    /// Geplante Abholzeit: bei Verspaetung die urspruengliche (startZeit ist bei ueberfaelligen
+    /// Fahrten "jetzt", wirksameEtd in DispoFahrten).
+    private static func geplant(_ f: DispoFahrt) -> String {
+        if f.verspaetet, let o = zeit(f.zeiten.original) { return o }
+        return String(f.startZeit.prefix(5))
     }
 
     private static func beendet(_ jobStatus: String) -> Bool {
@@ -421,24 +657,22 @@ struct DispoCarPlayStand {
         let jetzt = Calendar.current.dateComponents([.hour, .minute], from: Date())
         let jetztMin = (jetzt.hour ?? 0) * 60 + (jetzt.minute ?? 0)
 
-        // Fahrten von heute, offen, nach Zeit.
+        // Fahrten von heute, nicht beendet, nach geplanter Zeit.
         let heuteFahrten = DispoFahrtenSpeicher.gemeinsam.fahrten
             .filter { !$0.archiviert && $0.datum == heute && !beendet($0.jobStatus) }
-            .sorted { $0.startZeit < $1.startZeit }
+            .sorted { (geplant($0), $0.startZeit) < (geplant($1), $1.startZeit) }
         func fahrt(_ f: DispoFahrt) -> DispoCarPlayFahrt {
             let z = f.zeiten
             let ankunft = (f.verspaetet ? [z.ankunftNeu, z.ankunftZeit, z.ankunftOriginal] : [z.ankunftZeit, z.ankunftNeu, z.ankunftOriginal])
                 .compactMap(zeit).first
-            return DispoCarPlayFahrt(id: f.id, zeit: String(f.startZeit.prefix(5)), von: f.startOrt, nach: f.zielOrt,
+            let plan = geplant(f)
+            let neu = f.verspaetet && f.verzugMinuten == 0 ? zeit(z.neu).flatMap { $0 == plan ? nil : $0 } : nil
+            return DispoCarPlayFahrt(id: f.id, zeit: plan, von: f.startOrt, nach: f.zielOrt,
                                      fahrer: f.ohneFahrerVariante ? "" : f.fahrer, gast: f.name, status: statusText(f.jobStatus),
-                                     verspaetet: f.zuSpaet, ankunft: ankunft)
+                                     verspaetet: f.zuSpaet, ankunft: ankunft, neueZeit: neu)
         }
+        // Alle nicht beendeten Fahrten von heute, auch ueberfaellige offene (kein Zeitfenster).
         let alleFahrten = heuteFahrten.map(fahrt)
-        // Naechste: laufende und alles ab einer halben Stunde vor jetzt.
-        let naechste = heuteFahrten.filter { f in
-            let laeuft = ["Unterwegs", "Beim Gast"].contains(statusText(f.jobStatus))
-            return laeuft || (minuten(f.startZeit) ?? 0) >= jetztMin - 30
-        }.map(fahrt)
 
         // Standby-Zustaende je Fahrer (laufende Standbys, angenommen).
         let standbys = (DispoStandbySpeicher.gemeinsam.liste ?? []).filter(\.aktuell)
@@ -462,7 +696,20 @@ struct DispoCarPlayStand {
             if zaehlen("rueckweg") > 0 { teile.append("\(zaehlen("rueckweg")) Rückweg") }
             let angefragt = s.fahrer.filter { $0.status == "pending" }.count
             if angefragt > 0 { teile.append("\(angefragt) angefragt") }
-            return DispoCarPlayStandby(ort: s.ortName, zaehlung: "\(s.von)–\(s.bis)" + (teile.isEmpty ? "" : " · " + teile.joined(separator: " · ")))
+            let zeitraum = "\(s.von)–\(s.bis)"
+            let fahrerZeilen = s.fahrer.filter { ["accepted", "pending"].contains($0.status) }.map { f -> String in
+                let name = f.profil?.name ?? "Fahrer"
+                if f.status == "pending" { return "\(name) · angefragt" }
+                switch f.zustand {
+                case "vor_ort": return "\(name) · vor Ort"
+                case "mit_gast": return "\(name) · mit Gast"
+                case "rueckweg": return "\(name) · Rückweg" + (f.rueckAnkunft.map { ", an " + uhr($0) } ?? "")
+                default: return "\(name) · zugesagt"
+                }
+            }
+            return DispoCarPlayStandby(id: s.id.uuidString, ort: s.ortName,
+                                       zaehlung: zeitraum + (teile.isEmpty ? "" : " · " + teile.joined(separator: " · ")),
+                                       zeit: zeitraum, adresse: s.adresse ?? "", lat: s.lat, lng: s.lng, fahrer: fahrerZeilen)
         }
 
         // Fahrer: aktiv (laufende Fahrt) vor inaktiv (im Dienst ohne Fahrt), frei = nicht im Dienst.
@@ -479,14 +726,18 @@ struct DispoCarPlayStand {
             let strecke = k.info.hatFahrt ? "\(k.info.von.name) nach \(k.info.nach.name)" : nil
             let abfahrt = zeit(k.info.abfahrt)
             let aktuell = k.zustand == .aktiv ? strecke.map { (abfahrt.map { $0 + " " } ?? "") + $0 } : nil
-            // Naechste Fahrt aus der Fahrtenliste (nach der laufenden).
-            let meine = heuteFahrten.filter { $0.fahrerIds.map { $0.lowercased() }.contains(k.id.lowercased()) || $0.fahrer.contains(k.name) }
-            let kommende = meine.first { (minuten($0.startZeit) ?? 0) > jetztMin && statusText($0.jobStatus) == "Offen" && $0.id != k.fahrt?.id }
-            let naechste = kommende.map { "\(String($0.startZeit.prefix(5))) \($0.startOrt)" } ?? (k.zustand != .aktiv ? strecke.map { (abfahrt.map { $0 + " " } ?? "") + $0 } : nil)
+            // Naechste Fahrt aus der Fahrtenliste (nach der laufenden). Zuordnung ueber die Fahrer-IDs,
+            // nur ohne IDs ueber den genauen Namen (kein Teilstring, "Jan" ist nicht "Jana").
+            let id = k.id.lowercased()
+            let meine = heuteFahrten.filter { f in
+                f.fahrerIds.isEmpty ? f.fahrerNamen.contains(k.name) : f.fahrerIds.contains { $0.lowercased() == id }
+            }
+            let kommende = meine.first { (minuten(geplant($0)) ?? 0) > jetztMin && statusText($0.jobStatus) == "Offen" && $0.id != k.fahrt?.id }
+            let naechste = kommende.map { "\(geplant($0)) \($0.startOrt)" } ?? (k.zustand != .aktiv ? strecke.map { (abfahrt.map { $0 + " " } ?? "") + $0 } : nil)
             var zeile = status
             if k.offline && k.zustand != .frei { zeile = "Ohne Signal · " + k.signalText.replacingOccurrences(of: "Letztes Signal ", with: "seit ") }
             else if let a = ankunft, k.zustand == .aktiv { zeile += " · an \(a)" }
-            else if let n = kommende { zeile += " · nächste \(String(n.startZeit.prefix(5)))" }
+            else if let n = kommende { zeile += " · nächste \(geplant(n))" }
             if !k.kennzeichen.isEmpty { zeile += " · \(k.kennzeichen)" }
             let dienst = [zeit(k.info.dienststart), zeit(k.info.dienstende)].compactMap { $0 }.joined(separator: "–")
             return DispoCarPlayFahrer(id: k.id, name: k.name, status: status, farbe: k.zustand, zeile: zeile,
@@ -499,16 +750,25 @@ struct DispoCarPlayStand {
             .sorted { ($0.zustand == .aktiv ? 0 : 1, $0.name) < ($1.zustand == .aktiv ? 0 : 1, $1.name) }
             .map(fahrer)
 
-        // Warnungen (wie push_dispo_warnungen und die Hinweise der App).
+        // Warnungen (wie push_dispo_warnungen und die Hinweise der App). Je Art nach Dringlichkeit.
+        // Das Zeitfenster gilt fuer die wirksame Startzeit (bei ueberfaelligen Fahrten "jetzt"),
+        // angezeigt wird die geplante Zeit.
         var warnungen: [DispoCarPlayWarnung] = []
         for f in heuteFahrten where f.ohneFahrerVariante {
             guard let m = minuten(f.startZeit), m >= jetztMin - 30, m <= jetztMin + 60 else { continue }
-            warnungen.append(DispoCarPlayWarnung(id: "ohne-\(f.id)", art: .ohneFahrer, titel: "Ohne Fahrer \(String(f.startZeit.prefix(5)))",
+            warnungen.append(DispoCarPlayWarnung(id: "ohne-\(f.id)", art: .ohneFahrer, titel: "Ohne Fahrer \(geplant(f))",
                                                  detail: "\(f.startOrt) nach \(f.zielOrt)", fahrtID: f.id, fahrerID: nil))
         }
         // Start Zeitraum: zu spaet erst nach dem Ende des Zeitraums (zuSpaet statt verspaetet).
-        for f in heuteFahrten where f.zuSpaet && !f.ohneFahrerVariante {
-            warnungen.append(DispoCarPlayWarnung(id: "spaet-\(f.id)", art: .zuSpaet, titel: "Zu spät \(String(f.startZeit.prefix(5)))",
+        // Nur in der naechsten Stunde (eine Zugverspaetung am Abend ist jetzt noch kein Handeln),
+        // am laengsten ueberfaellige zuerst, dann nach geplanter Zeit.
+        let spaet = heuteFahrten.filter { f in
+            guard f.zuSpaet, !f.ohneFahrerVariante, let m = minuten(f.startZeit) else { return false }
+            return m >= jetztMin - 30 && m <= jetztMin + 60
+        }.sorted { ($0.verzugMinuten, geplant($1)) > ($1.verzugMinuten, geplant($0)) }
+        for f in spaet {
+            let verzug = f.verzugMinuten > 0 ? " · \(f.verzugMinuten) min" : ""
+            warnungen.append(DispoCarPlayWarnung(id: "spaet-\(f.id)", art: .zuSpaet, titel: "Zu spät \(geplant(f))\(verzug)",
                                                  detail: "\(f.fahrer) zu \(f.startOrt)", fahrtID: f.id, fahrerID: nil))
         }
         for k in karte where k.offline && k.zustand != .frei {
@@ -518,12 +778,12 @@ struct DispoCarPlayStand {
         }
         for f in heuteFahrten where !f.ohneFahrerVariante && !f.bestaetigt && statusText(f.jobStatus) == "Offen" {
             guard let m = minuten(f.startZeit), m >= jetztMin - 30, m <= jetztMin + 180 else { continue }
-            warnungen.append(DispoCarPlayWarnung(id: "antwort-\(f.id)", art: .antwortOffen, titel: "Antwort offen \(String(f.startZeit.prefix(5)))",
+            warnungen.append(DispoCarPlayWarnung(id: "antwort-\(f.id)", art: .antwortOffen, titel: "Antwort offen \(geplant(f))",
                                                  detail: "\(f.fahrer) hat noch nicht angenommen", fahrtID: f.id, fahrerID: nil))
         }
 
         return DispoCarPlayStand(angemeldet: true, warnungen: warnungen, fahrer: imDienst, alleFahrer: karte.map(fahrer),
-                                 fahrten: naechste, alleFahrten: alleFahrten, standbys: standbyZeilen)
+                                 fahrten: alleFahrten, alleFahrten: alleFahrten, standbys: standbyZeilen)
     }
 
     private static func uhr(_ d: Date) -> String {
@@ -541,8 +801,8 @@ enum DispoCarPlayBild {
     static let gruen = UIColor(red: 0x59 / 255, green: 0xBE / 255, blue: 0x80 / 255, alpha: 1)
     static let dunkel = UIColor(red: 0x1D / 255, green: 0x1C / 255, blue: 0x1D / 255, alpha: 1)
 
-    /// TRISAR-Schriftzug in Lime fuer den Listenkopf.
-    static var logo: UIImage? {
+    /// TRISAR-Schriftzug in Lime fuer den Listenkopf. Einmal gezeichnet, nicht bei jedem Fuellen.
+    static let logo: UIImage? = {
         guard let vorlage = UIImage(named: "TrisarLogo")?.withRenderingMode(.alwaysTemplate) else { return nil }
         let hoehe: CGFloat = 16
         let groesse = CGSize(width: hoehe * vorlage.size.width / max(vorlage.size.height, 1), height: hoehe)
@@ -550,7 +810,7 @@ enum DispoCarPlayBild {
             lime.set()
             vorlage.draw(in: CGRect(origin: .zero, size: groesse))
         }.withRenderingMode(.alwaysOriginal)
-    }
+    }()
 
     static func zeichen(_ name: String) -> UIImage? {
         UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(weight: .semibold))
@@ -591,5 +851,13 @@ enum DispoCarPlayBild {
             (text as NSString).draw(at: CGPoint(x: (groesse.width - mass.width) / 2, y: (groesse.height - mass.height) / 2),
                                     withAttributes: attribute)
         }
+    }
+}
+
+/// CarPlay wirft eine Ausnahme (App-Absturz), wenn ein Vorlagen-Wechsel fehlschlaegt und kein
+/// completion-Block gesetzt ist. Absturz 13.11. (Fahrer Build 44). Fehler nur loggen.
+enum CarPlayFehler {
+    static let melden: (Bool, Error?) -> Void = { _, fehler in
+        if let fehler { print("CarPlay:", fehler.localizedDescription) }
     }
 }

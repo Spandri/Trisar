@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { providerConfig } from '../_shared/provider-config.ts';
 import { recordUsageWithCost } from '../_shared/usage-tracking.ts';
-import { TOMTOM_PROVIDER, tomtomRoute, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
+import { routenPunkteLesen, TOMTOM_PROVIDER, tomtomRoute, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
 
 type SyncReason = 'create' | 'manual_refresh' | 'live_view';
 
@@ -2586,7 +2586,7 @@ Deno.serve(async (req) => {
     const { data: jobs, error: jobsError } = await admin
       .from('jobs')
       .select(
-        'id,driver_id,trip_type,pickup_address,dropoff_address,zwischenstopps,ext_route_payload,flight_number,flight_origin,ride_date,ext_last_enriched_at,ext_driver_to_pickup_polyline,ext_flight_payload,ext_driver_to_pickup_last_sync_at,ext_driver_to_dropoff_last_sync_at',
+        'id,driver_id,trip_type,pickup_address,dropoff_address,zwischenstopps,routen_punkte,ext_route_payload,flight_number,flight_origin,ride_date,ext_last_enriched_at,ext_driver_to_pickup_polyline,ext_flight_payload,ext_driver_to_pickup_last_sync_at,ext_driver_to_dropoff_last_sync_at',
       )
       .in('id', jobIds);
 
@@ -3090,10 +3090,13 @@ Deno.serve(async (req) => {
           job.dropoff_address.trim()
         ) {
           const fahrtStopps = zwischenstoppsDerFahrt(job.zwischenstopps);
+          const fahrtRoutenPunkte = routenPunkteLesen(job.routen_punkte);
           const departureBucket = new Date();
           departureBucket.setUTCMinutes(Math.floor(departureBucket.getUTCMinutes() / 10) * 10, 0, 0);
           const bucketIso = departureBucket.toISOString();
-          const routeRawKey = `${job.pickup_address.trim().toLowerCase()}|${fahrtStopps.join('|').toLowerCase()}|${job.dropoff_address.trim().toLowerCase()}|${bucketIso}`;
+          // Routenpunkte der Dispo gehoeren in den Schluessel, sonst kaeme die alte Route aus dem Speicher.
+          const punkteKey = fahrtRoutenPunkte.map((p) => `${p.nach}@${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join(';');
+          const routeRawKey = `${job.pickup_address.trim().toLowerCase()}|${fahrtStopps.join('|').toLowerCase()}|${job.dropoff_address.trim().toLowerCase()}|${bucketIso}${punkteKey ? `|rp:${punkteKey}` : ''}`;
           const routeKey = await sha256(routeRawKey);
 
           const { data: cachedRoute } = await admin
@@ -3130,7 +3133,7 @@ Deno.serve(async (req) => {
             } else {
               routeStatus = 'miss';
               externalCalls += 1;
-              const tt = await tomtomRoute(admin, tomtomKey, job.pickup_address, job.dropoff_address, { stopps: fahrtStopps });
+              const tt = await tomtomRoute(admin, tomtomKey, job.pickup_address, job.dropoff_address, { stopps: fahrtStopps, routenPunkte: fahrtRoutenPunkte });
               await recordUsage(admin, {
                 job_id: jobId,
                 provider: TOMTOM_PROVIDER,

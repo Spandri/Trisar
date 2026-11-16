@@ -1,0 +1,688 @@
+{
+  "argumente": [
+    "--modell=qwen2.5:14b",
+    "--verstehen=qwen2.5:14b",
+    "--ollama=http://100.121.170.114:11434",
+    "--nur=Dienst",
+    "--etikett=vorher-Dienst"
+  ],
+  "gesamt": 127224,
+  "schritte": [
+    {
+      "zeile": "OK   Dienst    Dienst Start und Ende morgen  9.3 s",
+      "ok": true,
+      "ms": 9483,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 199,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1378,
+          "ok": true,
+          "promptZeichen": 3445,
+          "numCtx": 4096,
+          "load_ms": 8,
+          "prompt_tokens": 1066,
+          "prompt_ms": 348,
+          "eval_tokens": 12,
+          "eval_ms": 979,
+          "total_ms": 1346
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7746,
+          "ok": true,
+          "promptZeichen": 2051,
+          "numCtx": 4096,
+          "load_ms": 2,
+          "prompt_tokens": 858,
+          "prompt_ms": 321,
+          "eval_tokens": 85,
+          "eval_ms": 7360,
+          "total_ms": 7704
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Dienst ab Uhrzeit heute  8.5 s",
+      "ok": true,
+      "ms": 8526,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1072,
+          "ok": true,
+          "promptZeichen": 3448,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 1065,
+          "prompt_ms": 217,
+          "eval_tokens": 10,
+          "eval_ms": 797,
+          "total_ms": 1038
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7432,
+          "ok": true,
+          "promptZeichen": 2054,
+          "numCtx": 4096,
+          "load_ms": 2,
+          "prompt_tokens": 857,
+          "prompt_ms": 203,
+          "eval_tokens": 83,
+          "eval_ms": 7163,
+          "total_ms": 7387
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Vorhandener Dienst, Uhrzeit nachts  9.0 s",
+      "ok": true,
+      "ms": 9015,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1421,
+          "ok": true,
+          "promptZeichen": 3441,
+          "numCtx": 4096,
+          "load_ms": 8,
+          "prompt_tokens": 1065,
+          "prompt_ms": 224,
+          "eval_tokens": 12,
+          "eval_ms": 976,
+          "total_ms": 1230
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7570,
+          "ok": true,
+          "promptZeichen": 2047,
+          "numCtx": 4096,
+          "load_ms": 2,
+          "prompt_tokens": 857,
+          "prompt_ms": 216,
+          "eval_tokens": 84,
+          "eval_ms": 7253,
+          "total_ms": 7508
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Pause im vorhandenen Dienst  9.3 s",
+      "ok": true,
+      "ms": 9295,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 18,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1409,
+          "ok": true,
+          "promptZeichen": 3445,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 1069,
+          "prompt_ms": 329,
+          "eval_tokens": 12,
+          "eval_ms": 986,
+          "total_ms": 1351
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7859,
+          "ok": true,
+          "promptZeichen": 2051,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 861,
+          "prompt_ms": 324,
+          "eval_tokens": 87,
+          "eval_ms": 7491,
+          "total_ms": 7839
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Feierabend mit Uhrzeit  8.5 s",
+      "ok": true,
+      "ms": 8533,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 19,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1429,
+          "ok": true,
+          "promptZeichen": 3440,
+          "numCtx": 4096,
+          "load_ms": 9,
+          "prompt_tokens": 1064,
+          "prompt_ms": 220,
+          "eval_tokens": 12,
+          "eval_ms": 976,
+          "total_ms": 1225
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7076,
+          "ok": true,
+          "promptZeichen": 2046,
+          "numCtx": 4096,
+          "load_ms": 2,
+          "prompt_tokens": 856,
+          "prompt_ms": 220,
+          "eval_tokens": 79,
+          "eval_ms": 6791,
+          "total_ms": 7051
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Fahrer per Nummer  8.7 s",
+      "ok": true,
+      "ms": 8695,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1310,
+          "ok": true,
+          "promptZeichen": 3444,
+          "numCtx": 4096,
+          "load_ms": 8,
+          "prompt_tokens": 1069,
+          "prompt_ms": 328,
+          "eval_tokens": 10,
+          "eval_ms": 794,
+          "total_ms": 1150
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7354,
+          "ok": true,
+          "promptZeichen": 2050,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 861,
+          "prompt_ms": 323,
+          "eval_tokens": 81,
+          "eval_ms": 6968,
+          "total_ms": 7332
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Zwei Fahrer gleicher Dienst  9.4 s",
+      "ok": true,
+      "ms": 9373,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1312,
+          "ok": true,
+          "promptZeichen": 3445,
+          "numCtx": 4096,
+          "load_ms": 2,
+          "prompt_tokens": 1065,
+          "prompt_ms": 223,
+          "eval_tokens": 12,
+          "eval_ms": 976,
+          "total_ms": 1221
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 8041,
+          "ok": true,
+          "promptZeichen": 2051,
+          "numCtx": 4096,
+          "load_ms": 3,
+          "prompt_tokens": 857,
+          "prompt_ms": 220,
+          "eval_tokens": 89,
+          "eval_ms": 7659,
+          "total_ms": 7912
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Gleicher Start schon eingetragen  8.8 s",
+      "ok": true,
+      "ms": 8759,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1257,
+          "ok": true,
+          "promptZeichen": 3441,
+          "numCtx": 4096,
+          "load_ms": 2,
+          "prompt_tokens": 1062,
+          "prompt_ms": 218,
+          "eval_tokens": 12,
+          "eval_ms": 976,
+          "total_ms": 1232
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7479,
+          "ok": true,
+          "promptZeichen": 2047,
+          "numCtx": 4096,
+          "load_ms": 3,
+          "prompt_tokens": 854,
+          "prompt_ms": 199,
+          "eval_tokens": 84,
+          "eval_ms": 7229,
+          "total_ms": 7449
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Umgangssprache: morgen früh  8.4 s",
+      "ok": true,
+      "ms": 8398,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1300,
+          "ok": true,
+          "promptZeichen": 3439,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 1062,
+          "prompt_ms": 216,
+          "eval_tokens": 12,
+          "eval_ms": 978,
+          "total_ms": 1215
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7072,
+          "ok": true,
+          "promptZeichen": 2045,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 854,
+          "prompt_ms": 214,
+          "eval_tokens": 79,
+          "eval_ms": 6806,
+          "total_ms": 7045
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Umgangssprache: Schluss machen  8.4 s",
+      "ok": true,
+      "ms": 8388,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 15,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1259,
+          "ok": true,
+          "promptZeichen": 3454,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 1065,
+          "prompt_ms": 220,
+          "eval_tokens": 12,
+          "eval_ms": 984,
+          "total_ms": 1225
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7104,
+          "ok": true,
+          "promptZeichen": 2060,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 857,
+          "prompt_ms": 204,
+          "eval_tokens": 79,
+          "eval_ms": 6807,
+          "total_ms": 7029
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Pause mit Bindestrich  8.9 s",
+      "ok": true,
+      "ms": 8912,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 13,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1277,
+          "ok": true,
+          "promptZeichen": 3442,
+          "numCtx": 4096,
+          "load_ms": 2,
+          "prompt_tokens": 1065,
+          "prompt_ms": 220,
+          "eval_tokens": 12,
+          "eval_ms": 984,
+          "total_ms": 1245
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7613,
+          "ok": true,
+          "promptZeichen": 2048,
+          "numCtx": 4096,
+          "load_ms": 3,
+          "prompt_tokens": 857,
+          "prompt_ms": 204,
+          "eval_tokens": 85,
+          "eval_ms": 7312,
+          "total_ms": 7535
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Umgangssprache: fängt an  8.6 s",
+      "ok": true,
+      "ms": 8613,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 26,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1266,
+          "ok": true,
+          "promptZeichen": 3442,
+          "numCtx": 4096,
+          "load_ms": 5,
+          "prompt_tokens": 1065,
+          "prompt_ms": 222,
+          "eval_tokens": 12,
+          "eval_ms": 978,
+          "total_ms": 1248
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 7316,
+          "ok": true,
+          "promptZeichen": 2048,
+          "numCtx": 4096,
+          "load_ms": 6,
+          "prompt_tokens": 857,
+          "prompt_ms": 208,
+          "eval_tokens": 80,
+          "eval_ms": 6896,
+          "total_ms": 7128
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Markierte Fahrer in Feierabend  21.3 s",
+      "ok": true,
+      "ms": 21285,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 12,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "v_absicht",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 1255,
+          "ok": true,
+          "promptZeichen": 3444,
+          "numCtx": 4096,
+          "load_ms": 2,
+          "prompt_tokens": 1063,
+          "prompt_ms": 218,
+          "eval_tokens": 12,
+          "eval_ms": 976,
+          "total_ms": 1233
+        },
+        {
+          "art": "v_dienst",
+          "pfad": "/api/chat",
+          "modell": "qwen2.5:14b",
+          "ms": 20013,
+          "ok": false,
+          "promptZeichen": 2050,
+          "numCtx": 4096,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    }
+  ]
+}

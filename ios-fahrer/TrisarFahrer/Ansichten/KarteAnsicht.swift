@@ -25,6 +25,14 @@ struct KarteAnsicht: UIViewRepresentable {
         var flugKurs: Double = 0
         var flugSpur: [CLLocationCoordinate2D] = []    // Lime, 3 pt
         var kollegen: [Kollege] = []
+        var umstiege: [ReiseLage.UmstiegPunkt] = []    // Dienstreise: Umstieg-Marker (Icon + "U2 ab 06:56")
+        var gefahren: [CLLocationCoordinate2D] = []    // Dienstreise: schon gefahren, grau
+        /// Dienstreise: Fahrzeug mit Fahrer (ReiseLage), Art und eine Zeile Text daneben.
+        var fahrzeug: CLLocationCoordinate2D?
+        var fahrzeugArt = ""
+        var fahrzeugText = ""
+        /// Gesetzt: nur diese Punkte einpassen (Strecke), damit die Karte nicht bei jeder Bewegung springt.
+        var rahmen: [CLLocationCoordinate2D] = []
 
         static func == (a: Inhalt, b: Inhalt) -> Bool {
             a.anfahrt.count == b.anfahrt.count && a.fahrt.count == b.fahrt.count
@@ -38,6 +46,13 @@ struct KarteAnsicht: UIViewRepresentable {
                 && a.flugKurs == b.flugKurs && a.flugSpur.count == b.flugSpur.count
                 && a.kollegen.map(\.beschriftung) == b.kollegen.map(\.beschriftung)
                 && a.kollegen.map(\.ort.latitude) == b.kollegen.map(\.ort.latitude)
+                && a.umstiege.map(\.ort.latitude) == b.umstiege.map(\.ort.latitude) && a.umstiege.map(\.text) == b.umstiege.map(\.text)
+                && a.anfahrt.last?.latitude == b.anfahrt.last?.latitude
+                && a.gefahren.count == b.gefahren.count && a.gefahren.last?.latitude == b.gefahren.last?.latitude
+                && a.gefahren.last?.longitude == b.gefahren.last?.longitude
+                && a.fahrzeug?.latitude == b.fahrzeug?.latitude && a.fahrzeug?.longitude == b.fahrzeug?.longitude
+                && a.fahrzeugArt == b.fahrzeugArt && a.fahrzeugText == b.fahrzeugText
+                && a.rahmen.count == b.rahmen.count && a.rahmen.first?.latitude == b.rahmen.first?.latitude
         }
     }
 
@@ -99,6 +114,7 @@ struct KarteAnsicht: UIViewRepresentable {
         private func zeichnen() {
             guard let karte, let stil = karte.style else { return }
             linie(stil, kennung: "fahrt", pfad: inhalt.fahrt, farbe: UIColor(hex: 0x0059FF), breite: 6, gestrichelt: false)
+            linie(stil, kennung: "gefahren", pfad: inhalt.gefahren, farbe: UIColor(hex: 0x5C5C5C), breite: 6, gestrichelt: false)
             linie(stil, kennung: "anfahrt", pfad: inhalt.anfahrt, farbe: UIColor(hex: 0xE3F654), breite: 5, gestrichelt: true)
             linie(stil, kennung: "flugspur", pfad: inhalt.flugSpur, farbe: UIColor(hex: 0xE3F654).withAlphaComponent(0.95), breite: 3, gestrichelt: false)
 
@@ -118,9 +134,11 @@ struct KarteAnsicht: UIViewRepresentable {
             pin(inhalt.abholort, "abholort")
             if let m = inhalt.fahrtMinuten, inhalt.fahrt.count >= 2 { pin(mitte(inhalt.fahrt), "blase-blau", Self.dauer(m)) }
             if let m = inhalt.anfahrtMinuten, m > 0, inhalt.anfahrt.count >= 2 { pin(mitte(inhalt.anfahrt), "blase-gelb", Self.dauer(m)) }
+            for u in inhalt.umstiege { pin(u.ort, "umstieg", u.art + "\u{1F}" + u.text) }
             for k in inhalt.kollegen { pin(k.ort, k.nummer ? "kollege-nr" : "kollege-kz", k.beschriftung) }
             pin(inhalt.flugzeug, "flugzeug", String(inhalt.flugKurs))
             pin(inhalt.fahrer, "fahrer", inhalt.fahrerNummer)
+            pin(inhalt.fahrzeug, "fahrzeug", [inhalt.fahrzeugArt, inhalt.fahrerNummer, inhalt.fahrzeugText].joined(separator: "\u{1F}"))
             let neu = punkte
             DispatchQueue.main.async { [weak self, weak karte] in
                 if !alt.isEmpty { karte?.removeAnnotations(alt) }
@@ -211,7 +229,8 @@ struct KarteAnsicht: UIViewRepresentable {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in self?.einpassen() }
                 return
             }
-            let alle = inhalt.fahrt + inhalt.anfahrt + [inhalt.abholort, inhalt.ziel, inhalt.flugzeug].compactMap { $0 }
+            let alle = !inhalt.rahmen.isEmpty ? inhalt.rahmen
+                : inhalt.fahrt + inhalt.anfahrt + [inhalt.abholort, inhalt.ziel, inhalt.flugzeug].compactMap { $0 }
                 + inhalt.kollegen.map(\.ort)
             guard alle.count >= 2 else {
                 if let f = inhalt.fahrer ?? alle.first { karte.setCenter(f, zoomLevel: 13, animated: false) }
@@ -242,6 +261,13 @@ struct KarteAnsicht: UIViewRepresentable {
             case "flugzeug": return Flugzeug(kurs: Double(text) ?? 0)
             case "kollege-nr": return KollegenPin(text: text, groesse: 15)
             case "kollege-kz": return KollegenPin(text: text, groesse: 13)
+            case "umstieg":
+                let t = text.components(separatedBy: "\u{1F}")
+                return UmstiegMarkerAnsicht(art: t.first ?? "zug", text: t.count > 1 ? t[1] : "")
+            case "fahrzeug":
+                let t = text.components(separatedBy: "\u{1F}")
+                return FahrzeugMarkerAnsicht(art: t.first ?? "zug", nummer: t.count > 1 ? t[1] : "",
+                                             text: t.count > 2 ? t[2] : "", punktFarbe: nil)
             case "blase-blau": return Zeitblase(text: text, hinten: UIColor(hex: 0x0059FF), vorne: .white)
             case "blase-gelb": return Zeitblase(text: text, hinten: UIColor(hex: 0xE3F654), vorne: UIColor(hex: 0x111111))
             default: return nil

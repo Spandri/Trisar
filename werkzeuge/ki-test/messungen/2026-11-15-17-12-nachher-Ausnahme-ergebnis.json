@@ -1,0 +1,92 @@
+[
+  {
+    "fall": "Dienst an alle bis auf einen",
+    "gruppe": "Ausnahme",
+    "schritt": 1,
+    "frage": "Schick allen bis auf Stefano bitte ein dienstbeginn für heute 13:30 Uhr",
+    "ok": false,
+    "fehler": [
+      "datum \"2026-11-16\", erwartet \"2026-11-15\""
+    ],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 13:30 morgen für Tim Schedler, Marvin Keller, Anna Berger (ohne Stefano Spandri). Geändert wird bei Anna Berger Dienststart 07:00 → 13:30. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-16",
+      "start": "13:30",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Tim Schedler, Marvin Keller, Anna Berger"
+    },
+    "ms": 7683
+  },
+  {
+    "fall": "Dienst an alle, einer ausgenommen, anders gesagt",
+    "gruppe": "Ausnahme",
+    "schritt": 1,
+    "frage": "Morgen fangen alle um 8 an, nur Tim nicht",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 08:00 morgen für Stefano Spandri, Marvin Keller, Anna Berger (ohne Tim Schedler). Geändert wird bei Anna Berger Dienststart 07:00 → 08:00. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-16",
+      "start": "08:00",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Stefano Spandri, Marvin Keller, Anna Berger"
+    },
+    "ms": 7147
+  },
+  {
+    "fall": "Feierabend fuer alle ausser zwei",
+    "gruppe": "Ausnahme",
+    "schritt": 1,
+    "frage": "Schick alle Fahrer in den Feierabend außer Tim und Marvin",
+    "ok": false,
+    "fehler": [
+      "Art antwort, erwartet dienst_vorschlag",
+      "Antwort ohne \"ohne Tim\"",
+      "Antwort ohne \"Marvin\""
+    ],
+    "art": "antwort",
+    "antwort": "Bei „alle außer …“ rate ich nicht, weil das Modell gerade nicht geantwortet hat. Sag es bitte gleich noch einmal oder nenne die Fahrer einzeln. Ich habe nichts geändert.",
+    "felder": {},
+    "ms": 4514
+  },
+  {
+    "fall": "Nachricht an alle ausser einem",
+    "gruppe": "Ausnahme",
+    "schritt": 1,
+    "frage": "Sag allen außer Tim, dass sie heute tanken sollen",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Push an Stefano Spandri, Marvin Keller, Anna Berger (ohne Tim Schedler): „Tanken heute, außer du bist Tim.“\nMit „ja“ sende ich sie.",
+    "felder": {},
+    "ms": 4913
+  },
+  {
+    "fall": "Stundenlohn fuer alle ausser einem",
+    "gruppe": "Ausnahme",
+    "schritt": 1,
+    "frage": "Stundenlohn 25 Euro für alle Fahrer, ausgenommen Marvin",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Ich setze den Stundenlohn auf 25,00 € für Stefano Spandri, Tim Schedler, Anna Berger (ohne Marvin Keller). Bisher ist bei niemandem ein Stundenlohn gesetzt.\n\nSoll ich das speichern? Antworte mit „ja“ oder „nein“.",
+    "felder": {},
+    "ms": 2358
+  },
+  {
+    "fall": "Kein falsches Ausnehmen beim Loeschen",
+    "gruppe": "Ausnahme",
+    "schritt": 1,
+    "frage": "Stefano hat heute frei, lösch seinen Dienst",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Bei Stefano Spandri, heute (ab 08:00, angenommen) den ganzen Dienst löschen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
+    "felder": {},
+    "ms": 5929
+  }
+]

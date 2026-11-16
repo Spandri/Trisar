@@ -89,6 +89,8 @@ internal data class KartenFahrtInfo(
     val unterwegs: Boolean = false,
     /** false: weder laufende noch naechste Fahrt, das Blatt zeigt dann "Keine Fahrt geplant". */
     val hatFahrt: Boolean = false,
+    /** Geplanter Beginn (ride_date + etd) der laufenden bzw. naechsten Fahrt (Dienstreise im Blatt, 14.11.). */
+    val fahrtBeginn: LocalDateTime? = null,
     val von: KartenOrt = KartenOrt("-", null, "Keine aktive Fahrt"),
     val nach: KartenOrt = KartenOrt("-", null, "-"),
 )
@@ -127,6 +129,8 @@ internal data class KartenFahrer(
     val fahrt: KartenFahrt?,
     /** profiles.flagge (flagge1 bis flagge3), null = keine. */
     val flagge: String? = null,
+    /** driver_live_locations.source (ios_app/android_app/Tracker): fuer die Dienstreise zaehlt nur das Handy. */
+    val standortQuelle: String? = null,
 ) {
     val ort get() = KartenPunkt(lat, lng)
     val vorname get() = name.split(" ").firstOrNull { it.isNotEmpty() } ?: "Fahrer"
@@ -164,6 +168,74 @@ internal object KartenFilter {
     fun zuruecksetzen() {
         sucheSetzen(""); feierabendMinuten = ""
         limousine = false; suv = false; van = false; coupe = false
+        OhneSignal.zuruecksetzen()
+    }
+}
+
+/**
+ * Fahrer lange ohne Signal (15.11., Pilotkunde, wie shared/ohneSignal.js): wer laenger als die
+ * Schwelle keinen Standort schickt (App oder OBD-Tracker, captured_at), verschwindet von der Karte.
+ * Im Karten-Filter Regler fuer die Schwelle und Schalter "Letzten Standort trotzdem zeigen".
+ * Je Geraet gemerkt.
+ */
+internal object OhneSignal {
+    // Im Filter in Stunden eingetippt (0,25 bis 24 h), gespeichert in Minuten.
+    const val MIN = 15f
+    const val MAX = 1440f
+    const val STANDARD = 30f
+    private var ablage: android.content.SharedPreferences? = null
+
+    var minuten by mutableStateOf(STANDARD)
+        private set
+    var zeigen by mutableStateOf(false)
+        private set
+
+    fun laden(ctx: android.content.Context) {
+        if (ablage != null) return
+        val a = ctx.applicationContext.getSharedPreferences("trisar-dispo-karte", android.content.Context.MODE_PRIVATE)
+        ablage = a
+        minuten = a.getFloat("ohne_signal_minuten", STANDARD).coerceIn(MIN, MAX)
+        zeigen = a.getBoolean("ohne_signal_zeigen", false)
+    }
+
+    fun minutenSetzen(neu: Float) {
+        minuten = Math.round(neu).toFloat().coerceIn(MIN, MAX)
+        ablage?.edit()?.putFloat("ohne_signal_minuten", minuten)?.apply()
+    }
+
+    fun zeigenSetzen(neu: Boolean) {
+        zeigen = neu
+        ablage?.edit()?.putBoolean("ohne_signal_zeigen", neu)?.apply()
+    }
+
+    fun zuruecksetzen() { minutenSetzen(STANDARD); zeigenSetzen(false) }
+
+    /** Laenger als die Schwelle still? Ohne Zeitstempel zaehlt nicht. */
+    fun zuLange(f: KartenFahrer, jetztMs: Long = System.currentTimeMillis()): Boolean {
+        val d = f.letztesSignal ?: return false
+        return jetztMs - d.toInstant().toEpochMilli() >= (minuten * 60_000).toLong()
+    }
+
+    /** Minuten als Stunden mit Komma: 30 -> "0,5", 90 -> "1,5", 15 -> "0,25". */
+    fun stundenText(m: Float): String =
+        java.math.BigDecimal(m / 60.0).setScale(2, java.math.RoundingMode.HALF_UP).stripTrailingZeros()
+            .toPlainString().replace('.', ',')
+
+    /** "1,5" / "1.5" / "2" -> Minuten (auf 0,25 bis 24 h begrenzt), sonst null. */
+    fun stundenLesen(text: String): Float? {
+        val h = text.trim().replace(',', '.').toDoubleOrNull() ?: return null
+        if (!h.isFinite() || h <= 0) return null
+        return Math.round(h * 60).toFloat().coerceIn(MIN, MAX)
+    }
+
+    /** "#4 seit 13:05", an einem anderen Tag "#11 seit 14.11." */
+    fun seit(f: KartenFahrer): String {
+        val wer = f.nummer?.let { "#$it" } ?: f.name
+        val d = f.letztesSignal ?: return wer
+        val lokal = d.withZoneSameInstant(java.time.ZoneId.systemDefault())
+        val heute = lokal.toLocalDate() == java.time.LocalDate.now()
+        val fmt = java.time.format.DateTimeFormatter.ofPattern(if (heute) "HH:mm" else "dd.MM.")
+        return "$wer seit ${lokal.format(fmt)}"
     }
 }
 
@@ -248,6 +320,7 @@ internal class KartenDaten {
         fahrer = fahrer.toMutableList().also {
             it[i] = alt.copy(
                 lat = lat, lng = lng,
+                standortQuelle = jText(satz["source"]).ifEmpty { null } ?: alt.standortQuelle,
                 letztesSignal = signal ?: alt.letztesSignal,
                 signalStufe = signal?.let { s -> java.time.Duration.between(s.toInstant(), java.time.Instant.now()).toMinutes().coerceIn(0, 5).toInt() } ?: alt.signalStufe,
             )
@@ -318,7 +391,7 @@ internal class KartenDaten {
             }
             if (profile == null) throw letzterFehler ?: IllegalStateException("Keine Antwort")
 
-            val live = abfrage("driver_live_locations", "driver_id, lat, lng, captured_at, active_job_id")
+            val live = abfrage("driver_live_locations", "driver_id, lat, lng, captured_at, active_job_id, source")
 
             // Zuendung aus dem OBD-Tracker. Fehlt die Tabelle oder das Recht, bleibt alles wie bisher.
             val zuendung = runCatching { abfrage("vehicle_telemetry_live", "driver_id, ignition, captured_at") }.getOrDefault(emptyList())
@@ -476,6 +549,7 @@ internal class KartenDaten {
                 fahrzeug = fahrzeug.ifEmpty { "Fahrzeug" },
                 lat = lat, lng = lng, zustand = zustand, info = info, fahrt = fahrt,
                 flagge = Flaggen.id(jText(p?.get("flagge"))),
+                standortQuelle = jText(zeile["source"]).ifEmpty { null },
             )
         }
         return liste to sichtbar.size
@@ -666,6 +740,7 @@ internal object KartenRegeln {
             fahrMinuten = restFahrzeit(job, jetzt),
             unterwegs = status(job["status"]) in unterwegsStatus,
             hatFahrt = true,
+            fahrtBeginn = zeitpunkt(job),
             von = KartenOrt(s.first, s.second, ortName(vn, va)),
             nach = KartenOrt(z.first, z.second, ortName(zn, za)),
         )

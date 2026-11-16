@@ -78,8 +78,18 @@ enum Routen {
 
     // MARK: Adresse -> Punkt
 
+    /// Koordinaten als Text ("48.1372, 11.6981", gleiche Regel wie der Server in tomtom-routing.ts).
+    /// Werden direkt genommen, ohne Nominatim (das rueckt aufs naechste Gebaeude, rund 100 m daneben).
+    static func koordinatenAusText(_ text: String) -> CLLocationCoordinate2D? {
+        guard let treffer = text.wholeMatch(of: /\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*/),
+              let lat = Double(treffer.1), let lng = Double(treffer.2),
+              abs(lat) <= 90, abs(lng) <= 180 else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+
     @MainActor
     static func punkt(fuer text: String) async -> CLLocationCoordinate2D? {
+        if let direkt = koordinatenAusText(text) { return direkt }
         let schluessel = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         guard !schluessel.isEmpty else { return nil }

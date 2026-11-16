@@ -269,7 +269,7 @@ export const fahrtenSteuern = async (admin: any, frage: string, kontext: any, le
   if (art === 'kopieren') {
     // Ziel ist der Tag nach "auf" ("auf den 15.11.2026", "auf Freitag"), sonst der genannte Tag.
     const aufM = text.match(/\bauf\s+(?:den\s+)?(heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|[0-3]?\d\.[01]?\d\.(?:\d{4})?)/);
-    const ziel = aufM ? datumAusText(` ${aufM[1]} `, heute) : /\b(heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b|\b[0-3]?\d\.[01]?\d\./.test(text.replace(/\bvon\s+(heute|gestern)\b/, ' '))
+    const ziel = aufM ? datumAusText(` ${aufM[1]} `, heute, true) : /\b(heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b|\b[0-3]?\d\.[01]?\d\./.test(text.replace(/\bvon\s+(heute|gestern)\b/, ' '))
       ? datumAusText(text.replace(/\bvon\s+(heute|gestern)\b/, ' '), heute) : null;
     if (!ziel) return { answer: 'Auf welchen Tag soll ich die Fahrt kopieren? Zum Beispiel „Kopiere die Fahrt von Herrn Engel auf Freitag“.', kontext };
     return neu({ art, datum: ziel }, `Fahrt ${titel} auf ${tagLesbar(ziel, heute)} kopieren, gleiche Uhrzeit, noch ohne Fahrer? Mit „ja“ lege ich die Kopie an.`);

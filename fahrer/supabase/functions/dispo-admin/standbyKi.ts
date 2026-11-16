@@ -273,7 +273,7 @@ export const standbyAllein = async (admin: any, frage: string, markiert: Fahrer[
   if (/\b(buch\w*|fahrt|abhol\w*)\b/.test(text) || /\b(von|vom)\s+\D.*\b(nach|zum|zur)\b/.test(text)) return null;
   if (/^\s*(wer|wo|wann|welche\w*|wie|hat|ist|sind|gibt)\b/.test(text) || /\?\s*$/.test(roh)) return null;
   const { datum: heute } = jetztBerlin();
-  const datum = datumAusText(text, heute);
+  const datum = datumAusText(text, heute, true);
   const spanne = roh.match(new RegExp(`${ZEIT}\\s*(?:-|–|bis)\\s*${ZEIT}`, 'i'));
   const vonM = roh.match(new RegExp(`\\b(?:ab|von|seit)\\s+${ZEIT}`, 'i'));
   const bisM = roh.match(new RegExp(`\\bbis\\s+(?:um\\s+)?${ZEIT}`, 'i'));

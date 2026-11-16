@@ -1,3 +1,4 @@
+import { koordinatenAusText } from '../shared/karte/maplibreKarte';
 // TomTom-Anbindung für die Fahrt-Simulation: Adressen zu Koordinaten
 // auflösen (Search API), echte Straßenrouten rechnen (Routing API) und ein
 // statisches Kartenbild liefern (Map Display API). Alles im Browser mit dem
@@ -62,6 +63,9 @@ const fetchPosition = async (endpoint, q) => {
 // München"), 3. Fuzzy-POI-Suche (findet z.B. "Löwenbräukeller" ohne Adresse).
 export async function geocodeAddress(query) {
   const roh = String(query || '').trim();
+  // Koordinaten im Text ("48.1372, 11.6981") gelten direkt, wie auf dem Server.
+  const koordinaten = koordinatenAusText(roh);
+  if (koordinaten) return { lat: koordinaten.lat, lon: koordinaten.lng };
   if (!KEY || !roh) return null;
   if (geocodeCache.has(roh)) return geocodeCache.get(roh);
   const q = normalizeQuery(roh);

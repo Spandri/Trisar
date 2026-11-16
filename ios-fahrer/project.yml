@@ -21,7 +21,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.1"
-    CURRENT_PROJECT_VERSION: "45"
+    CURRENT_PROJECT_VERSION: "54"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     # App-ID, die Widget-Erweiterung haengt .widget an. aufs-iphone.sh setzt sie auf de.trisar.fahrer.dev.
@@ -101,6 +101,8 @@ targets:
     sources:
       - path: TrisarFahrerWidget
       - path: TrisarFahrer/CarPlay/FahrtAktivitaet.swift
+      # Live-Aktivitaet "Dienstreise" (Layout in TrisarFahrerWidget/DienstreiseWidget.swift).
+      - path: TrisarFahrer/CarPlay/DienstreiseAktivitaet.swift
       - path: TrisarFahrer/Schrift
         buildPhase: resources
     settings:

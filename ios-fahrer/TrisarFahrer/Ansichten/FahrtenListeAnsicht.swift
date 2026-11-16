@@ -10,6 +10,8 @@ struct FahrtenListeAnsicht: View {
     var oeffneFahrt: (Fahrt) -> Void
     /// Dienststart mit Treffpunkt antippen: Karte und Notiz wie bei einer Fahrt (DienstStartAnsicht).
     var oeffneDienst: (DienstAnfrage) -> Void = { _ in }
+    /// Dienstreise antippen: Karte mit Strecke, Abfahrt und Ankunft (DienstreiseAnsicht).
+    var oeffneReise: (DienstreiseSpeicher.Reise) -> Void = { _ in }
 
     @State private var ablehnenFahrt: Fahrt?
     @ObservedObject private var stunden = StundenSpeicher.shared
@@ -21,6 +23,8 @@ struct FahrtenListeAnsicht: View {
     @ObservedObject private var katalog = DrehKatalog.shared
     /// Standby am Event-Ort: Karte mit Knoepfen unter den Dienstanfragen des Tages.
     @ObservedObject private var standby = StandbySpeicher.shared
+    /// Dienstreise: Karte wie eine Fahrt unter den Standby-Karten des Tages.
+    @ObservedObject private var dienstreise = DienstreiseSpeicher.shared
 
     // Konstanten aus FahrtenScreen01View.jsx
     private let versatz: CGFloat = 20            // <div className="absolute left-0 top-[20px]">
@@ -101,6 +105,13 @@ struct FahrtenListeAnsicht: View {
                         .platz(20, versatz + e.oben, 362, nil)
                 }
 
+                ForEach(raster.reisen, id: \.reise.id) { e in
+                    DienstreiseKarte(reise: e.reise,
+                                     antworten: { a in Task { await dienstreise.antworten(e.reise, annehmen: a) } },
+                                     oeffnen: { oeffneReise(e.reise) })
+                        .platz(20, versatz + e.oben, 362, nil)
+                }
+
                 // Stunden am Ende des Diensttages
                 ForEach(raster.stunden, id: \.eintrag.id) { s in
                     // Stundenerfassung wie im Verlauf (Figma 2823-12431), Bearbeiten als Vollbild.
@@ -135,14 +146,14 @@ struct FahrtenListeAnsicht: View {
     }
 
     @ViewBuilder private var fehlerHinweis: some View {
-        if let fehler = speicher.fehler ?? stunden.fehler ?? standby.fehler {
+        if let fehler = speicher.fehler ?? stunden.fehler ?? standby.fehler ?? dienstreise.fehler {
             Text(fehler)
                 .font(.grotesk(13, .medium))
                 .foregroundStyle(.black)
                 .padding(12)
                 .frame(maxWidth: .infinity)
                 .background(Farbe.fehler)
-                .onTapGesture { speicher.fehler = nil; stunden.fehler = nil; standby.fehler = nil }
+                .onTapGesture { speicher.fehler = nil; stunden.fehler = nil; standby.fehler = nil; dienstreise.fehler = nil }
                 .padding(.top, 50)
         }
     }
@@ -155,6 +166,7 @@ struct FahrtenListeAnsicht: View {
         var fahrten: [(fahrt: Fahrt, oben: CGFloat, mitKnoepfen: Bool)] = []
         var stunden: [(eintrag: Stunden.Eintrag, oben: CGFloat)] = []
         var standbys: [(standby: StandbySpeicher.Standby, oben: CGFloat)] = []
+        var reisen: [(reise: DienstreiseSpeicher.Reise, oben: CGFloat)] = []
         var unterkante: CGFloat = 0
     }
 
@@ -179,8 +191,12 @@ struct FahrtenListeAnsicht: View {
         for e in stunden.karten { stundenProTag[e.dienst.datum, default: []].append(e) }
         var standbyProTag: [String: [StandbySpeicher.Standby]] = [:]
         for s in standby.liste { standbyProTag[s.datum, default: []].append(s) }
-        // Alle Tage in Reihenfolge: Dienste, Standby, Fahrten, am Ende des Tages die Stunden.
-        let tage = Set(fahrtenProTag.keys).union(anfragenProTag.keys).union(stundenProTag.keys).union(standbyProTag.keys).sorted()
+        // Dienstreise: Karte wie eine Fahrt, unter Dienstanfragen und Standby des Tages.
+        var reisenProTag: [String: [DienstreiseSpeicher.Reise]] = [:]
+        for x in dienstreise.liste { reisenProTag[x.datum, default: []].append(x) }
+        // Alle Tage in Reihenfolge: Dienste, Standby, Dienstreise, Fahrten, am Ende des Tages die Stunden.
+        let tage = Set(fahrtenProTag.keys).union(anfragenProTag.keys).union(stundenProTag.keys).union(standbyProTag.keys)
+            .union(reisenProTag.keys).sorted()
         var r = Raster()
         var cursor = fahrzeugUnterkante + tagUnten
 
@@ -200,6 +216,19 @@ struct FahrtenListeAnsicht: View {
                 r.standbys.append((s, cursor))
                 cursor += StandbySpeicher.blockHoehe(s) + dienstListe
             }
+            // Dienstreise nach Startzeit (14.11.): vor dem Dienststart nur, wenn sie frueher beginnt, sonst
+            // zwischen den Fahrten an ihrer Uhrzeit (wie die Pausen).
+            let dienstMinute = alle.filter { $0.angenommen && zeigeStart($0) }
+                .map { minuten(String(($0.service_start_time ?? "").prefix(5))) }
+                .filter { $0 != Int.max }.min()
+            let tagesReisen = (reisenProTag[tag] ?? [])
+                .map { (reise: $0, m: minuten($0.startZeit)) }
+                .sorted { ($0.m == Int.max ? -1 : $0.m) < ($1.m == Int.max ? -1 : $1.m) }
+            for x in tagesReisen where dienstMinute == nil || x.m == Int.max || x.m < dienstMinute! {
+                r.reisen.append((x.reise, cursor))
+                cursor += DienstreiseSpeicher.blockHoehe(x.reise) + dienstListe
+            }
+            var reisenWarte = tagesReisen.filter { dienstMinute != nil && $0.m != Int.max && $0.m >= dienstMinute! }
             for anfrage in alle where anfrage.angenommen && zeigeStart(anfrage) {
                 r.dienste.append((anfrage, cursor, "start", anfrage.id.uuidString + "-start", nil))
                 cursor += (anfrage.treffpunkt?.hatOrt == true ? dienstStartOrt : dienstZeile) + kartenAbstand
@@ -209,6 +238,11 @@ struct FahrtenListeAnsicht: View {
                 .flatMap { a in offenePausen(a).map { (a, $0) } }
                 .sorted { $0.1.m < $1.1.m }
             func pausenBis(_ m: Double) {
+                while let erste = reisenWarte.first, Double(erste.m) <= m {
+                    reisenWarte.removeFirst()
+                    r.reisen.append((erste.reise, cursor))
+                    cursor += DienstreiseSpeicher.blockHoehe(erste.reise) + kartenAbstand
+                }
                 while let erste = pausenWarte.first, erste.1.m <= m {
                     pausenWarte.removeFirst()
                     r.dienste.append((erste.0, cursor, "pause", erste.0.id.uuidString + erste.1.schluessel, erste.1))
@@ -314,7 +348,7 @@ private struct DienstKarte: View {
 
     /// Treffpunkt (13.11.): in der offenen Anfrage eine Zeile Icon + Ort darunter (20 Luft + 44 Kachel).
     static func hoehe(_ a: DienstAnfrage) -> CGFloat {
-        AnfrageZeile.kartenHoehe(AnfrageZeile.zeilen(a)) + (a.treffpunkt?.hatOrt == true ? 64 : 0)
+        AnfrageZeile.kartenHoehe(AnfrageZeile.zeilen(a)) + (ortInAnfrage(a) ? 64 : 0)
     }
 
     var body: some View {
@@ -325,7 +359,7 @@ private struct DienstKarte: View {
                     Text(z.text).grotesk(z.groesse(erste: i == 0), .bold).foregroundStyle(z.farbe)
                         .lineLimit(1).fixedSize()
                 }
-                if let tp = anfrage.treffpunkt, tp.hatOrt {
+                if let tp = anfrage.treffpunkt, tp.hatOrt, ortInAnfrage(anfrage) {
                     // Treffpunkt wie in der Dienststart-Karte: Icon-Kachel und Ort.
                     Button(action: oeffnen) {
                         HStack(spacing: 20) {
@@ -674,4 +708,9 @@ private struct OrtIcon: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .allowsHitTesting(false)
     }
+}
+
+/// Treffpunkt in der offenen Anfrage nur, wenn sie den Dienststart betrifft (nicht bei "nur Dienstende").
+func ortInAnfrage(_ a: DienstAnfrage) -> Bool {
+    a.treffpunkt?.hatOrt == true && AnfrageZeile.zeilen(a).contains { $0.art == .start }
 }

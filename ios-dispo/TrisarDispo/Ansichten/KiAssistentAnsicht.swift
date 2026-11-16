@@ -20,10 +20,14 @@ struct KiAssistentAnsicht: View {
     @State private var bearbeiteteID: String?
     @State private var kopierteID: String?
     @State private var sendet = false
+    /// sendetRef: sofort gesetzte Sperre (nicht erst beim naechsten Zeichnen wie @State).
+    @State private var sperre = KiSendeSperre()
     /// Vorschlag, der gerade im Fahrtformular angepasst wird.
     @State private var formular: KiFormular?
     @FocusState private var fokussiert: Bool
     @State private var live = KiAssistentLive()
+    /// Voice-Modus (13.11.): schwarzer Vollbild-Dialog ueber dem Chat, Navileiste aus.
+    @State private var sprachModus = false
     @ObservedObject private var markierung = FahrerMarkierung.geteilt
 
     /// DENKZEIT_MS: so lange denkt der Assistent mindestens nach.
@@ -36,8 +40,8 @@ struct KiAssistentAnsicht: View {
             DispoHintergrund().ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // CHAT_TOP = 60 + 50 + 30
-                Color.clear.frame(height: 140)
+                // CHAT_TOP = 60 + 50 + 30, dazu der Umschalter Regeln/Frei (28).
+                Color.clear.frame(height: 168)
                 verlauf
                 Color.clear.frame(height: 12) // COMPOSER_GAP
                 // Vermerk "3 Fahrer markiert" sitzt ueber der Eingabe, der Verlauf endet darueber.
@@ -56,7 +60,7 @@ struct KiAssistentAnsicht: View {
                 .frame(maxWidth: .infinity, alignment: .top)
                 .ignoresSafeArea(.container)
 
-            if !fokussiert {
+            if !fokussiert && !sprachModus {
                 Navileiste(aktiv: .kiAssistent, waehlen: zeigen)
                     .ignoresSafeArea(.keyboard)
             }
@@ -73,6 +77,18 @@ struct KiAssistentAnsicht: View {
                                      nachAnlegen: { fahrtID in formularGebucht(formular, fahrtID, aenderung: v.fahrtUUID != nil) },
                                      anpassen: v.fahrtUUID == nil ? nil : { v.aenderung(auf: $0) })
                     .zIndex(3)
+            }
+
+            // Offenes Formular (fehlende Pflichtfelder) geht vor: Sprachmodus dann ganz weg (hoert und spricht nicht),
+            // nach dem Schliessen kommt er frisch wieder (sprachModus && !formular im Web).
+            if sprachModus && formular == nil {
+                let sv = sprachVorschlag
+                SprachModusAnsicht(senden: stimmeSenden, ja: stimmeJa, nein: stimmeNein,
+                                   schliessen: { sprachModus = false },
+                                   vorschlag: sv.map { AnyView(vorschlaege($0, imSprachModus: true)) },
+                                   vorschlagId: sv?.id,
+                                   vorschlagOffen: istOffen(sv))
+                    .zIndex(4)
             }
         }
         .frame(maxWidth: 402)
@@ -99,6 +115,7 @@ struct KiAssistentAnsicht: View {
         }
         .frame(height: 50)
         .padding(.top, 60)
+        .overlay(alignment: .bottom) { KiModusSchalter().offset(y: 32) }
     }
 
     // MARK: Verlauf
@@ -148,12 +165,18 @@ struct KiAssistentAnsicht: View {
             VStack(alignment: .leading, spacing: 0) {
                 assistentBlase(n)
                 if let tag = n.stoerungTag { neuplanungLink(tag) }
-                if let vorschlag = n.bookingProposal { buchung(n, vorschlag) }
-                ForEach(n.karten ?? []) { k in karte(n, k) }
-                if let d = n.dienstVorschlag { dienst(n, d) }
+                vorschlaege(n)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// vorschlaegeVon: Vorschlaege einer Antwort (Fahrt, weitere Karten, Dienst) mit ihren Knoepfen.
+    /// Gleich im Chat und im Voice-Modus. Im Voice-Modus oeffnet Antippen der Karte kein Formular.
+    @ViewBuilder private func vorschlaege(_ n: KiNachricht, imSprachModus: Bool = false) -> some View {
+        if let vorschlag = n.bookingProposal { buchung(n, vorschlag, imSprachModus: imSprachModus) }
+        ForEach(n.karten ?? []) { k in karte(n, k, imSprachModus: imSprachModus) }
+        if let d = n.dienstVorschlag { dienst(n, d) }
     }
 
     private func nutzerBlase(_ n: KiNachricht) -> some View {
@@ -240,9 +263,9 @@ struct KiAssistentAnsicht: View {
         .padding(.top, 12 + 8)
     }
 
-    @ViewBuilder private func buchung(_ n: KiNachricht, _ v: KiBuchungsVorschlag) -> some View {
+    @ViewBuilder private func buchung(_ n: KiNachricht, _ v: KiBuchungsVorschlag, imSprachModus: Bool = false) -> some View {
         VStack(spacing: 0) {
-            if n.bookingStatus == "pending" {
+            if n.bookingStatus == "pending" && !imSprachModus {
                 Button { formular = KiFormular(nachricht: n.id, vorschlag: v) } label: { KiBuchungsKarte(vorschlag: v) }
                     .buttonStyle(.web)
             } else {
@@ -293,7 +316,7 @@ struct KiAssistentAnsicht: View {
     }
 
     /// Weitere Karte (Fahrt oder Standby): Antippen oeffnet das Formular, eigener Status je Karte.
-    @ViewBuilder private func karte(_ n: KiNachricht, _ k: KiKarte) -> some View {
+    @ViewBuilder private func karte(_ n: KiNachricht, _ k: KiKarte, imSprachModus: Bool = false) -> some View {
         VStack(spacing: 0) {
             if k.istAnlegen {
                 // Neuer Fahrer / neues Fahrzeug: Antippen klappt die Felder zum Bearbeiten auf.
@@ -317,7 +340,7 @@ struct KiAssistentAnsicht: View {
                     }
                 }
                 .contentShape(Rectangle())
-                .onTapGesture { if k.status == "pending" { karteOeffnen(n.id, k) } }
+                .onTapGesture { if k.status == "pending" && !imSprachModus { karteOeffnen(n.id, k) } }
             }
             switch k.status {
             case "pending":
@@ -475,13 +498,17 @@ struct KiAssistentAnsicht: View {
         if let i = nachrichten.firstIndex(where: { $0.id == id }) { aendern(&nachrichten[i]) }
     }
 
-    private func dienstSenden(_ id: String, _ d: DienstVorschlag) async {
+    /// Gibt den Text fuer den Voice-Modus zurueck (handleDienstSenden im Web).
+    @discardableResult
+    private func dienstSenden(_ id: String, _ d: DienstVorschlag) async -> String {
         dienstSetzen(id) { $0.dienstStatus = "sendet"; $0.dienstFehler = nil }
         do {
             let anzahl = try await DienstSenden.senden(d)
             dienstSetzen(id) { $0.dienstStatus = "gesendet"; $0.dienstAnzahl = anzahl }
+            return "Gesendet."
         } catch {
             dienstSetzen(id) { $0.dienstStatus = "offen"; $0.dienstFehler = error.localizedDescription }
+            return "Das hat nicht geklappt. \(error.localizedDescription)".trimmingCharacters(in: .whitespaces)
         }
     }
 
@@ -506,9 +533,17 @@ struct KiAssistentAnsicht: View {
                 .background(RoundedRectangle(cornerRadius: 20).fill(Color(hex: 0x242425)))
                 .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color(hex: 0x3F3F46), lineWidth: 1))
                 // Enter macht eine neue Zeile wie im Web, gesendet wird mit dem Pfeil.
-            KiAktionen(bearbeitet: bearbeiteteID != nil, sendenAktiv: hatEingabe && !sendet,
-                       abbrechen: { bearbeiteteID = nil; eingabe = "" },
-                       senden: senden)
+            // Leeres Feld und nichts in Bearbeitung: Sprechen-Knopf statt Senden-Pfeil.
+            if !hatEingabe && bearbeiteteID == nil {
+                SprechenKnopf {
+                    fokussiert = false
+                    sprachModus = true
+                }
+            } else {
+                KiAktionen(bearbeitet: bearbeiteteID != nil, sendenAktiv: hatEingabe && !sendet,
+                           abbrechen: { bearbeiteteID = nil; eingabe = "" },
+                           senden: { Task { await senden() } })
+            }
         }
         .frame(width: 362)
         .background(Color.black.opacity(0.6))
@@ -517,9 +552,14 @@ struct KiAssistentAnsicht: View {
 
     // MARK: Ablauf (handleSend, handleCopyMessage, handleBookingConfirm)
 
-    private func senden() {
-        let text = eingabe.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !sendet else { return }
+    /// handleSend(vorgabe, { stimme }): vorgabe = Text aus dem Voice-Modus, sonst das Eingabefeld.
+    /// Gibt die fertige Antwort zurueck. Im Voice-Modus ohne Mindest-Denkzeit.
+    @discardableResult
+    private func senden(_ vorgabe: String? = nil, stimme: Bool = false) async -> KiNachricht? {
+        let text = (vorgabe ?? eingabe).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !sendet, !sperre.an else { return nil }
+        sperre.an = true
+        defer { sperre.an = false }
         let jetzt = KiNachricht.uhrzeit()
         let ms = Int(Date().timeIntervalSince1970 * 1000)
         var quelle = nachrichten
@@ -541,16 +581,16 @@ struct KiAssistentAnsicht: View {
 
         let offen = quelle.last { $0.bookingStatus == "pending" }?.bookingProposal
         let letzteFahrtID = quelle.last { $0.bookingRideId != nil }?.bookingRideId
-        Task {
+        do {
             let beginn = Date()
             let ergebnis: Result<KiAssistentDienst.Antwort, Error>
             do {
                 ergebnis = .success(try await KiAssistentDienst.fragen(text, verlauf: verlauf, offenerVorschlag: offen,
                                                                        letzteFahrtId: letzteFahrtID, karten: true))
             } catch { ergebnis = .failure(error) }
-            let rest = Self.denkzeit - Date().timeIntervalSince(beginn)
+            let rest = (stimme ? 0 : Self.denkzeit) - Date().timeIntervalSince(beginn)
             if rest > 0 { try? await Task.sleep(for: .seconds(rest)) }
-            guard let i = nachrichten.firstIndex(where: { $0.id == wartendID }) else { sendet = false; return }
+            guard let i = nachrichten.firstIndex(where: { $0.id == wartendID }) else { sendet = false; return nil }
             switch ergebnis {
             case .success(let antwort):
                 // Ein neuer Vorschlag loest den alten ab, damit nur einer bestaetigt werden kann.
@@ -572,6 +612,7 @@ struct KiAssistentAnsicht: View {
             nachrichten[i].pending = nil
             nachrichten[i].time = KiNachricht.uhrzeit()
             sendet = false
+            return nachrichten[i]
         }
     }
 
@@ -609,10 +650,13 @@ struct KiAssistentAnsicht: View {
         hinweis(aenderung ? "Änderung gespeichert." : "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
     }
 
-    private func buchen(_ id: String, _ v: KiBuchungsVorschlag) async {
+    /// Gibt den Hinweis-Text fuer den Voice-Modus zurueck (handleBookingConfirm im Web).
+    @discardableResult
+    private func buchen(_ id: String, _ v: KiBuchungsVorschlag) async -> String {
         guard v.hatPflichtfelder else {
-            hinweis("Für diese Buchung fehlen noch Pflichtfelder (Start, Ziel oder Zeit).", "msg-ai-booking-error")
-            return
+            let t = "Für diese Buchung fehlen noch Pflichtfelder (Start, Ziel oder Zeit)."
+            hinweis(t, "msg-ai-booking-error")
+            return t
         }
         setzeStatus(id, "saving")
         do {
@@ -623,13 +667,106 @@ struct KiAssistentAnsicht: View {
                 let t = (fahrtID ?? "").trimmingCharacters(in: .whitespaces)
                 nachrichten[i].bookingRideId = t.isEmpty ? nil : t
             }
-            hinweis(v.fahrtId != nil ? "Änderung gespeichert." : "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert.", "msg-ai-booked")
+            let t = v.fahrtId != nil ? "Änderung gespeichert." : "Fahrt wurde gebucht. In Alle Fahrten ist sie jetzt mit KI-Badge markiert."
+            hinweis(t, "msg-ai-booked")
+            return t
         } catch {
             setzeStatus(id, "pending")
             let meldung = error.localizedDescription.isEmpty ? "Unbekannter Fehler" : error.localizedDescription
             hinweis("Buchung fehlgeschlagen: \(meldung)", "msg-ai-booking-failed")
+            return "Buchung fehlgeschlagen: \(meldung)"
         }
     }
+
+    // MARK: Voice-Modus (13.11.)
+    // Die Sprache laeuft durch denselben Chat wie getippte Nachrichten, alles bleibt im Verlauf.
+
+    private func offeneKarten(_ m: KiNachricht?) -> [KiKarte] { (m?.karten ?? []).filter { $0.status == "pending" } }
+
+    /// istOffen: wartet in dieser Antwort noch etwas auf Bestaetigung (Fahrt, Dienst oder weitere Karte)?
+    private func istOffen(_ m: KiNachricht?) -> Bool {
+        guard let m else { return false }
+        return (m.bookingStatus == "pending" && m.bookingProposal != nil)
+            || (m.dienstStatus == "offen" && m.dienstVorschlag != nil)
+            || !offeneKarten(m).isEmpty
+    }
+
+    /// fuerStimme: Was wartet nach dieser Antwort auf ein „ja“? Karten bestaetigt die App selbst (lokal),
+    /// sie stehen im Voice-Modus wie im Chat mit ihren Knoepfen. Rueckfragen des Servers
+    /// („Mit „ja“ sende ich sie.“) gehen als Text an den Server.
+    private func fuerStimme(_ n: KiNachricht?) -> SprachAntwort {
+        guard let n else { return SprachAntwort(text: "Das hat nicht geklappt. Sag es bitte noch einmal.") }
+        var text = n.text
+        var offen: SprachOffen?
+        if istOffen(n) {
+            // Ganzer Antworttext auf der Karte (vorher fehlte er bei Vorschlaegen ganz).
+            offen = SprachOffen(lokal: true, titel: n.text.trimmingCharacters(in: .whitespacesAndNewlines), id: n.id)
+            let frage = n.dienstStatus == "offen" ? "Soll ich das senden?" : "Soll ich das so machen?"
+            if text.range(of: #"\?\s*$"#, options: .regularExpression) == nil { text = "\(text) \(frage)" }
+        } else if text.range(of: #"„ja“|"ja"|\bmit ja\b"#, options: [.regularExpression, .caseInsensitive]) != nil
+                    || text.range(of: #"\?\s*$"#, options: .regularExpression) != nil {
+            // Ganzer Text, nicht nur die ersten 80 Zeichen (war abgeschnitten).
+            offen = SprachOffen(lokal: false, titel: text.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return SprachAntwort(text: text, offen: offen)
+    }
+
+    /// Laeuft noch eine Anfrage, kurz warten (alle 100 ms, hoechstens 60 s) statt sie zu verwerfen.
+    private func stimmeSenden(_ satz: String) async -> SprachAntwort {
+        var i = 0
+        while i < 600 && (sperre.an || sendet) {
+            try? await Task.sleep(for: .milliseconds(100))
+            i += 1
+        }
+        return fuerStimme(await senden(satz, stimme: true))
+    }
+
+    private func letzteOffene() -> KiNachricht? {
+        nachrichten.last { istOffen($0) }
+    }
+
+    /// Juengste Antwort mit Vorschlaegen fuer den Voice-Modus (auch nach dem Bestaetigen, damit man das Ergebnis sieht).
+    private var sprachVorschlag: KiNachricht? {
+        nachrichten.last { $0.role == "assistant" && $0.pending != true
+            && ($0.bookingProposal != nil || $0.dienstVorschlag != nil || !($0.karten ?? []).isEmpty) }
+    }
+
+    /// „ja“ bestaetigt alles, was in der Antwort noch wartet: Dienst, Fahrt und jede offene Karte.
+    private func stimmeJa() async -> SprachAntwort {
+        guard let m = letzteOffene() else { return SprachAntwort(text: "Da wartet nichts mehr.") }
+        if m.dienstStatus == "offen", m.dienstVorschlag?.nurKnopf == true {
+            return SprachAntwort(text: "Hier ist jemand ausgenommen. Prüf bitte die Fahrer und tipp auf Senden.")
+        }
+        var texte: [String] = []
+        if m.dienstStatus == "offen", let d = m.dienstVorschlag { texte.append(await dienstSenden(m.id, d)) }
+        if m.bookingStatus == "pending", let v = m.bookingProposal { texte.append(await buchen(m.id, v)) }
+        let karten = offeneKarten(m)
+        for k in karten { await karteBuchen(m.id, k) }
+        if !karten.isEmpty && texte.isEmpty { texte.append("Erledigt.") }
+        let text = texte.filter { !$0.isEmpty }.joined(separator: " ")
+        return SprachAntwort(text: text.isEmpty ? "Erledigt." : text)
+    }
+
+    /// „nein“ verwirft alles, was in der Antwort noch wartet.
+    private func stimmeNein() async -> SprachAntwort {
+        if let m = letzteOffene() {
+            if m.bookingStatus == "pending" { setzeStatus(m.id, "cancelled") }
+            dienstSetzen(m.id) { x in
+                if x.dienstStatus == "offen" { x.dienstStatus = "verworfen" }
+                x.karten = x.karten?.map { k in
+                    var k = k
+                    if k.status == "pending" { k.status = "cancelled" }
+                    return k
+                }
+            }
+        }
+        return SprachAntwort(text: "Okay, verworfen.")
+    }
+}
+
+/// Haelt die Sende-Sperre als Referenz, damit sie sofort fuer alle Aufrufe gilt.
+@MainActor private final class KiSendeSperre {
+    var an = false
 }
 
 private struct KiFormular {
@@ -1080,5 +1217,29 @@ private struct KiSymbolStift: View {
                 k.stroke(q, with: .foreground, lineWidth: 2 * s)
             }
         }
+    }
+}
+
+
+/// Zwei Felder "Regeln | Frei", Lime-Rahmen, aktives Feld gefuellt (Entwurf 13.11.).
+struct KiModusSchalter: View {
+    @AppStorage(KiModus.schluessel) private var modus = "frei"
+    var body: some View {
+        HStack(spacing: 0) {
+            feld("regeln", "Regeln")
+            feld("frei", "Frei")
+        }
+        .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2))
+    }
+    private func feld(_ wert: String, _ text: String) -> some View {
+        let an = (modus == "regeln" ? "regeln" : "frei") == wert
+        return Button { modus = wert } label: {
+            Text(text).font(.grotesk(12, .medium))
+                .foregroundStyle(an ? Color(hex: 0x0E1008) : Color(hex: 0xE3F654))
+                .padding(.horizontal, 14).frame(height: 24)
+                .background(an ? Color(hex: 0xE3F654) : .clear)
+        }
+        .buttonStyle(.web)
+        .accessibilityAddTraits(an ? .isSelected : [])
     }
 }

@@ -219,7 +219,7 @@ object PushArten {
         Gruppe("fahrten", "Neue, geänderte und stornierte Fahrten",
             listOf("fahrt_neu", "fahrt_geaendert", "fahrt_storniert", "fahrt_entzogen", "gaeste_geaendert", "fahrt_fahrzeug")),
         Gruppe("flug", "Flug und Zug (Verspätung, Landung)",
-            listOf("flug_zeit", "flug_gelandet", "flug_annulliert", "flug_umgeleitet", "zug_zeit")),
+            listOf("flug_zeit", "flug_gelandet", "flug_annulliert", "flug_umgeleitet", "zug_zeit", "reise_verspaetung", "reise_gleis")),
         Gruppe("chat", "Kolonnen-Chat", listOf("chat")),
         Gruppe("notiz", "Notizen zur Fahrt", listOf("notiz")),
         Gruppe("dienst", "Dienstplan", listOf("dienst_neu", "dienst_geaendert", "dienst_zurueck")),

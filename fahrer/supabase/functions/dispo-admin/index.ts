@@ -8,6 +8,9 @@ import { kiFrage } from './ki.ts';
 import { anlegenAusKarte } from './anlegen.ts';
 import { dienstSenden } from './dienst.ts';
 import { stundenExport } from './stunden.ts';
+import { ticketLesen } from './ticket.ts';
+import { walletPass } from './wallet.ts';
+import { abschnittLinien } from './linie.ts';
 import { NAME_MUSTER, PLATZHALTER_DOMAIN, fehlerText, istPlatzhalter, kontoAnlegen, kontoLoeschen } from './konto.ts';
 
 const DISPO_ROLLEN = new Set(['dispo', 'dispatcher', 'admin', 'koordinator', 'coordinator']);
@@ -35,6 +38,14 @@ Deno.serve(async (req) => {
     });
 
     const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+    // Linien der Dienstreise-Abschnitte (linie.ts): nur vom Datenbank-Trigger mit dem service_role-Schluessel.
+    const diensteSchluessel = [serviceKey, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')].filter(Boolean);
+    if (token && diensteSchluessel.includes(token)) {
+      const body = await req.json().catch(() => ({}));
+      if (body?.aktion !== 'abschnitt_linie') return jsonResponse(400, { error: 'unbekannte_aktion' });
+      const { status, daten } = await abschnittLinien(admin, body);
+      return jsonResponse(status, daten);
+    }
     const { data: aufrufer, error: aufruferFehler } = await admin.auth.getUser(token);
     if (aufruferFehler || !aufrufer?.user) {
       return jsonResponse(401, { error: 'not_signed_in' });
@@ -45,11 +56,23 @@ Deno.serve(async (req) => {
       .eq('id', aufrufer.user.id)
       .maybeSingle();
     const istDispo = profil?.is_dispo === true || DISPO_ROLLEN.has(String(profil?.role || '').toLowerCase());
+    const body = await req.json().catch(() => ({}));
+
+    // Wallet-Pass zur Dienstreise: auch fuer Fahrer (wallet.ts prueft, ob er auf der Dienstreise steht).
+    if (body?.aktion === 'wallet_pass') {
+      const { status, daten } = await walletPass(admin, aufrufer.user.id, istDispo, body);
+      return jsonResponse(status, daten);
+    }
+
     if (!istDispo) {
       return jsonResponse(403, { error: 'not_dispo' });
     }
 
-    const body = await req.json().catch(() => ({}));
+    // Dienstreise: Ticket (PDF im Speicher dienstreise-tickets) lesen und Felder vorschlagen (siehe ticket.ts).
+    if (body?.aktion === 'ticket_lesen') {
+      const { status, daten } = await ticketLesen(admin, body);
+      return jsonResponse(status, daten);
+    }
 
     // Stundenerfassung: Excel-Export (siehe stunden.ts).
     if (body?.aktion === 'stunden_export') {

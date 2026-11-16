@@ -296,8 +296,8 @@ object FahrerOrtung {
     internal fun neuePosition(ort: Location) {
         // Erst senden, wenn das Profil sagt, dass das Handy ortet (nicht OBD).
         if (fahrerID == null || !profilGeladen.value || nutztOBD.value) return
-        // Grobe oder veraltete Punkte nicht senden (z.B. erster Punkt aus dem Funkzellen-Cache).
-        if (!ort.hasAccuracy() || ort.accuracy > 100) return
+        // Jeden Punkt senden, auch ungenaue (im Zug oft ueber 100 m, 14.11.). Die Genauigkeit geht mit.
+        // Nur veraltete Punkte (z.B. erster Punkt aus dem Funkzellen-Cache) nicht.
         if (kotlin.math.abs(System.currentTimeMillis() - ort.time) > 60_000) return
         letzteGutePosition = ort
 

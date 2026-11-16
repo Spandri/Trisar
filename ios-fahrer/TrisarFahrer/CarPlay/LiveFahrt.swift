@@ -9,6 +9,10 @@ import Foundation
 final class LiveFahrt {
     static let shared = LiveFahrt()
     private var abo: AnyCancellable?
+    /// true, solange eine Fahrt ausgewaehlt ist. Dann hat die Fahrt Vorrang vor der Dienstreise (LiveDienstreise).
+    /// Seit 15.11.: eine laufende Dienstreise (vor der letzten Ankunft) verdraengt eine nur angenommene Fahrt,
+    /// erst eine Fahrt beim Gast oder unterwegs nimmt ihr den Platz.
+    private(set) var hatFahrt = false
 
     func beobachten(_ speicher: FahrtenSpeicher) {
         guard abo == nil else { return }
@@ -34,7 +38,13 @@ final class LiveFahrt {
 
     private func abgleichen(_ fahrten: [Fahrt]) {
         let vorhanden = Activity<FahrtAktivitaet>.activities
-        guard let fahrt = Self.auswaehlen(fahrten) else {
+        let gewaehlt = Self.auswaehlen(fahrten)
+        if hatFahrt != (gewaehlt != nil) {
+            hatFahrt = gewaehlt != nil
+            // Nur eine Aktivitaet gleichzeitig: Dienstreise beenden bzw. wieder zulassen.
+            LiveDienstreise.shared.abgleichen()
+        }
+        guard let fahrt = gewaehlt else {
             for a in vorhanden { Task { await a.end(nil, dismissalPolicy: .immediate) } }
             return
         }
@@ -64,6 +74,8 @@ final class LiveFahrt {
     private static func auswaehlen(_ fahrten: [Fahrt]) -> Fahrt? {
         let sortiert = fahrten.sorted { ($0.fahrtDatum, $0.etd) < ($1.fahrtDatum, $1.etd) }
         if let aktiv = sortiert.first(where: { CarPlaySzene.unterwegs($0) || CarPlaySzene.beimGast($0) }) { return aktiv }
+        // Laufende Dienstreise geht vor der naechsten Fahrt (15.11., Pilot: Reise wurde 2 h vor der Fahrt ueberschrieben).
+        if LiveDienstreise.shared.reiseUnterwegs { return nil }
         let jetzt = Date()
         return sortiert.first { f in
             guard !f.wartetAufAntwort, let plan = planzeit(f) else { return false }

@@ -302,6 +302,15 @@ struct HeuteStundenKarte: View {
     @State private var busy = false
     @State private var fehler: String?
     @FocusState private var fokus: Bool
+    /// Gerade angetippte Zeit: oeffnet das Zeitrad als Blatt (statt unsichtbarem DatePicker, der
+    /// wegen des Sekundentakts der Karte keine Tipps annahm).
+    @State private var zeitWahl: ZeitWahl?
+
+    private struct ZeitWahl: Identifiable {
+        let id = UUID()
+        let wert: Date
+        let setzen: (Date) -> Void
+    }
 
     private let gruen = Color(hex: 0x59BE80)
     private let rotKnopf = Color(hex: 0xFF6F63)
@@ -317,6 +326,11 @@ struct HeuteStundenKarte: View {
             if startetBearbeitet, werte == nil, let s0 = Stunden.heute(eintrag) {
                 werte = Werte(start: s0.start, ende: s0.ende ?? s0.start, pausen: s0.pausen.map { ($0.von, $0.bis ?? s0.ende ?? $0.von) })
             }
+        }
+        .sheet(item: $zeitWahl) { w in
+            StundenZeitRad(start: w.wert, setzen: w.setzen) { zeitWahl = nil }
+                .presentationDetents([.height(320)])
+                .presentationDragIndicator(.visible)
         }
         .fullScreenCover(isPresented: $zeigeVollbild) {
             ZStack(alignment: .topLeading) {
@@ -518,15 +532,12 @@ struct HeuteStundenKarte: View {
     /// Zeit im Kasten, antippen oeffnet die Uhrzeit-Auswahl (unsichtbarer DatePicker darueber).
     private func zeitFeld(_ wert: Date, gross: Bool = false, setzen: @escaping (Date) -> Void) -> AnyView {
         AnyView(
-            Text(Stunden.uhr(wert)).grotesk(gross ? 22 : 17, .bold, abstand: -0.5)
-                .overlay {
-                    DatePicker("", selection: Binding(get: { wert }, set: setzen), displayedComponents: .hourAndMinute)
-                        .labelsHidden()
-                        .environment(\.timeZone, Stunden.berlin)
-                        .blendMode(.destinationOver)
-                        .opacity(0.02)
-                        .scaleEffect(1.2)
-                }
+            Button { fokus = false; zeitWahl = ZeitWahl(wert: wert, setzen: setzen) } label: {
+                Text(Stunden.uhr(wert)).grotesk(gross ? 22 : 17, .bold, abstand: -0.5)
+                    .frame(width: 78, height: gross ? 60 : 34)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         )
     }
 
@@ -804,5 +815,39 @@ struct StundenBearbeitenAnsicht: View {
             busy = false
             fehler = "Speichern fehlgeschlagen: \(error.localizedDescription)"
         }
+    }
+}
+
+
+/// Zeitrad fuer "Stunden bearbeiten": Rad in Berliner Zeit, jede Drehung gilt sofort, "Fertig" schliesst.
+private struct StundenZeitRad: View {
+    @State var wert: Date
+    let setzen: (Date) -> Void
+    let fertig: () -> Void
+
+    init(start: Date, setzen: @escaping (Date) -> Void, fertig: @escaping () -> Void) {
+        _wert = State(initialValue: start)
+        self.setzen = setzen
+        self.fertig = fertig
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            DatePicker("", selection: $wert, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel).labelsHidden()
+                .environment(\.timeZone, Stunden.berlin)
+                .environment(\.locale, Locale(identifier: "de_DE"))
+                .colorScheme(.dark)
+                .onChange(of: wert) { _, neu in setzen(neu) }
+            Button(action: fertig) {
+                Text("Fertig").grotesk(16, .bold, abstand: -0.5).foregroundStyle(.black)
+                    .frame(width: 362, height: 56)
+                    .background(Color(hex: 0xE3F654))
+            }
+            .buttonStyle(.web)
+        }
+        .padding(.top, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(hex: 0x1A1A1A).ignoresSafeArea())
     }
 }

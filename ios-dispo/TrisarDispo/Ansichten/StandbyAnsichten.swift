@@ -7,15 +7,19 @@ import SwiftUI
 private let reiheSchritt: CGFloat = 68
 private let reiheHoehe: CGFloat = 56
 
-/// „Fahrt | Standby“ oben mittig zwischen Zurueck und Import.
+/// „Fahrt | Standby | Dienstreise“ oben mittig zwischen Zurueck und Import.
 struct ArtUmschalter: View {
-    let standby: Bool
+    enum Art { case fahrt, standby, dienstreise }
+    let art: Art
     let fahrt: () -> Void
     let zumStandby: () -> Void
+    let zurDienstreise: () -> Void
     var body: some View {
+        // Drei Knoepfe muessen zwischen Zurueck (links) und Import (rechts) passen: Padding 10, Schrift 14.
         HStack(spacing: 0) {
-            knopf("Fahrt", an: !standby, fahrt)
-            knopf("Standby", an: standby, zumStandby)
+            knopf("Fahrt", an: art == .fahrt, fahrt)
+            knopf("Standby", an: art == .standby, zumStandby)
+            knopf("Dienstreise", an: art == .dienstreise, zurDienstreise)
         }
         .overlay(Rectangle().strokeBorder(formularLime, lineWidth: 2))
         .fixedSize()
@@ -24,9 +28,9 @@ struct ArtUmschalter: View {
     }
     private func knopf(_ text: String, an: Bool, _ aktion: @escaping () -> Void) -> some View {
         Button(action: aktion) {
-            Text(text).font(.grotesk(15, .bold)).foregroundStyle(an ? .black : formularLime)
+            Text(text).font(.grotesk(14, .bold)).foregroundStyle(an ? .black : formularLime)
                 .lineLimit(1).fixedSize()
-                .padding(.horizontal, 16).frame(height: 36)
+                .padding(.horizontal, 10).frame(height: 36)
                 .background(an ? formularLime : .clear)
         }
         .buttonStyle(.web)
@@ -36,7 +40,7 @@ struct ArtUmschalter: View {
 // MARK: - Gemeinsame Bausteine
 
 /// Datum als Zeile mit Kalender (wie das Datumsfeld in Fahrt hinzufuegen).
-private struct DatumZeile: View {
+struct DatumZeile: View {
     @Binding var wert: String
     @State private var offen = false
     var body: some View {
@@ -64,7 +68,7 @@ private struct DatumZeile: View {
 }
 
 /// Uhrzeit als Zeile mit Drehrad.
-private struct UhrZeile: View {
+struct UhrZeile: View {
     let beschriftung: String
     @Binding var wert: String
     @State private var offen = false
@@ -96,7 +100,7 @@ private struct UhrZeile: View {
 }
 
 /// Notizen wie in Fahrt hinzufuegen: graue Flaeche, weisses Feld.
-private struct NotizBlock: View {
+struct NotizBlock: View {
     @Binding var text: String
     var fokus: FocusState<String?>.Binding
     var body: some View {
@@ -128,12 +132,12 @@ private struct NotizBlock: View {
     }
 }
 
-private func fahrerBeschriftung(_ i: Int, _ anzahl: Int) -> String {
+func fahrerBeschriftung(_ i: Int, _ anzahl: Int) -> String {
     anzahl > 1 ? FahrtText.tr("fahrt.fahrerNumbered", ["n": "\(i + 1)"]) : FahrtText.tr("fahrt.fahrer")
 }
 
 /// Vorschlaege wie das datalist im Web.
-private func fahrerTreffer(_ wert: String, _ liste: [String]) -> [String] {
+func fahrerTreffer(_ wert: String, _ liste: [String]) -> [String] {
     let suche = FahrtText.vergleichbar(wert)
     if suche.isEmpty { return [] }
     let treffer = liste.filter { FahrtText.vergleichbar($0).contains(suche) }
@@ -142,7 +146,7 @@ private func fahrerTreffer(_ wert: String, _ liste: [String]) -> [String] {
 }
 
 /// Leere Fahrerzeile immer am Ende.
-private func fahrerZeilen(_ namen: [String]) -> [String] {
+func fahrerZeilen(_ namen: [String]) -> [String] {
     namen.filter { !FahrtText.getrimmt($0).isEmpty } + [""]
 }
 
@@ -151,16 +155,20 @@ private func fahrerZeilen(_ namen: [String]) -> [String] {
 struct StandbyFormularAnsicht: View {
     let zurueck: () -> Void
     let zuFahrt: () -> Void
+    /// Dritter Reiter „Dienstreise“ (ArtUmschalter).
+    var zurDienstreise: () -> Void = {}
     let zeigen: (DispoZiel) -> Void
     /// Standby-Karte des KI-Assistenten zum Bearbeiten (StandbyAdd.jsx vorlage). Ohne Umschalter Fahrt/Standby.
     let vorlage: KiStandbyVorschlag?
     /// Nach dem Senden statt in die Fahrtenliste (onGesendet im Web).
     let gesendet: ((UUID) -> Void)?
 
-    init(zurueck: @escaping () -> Void, zuFahrt: @escaping () -> Void, zeigen: @escaping (DispoZiel) -> Void,
+    init(zurueck: @escaping () -> Void, zuFahrt: @escaping () -> Void, zurDienstreise: @escaping () -> Void = {},
+         zeigen: @escaping (DispoZiel) -> Void,
          vorlage: KiStandbyVorschlag? = nil, gesendet: ((UUID) -> Void)? = nil) {
         self.zurueck = zurueck
         self.zuFahrt = zuFahrt
+        self.zurDienstreise = zurDienstreise
         self.zeigen = zeigen
         self.vorlage = vorlage
         self.gesendet = gesendet
@@ -205,7 +213,7 @@ struct StandbyFormularAnsicht: View {
                     DispoHintergrund().frame(width: 402, height: hoehe + 151)
                     ZurueckKnopf(aktion: zurueck).platz(20, 60, 50, 50)
                     if vorlage == nil {
-                        ArtUmschalter(standby: true, fahrt: zuFahrt, zumStandby: {}).platz(0, 67, 402, 36)
+                        ArtUmschalter(art: .standby, fahrt: zuFahrt, zumStandby: {}, zurDienstreise: zurDienstreise).platz(0, 67, 402, 36)
                     }
                     Text("Standby").font(.grotesk(42, .bold)).foregroundStyle(formularLime).platz(20, 140, 362, 42)
 

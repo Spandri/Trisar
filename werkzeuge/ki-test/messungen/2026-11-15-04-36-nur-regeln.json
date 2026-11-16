@@ -1,0 +1,3468 @@
+{
+  "argumente": [
+    "--modell=qwen2.5:14b",
+    "--ollama=http://100.121.170.114:11434",
+    "--etikett=nur-regeln"
+  ],
+  "gesamt": 163839,
+  "schritte": [
+    {
+      "zeile": "OK   Stundenlohn Stundenlohn fuer alle, dann ja (1)  0.0 s",
+      "ok": true,
+      "ms": 98,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Stundenlohn Stundenlohn fuer alle, dann ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Stundenlohn Stundenlohn fuer einen, dann nein (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Stundenlohn Stundenlohn fuer einen, dann nein (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Stundenlohn Stundenlohn ohne Betrag fragt nach  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Stundenlohn Stundenlohn absurd hoch wird abgelehnt  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrer anlegen, dann ja (1)  0.0 s",
+      "ok": true,
+      "ms": 4,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrer anlegen, dann ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrer anlegen, Benutzername nachreichen, nein (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrer anlegen, Benutzername nachreichen, nein (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrer anlegen, Benutzername nachreichen, nein (3)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrernummer schon vergeben  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrer ohne Nachnamen fragt nach  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Frage nach neuen Fahrern legt nichts an  17.4 s",
+      "ok": true,
+      "ms": 17403,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 125,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_generate",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 17259,
+          "ok": true,
+          "promptZeichen": 3287,
+          "numCtx": 4096,
+          "load_ms": 5,
+          "prompt_tokens": 1157,
+          "prompt_ms": 11426,
+          "eval_tokens": 45,
+          "eval_ms": 4357,
+          "total_ms": 17230
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrzeug anlegen, Sitze aendern, ja (1)  0.0 s",
+      "ok": true,
+      "ms": 3,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrzeug anlegen, Sitze aendern, ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrzeug anlegen, Sitze aendern, ja (3)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Fahrzeug Kurzform  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Anlegen   Kennzeichen schon vergeben  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Standby   Fahrt mit Standby davor, dann ja (1)  0.0 s",
+      "ok": true,
+      "ms": 33,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 23,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Standby   Fahrt mit Standby davor, dann ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Standby   Standby ohne Fahrer fragt nach (1)  0.0 s",
+      "ok": true,
+      "ms": 22,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 18,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Standby   Standby ohne Fahrer fragt nach (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Standby   Standby ohne Fahrer fragt nach (3)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Standby   Standby wie getippt mit Flug  0.0 s",
+      "ok": true,
+      "ms": 16,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 13,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Standby   Standby mit eigener Endzeit  0.0 s",
+      "ok": true,
+      "ms": 15,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 13,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Karten    Karten: Fahrt und Standby  0.0 s",
+      "ok": true,
+      "ms": 15,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 13,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Karten    Karten: Standby ohne Fahrer  0.0 s",
+      "ok": true,
+      "ms": 25,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 23,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Karten    Karten: zwei Fahrten in einer Nachricht  0.0 s",
+      "ok": true,
+      "ms": 25,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 22,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Karten    Karten: zwei Zeilen mit Standby  0.0 s",
+      "ok": true,
+      "ms": 17,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Karten    Ohne Karten bleibt eine Nachricht ganz  0.0 s",
+      "ok": true,
+      "ms": 17,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 15,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Protokoll Schick eine Fahrt fuer jetzt  0.0 s",
+      "ok": true,
+      "ms": 15,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 12,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Protokoll Schicke eine Fahrt fuer morgen  0.0 s",
+      "ok": true,
+      "ms": 15,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 13,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Protokoll Fahrt Fahrer von nach  0.0 s",
+      "ok": true,
+      "ms": 22,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 20,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Protokoll Fahrt Fahrer von nach ohne Zeit fragt nach  14.1 s",
+      "ok": true,
+      "ms": 14099,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 35,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_planer",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 14060,
+          "ok": true,
+          "promptZeichen": 733,
+          "numCtx": 4096,
+          "load_ms": 0,
+          "prompt_tokens": 229,
+          "prompt_ms": 587,
+          "eval_tokens": 112,
+          "eval_ms": 10796,
+          "total_ms": 13994
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Protokoll Wo sind die markierten  0.0 s",
+      "ok": true,
+      "ms": 24,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 16,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Protokoll Pause eingetragen  0.0 s",
+      "ok": true,
+      "ms": 4,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Protokoll Zwei Fahrer anlegen, ja (1)  0.0 s",
+      "ok": true,
+      "ms": 4,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Protokoll Zwei Fahrer anlegen, ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Protokoll Zwei Namen ein Fahrer-Wort  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Protokoll Zwei Fahrzeuge  0.0 s",
+      "ok": true,
+      "ms": 4,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Protokoll Karten: zwei Fahrer  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen2   Pause eingetragen ja  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen2   Pause eingetragen nein  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen2   Wann faengt an  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen2   Wann Feierabend  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen2   Stunden heute einer  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen2   Stunden heute alle  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen2   Offene Stundenzettel  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen2   Dienst fuer Fahrer aus dem Gespraech (1)  0.0 s",
+      "ok": true,
+      "ms": 23,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 21,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen2   Dienst fuer Fahrer aus dem Gespraech (2)  0.0 s",
+      "ok": true,
+      "ms": 3,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Zuordnen  Fahrzeug an Fahrer, ja (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Zuordnen  Fahrzeug an Fahrer, ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Zuordnen  Tracker ins Auto, nein (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Zuordnen  Tracker ins Auto, nein (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Zuordnen  Tracker umstecken nennt bisheriges Auto  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Zuordnen  Unbekanntes Kennzeichen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Standby2  Standby allein, ja (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Standby2  Standby allein, ja (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Standby2  Karten: Standby allein  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Standby2  Standby allein ohne Fahrer fragt nach  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Loeschen  Fahrer loeschen, ja reicht nicht, loeschen (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Loeschen  Fahrer loeschen, ja reicht nicht, loeschen (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Loeschen  Fahrer loeschen, ja reicht nicht, loeschen (3)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Loeschen  Fahrzeug loeschen, nein (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Loeschen  Fahrzeug loeschen, nein (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Loeschen  Alle loeschen geht nicht  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Loeschen  Zwei Fahrer loeschen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Loeschen  Fahrt loeschen bleibt bei der Fahrt  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Dienst Start und Ende morgen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Ausnahme  Dienst an alle bis auf einen  0.0 s",
+      "ok": false,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Ausnahme  Dienst an alle, einer ausgenommen, anders gesagt  0.0 s",
+      "ok": false,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Ausnahme  Feierabend fuer alle ausser zwei  0.0 s",
+      "ok": false,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Ausnahme  Nachricht an alle ausser einem  0.0 s",
+      "ok": false,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Ausnahme  Stundenlohn fuer alle ausser einem  0.0 s",
+      "ok": false,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Ausnahme  Kein falsches Ausnehmen beim Loeschen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Datum     Aendern von X auf Y nimmt Y  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Datum     Dienstende verschieben ist kein Loeschen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Datum     Heutiger Wochentag meint naechste Woche  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Datum     Wochentag nie in der Vergangenheit  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Datum     Start nach altem Ende: Ende faellt weg  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Datum     Fuer alle ohne erfundene Ausnahmen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Datum     Dienststart von gestern loeschen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Datum     Fahrt mit allen ausser einem  0.0 s",
+      "ok": false,
+      "ms": 24,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 22,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Dienst    Dienst ab Uhrzeit heute  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Vorhandener Dienst, Uhrzeit nachts  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Pause im vorhandenen Dienst  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Feierabend mit Uhrzeit  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Fahrer per Nummer  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Zwei Fahrer gleicher Dienst  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Gleicher Start schon eingetragen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Umgangssprache: morgen früh  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Umgangssprache: Schluss machen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Pause mit Bindestrich  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Umgangssprache: fängt an  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Dienst    Markierte Fahrer in Feierabend  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Buchen    Buchung komplett  0.0 s",
+      "ok": true,
+      "ms": 16,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Buchen nimmt eigene Orte mit ID  0.0 s",
+      "ok": true,
+      "ms": 18,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Buchen per Fahr-Verb  0.0 s",
+      "ok": true,
+      "ms": 22,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 20,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Buchen fährt mit Strecke  0.0 s",
+      "ok": true,
+      "ms": 15,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Buchen fremder Ort ohne Ort-ID  0.1 s",
+      "ok": true,
+      "ms": 95,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 92,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Buchung mit Fahrer und Gästezahl  0.0 s",
+      "ok": true,
+      "ms": 19,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 15,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Buchung übermorgen  0.0 s",
+      "ok": true,
+      "ms": 24,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 21,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Buchung ohne Ziel fragt nach  13.1 s",
+      "ok": true,
+      "ms": 13077,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 16,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_planer",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 13056,
+          "ok": true,
+          "promptZeichen": 710,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 211,
+          "prompt_ms": 311,
+          "eval_tokens": 106,
+          "eval_ms": 10391,
+          "total_ms": 13025
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Buchung Wochentag  0.0 s",
+      "ok": true,
+      "ms": 22,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Buchung als Abholung formuliert  0.0 s",
+      "ok": true,
+      "ms": 29,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 25,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Protokoll: Schicke X eine Fahrt  0.0 s",
+      "ok": true,
+      "ms": 21,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 15,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Protokoll: Fahrt für jetzt  0.3 s",
+      "ok": true,
+      "ms": 272,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 263,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Gib X eine Fahrt  0.0 s",
+      "ok": true,
+      "ms": 18,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Plan für X eine Fahrt  0.0 s",
+      "ok": true,
+      "ms": 24,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 20,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Fahrt in 20 Minuten  0.0 s",
+      "ok": true,
+      "ms": 23,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 19,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Buchung warnt bei Überschneidung  0.1 s",
+      "ok": true,
+      "ms": 105,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 101,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Schick X zu einem Ort, Start fehlt  13.2 s",
+      "ok": true,
+      "ms": 13215,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 15,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_planer",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 13193,
+          "ok": true,
+          "promptZeichen": 699,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 211,
+          "prompt_ms": 311,
+          "eval_tokens": 116,
+          "eval_ms": 11209,
+          "total_ms": 13149
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Verbteil gehört nicht zum Ziel  0.0 s",
+      "ok": true,
+      "ms": 24,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 19,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Zwei Gäste und Flugnummer  0.0 s",
+      "ok": true,
+      "ms": 21,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 18,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Buchen    Trag eine neue Fahrt ein  0.0 s",
+      "ok": true,
+      "ms": 22,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 19,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Ändern    Uhrzeit über Gastnamen  0.0 s",
+      "ok": true,
+      "ms": 19,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 15,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Ändern    Fahrer über Uhrzeit  0.0 s",
+      "ok": true,
+      "ms": 21,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Ändern    Ziel ändern  0.0 s",
+      "ok": true,
+      "ms": 23,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 19,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Ändern    Offene Fahrt vergeben  0.0 s",
+      "ok": true,
+      "ms": 23,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 19,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Ändern    Schick X auf die Fahrt  0.0 s",
+      "ok": true,
+      "ms": 20,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 16,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Ändern    Plan X für die Fahrt ein  0.0 s",
+      "ok": true,
+      "ms": 28,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 24,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Ändern    Änderung warnt bei Überschneidung  0.0 s",
+      "ok": true,
+      "ms": 21,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 16,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Ändern    Stornieren nur mit Hinweis  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen    Noch im Dienst ja  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen    Noch im Dienst nein  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen    Irgendwer im Dienst  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fragen    Anzahl Fahrten heute  0.0 s",
+      "ok": true,
+      "ms": 22,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Fahrten eines Fahrers  0.0 s",
+      "ok": true,
+      "ms": 18,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Wer fährt einen Gast  0.0 s",
+      "ok": true,
+      "ms": 17,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Offene Fahrten  0.0 s",
+      "ok": true,
+      "ms": 16,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 13,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Offene Fahrten anders gefragt  0.0 s",
+      "ok": true,
+      "ms": 16,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Fahrten eines Tages  0.1 s",
+      "ok": true,
+      "ms": 95,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 92,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Fahrten zu einem Ziel  0.0 s",
+      "ok": true,
+      "ms": 28,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 23,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Wer fährt um eine Uhrzeit  0.0 s",
+      "ok": true,
+      "ms": 27,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 23,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Hat X Zeit  0.0 s",
+      "ok": true,
+      "ms": 19,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 15,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Neu       Wer ist frei um  0.0 s",
+      "ok": true,
+      "ms": 25,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Fahrer morgen  0.0 s",
+      "ok": true,
+      "ms": 25,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 20,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Fahrzeug eines Fahrers  0.0 s",
+      "ok": true,
+      "ms": 21,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 16,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Fahrt über Ziel finden  0.0 s",
+      "ok": true,
+      "ms": 24,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 20,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Uhrzeit eines Fahrers  0.0 s",
+      "ok": true,
+      "ms": 18,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 15,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Alle Fahrer  0.0 s",
+      "ok": true,
+      "ms": 20,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Wer ist im Dienst  0.0 s",
+      "ok": true,
+      "ms": 22,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Protokoll: Wo ist Stefano  0.0 s",
+      "ok": true,
+      "ms": 18,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Standort mit laufender Fahrt  0.0 s",
+      "ok": true,
+      "ms": 15,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 12,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Standort ohne Signal  0.0 s",
+      "ok": true,
+      "ms": 24,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 20,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fragen    Standort aller Fahrer  0.0 s",
+      "ok": true,
+      "ms": 19,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Neu       Tagesfrage: wer hat Luft  0.0 s",
+      "ok": true,
+      "ms": 19,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Neu       Konflikt prüfen  0.0 s",
+      "ok": true,
+      "ms": 20,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 16,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Neu       Konflikt: geht nicht  0.0 s",
+      "ok": true,
+      "ms": 28,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 23,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Neu       Konflikt: kann X übernehmen  0.0 s",
+      "ok": true,
+      "ms": 26,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 20,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Neu       Fahrervorschlag  0.0 s",
+      "ok": true,
+      "ms": 28,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 21,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Absicht   Neue Fahrt mit Start/Ende-Woertern ist kein Dienst  0.1 s",
+      "ok": true,
+      "ms": 106,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 98,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Absicht   Fahrt mit Start am Ort und Ziel  0.0 s",
+      "ok": true,
+      "ms": 31,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 25,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Absicht   Schick Fahrer eine Fahrt vom Hotel zur Arena mit Gast  0.0 s",
+      "ok": true,
+      "ms": 31,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 25,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Absicht   Schick Fahrer eine Fahrt fuer jetzt  0.0 s",
+      "ok": true,
+      "ms": 24,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 20,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Absicht   Ausdruecklich Dienststart bleibt Start  0.0 s",
+      "ok": true,
+      "ms": 4,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Start mit Uhrzeit ist Dienst  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Tippfehler dienstart  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Alle Fahrer Dienstbeginn  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Zwei Tage in einer Nachricht, dann ja (1)  0.0 s",
+      "ok": true,
+      "ms": 3,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Zwei Tage in einer Nachricht, dann ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Dienstende loeschen, dann ja (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Dienstende loeschen, dann ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Dienstende loeschen, dann ja (3)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Dienst absagen, dann nein (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Dienst absagen, dann nein (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Dienststart von gestern loeschen (Tippfehler dienstart) (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Dienststart von gestern loeschen (Tippfehler dienstart) (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Dienst letzten Freitag abfragen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Pause loeschen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Feierabend loeschen ohne Ende, nie Fahrer loeschen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Namensliste ohne Auftrag, dann ja (1)  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Namensliste ohne Auftrag, dann ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Fahrt mit allen Fahrern  0.0 s",
+      "ok": true,
+      "ms": 17,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Absicht   Allen Fahrern ein Fahrzeug, Karten  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Allen Fahrern auch mit Fahrzeug  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Fahrzeug fuer einen Fahrer ohne Karten, dann ja (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Fahrzeug fuer einen Fahrer ohne Karten, dann ja (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Fahrzeug fuer einen Fahrer ohne Karten, dann ja (3)  0.0 s",
+      "ok": true,
+      "ms": 20,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 18,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Absicht   Jedem Fahrer ohne Modell fragt nach  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Dienststart und Dienstende mit nackten Zahlen  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Ende vor Start genannt  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Name und Uhrzeit ist Dienststart  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   bis Uhrzeit ist Dienstende  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Uhrzeit mitten im Dienst fragt nach  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Ende in Ort ist kein Dienst  14.5 s",
+      "ok": true,
+      "ms": 14531,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 12,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_generate",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 14515,
+          "ok": true,
+          "promptZeichen": 3093,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 1020,
+          "prompt_ms": 9612,
+          "eval_tokens": 35,
+          "eval_ms": 3351,
+          "total_ms": 14484
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Fehlgriff Nachricht mit Uhrzeit ist kein Dienst  0.0 s",
+      "ok": true,
+      "ms": 3,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Kunde BMW ist kein Fahrzeug  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Gast anlegen fragt nach  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Telefon eines Gastes  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Firma eines Gastes  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Telefon eines Fahrers bleibt Fahrer  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Standbys anzeigen  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Standby fuer einen Fahrer loeschen, dann ja (1)  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Standby fuer einen Fahrer loeschen, dann ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Standby fuer einen Fahrer loeschen, dann ja (3)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Standby verschieben, dann ja (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Standby verschieben, dann ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Dienste fuer ganze Woche, dann ja (1)  0.0 s",
+      "ok": true,
+      "ms": 3,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Dienste fuer ganze Woche, dann ja (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Dienste fuer ganze Woche, dann ja (3)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Dienste fuer ganze Woche, dann ja (4)  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Dienste werktags  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Notiz an Fahrt ist keine Gaeste-Frage  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Fehlgriff Wer hat morgen Dienst  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt stornieren, dann rueckgaengig (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt stornieren, dann rueckgaengig (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt stornieren, dann rueckgaengig (3)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt loeschen braucht loeschen (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt loeschen braucht loeschen (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt loeschen braucht loeschen (3)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt erledigt (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt erledigt (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt kopieren (1)  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt kopieren (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Notiz an Fahrt (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Notiz an Fahrt (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrt mehrdeutig fragt nach  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Nachricht an alle (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Nachricht an alle (2)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Nachricht an einen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Telefon Fahrer aendern, dann rueckgaengig (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Telefon Fahrer aendern, dann rueckgaengig (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Telefon Fahrer aendern, dann rueckgaengig (3)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Telefon Fahrer aendern, dann rueckgaengig (4)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Telefon Fahrer aendern, dann rueckgaengig (5)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrernummer  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrernummer belegt  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Flagge  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Passwort  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Passwort alle verweigert  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Kennzeichen aendern  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Reichweite  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Tracker-Stufe  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Gast anlegen (1)  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Gast anlegen (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Gast anlegen (3)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Gast Telefon aendern  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Stundenzettel bestaetigen  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Stunden-Export zeigt Weg  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Wie viele Fahrer  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Hilfe  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Rueckgaengig ohne Aenderung  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Verspaetete Fahrten  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Freie Fahrzeuge  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Fahrten eines Kunden  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Nachricht mit dass  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Nachricht an mit Doppelpunkt  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Nachricht ohne Empfaenger, dann Name (1)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Nachricht ohne Empfaenger, dann Name (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Nachricht ohne Empfaenger, dann Name (3)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Nachricht ohne Text, dann Text (1)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Steuern   Nachricht ohne Text, dann Text (2)  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Absicht   Namensliste bekannter Fahrer  0.0 s",
+      "ok": true,
+      "ms": 0,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Frei      Frei: halb 8 morgen  0.0 s",
+      "ok": false,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Frei      Frei: viertel nach sechs  11.5 s",
+      "ok": false,
+      "ms": 11485,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 19,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_generate",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 11463,
+          "ok": true,
+          "promptZeichen": 3108,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 1023,
+          "prompt_ms": 5475,
+          "eval_tokens": 29,
+          "eval_ms": 2793,
+          "total_ms": 10819
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Frei      Frei: Feierabend jetzt  0.0 s",
+      "ok": true,
+      "ms": 3,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Frei      Frei: Schicht mit Pause  0.0 s",
+      "ok": false,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Frei      Frei: Wochentag  0.0 s",
+      "ok": true,
+      "ms": 1,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Frei      Frei: Dienst von gestern weg  9.3 s",
+      "ok": false,
+      "ms": 9295,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 22,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_generate",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 9270,
+          "ok": true,
+          "promptZeichen": 3117,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 1027,
+          "prompt_ms": 5465,
+          "eval_tokens": 23,
+          "eval_ms": 2167,
+          "total_ms": 9183
+        }
+      ]
+    },
+    {
+      "zeile": "FEHL Frei      Frei: nur Dienstende weg  0.0 s",
+      "ok": false,
+      "ms": 4,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Frei      Frei: Pause weg  14.9 s",
+      "ok": false,
+      "ms": 14855,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 104,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_generate",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 14745,
+          "ok": true,
+          "promptZeichen": 3236,
+          "numCtx": 4096,
+          "load_ms": 0,
+          "prompt_tokens": 1064,
+          "prompt_ms": 5731,
+          "eval_tokens": 59,
+          "eval_ms": 5838,
+          "total_ms": 14500
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Frei      Frei: Standby anzeigen  0.0 s",
+      "ok": true,
+      "ms": 5,
+      "aufrufe": []
+    },
+    {
+      "zeile": "OK   Frei      Frei: Standby verschieben  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Frei      Frei: Fahrt absagen  12.6 s",
+      "ok": false,
+      "ms": 12647,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 12,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_generate",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 12630,
+          "ok": true,
+          "promptZeichen": 2867,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 952,
+          "prompt_ms": 4799,
+          "eval_tokens": 47,
+          "eval_ms": 4622,
+          "total_ms": 12580
+        }
+      ]
+    },
+    {
+      "zeile": "FEHL Frei      Frei: Fahrt erledigt  16.7 s",
+      "ok": false,
+      "ms": 16723,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 16,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_generate",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 16699,
+          "ok": true,
+          "promptZeichen": 2858,
+          "numCtx": 4096,
+          "load_ms": 0,
+          "prompt_tokens": 949,
+          "prompt_ms": 8922,
+          "eval_tokens": 54,
+          "eval_ms": 4994,
+          "total_ms": 16595
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Frei      Frei: Fahrt kopieren  0.0 s",
+      "ok": true,
+      "ms": 2,
+      "aufrufe": []
+    },
+    {
+      "zeile": "FEHL Frei      Frei: Notiz  11.3 s",
+      "ok": false,
+      "ms": 11292,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_generate",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 11276,
+          "ok": true,
+          "promptZeichen": 3211,
+          "numCtx": 4096,
+          "load_ms": 2,
+          "prompt_tokens": 1040,
+          "prompt_ms": 5386,
+          "eval_tokens": 41,
+          "eval_ms": 3800,
+          "total_ms": 11251
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Liste, dann zweite verschieben (1)  0.0 s",
+      "ok": true,
+      "ms": 26,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 19,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Liste, dann zweite verschieben (2)  0.0 s",
+      "ok": true,
+      "ms": 18,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Buchung ergänzen (1)  0.0 s",
+      "ok": true,
+      "ms": 16,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 13,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Buchung ergänzen (2)  0.1 s",
+      "ok": true,
+      "ms": 109,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 106,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Änderung korrigieren (1)  0.0 s",
+      "ok": true,
+      "ms": 19,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Änderung korrigieren (2)  0.0 s",
+      "ok": true,
+      "ms": 17,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Standort der beiden (1)  0.0 s",
+      "ok": true,
+      "ms": 17,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 14,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Standort der beiden (2)  0.0 s",
+      "ok": true,
+      "ms": 13,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 12,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Buchung: fehlendes Ziel nachreichen (1)  12.4 s",
+      "ok": true,
+      "ms": 12375,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 15,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        },
+        {
+          "art": "k_planer",
+          "pfad": "/api/generate",
+          "modell": "qwen2.5:14b",
+          "ms": 12355,
+          "ok": true,
+          "promptZeichen": 710,
+          "numCtx": 4096,
+          "load_ms": 1,
+          "prompt_tokens": 211,
+          "prompt_ms": 305,
+          "eval_tokens": 106,
+          "eval_ms": 9544,
+          "total_ms": 12331
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Buchung: fehlendes Ziel nachreichen (2)  0.0 s",
+      "ok": true,
+      "ms": 22,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 16,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Vorschlag übernehmen (1)  0.1 s",
+      "ok": true,
+      "ms": 106,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 101,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Vorschlag übernehmen (2)  0.0 s",
+      "ok": true,
+      "ms": 27,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 22,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Neue Frage statt Auswahl (1)  0.0 s",
+      "ok": true,
+      "ms": 24,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 21,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Neue Frage statt Auswahl (2)  0.0 s",
+      "ok": true,
+      "ms": 19,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Rückfrage beantworten (1)  0.0 s",
+      "ok": true,
+      "ms": 17,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 13,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    },
+    {
+      "zeile": "OK   Gespräch  Rückfrage beantworten (2)  0.0 s",
+      "ok": true,
+      "ms": 25,
+      "aufrufe": [
+        {
+          "art": "erreichbar",
+          "pfad": "/api/version",
+          "modell": "",
+          "ms": 17,
+          "ok": true,
+          "promptZeichen": 0,
+          "numCtx": null,
+          "load_ms": 0,
+          "prompt_tokens": 0,
+          "prompt_ms": 0,
+          "eval_tokens": 0,
+          "eval_ms": 0,
+          "total_ms": 0
+        }
+      ]
+    }
+  ]
+}

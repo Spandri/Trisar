@@ -5,6 +5,8 @@ import { useI18n } from '../../i18n';
 import { supabase } from '../../services/supabase';
 import OrtBearbeitenView, { RadiusFeld } from './OrtBearbeitenView';
 import { ortIconUrl, radienPruefen, standardSpeichern, useOrte } from '../../shared/orte';
+import { DIENSTSTART_OPTIONEN, useDienststartVorlauf } from '../../shared/dienststartVorlauf';
+import { SCHWELLE_STANDARD, ohneSignalSetzen, stundenLesen, stundenText, useAusgeblendet, useOhneSignal } from '../../shared/ohneSignal';
 
 const GREEN = '#E3F654';
 const RED = '#ff6b6b';
@@ -165,6 +167,172 @@ function TwoColButton({ left, top, label, active, onClick, marker }) {
   );
 }
 
+// Lange ohne Signal (15.11.): Stunden-Feld fuer die Schwelle, daneben Knopf "Ausblenden"
+// (aus = alle zeigen) und darunter, wer gerade darueber liegt. Hoehe des Abschnitts fest, damit nichts springt.
+const OHNE_SIGNAL_H = 136;
+const signalSeit = (wert) => {
+  const d = new Date(wert || '');
+  if (!Number.isFinite(d.getTime())) return '';
+  const zwei = (n) => String(n).padStart(2, '0');
+  const heute = new Date();
+  const gleicherTag = d.toDateString() === heute.toDateString();
+  return gleicherTag ? `${zwei(d.getHours())}:${zwei(d.getMinutes())}` : `${zwei(d.getDate())}.${zwei(d.getMonth() + 1)}.`;
+};
+
+// Auge fuer den Knopf "Ausblenden" (durchgestrichen) bzw. "Alle zeigen".
+function AugeIcon({ zu, farbe }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={farbe} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+      {zu ? <path d="M3 3l18 18" /> : null}
+    </svg>
+  );
+}
+
+function OhneSignalAbschnitt({ top }) {
+  const { t } = useI18n();
+  const { minuten, zeigen } = useOhneSignal();
+  const ausgeblendet = useAusgeblendet();
+  const inputRef = useRef(null);
+  // Entwurf beim Tippen, sonst der gespeicherte Wert. Gueltige Eingaben gelten sofort.
+  const [entwurf, setEntwurf] = useState(null);
+  const ausblenden = !zeigen;
+  const liste = ausgeblendet
+    .slice(0, 4)
+    .map((f) => t('filter.ohneSignalSeit', { fahrer: f.nummer != null ? `#${f.nummer}` : f.name, zeit: signalSeit(f.letztesSignal) }))
+    .join(' · ') + (ausgeblendet.length > 4 ? ' …' : '');
+  const eingeben = (text) => {
+    const sauber = text.replace(/[^0-9.,]/g, '').slice(0, 5);
+    setEntwurf(sauber);
+    const neu = stundenLesen(sauber);
+    if (neu != null) ohneSignalSetzen({ minuten: neu });
+  };
+  return (
+    <>
+      <div
+        data-tutorial="karte-filter-ohne-signal"
+        className="absolute left-[20px] w-[362px] h-6 text-base leading-6 tracking-[0.5px] text-[#E3F654]/60 font-medium font-['Space_Grotesk']"
+        style={{ top: `${top}px` }}
+      >
+        {t('filter.ohneSignalNach')}
+      </div>
+      {/* Ganzes Kaestchen ist Tippflaeche, Zahlentastatur, Komma erlaubt. */}
+      <div
+        data-tutorial="karte-filter-ohne-signal-stunden"
+        onClick={() => inputRef.current?.focus()}
+        className={`absolute left-[20px] w-[236px] h-14 border-2 border-[#E3F654] flex items-center px-3 cursor-text transition-opacity ${ausblenden ? '' : 'opacity-40'}`}
+        style={{ top: `${top + 32}px`, backgroundColor: entwurf != null ? 'rgba(227,246,84,0.08)' : 'transparent' }}
+      >
+        <span className="shrink-0 text-base leading-6 tracking-[0.5px] text-[#E3F654]/60 font-medium font-['Space_Grotesk']">{t('filter.ohneSignalVor')}&nbsp;</span>
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="decimal"
+          enterKeyHint="done"
+          value={entwurf ?? stundenText(minuten)}
+          onFocus={(e) => { setEntwurf(stundenText(minuten)); e.target.select(); }}
+          onChange={(e) => eingeben(e.target.value)}
+          onBlur={() => setEntwurf(null)}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+          // Breite folgt der Zahl, damit "h" direkt dahinter steht.
+          style={{ width: `${Math.max(2, String(entwurf ?? stundenText(minuten)).length) + 0.6}ch` }}
+          className="min-w-0 h-full bg-transparent outline-none border-none text-base leading-6 tracking-[0.5px] text-[#E3F654] font-medium font-['Space_Grotesk']"
+          aria-label={t('filter.ohneSignalNach')}
+        />
+        <span className="text-base leading-6 tracking-[0.5px] text-[#E3F654]/60 font-medium font-['Space_Grotesk']">&nbsp;h</span>
+      </div>
+      <button
+        type="button"
+        data-tutorial="karte-filter-ohne-signal-knopf"
+        onClick={() => ohneSignalSetzen({ zeigen: ausblenden })}
+        aria-pressed={ausblenden}
+        className="absolute left-[264px] w-[118px] h-14 border-2 border-[#E3F654] flex items-center justify-center gap-[6px] transition-colors"
+        style={{ top: `${top + 32}px`, backgroundColor: ausblenden ? '#E3F654' : 'transparent' }}
+      >
+        <AugeIcon zu={ausblenden} farbe={ausblenden ? '#1d1c1d' : '#E3F654'} />
+        <span className={`text-sm leading-5 tracking-[0.3px] font-medium font-['Space_Grotesk'] ${ausblenden ? 'text-[#1d1c1d]' : 'text-[#E3F654]'}`}>
+          {ausblenden ? t('filter.ohneSignalAusblenden') : t('filter.ohneSignalAlleZeigen')}
+        </span>
+      </button>
+      {ausgeblendet.length > 0 ? (
+        <div
+          className="absolute left-[20px] w-[362px] h-6 text-sm leading-6 tracking-[0.3px] text-[#E3F654]/60 font-medium font-['Space_Grotesk'] truncate"
+          style={{ top: `${top + 96}px` }}
+        >
+          {ausblenden
+            ? t('filter.ohneSignalListe', { anzahl: ausgeblendet.length, liste })
+            : t('filter.ohneSignalSichtbar', { anzahl: ausgeblendet.length })}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+// Dienststart automatisch (15.11.): Vorlauf vor der ersten Fahrt, gilt fuer alle Fahrer (DB-Trigger).
+// Gleiches Aussehen wie "Feierabend in ... min". Hoehe fest: Ueberschrift, Zeile, Hinweis.
+const DIENSTSTART_H = 132;
+
+function DienststartAbschnitt({ top, minuten, fehler, onChange }) {
+  const { t } = useI18n();
+  const [vorWert, nachWert = ''] = t('filter.dienststartWert').split('{value}');
+  return (
+    <>
+      <div
+        className="absolute left-[20px] w-[362px] h-6 text-base leading-6 tracking-[0.5px] text-[#E3F654]/60 font-medium font-['Space_Grotesk']"
+        style={{ top: `${top}px` }}
+      >
+        {t('filter.dienststartTitel')}
+      </div>
+      <div
+        data-tutorial="karte-filter-dienststart"
+        className="absolute left-[20px] w-[362px] h-14 border-2 border-[#E3F654] flex items-center px-3"
+        style={{ top: `${top + 32}px` }}
+      >
+        <div className="relative flex-1 h-full">
+          <select
+            value={minuten ? String(minuten) : ''}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full h-full bg-transparent outline-none border-none appearance-none text-transparent"
+            aria-label={t('filter.dienststartTitel')}
+          >
+            <option value="" className="text-black">{t('filter.dienststartOptionAus')}</option>
+            {DIENSTSTART_OPTIONEN.map((option) => (
+              <option key={option} value={String(option)} className="text-black">{`${option} min`}</option>
+            ))}
+          </select>
+          <div className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-left text-base leading-6 tracking-[0.5px] font-medium font-['Space_Grotesk']">
+            {minuten ? (
+              <>
+                <span className="text-[#E3F654]/60">{vorWert}</span>
+                <span className="text-[#E3F654]">{`${minuten} min`}</span>
+                {nachWert ? <span className="text-[#E3F654]/60">{nachWert}</span> : null}
+              </>
+            ) : (
+              <span className="text-[#E3F654]/60">{t('filter.dienststartAus')}</span>
+            )}
+          </div>
+        </div>
+        <div className="w-10 h-10 flex items-center justify-center">
+          {minuten ? (
+            <button type="button" onClick={() => onChange('')} className="flex items-center justify-center" aria-label={t('filter.dienststartReset')}>
+              <img src="/icon/_Icon_Green/clear-field-green.svg" alt="" className="w-5 h-5" />
+            </button>
+          ) : (
+            <img src="/icon/_Icon_Green/clock-green.svg" alt="" className="w-5 h-5" />
+          )}
+        </div>
+      </div>
+      <div
+        className="absolute left-[20px] w-[362px] text-xs leading-4 tracking-[0.3px] font-medium font-['Space_Grotesk']"
+        style={{ top: `${top + 96}px`, color: fehler ? RED : 'rgba(227,246,84,0.5)' }}
+      >
+        {fehler || t('filter.dienststartHinweis')}
+      </div>
+    </>
+  );
+}
+
 // Punkte bei Fahrt fuer alle OBD-Tracker (obd_tracker.stufe). Das Gateway uebernimmt die
 // Stufe beim naechsten Verbinden des Trackers und quittiert sie (stufe_status).
 const TRACKER_STUFEN = [
@@ -279,6 +447,7 @@ const DEFAULT_KARTEN_FILTERS = {
 export default function KartenFilterView({ setView, filters = {}, onChangeFilters = () => {}, onFetchPlaceSuggestions = async () => [] }) {
   const { t } = useI18n();
   const { tracker, setzen: setzeStufe, fehler: stufeFehler } = useTrackerStufen();
+  const dienststart = useDienststartVorlauf();
   const { orte, standard } = useOrte();
   // Bearbeiteter Ort: null = Filter, {} = neuer Ort, sonst der Ort.
   const [bearbeiteterOrt, setBearbeiteterOrt] = useState(null);
@@ -307,11 +476,14 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
 
   // Abschnitt "Punkte bei Fahrt" unter Feierabend, Knoepfe darunter rutschen mit.
   const gemeinsameStufe = tracker.length > 0 && tracker.every((row) => row.stufe === tracker[0].stufe) ? tracker[0].stufe : null;
-  const stufeTop = 462;
+  // Abschnitt "Dienststart automatisch" direkt unter Feierabend, alles darunter rutscht mit.
+  const dienststartTop = 462;
+  const ohneSignalTop = dienststart.verfuegbar ? dienststartTop + DIENSTSTART_H : dienststartTop;
+  const stufeTop = ohneSignalTop + OHNE_SIGNAL_H;
   const stufeZeilenTop = stufeTop + 32 + 40 + 12;
   const stufeEnde = stufeZeilenTop + (tracker.length + (stufeFehler ? 1 : 0)) * STUFE_ZEILE_H + 20;
   // Abschnitt "Orte": Standard-Radien, eigene Orte, Ort hinzufuegen.
-  const orteTop = tracker.length > 0 ? stufeEnde : 462;
+  const orteTop = tracker.length > 0 ? stufeEnde : stufeTop;
   const standardLabelTop = orteTop + 32;
   const standardTop = standardLabelTop + 28;
   const standardHinweisTop = standardTop + 56 + 4;
@@ -435,6 +607,12 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
               options={['15 min', '30 min', '45 min', '60 min', '90 min', '120 min']}
             />
 
+            {dienststart.verfuegbar ? (
+              <DienststartAbschnitt top={dienststartTop} minuten={dienststart.minuten} fehler={dienststart.fehler} onChange={dienststart.setzen} />
+            ) : null}
+
+            <OhneSignalAbschnitt top={ohneSignalTop} />
+
             {tracker.length > 0 ? (
               <>
                 <div
@@ -540,7 +718,10 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
 
             <button
               type="button"
-              onClick={() => onChangeFilters({ ...DEFAULT_KARTEN_FILTERS })}
+              onClick={() => {
+                onChangeFilters({ ...DEFAULT_KARTEN_FILTERS });
+                ohneSignalSetzen({ minuten: SCHWELLE_STANDARD, zeigen: false });
+              }}
               className="absolute left-[20px] w-[362px] h-14 bg-[#ff6b6b] border-2 border-[#ff6b6b] flex items-center px-3"
               style={{ top: `${clearTop}px` }}
             >

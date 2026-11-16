@@ -77,6 +77,7 @@ internal object DispoRouten {
     // MARK: Adresse -> Punkt
 
     suspend fun punkt(text: String): KartenPunkt? {
+        Routen.koordinatenAusText(text)?.let { return KartenPunkt(it.lat, it.lng) }
         val schluessel = text.trim().lowercase().replace(Regex("\\s+"), " ")
         if (schluessel.isEmpty()) return null
         orte[schluessel]?.let { return it }

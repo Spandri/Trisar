@@ -31,6 +31,8 @@ struct DispoKarte: UIViewRepresentable {
     var bereich: [CLLocationCoordinate2D]? = nil
     /// Zugriff auf die Karte zum Umrechnen der gezeichneten Punkte.
     var zugang: KartenZugang? = nil
+    /// Fahrer auf Dienstreise (14.11.): Strecke offen/gefahren und Fahrzeug-Marker statt des Pins.
+    var reisen: [ReiseKartenEintrag] = []
 
     static let stil = URL(string: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json")!
     private static let kameraSchluessel = "admin_karten_camera_v1"
@@ -87,6 +89,13 @@ struct DispoKarte: UIViewRepresentable {
         private var einpassenSignal = 0
         private var letzterBereich: [CLLocationCoordinate2D]?
 
+        // Dienstreisen
+        private var letzteReisen: [ReiseKartenEintrag] = []
+        private var reiseLinien: Set<String> = []
+        private var reisePunkte: [String: ReiseFahrzeugPunkt] = [:]
+        private var reiseAnsichten: [String: MLNAnnotationView] = [:]
+        private var reiseZusatz: [String: (schluessel: String, punkte: [ReiseZusatzPunkt])] = [:]
+
         // Route: Teile (Anfahrt, Fahrt) je mit noch zu fahrender und schon gefahrener Linie.
         private struct Teil { let art: String; let pfad: [CLLocationCoordinate2D]; var schild: KartenRoutenPunkt? }
         private var teile: [Teil] = []
@@ -127,6 +136,10 @@ struct DispoKarte: UIViewRepresentable {
                 letzterOrt = neu.gewaehlterOrt
                 orteAbgleichen()
             }
+            if neu.reisen != letzteReisen {
+                letzteReisen = neu.reisen
+                reisenAbgleichen()
+            }
             routeAbgleichen()
             fortschrittAktualisieren()
             if abs(neu.blattHoehe - letzteBlattHoehe) > 0.5 {
@@ -142,6 +155,75 @@ struct DispoKarte: UIViewRepresentable {
             bereichZeichnen()
             fortschrittAktualisieren()
             kreiseZeichnen()
+            reisenAbgleichen()
+        }
+
+        // MARK: Dienstreisen (DienstreiseKartenSchicht.jsx)
+
+        /// Offene Strecke blau (5), gefahrenes Stueck grau, darauf das Fahrzeug mit dem Fahrer-Punkt in Statusfarbe.
+        private func reisenAbgleichen() {
+            guard stilGeladen, let stil = karte?.style else { return }
+            var neueLinien: Set<String> = []
+            for r in letzteReisen {
+                linie(stil, "reise-\(r.key)-offen", r.offen, UIColor(hex: 0x0059FF), 5, gestrichelt: false, deckung: 1)
+                linie(stil, "reise-\(r.key)-gefahren", r.gefahren, UIColor(hex: 0x5C5C5C), 5, gestrichelt: false, deckung: 1)
+                neueLinien.insert(r.key)
+            }
+            // Beendete Reisen: Linien leeren (eine leere Form ist erlaubt).
+            for alt in reiseLinien.subtracting(neueLinien) {
+                linie(stil, "reise-\(alt)-offen", [], .clear, 5, gestrichelt: false, deckung: 1)
+                linie(stil, "reise-\(alt)-gefahren", [], .clear, 5, gestrichelt: false, deckung: 1)
+            }
+            reiseLinien = neueLinien
+
+            var weg: [MLNAnnotation] = []
+            var dazu: [MLNAnnotation] = []
+            var behalten: Set<String> = []
+            for r in letzteReisen {
+                guard let pos = r.position else { continue }
+                behalten.insert(r.key)
+                let schluessel = "\(r.art)|\(r.nummer)|\(r.text)|\(r.farbe)"
+                if let p = reisePunkte[r.key], p.schluessel == schluessel {
+                    if p.coordinate.latitude != pos.latitude || p.coordinate.longitude != pos.longitude { p.coordinate = pos }
+                } else {
+                    if let alt = reisePunkte[r.key] { weg.append(alt); reiseAnsichten[r.key] = nil }
+                    let p = ReiseFahrzeugPunkt(eintrag: r, schluessel: schluessel)
+                    p.coordinate = pos
+                    reisePunkte[r.key] = p
+                    dazu.append(p)
+                }
+            }
+            for (key, p) in reisePunkte where !behalten.contains(key) {
+                weg.append(p)
+                reisePunkte[key] = nil
+                reiseAnsichten[key] = nil
+            }
+            // Umstieg-Marker und Zielflagge, nur neu wenn sich etwas aendert.
+            var zusatzBehalten: Set<String> = []
+            for r in letzteReisen {
+                zusatzBehalten.insert(r.key)
+                let schluessel = r.umstiege.map { "\($0.ort.latitude),\($0.ort.longitude),\($0.art),\($0.text)" }.joined(separator: "|")
+                    + "#\(r.ziel?.latitude ?? 0),\(r.ziel?.longitude ?? 0)"
+                if reiseZusatz[r.key]?.schluessel == schluessel { continue }
+                if let alt = reiseZusatz[r.key] { weg += alt.punkte }
+                var punkte: [ReiseZusatzPunkt] = r.umstiege.map { u in
+                    let p = ReiseZusatzPunkt(art: "umstieg", fahrzeug: u.art, text: u.text)
+                    p.coordinate = u.ort
+                    return p
+                }
+                if let z = r.ziel {
+                    let p = ReiseZusatzPunkt(art: "ziel")
+                    p.coordinate = z
+                    punkte.append(p)
+                }
+                reiseZusatz[r.key] = (schluessel, punkte)
+                dazu += punkte as [MLNAnnotation]
+            }
+            for (key, alt) in reiseZusatz where !zusatzBehalten.contains(key) {
+                weg += alt.punkte as [MLNAnnotation]
+                reiseZusatz[key] = nil
+            }
+            spaeter(weg: weg, dazu: dazu)
         }
 
         // MARK: Eigene Orte
@@ -357,6 +439,12 @@ struct DispoKarte: UIViewRepresentable {
             func trifft(_ v: MLNAnnotationView?) -> Bool {
                 guard let v, v.superview != nil, !v.isHidden else { return false }
                 return v.bounds.contains(karte.convert(punkt, to: v))
+            }
+            // Fahrzeug einer Dienstreise: waehlt den Fahrer wie sein Pin.
+            if let (key, _) = reiseAnsichten.first(where: { trifft($0.value) }), let p = reisePunkte[key] {
+                if stand.gewaehlterOrt != nil { stand.ortWaehlen(nil) }
+                stand.waehlen(p.eintrag.driverID)
+                return
             }
             // Oben liegende zuerst (gewaehlter Fahrer, dann nach Hoehe).
             let treffer = imBild.compactMap { id in fahrerAnsichten[id].map { (id, $0) } }
@@ -606,6 +694,16 @@ struct DispoKarte: UIViewRepresentable {
                 fahrerAnsichten[p.id] = v
                 return v
             }
+            if let r = annotation as? ReiseFahrzeugPunkt {
+                let e = r.eintrag
+                let v = FahrzeugMarkerAnsicht(art: e.art, nummer: e.nummer, text: e.text, punktFarbe: UIColor(hex: e.farbe))
+                reiseAnsichten[e.key] = v
+                return v
+            }
+            if let z = annotation as? ReiseZusatzPunkt {
+                return z.art == "ziel" ? RoutenPin(bild: "Ziel_Pin_Trisar_01")
+                    : UmstiegMarkerAnsicht(art: z.fahrzeug, text: z.text)
+            }
             if let o = annotation as? OrtKartenPunkt {
                 let v = OrtMarkerAnsicht()
                 v.anwenden(o.ort.symbol, aktiv: o.ort.id == letzterOrt)
@@ -633,6 +731,56 @@ struct DispoKarte: UIViewRepresentable {
 }
 
 // MARK: - Punkte
+
+/// Fahrer auf Dienstreise auf der Karte (ReiseLage).
+struct ReiseKartenEintrag: Equatable {
+    let key: String
+    let driverID: String
+    let offen: [CLLocationCoordinate2D]
+    let gefahren: [CLLocationCoordinate2D]
+    let position: CLLocationCoordinate2D?
+    let art: String
+    let nummer: String
+    let text: String
+    let farbe: UInt32
+    /// Umstieg-Marker (Icon des naechsten Abschnitts + "U2 ab 06:56") und Zielflagge.
+    var umstiege: [ReiseLage.UmstiegPunkt] = []
+    var ziel: CLLocationCoordinate2D? = nil
+
+    static func == (a: Self, b: Self) -> Bool {
+        func gleich(_ x: [CLLocationCoordinate2D], _ y: [CLLocationCoordinate2D]) -> Bool {
+            x.count == y.count && zip(x, y).allSatisfy { $0.latitude == $1.latitude && $0.longitude == $1.longitude }
+        }
+        return a.key == b.key && a.driverID == b.driverID && gleich(a.offen, b.offen) && gleich(a.gefahren, b.gefahren)
+            && a.position?.latitude == b.position?.latitude && a.position?.longitude == b.position?.longitude
+            && a.art == b.art && a.nummer == b.nummer && a.text == b.text && a.farbe == b.farbe
+            && a.ziel?.latitude == b.ziel?.latitude && a.ziel?.longitude == b.ziel?.longitude
+            && a.umstiege.map(\.text) == b.umstiege.map(\.text) && a.umstiege.map(\.ort.latitude) == b.umstiege.map(\.ort.latitude)
+    }
+}
+
+/// Umstieg-Marker oder Zielflagge einer Dienstreise.
+final class ReiseZusatzPunkt: MLNPointAnnotation {
+    let art: String        // "umstieg" oder "ziel"
+    let fahrzeug: String
+    let text: String
+    init(art: String, fahrzeug: String = "", text: String = "") {
+        self.art = art; self.fahrzeug = fahrzeug; self.text = text
+        super.init()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+}
+
+final class ReiseFahrzeugPunkt: MLNPointAnnotation {
+    let eintrag: ReiseKartenEintrag
+    let schluessel: String
+    init(eintrag: ReiseKartenEintrag, schluessel: String) {
+        self.eintrag = eintrag
+        self.schluessel = schluessel
+        super.init()
+    }
+    required init?(coder: NSCoder) { fatalError() }
+}
 
 final class KartenFahrerPunkt: MLNPointAnnotation {
     let id: String

@@ -229,12 +229,27 @@ struct SoloNormalAnsicht: View {
             }
             .platz(20, y(289), innen, nil)
 
-            if !fahrt.zwischenstopps.isEmpty {
-                Text("Über: " + fahrt.zwischenstopps.joined(separator: "  ·  "))
-                    .grotesk(13, .bold, abstand: -0.3)
-                    .foregroundStyle(Color(hex: 0xE2F754))
-                    .lineLimit(2)
-                    .platz(20, y(352), innen, nil)
+            if !fahrt.zwischenstopps.isEmpty || !fahrt.routenPunkte.isEmpty {
+                // Route von der Dispo angepasst (jobs.routen_punkte): Lime-Chip vor der Stopp-Zeile.
+                HStack(alignment: .top, spacing: 8) {
+                    if !fahrt.routenPunkte.isEmpty {
+                        Text("Route von Dispo")
+                            .grotesk(12, .bold, abstand: -0.2)
+                            .foregroundStyle(.black)
+                            .lineLimit(1).fixedSize()
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(Color(hex: 0xE2F754)))
+                    }
+                    if !fahrt.zwischenstopps.isEmpty {
+                        Text("Über: " + fahrt.zwischenstopps.joined(separator: "  ·  "))
+                            .grotesk(13, .bold, abstand: -0.3)
+                            .foregroundStyle(Color(hex: 0xE2F754))
+                            .lineLimit(fahrt.routenPunkte.isEmpty ? 2 : 1)
+                            .padding(.top, fahrt.routenPunkte.isEmpty ? 0 : 2)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .platz(20, y(352), innen, nil)
             }
 
             if !merkmale.isEmpty {
@@ -594,8 +609,10 @@ struct SoloNormalAnsicht: View {
         var teile = URLComponents(string: "https://www.google.com/maps/dir/")!
         var q: [URLQueryItem] = [.init(name: "api", value: "1"), .init(name: "travelmode", value: "driving")]
         if !abhol.isEmpty && !ziel.isEmpty {
-            // Google Maps erlaubt 9 Zwischenziele, der Gast zaehlt mit.
-            q.append(.init(name: "waypoints", value: ([abhol] + fahrt.zwischenstopps.prefix(8)).joined(separator: "|")))
+            // Google Maps erlaubt 9 Zwischenziele, der Gast zaehlt mit. Routenpunkte der Dispo
+            // stehen in Fahrtreihenfolge zwischen den Stopps (lat,lng).
+            let zwischen = RoutenPunkt.zwischenziele(stopps: fahrt.zwischenstopps, punkte: fahrt.routenPunkte)
+            q.append(.init(name: "waypoints", value: ([abhol] + zwischen).prefix(RoutenPunkt.googleZwischenziele).joined(separator: "|")))
             q.append(.init(name: "destination", value: ziel))
         } else {
             q.append(.init(name: "destination", value: ziel.isEmpty ? abhol : ziel))

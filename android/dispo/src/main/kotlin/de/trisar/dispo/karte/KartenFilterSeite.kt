@@ -1,6 +1,15 @@
 package de.trisar.dispo.karte
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,7 +75,7 @@ private val LIME = hex(0xE3F654)
  * und loeschen. Wie im Web wirkt auf der Karte nur die Fahrersuche (mehrere Begriffe mit ';').
  */
 @Composable
-internal fun KartenFilterSeite(zurueck: () -> Unit) {
+internal fun KartenFilterSeite(zurueck: () -> Unit, langeOhneSignal: List<KartenFahrer> = emptyList()) {
     val f = KartenFilter
     val stufen = remember { TrackerStufen() }
     val scope = rememberCoroutineScope()
@@ -79,9 +88,15 @@ internal fun KartenFilterSeite(zurueck: () -> Unit) {
     }
     // Wie im Web: Abschnitt "Punkte bei Fahrt" unter Feierabend (Web top 462, hier +20),
     // die Knoepfe darunter rutschen mit.
-    val stufeTop = 482f
+    // Abschnitt "Ohne Signal ausblenden nach" unter Feierabend (Web 462 + 20), feste Hoehe 180.
+    // Abschnitt "Dienststart automatisch" direkt unter Feierabend (Web 462 + 20), feste Hoehe 132.
+    val dienststart = remember { DienststartVorlauf() }
+    LaunchedEffect(Unit) { dienststart.laden() }
+    val dienststartTop = 482f
+    val ohneSignalTop = if (dienststart.verfuegbar) dienststartTop + 132f else dienststartTop
+    val stufeTop = ohneSignalTop + 136f
     val stufeZeilenTop = stufeTop + 32f + 40f + 12f
-    val orteTop = if (stufen.tracker.isEmpty()) 482f
+    val orteTop = if (stufen.tracker.isEmpty()) stufeTop
         else stufeZeilenTop + (stufen.tracker.size + (if (stufen.fehler == null) 0 else 1)) * 24f + 20f
 
     // Abschnitt Orte: Standard-Radien und eigene Orte (orte, orte_standard).
@@ -126,6 +141,33 @@ internal fun KartenFilterSeite(zurueck: () -> Unit) {
             ZweierKnopf("Coupe", f.coupe, Modifier.platz(207f, 338f, 175f, 40f)) { f.coupe = !f.coupe }
 
             FeierabendZeile(Modifier.platz(20f, 402f, 362f, 56f))
+
+            if (dienststart.verfuegbar) {
+                Text("Dienststart automatisch", style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.6f)),
+                    modifier = Modifier.platz(20f, dienststartTop, 362f, 24f), maxLines = 1)
+                DienststartZeile(dienststart.minuten, Modifier.platz(20f, dienststartTop + 32f, 362f, 56f)) { neu ->
+                    scope.launch { dienststart.setzen(neu) }
+                }
+                val fehler = dienststart.fehler
+                Text(if (fehler != null) "Speichern fehlgeschlagen: $fehler" else "Gilt für alle Fahrer. Der Fahrer bestätigt den Dienst wie gewohnt.",
+                    style = grotesk(12f, 500, abstand = 0.3f, farbe = if (fehler != null) hex(0xFF6B6B) else LIME.copy(alpha = 0.5f)),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.platz(20f, dienststartTop + 96f, 362f, 32f))
+            }
+
+            Text("Ohne Signal ausblenden nach", style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.6f)),
+                modifier = Modifier.platz(20f, ohneSignalTop, 362f, 24f), maxLines = 1)
+            OhneSignalStunden(Modifier.platz(20f, ohneSignalTop + 32f, 236f, 56f))
+            AusblendenKnopf(!OhneSignal.zeigen, Modifier.platz(264f, ohneSignalTop + 32f, 118f, 56f)) {
+                OhneSignal.zeigenSetzen(!OhneSignal.zeigen)
+            }
+            if (langeOhneSignal.isNotEmpty()) {
+                val liste = langeOhneSignal.take(4).joinToString(" · ") { OhneSignal.seit(it) } + if (langeOhneSignal.size > 4) " …" else ""
+                val zeile = if (OhneSignal.zeigen) "${langeOhneSignal.size} länger ohne Signal, mit letztem Standort sichtbar"
+                    else "${langeOhneSignal.size} länger ohne Signal: $liste"
+                Text(zeile, style = grotesk(14f, 500, abstand = 0.3f, farbe = LIME.copy(alpha = 0.6f)),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.platz(20f, ohneSignalTop + 96f, 362f, 24f))
+            }
 
             if (stufen.tracker.isNotEmpty()) {
                 Text("Punkte bei Fahrt", style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.6f)),
@@ -186,6 +228,78 @@ private fun SuchZeile(modifier: Modifier) {
     }
 }
 
+/**
+ * Stunden-Feld fuer die Schwelle "ohne Signal": "nach 0,5 h", ganzes Kaestchen tippbar,
+ * Zahlentastatur mit Komma. Gueltige Eingaben gelten sofort.
+ */
+@Composable
+private fun OhneSignalStunden(modifier: Modifier) {
+    val fokus = remember { FocusRequester() }
+    var aktiv by remember { mutableStateOf(false) }
+    var entwurf by remember { mutableStateOf(OhneSignal.stundenText(OhneSignal.minuten)) }
+    LaunchedEffect(OhneSignal.minuten, aktiv) { if (!aktiv) entwurf = OhneSignal.stundenText(OhneSignal.minuten) }
+    Row(
+        modifier.alpha(if (OhneSignal.zeigen) 0.4f else 1f)
+            .background(if (aktiv) LIME.copy(alpha = 0.08f) else Color.Transparent)
+            .border(2.dp, LIME).tippen { runCatching { fokus.requestFocus() } }.padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("nach ", style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.6f)), maxLines = 1)
+        Eingabe(
+            wert = entwurf,
+            aendern = { neu ->
+                val sauber = neu.filter { it in "0123456789,." }.take(5)
+                entwurf = sauber
+                OhneSignal.stundenLesen(sauber)?.let { OhneSignal.minutenSetzen(it) }
+            },
+            platzhalter = "",
+            stil = grotesk(16f, 500, abstand = 0.5f, farbe = LIME),
+            platzhalterFarbe = LIME.copy(alpha = 0.6f),
+            // Breite folgt der Zahl, damit "h" direkt dahinter steht.
+            modifier = Modifier.width((entwurf.length.coerceAtLeast(2) * 10 + 6).dp),
+            tastatur = KeyboardType.Decimal,
+            gross = KeyboardCapitalization.None,
+            fokus = fokus,
+            fokusGeaendert = { aktiv = it },
+        )
+        Text(" h", style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.6f)), maxLines = 1)
+        Spacer(Modifier.weight(1f))
+    }
+}
+
+/** Knopf neben dem Stunden-Feld: an = "Ausblenden" (Lime gefuellt, Auge zu), aus = "Alle zeigen". */
+@Composable
+private fun AusblendenKnopf(an: Boolean, modifier: Modifier, aktion: () -> Unit) {
+    val farbe = if (an) hex(0x1D1C1D) else LIME
+    Row(
+        modifier.background(if (an) LIME else Color.Transparent).border(2.dp, LIME).tippen(aktion),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AugeIcon(an, farbe)
+        Spacer(Modifier.width(6.dp))
+        Text(if (an) "Ausblenden" else "Alle zeigen", style = grotesk(14f, 500, abstand = 0.3f, farbe = farbe), maxLines = 1)
+    }
+}
+
+/** Auge (durchgestrichen bei Ausblenden), gleiche Form wie im Web. */
+@Composable
+private fun AugeIcon(zu: Boolean, farbe: Color) {
+    Canvas(Modifier.size(18.dp)) {
+        val s = size.width / 24f
+        val strich = Stroke(width = 2f * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        val auge = Path().apply {
+            moveTo(2f * s, 12f * s)
+            quadraticTo(12f * s, -1f * s, 22f * s, 12f * s)
+            quadraticTo(12f * s, 25f * s, 2f * s, 12f * s)
+            close()
+        }
+        drawPath(auge, farbe, style = strich)
+        drawCircle(farbe, radius = 3f * s, center = Offset(12f * s, 12f * s), style = strich)
+        if (zu) drawLine(farbe, Offset(3f * s, 3f * s), Offset(21f * s, 21f * s), strokeWidth = 2f * s, cap = StrokeCap.Round)
+    }
+}
+
 /** TwoColButton: Rahmen Lime, an = Lime gefuellt mit dunkler Schrift. */
 @Composable
 private fun ZweierKnopf(text: String, an: Boolean, modifier: Modifier, aktion: () -> Unit) {
@@ -230,6 +344,85 @@ private fun FeierabendZeile(modifier: Modifier) {
             }
         }
         Spacer(Modifier.size(0.dp))
+    }
+}
+
+/** Wie FeierabendZeile: "Dienststart 30 min vor 1. Fahrt", aus "Dienststart automatisch aus". */
+@Composable
+private fun DienststartZeile(minuten: Int?, modifier: Modifier, setzen: (Int?) -> Unit) {
+    var offen by remember { mutableStateOf(false) }
+    Row(modifier.border(2.dp, LIME).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f).tippen { offen = true }, contentAlignment = Alignment.CenterStart) {
+            Text(buildAnnotatedString {
+                if (minuten == null) {
+                    withStyle(SpanStyle(color = LIME.copy(alpha = 0.6f))) { append("Dienststart automatisch aus") }
+                } else {
+                    withStyle(SpanStyle(color = LIME.copy(alpha = 0.6f))) { append("Dienststart ") }
+                    withStyle(SpanStyle(color = LIME)) { append("$minuten min") }
+                    withStyle(SpanStyle(color = LIME.copy(alpha = 0.6f))) { append(" vor 1. Fahrt") }
+                }
+            }, style = grotesk(16f, 500, abstand = 0.5f), maxLines = 1, modifier = Modifier.padding(vertical = 16.dp))
+            DropdownMenu(offen, { offen = false }, Modifier.background(hex(0x1E1E1E))) {
+                DropdownMenuItem(
+                    text = { Text("Aus", style = grotesk(16f, farbe = Color.White)) },
+                    onClick = { setzen(null); offen = false },
+                )
+                for (o in DienststartVorlauf.OPTIONEN) {
+                    DropdownMenuItem(
+                        text = { Text("$o min", style = grotesk(16f, farbe = Color.White)) },
+                        onClick = { setzen(o); offen = false },
+                    )
+                }
+            }
+        }
+        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            if (minuten == null) {
+                Icon("clock-green", Modifier.size(20.dp))
+            } else {
+                Icon("clear-field-green", Modifier.size(20.dp).tippen { setzen(null) })
+            }
+        }
+    }
+}
+
+/**
+ * Dienststart automatisch vor der ersten Fahrt (15.11.), wie useDienststartVorlauf im Web.
+ * dispo_einstellungen 'dienststart_vorlauf_min', fehlt = aus. Der DB-Trigger trg_jobs_dienststart
+ * schickt damit beim Zuteilen einer Fahrt den Dienststart (Migration 20261115140000).
+ */
+internal class DienststartVorlauf {
+    var minuten by mutableStateOf<Int?>(null)
+    /** false, wenn die Tabelle fehlt (Migration noch nicht da): Abschnitt bleibt weg. */
+    var verfuegbar by mutableStateOf(false)
+    var fehler by mutableStateOf<String?>(null)
+
+    suspend fun laden() {
+        val zeilen = runCatching {
+            Backend.client.from("dispo_einstellungen")
+                .select(Columns.raw("schluessel, wert")) { filter { eq("schluessel", SCHLUESSEL) } }
+                .decodeList<JsonObject>()
+        }.getOrNull() ?: return
+        val wert = zeilen.firstOrNull()?.text("wert")?.toDoubleOrNull()
+        minuten = wert?.takeIf { it > 0 }?.toInt()
+        verfuegbar = true
+    }
+
+    suspend fun setzen(neu: Int?) {
+        val alt = minuten
+        minuten = neu
+        fehler = null
+        runCatching {
+            // Aus = wert null (Zeile bleibt), Standard 60 min setzt die Migration.
+            Backend.client.from("dispo_einstellungen").upsert(buildJsonObject {
+                put("schluessel", SCHLUESSEL)
+                put("wert", neu)
+            }) { onConflict = "schluessel" }
+        }.onFailure { minuten = alt; fehler = dbMeldung(it) }
+    }
+
+    companion object {
+        const val SCHLUESSEL = "dienststart_vorlauf_min"
+        val OPTIONEN = listOf(15, 30, 45, 60, 90, 120)
     }
 }
 

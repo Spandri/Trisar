@@ -39,6 +39,8 @@ struct GeladeneFahrt: Equatable {
     var mitOrtSpalten = false
     /// jobs.etd_bis gibt es in der Datenbank (Migration Start Zeitraum da).
     var mitBisSpalte = false
+    /// Routenpunkte der Dispo (jobs.routen_punkte, 15.11.), leer = schnellste Route.
+    var routenPunkte: [RoutenPunkt] = []
 }
 
 /// payload an onCreateRide / onSave.
@@ -54,6 +56,8 @@ struct FahrtEingabe {
     var aiBooked = false
     /// KI-Assistent: Flug nicht bestaetigt und trotzdem gebucht, Nummer ohne Flugdaten behalten (Web: flugOhnePruefung).
     var flugOhnePruefung = false
+    /// Routenpunkte aus dem Routen-Editor (leer = schnellste Route).
+    var routenPunkte: [RoutenPunkt] = []
 }
 
 /// Vorschlag des KI-Assistenten als Startwerte fuer „Fahrt erstellen“.
@@ -193,6 +197,7 @@ enum FahrtSpeichern {
     private struct Notiz: Decodable { let note_text: String?; let author_name: String? }
     private struct ArchivZeile: Decodable { let job_id: UUID? }
     private struct BisZeile: Decodable { let etd_bis: String? }
+    private struct RoutenZeile: Decodable { let routen_punkte: RoutenPunktListe? }
 
     private static func nummerText(_ w: AnyJSON?) -> String {
         switch w {
@@ -361,6 +366,10 @@ enum FahrtSpeichern {
                              fahrgaeste: wirksam.joined(separator: ", "), notiz: dispoText, aiBooked: aiBooked,
                              mitOrtSpalten: mitOrtSpalten)
         ergebnis.mitBisSpalte = mitBisSpalte
+        // Routenpunkte: eigene Abfrage, fehlt die Spalte noch, bleibt es die schnellste Route.
+        if let r: RoutenZeile = try? await c.from("jobs").select("routen_punkte").eq("id", value: id).single().execute().value {
+            ergebnis.routenPunkte = r.routen_punkte?.punkte ?? []
+        }
         return ergebnis
     }
 
@@ -391,6 +400,7 @@ enum FahrtSpeichern {
         var zug: FahrtPruefung.ZumSpeichern
         var zugZeiten: FahrtPruefung.ZugZeiten
         var zugLive: AnyJSON
+        var routenPunkte: [RoutenPunkt] = []
     }
 
     private static func vorbereiten(_ e: FahrtEingabe) async -> Result<Vorbereitet, TrisarFehler> {
@@ -430,7 +440,8 @@ enum FahrtSpeichern {
             fahrerNamen: FahrtText.fahrerNamenListe(e.fahrerNamen),
             gaeste: FahrtText.gaesteTeilen(e.fahrgaeste),
             anonym: max(0, Int(FahrtText.getrimmt(e.werte.anonymeGaeste.isEmpty ? "0" : e.werte.anonymeGaeste)) ?? 0),
-            flugNr: flugNr, zugNr: zugNr, flug: flug, flugUngeprueft: ungeprueft, zug: zug, zugZeiten: zeiten, zugLive: live
+            flugNr: flugNr, zugNr: zugNr, flug: flug, flugUngeprueft: ungeprueft, zug: zug, zugZeiten: zeiten, zugLive: live,
+            routenPunkte: e.routenPunkte
         ))
     }
 
@@ -447,7 +458,7 @@ enum FahrtSpeichern {
     /// Gemeinsame Spalten von insertPayload / updatePayload.
     private static func jobSpalten(_ v: Vorbereitet, status: String, kolonne: UUID?, fahrer: UUID?, aiBooked: Bool,
                                    mitOrtSpalten: Bool = false, mitStoppSpalte: Bool = false,
-                                   mitBisSpalte: Bool = false) -> [String: AnyJSON] {
+                                   mitBisSpalte: Bool = false, mitRoutenPunkten: Bool = false) -> [String: AnyJSON] {
         let jetzt = Datum.iso(Date())
         var zeile: [String: AnyJSON] = [
             "pickup_name": .string(v.start),
@@ -482,6 +493,13 @@ enum FahrtSpeichern {
         // Start Zeitraum: beim Anlegen nur wenn gesetzt, beim Aendern immer (leer = null, feste Startzeit).
         if mitBisSpalte || !v.startZeitBis.isEmpty {
             zeile["etd_bis"] = text(v.startZeitBis)
+        }
+        // Routenpunkte nur, wenn welche gesetzt sind oder die Fahrt vorher welche hatte
+        // (sonst bricht das Speichern, solange die Spalte auf der Datenbank fehlt).
+        if mitRoutenPunkten || !v.routenPunkte.isEmpty {
+            zeile["routen_punkte"] = .array(v.routenPunkte.map { p in
+                .object(["lat": .double(p.lat), "lng": .double(p.lng), "nach": .integer(p.nach)])
+            })
         }
         return zeile
     }
@@ -597,7 +615,7 @@ enum FahrtSpeichern {
 
             var zeile = jobSpalten(v, status: naechster, kolonne: kolonne, fahrer: fahrerNeu, aiBooked: geladen.aiBooked,
                                    mitOrtSpalten: geladen.mitOrtSpalten, mitStoppSpalte: geladen.mitStoppSpalte,
-                                   mitBisSpalte: geladen.mitBisSpalte)
+                                   mitBisSpalte: geladen.mitBisSpalte, mitRoutenPunkten: !geladen.routenPunkte.isEmpty)
             if neuAnfragen {
                 zeile["driver_response_status"] = "pending"
                 zeile["driver_responded_at"] = .null

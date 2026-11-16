@@ -19,7 +19,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "58"
+    CURRENT_PROJECT_VERSION: "72"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
@@ -45,6 +45,10 @@ targets:
       - ../ios-fahrer/TrisarFahrer/Dienste/Fahrten.swift
       # Treffpunkt und Notiz beim Dienststart (Fahrten.swift haengt ihn an den Dienst).
       - ../ios-fahrer/TrisarFahrer/Dienste/DienstTreffpunkt.swift
+      # Dienstreise: Verbindung Zug/Flug (train-validate, flight-validate), gleich wie in der Fahrer-App.
+      - ../ios-fahrer/TrisarFahrer/Dienste/DienstreiseVerbindung.swift
+      # Dienstreise: wo der Fahrer gerade ist (laufender Abschnitt, Position, Fahrzeug-Marker).
+      - ../ios-fahrer/TrisarFahrer/Dienste/ReiseLage.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Orte.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/Chat.swift
       - ../ios-fahrer/TrisarFahrer/Dienste/FahrtDetails.swift
@@ -88,6 +92,9 @@ targets:
       path: TrisarDispo/Info.plist
       properties:
         NFCReaderUsageDescription: NFC-Tags an den OBD-Trackern beschreiben und auslesen.
+        # Voice-Modus im KI-Assistenten (Ansichten/SprachModus.swift).
+        NSMicrophoneUsageDescription: Das Mikrofon wird im Sprachmodus des KI-Assistenten genutzt, damit du mit ihm sprechen kannst.
+        NSSpeechRecognitionUsageDescription: Deine Sprache wird im Sprachmodus des KI-Assistenten in Text umgewandelt und an den Assistenten geschickt.
         CFBundleDisplayName: TRISAR Dispo
         # Erstes Bild des Startvideos, damit es ohne Schwarz in die Animation geht.
         UILaunchStoryboardName: LaunchScreen
@@ -145,6 +152,10 @@ targets:
         WKApplication: true
         UIAppFonts:
           - SpaceGrotesk.ttf
+        # TEST (13.11.): Sprachmodus bleibt bei ausgehendem Bildschirm aktiv (WKExtendedRuntimeSession,
+        # Typ self-care, nur solange der Sprachmodus offen ist). Fuer den App Store vorher pruefen.
+        WKBackgroundModes:
+          - self-care
 
   # Komplikation der Dispo-Uhr: „N ohne Fahrer · N ohne Signal“ (rechteckig, rund, Zeile, Ecke).
   # Zahlen kommen ueber die App Group group.de.trisar.dispo.uhr von der Uhr-App.

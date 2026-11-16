@@ -96,6 +96,8 @@ struct KartenFahrer: Identifiable, Equatable {
     var vehicleId = ""
     /// profiles.flagge (flagge1 bis flagge3), nil = keine.
     var flagge: String? = nil
+    /// driver_live_locations.source (ios_app/android_app/Tracker): fuer die Dienstreise zaehlt nur das Handy.
+    var standortQuelle: String? = nil
 
     var ort: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lng) }
     var vorname: String { name.split(separator: " ").first.map(String.init) ?? "Fahrer" }
@@ -133,6 +135,72 @@ final class KartenFilter: ObservableObject {
     func zuruecksetzen() {
         fahrerSuche = ""; gewaehlteFahrerIDs = []; feierabendMinuten = ""
         limousine = false; suv = false; van = false; coupe = false
+        OhneSignalEinstellung.geteilt.zuruecksetzen()
+    }
+}
+
+/// Fahrer lange ohne Signal (15.11., Pilotkunde, wie shared/ohneSignal.js): wer laenger als die
+/// Schwelle keinen Standort schickt (App oder OBD-Tracker, captured_at), verschwindet von der Karte.
+/// Im Karten-Filter Regler fuer die Schwelle und Schalter "Letzten Standort trotzdem zeigen".
+/// Je Geraet gemerkt.
+@MainActor
+final class OhneSignalEinstellung: ObservableObject {
+    static let geteilt = OhneSignalEinstellung()
+    /// Im Filter in Stunden eingetippt (0,25 bis 24 h), gespeichert in Minuten.
+    static let minMinuten = 15.0
+    static let maxMinuten = 1440.0
+    static let standard = 30.0
+    private static let schluesselMinuten = "trisar.karte.ohneSignal.minuten"
+    private static let schluesselZeigen = "trisar.karte.ohneSignal.zeigen"
+
+    @Published var minuten: Double {
+        didSet { UserDefaults.standard.set(minuten, forKey: Self.schluesselMinuten) }
+    }
+    @Published var zeigen: Bool {
+        didSet { UserDefaults.standard.set(zeigen, forKey: Self.schluesselZeigen) }
+    }
+
+    private init() {
+        let gemerkt = UserDefaults.standard.double(forKey: Self.schluesselMinuten)
+        minuten = gemerkt > 0 ? min(Self.maxMinuten, max(Self.minMinuten, gemerkt)) : Self.standard
+        zeigen = UserDefaults.standard.bool(forKey: Self.schluesselZeigen)
+    }
+
+    func zuruecksetzen() { minuten = Self.standard; zeigen = false }
+
+    /// Laenger als die Schwelle still? Ohne Zeitstempel zaehlt nicht.
+    func zuLange(_ f: KartenFahrer, jetzt: Date = Date()) -> Bool {
+        guard let d = f.letztesSignal else { return false }
+        return jetzt.timeIntervalSince(d) >= minuten * 60
+    }
+
+    /// Auf der Karte weg (Schalter aus und zu lange still).
+    func ausgeblendet(_ f: KartenFahrer, jetzt: Date = Date()) -> Bool { !zeigen && zuLange(f, jetzt: jetzt) }
+
+    /// Minuten als Stunden mit Komma: 30 -> "0,5", 90 -> "1,5", 15 -> "0,25".
+    static func stundenText(_ minuten: Double) -> String {
+        let h = (minuten / 60 * 100).rounded() / 100
+        var s = String(format: "%.2f", h)
+        while s.hasSuffix("0") { s.removeLast() }
+        if s.hasSuffix(".") { s.removeLast() }
+        return s.replacingOccurrences(of: ".", with: ",")
+    }
+
+    /// "1,5" / "1.5" / "2" -> Minuten (auf 0,25 bis 24 h begrenzt), sonst nil.
+    static func stundenLesen(_ text: String) -> Double? {
+        guard let h = Double(text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")),
+              h.isFinite, h > 0 else { return nil }
+        return min(maxMinuten, max(minMinuten, (h * 60).rounded()))
+    }
+
+    /// "#4 seit 13:05", an einem anderen Tag "#11 seit 14.11."
+    static func seit(_ f: KartenFahrer) -> String {
+        let wer = f.nummer.map { "#\($0)" } ?? f.name
+        guard let d = f.letztesSignal else { return wer }
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "de_DE")
+        fmt.dateFormat = Calendar.current.isDateInToday(d) ? "HH:mm" : "dd.MM."
+        return "\(wer) seit \(fmt.string(from: d))"
     }
 }
 
@@ -158,11 +226,19 @@ final class KartenDaten: ObservableObject {
     private var beobachter: [Task<Void, Never>] = []
     private var takt: Timer?
 
-    init() { fahrer = Self.zwischenspeicher }
+    /// Eigener Kanalname je Instanz: Bruecke (Uhr/CarPlay) und Kartenansicht laufen gleichzeitig.
+    /// Gleicher Name hiesse gleicher Kanal im Client, removeChannel der einen Instanz beendete
+    /// dann auch die Realtime der anderen.
+    private let kanalName: String
+
+    init(kanalName: String = "ko-karten-live-refresh") {
+        self.kanalName = kanalName
+        fahrer = Self.zwischenspeicher
+    }
 
     func starten() async {
         await laden()
-        let kanal = Backend.client.channel("ko-karten-live-refresh")
+        let kanal = Backend.client.channel(kanalName)
         let standorte = kanal.postgresChange(AnyAction.self, schema: "public", table: "driver_live_locations")
         let zuendung = kanal.postgresChange(AnyAction.self, schema: "public", table: "vehicle_telemetry_live")
         let fahrten = kanal.postgresChange(AnyAction.self, schema: "public", table: "jobs")
@@ -192,6 +268,8 @@ final class KartenDaten: ObservableObject {
         takt = nil
         beobachter.forEach { $0.cancel() }
         beobachter = []
+        if let aktivBeobachter { NotificationCenter.default.removeObserver(aktivBeobachter) }
+        aktivBeobachter = nil
         if let kanal { await Backend.client.removeChannel(kanal) }
         kanal = nil
     }
@@ -219,6 +297,7 @@ final class KartenDaten: ObservableObject {
         var f = fahrer[i]
         f.lat = lat
         f.lng = lng
+        if case .string(let q)? = satz["source"] { f.standortQuelle = q }
         if case .string(let t)? = satz["captured_at"], let d = Self.zeitpunkt(t) {
             f.letztesSignal = d
             f.signalStufe = min(5, max(0, Int(Date().timeIntervalSince(d) / 60)))
@@ -292,7 +371,13 @@ final class KartenDaten: ObservableObject {
             }
             guard let profile else { throw letzterFehler ?? URLError(.badServerResponse) }
 
-            let live = try await abfrage("driver_live_locations", "driver_id, lat, lng, captured_at, active_job_id")
+            // Mit Quelle des Standorts, fehlt die Spalte, ohne.
+            let live: [Zeile]
+            if let mit = try? await abfrage("driver_live_locations", "driver_id, lat, lng, captured_at, active_job_id, source") {
+                live = mit
+            } else {
+                live = try await abfrage("driver_live_locations", "driver_id, lat, lng, captured_at, active_job_id")
+            }
 
             // Zuendung aus dem OBD-Tracker. Fehlt die Tabelle oder das Recht, bleibt alles wie bisher.
             let zuendung = (try? await abfrage("vehicle_telemetry_live", "driver_id, ignition, captured_at")) ?? []
@@ -454,7 +539,8 @@ final class KartenDaten: ObservableObject {
                 fahrzeug: fahrzeug.isEmpty ? "Fahrzeug" : fahrzeug,
                 lat: lat, lng: lng, zustand: zustand, info: info, fahrt: fahrt,
                 vehicleId: Self.text(p?["vehicle_id"]),
-                flagge: Flaggen.id(Self.text(p?["flagge"])))
+                flagge: Flaggen.id(Self.text(p?["flagge"])),
+                standortQuelle: Self.text(zeile["source"]).isEmpty ? nil : Self.text(zeile["source"]))
         }
         return (liste, sichtbar.count)
     }

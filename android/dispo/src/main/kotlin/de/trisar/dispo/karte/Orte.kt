@@ -61,6 +61,7 @@ import de.trisar.kern.EigeneOrte
 import de.trisar.kern.FussleisteUnten
 import de.trisar.kern.Icon
 import de.trisar.kern.Konfig
+import de.trisar.kern.Routen
 import de.trisar.kern.Ort
 import de.trisar.kern.OrtIcons
 import de.trisar.kern.ZurueckKnopf
@@ -347,6 +348,14 @@ internal fun OrtBearbeitenSeite(ort: Ort?, zurueck: () -> Unit) {
         lauf?.cancel()
         val suche = text.trim()
         if (suche.isEmpty()) { vorschlaege = emptyList(); return }
+        // Koordinaten getippt ("48.1372, 11.6981"): Pin sofort dorthin, keine Vorschlaege.
+        Routen.koordinatenAusText(suche)?.let {
+            vorschlaege = emptyList()
+            gewaehlteAdresse = text
+            punkt = KartenPunkt(it.lat, it.lng)
+            zentrieren++
+            return
+        }
         // fetchAddressPredictions: 250 ms warten, nur das juengste Ergebnis zaehlt.
         lauf = scope.launch {
             delay(250)

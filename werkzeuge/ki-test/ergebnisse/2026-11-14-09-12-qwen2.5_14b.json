@@ -1,0 +1,74 @@
+[
+  {
+    "fall": "Stundenlohn fuer alle, dann ja",
+    "gruppe": "Stundenlohn",
+    "schritt": 1,
+    "frage": "Geb allen Fahrern eine Stundenlohn von 30€",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Ich setze den Stundenlohn auf 30,00 € für alle 4 Fahrer. Bisher ist bei niemandem ein Stundenlohn gesetzt.\n\nSoll ich das speichern? Antworte mit „ja“ oder „nein“.",
+    "felder": {},
+    "ms": 2436
+  },
+  {
+    "fall": "Stundenlohn fuer alle, dann ja",
+    "gruppe": "Stundenlohn",
+    "schritt": 2,
+    "frage": "ja",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Gespeichert: Stundenlohn 30,00 € für 4 Fahrer.",
+    "felder": {},
+    "ms": 1
+  },
+  {
+    "fall": "Stundenlohn fuer einen, dann nein",
+    "gruppe": "Stundenlohn",
+    "schritt": 1,
+    "frage": "Setze Tim auf 28,50 Euro Stundenlohn",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Ich setze den Stundenlohn auf 28,50 € für Tim Schedler. Bisher ist bei niemandem ein Stundenlohn gesetzt.\n\nSoll ich das speichern? Antworte mit „ja“ oder „nein“.",
+    "felder": {},
+    "ms": 1529
+  },
+  {
+    "fall": "Stundenlohn fuer einen, dann nein",
+    "gruppe": "Stundenlohn",
+    "schritt": 2,
+    "frage": "nein",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Okay, ich habe nichts geändert.",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Stundenlohn ohne Betrag fragt nach",
+    "gruppe": "Stundenlohn",
+    "schritt": 1,
+    "frage": "Ändere den Stundenlohn von Marvin",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Welcher Betrag soll für Marvin Keller gelten? Zum Beispiel „30 €“.",
+    "felder": {},
+    "ms": 1386
+  },
+  {
+    "fall": "Stundenlohn absurd hoch wird abgelehnt",
+    "gruppe": "Stundenlohn",
+    "schritt": 1,
+    "frage": "Gib allen Fahrern 3000 € Stundenlohn",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "3000,00 € pro Stunde kommt mir unwahrscheinlich vor. Ich nehme nur Beträge zwischen 5 und 200 €. Schreib den Betrag bitte noch einmal.",
+    "felder": {},
+    "ms": 2799
+  }
+]

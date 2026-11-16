@@ -1,0 +1,42 @@
+[
+  {
+    "fall": "Nachts: morgen ist heute (Dienst)",
+    "gruppe": "Nacht",
+    "schritt": 1,
+    "frage": "Dienststart für Tim morgen um 10:30",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 10:30 heute, So 15.11. für Tim Schedler. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-15",
+      "start": "10:30",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Tim Schedler"
+    },
+    "ms": 6381
+  },
+  {
+    "fall": "Nachts: morgen ist heute (Fahrt)",
+    "gruppe": "Nacht",
+    "schritt": 1,
+    "frage": "Neue Fahrt morgen um 10 Uhr vom Hauptbahnhof zur Messe München",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: heute, So 15.11. um 10:00, Hauptbahnhof München → Messe München, noch ohne Fahrer.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-15",
+      "startZeit": "10:00",
+      "start": "Hauptbahnhof München",
+      "ziel": "Messe München",
+      "fahrgaeste": "",
+      "fahrerNamen": "",
+      "fahrtId": "",
+      "startOrtId": "o2",
+      "zielOrtId": "o5"
+    },
+    "ms": 1618
+  }
+]

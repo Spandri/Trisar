@@ -29,8 +29,13 @@ final class DispoUhrVerbindung: NSObject, ObservableObject {
     /// KI-Assistent: Verlauf auf der Uhr, Fragen laufen ueber das iPhone (ki_frage).
     @Published private(set) var kiNachrichten: [KiNachricht] = []
     @Published private(set) var kiDenkt = false
+    /// Fragen, deren Antwort noch nicht da ist (IDs, siehe kiFragen).
+    private var wartendeFragen: Set<String> = []
     /// Offenes Blatt (Fahrer anrufen, Fahrer zuweisen).
     @Published var blatt: DispoUhrBlatt?
+    /// Voice-Modus offen. Liegt hier statt in der KI-Seite: die Seite wird bei neuem Stand vom iPhone
+    /// neu aufgebaut, dann ging der Zustand verloren, das Blatt schloss sich und das Vorlesen brach ab (13.11.).
+    @Published var sprachModus: Bool = ProcessInfo.processInfo.arguments.contains("-uhrSprache")
     /// Zuweisungen von der Uhr je Fahrt (jobs.id).
     @Published private(set) var zuweisung: [String: ZuweisStatus] = [:]
     /// Flaggenfilter fuer Karte und Fahrerliste (leer = alle Fahrer).
@@ -145,24 +150,35 @@ final class DispoUhrVerbindung: NSObject, ObservableObject {
         kiNachrichten.append(KiNachricht(vonMir: true, text: frage))
         kiDenkt = true
         let daten = (try? JSONEncoder().encode(verlauf)) ?? Data()
-        WCSession.default.sendMessage([DispoUhrAktion.art: DispoUhrAktion.kiFrage, "frage": frage, "verlauf": daten], replyHandler: { antwort in
-            let text = antwort["text"] as? String ?? "Keine Antwort."
-            let buchung = antwort["buchung"] as? Data
-            let dienst = antwort["dienst"] as? Data ?? buchung
-            let knopf = antwort["knopf"] as? String
-            let telefonID = antwort["nachricht"] as? String
-            Task { @MainActor in
-                self.kiDenkt = false
-                self.kiNachrichten.append(KiNachricht(vonMir: false, text: text, dienst: dienst, knopf: knopf,
-                                                      buchung: buchung != nil, telefonID: telefonID))
-            }
+        // Jede Frage bekommt eine ID. Die Antwort kommt direkt (replyHandler) oder, wenn die Uhr beim Warten
+        // eingeschlafen ist, ueber transferUserInfo (kiAntwortErhalten). Die erste gewinnt.
+        let id = UUID().uuidString
+        wartendeFragen.insert(id)
+        WCSession.default.sendMessage([DispoUhrAktion.art: DispoUhrAktion.kiFrage, "frage": frage, "verlauf": daten, "frageID": id],
+                                      replyHandler: { antwort in
+            Task { @MainActor in self.kiAntwortUebernehmen(antwort, id: id) }
         }, errorHandler: { fehler in
             let text = fehler.localizedDescription
             Task { @MainActor in
+                // Die ID bleibt wartend: kommt die Antwort spaeter ueber transferUserInfo, wird sie noch angezeigt.
+                guard self.wartendeFragen.contains(id) else { return }
                 self.kiDenkt = false
                 self.kiNachrichten.append(KiNachricht(vonMir: false, text: "Keine Verbindung zum iPhone: \(text)"))
             }
         })
+    }
+
+    /// Antwort des iPhones uebernehmen, nur einmal je Frage (direkt oder ueber den Abgleich).
+    func kiAntwortUebernehmen(_ antwort: [String: Any], id: String) {
+        guard wartendeFragen.remove(id) != nil else { return }
+        let text = antwort["text"] as? String ?? "Keine Antwort."
+        let buchung = antwort["buchung"] as? Data
+        let dienst = antwort["dienst"] as? Data ?? buchung
+        let knopf = antwort["knopf"] as? String
+        let telefonID = antwort["nachricht"] as? String
+        kiDenkt = false
+        kiNachrichten.append(KiNachricht(vonMir: false, text: text, dienst: dienst, knopf: knopf,
+                                         buchung: buchung != nil, telefonID: telefonID))
     }
 
     func dienstSenden(_ nachricht: KiNachricht) {
@@ -234,6 +250,13 @@ extension DispoUhrVerbindung: WCSessionDelegate {
         if let neu = DispoUhrStand.aus(applicationContext) {
             Task { @MainActor in self.uebernehmen(neu) }
         }
+    }
+
+    /// KI-Antwort auf zweitem Weg (transferUserInfo), kommt auch nach dem Aufwachen an.
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+        guard userInfo["kiAntwort"] as? Bool == true, let id = userInfo["frageID"] as? String else { return }
+        let antwort = userInfo
+        Task { @MainActor in self.kiAntwortUebernehmen(antwort, id: id) }
     }
 }
 
@@ -361,6 +384,11 @@ struct DispoUhrHaupt: View {
                     KiSeite().tag("ki")
                 }
                 .tabViewStyle(.verticalPage)
+                // Voice-Modus oberhalb der Seiten, damit ein Neuaufbau der KI-Seite ihn nicht schliesst.
+                .sheet(isPresented: $verbindung.sprachModus) {
+                    UhrSprachModus(vorschau: KiSeite.sprachVorschau)
+                        .environmentObject(verbindung)
+                }
             }
         }
         .background(UhrHintergrund(art: .dispo))
@@ -584,9 +612,18 @@ struct DispoFahrtenSeite: View {
 
 /// KI-Assistent auf der Uhr: Frage diktieren oder tippen, Antwort vom Server ueber das iPhone.
 /// Dienst-Vorschlaege (Feierabend, Dienststart, Pause) lassen sich hier senden, Buchungen nur am iPhone.
+/// Kleine Kugel oben rechts oeffnet den Voice-Modus (UhrSprachModus.swift).
 struct KiSeite: View {
     @EnvironmentObject private var verbindung: DispoUhrVerbindung
     @State private var eingabe = ""
+    /// Voice-Modus (UhrSprachModus). Simulator: -uhrSprache bereit | denkt | spricht oeffnet ihn gleich.
+    static var sprachVorschau: String? {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-uhrSprache"), i + 1 < args.count { return args[i + 1] }
+        #endif
+        return nil
+    }
 
     var body: some View {
         ScrollViewReader { leser in
@@ -597,6 +634,8 @@ struct KiSeite: View {
                         Text("KI-Assistent")
                             .font(.grotesk(13, .bold))
                             .foregroundStyle(UhrFarbe.lime)
+                        Spacer(minLength: 0)
+                        UhrSprachEinstieg { verbindung.sprachModus = true }
                     }
                     if verbindung.kiNachrichten.isEmpty {
                         Text("Frag z. B. „Schick Stefano in Feierabend“ oder „Welche Fahrten haben noch keinen Fahrer?“")

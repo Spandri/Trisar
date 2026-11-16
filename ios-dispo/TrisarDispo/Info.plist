@@ -24,6 +24,10 @@
 	<false/>
 	<key>NFCReaderUsageDescription</key>
 	<string>NFC-Tags an den OBD-Trackern beschreiben und auslesen.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Das Mikrofon wird im Sprachmodus des KI-Assistenten genutzt, damit du mit ihm sprechen kannst.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Deine Sprache wird im Sprachmodus des KI-Assistenten in Text umgewandelt und an den Assistenten geschickt.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>SpaceGrotesk.ttf</string>
