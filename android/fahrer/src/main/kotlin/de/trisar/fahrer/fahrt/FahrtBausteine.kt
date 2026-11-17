@@ -129,9 +129,36 @@ internal fun FahrtNotizBlatt(
     }
 }
 
-/** Abholschild.jsx: Gaestenamen gross, quer gedreht, Tipp dreht um 180 Grad. */
+private val SCHILD_TITEL = Regex(
+    "^(dr|prof|herr|frau|mr|mrs|ms|miss|sir|dipl|ing|mag|med|rer|nat|phil|hon|familie|family|fam|firma|team|gruppe|group)\\.?$|\\.$",
+    RegexOption.IGNORE_CASE,
+)
+private val SCHILD_NAMENSZUSATZ = setOf("von", "van", "de", "der", "den", "del", "da", "di", "du", "la", "le",
+    "ten", "ter", "vom", "zu", "zur", "zum", "af", "al", "bin", "el")
+
+/** gaesteAnzeige.schildName: Vornamen abgekuerzt, Titel und Nachname bleiben.
+ *  "Simone Müller" -> "S. Müller", "Dr. Hans Peter Meier" -> "Dr. H. P. Meier", "Müller, Simone" -> "S. Müller". */
+internal fun schildName(eingabe: String): String {
+    var text = eingabe.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ")
+    val komma = Regex("^([^,]+),\\s*([^,]+)$").find(text)
+    if (komma != null) text = "${komma.groupValues[2].trim()} ${komma.groupValues[1].trim()}"
+    val woerter = text.split(" ").filter { it.isNotEmpty() }.toMutableList()
+    if (woerter.size < 2) return text
+    val vorne = mutableListOf<String>()
+    while (woerter.size > 1 && SCHILD_TITEL.containsMatchIn(woerter[0])) vorne.add(woerter.removeAt(0))
+    if (woerter.size < 2) return (vorne + woerter).joinToString(" ")
+    var nachnameAb = woerter.size - 1
+    while (nachnameAb > 1 && woerter[nachnameAb - 1].lowercase() in SCHILD_NAMENSZUSATZ) nachnameAb -= 1
+    val vornamen = woerter.subList(0, nachnameAb).map { wort ->
+        wort.split("-").filter { it.isNotEmpty() }.joinToString("-") { "${it.substring(0, it.offsetByCodePoints(0, 1)).uppercase(java.util.Locale.GERMAN)}." }
+    }
+    return (vorne + vornamen + woerter.subList(nachnameAb, woerter.size)).joinToString(" ")
+}
+
+/** Abholschild.jsx: Gaestenamen gross, quer gedreht, Tipp dreht um 180 Grad. Vornamen abgekuerzt (schildName). */
 @Composable
-internal fun FahrtAbholschild(namen: List<String>, schliessen: () -> Unit) {
+internal fun FahrtAbholschild(namenRoh: List<String>, schliessen: () -> Unit) {
+    val namen = remember(namenRoh) { namenRoh.map(::schildName).filter { it.isNotEmpty() } }
     var umgedreht by remember { mutableStateOf(false) }
     val messer = rememberTextMeasurer()
     BackHandler { schliessen() }

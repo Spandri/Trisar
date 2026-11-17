@@ -724,9 +724,40 @@ struct Abholschild: View {
     let schliessen: () -> Void
     @State private var umgedreht = false
 
+    private static let titel = try! NSRegularExpression(
+        pattern: #"^(dr|prof|herr|frau|mr|mrs|ms|miss|sir|dipl|ing|mag|med|rer|nat|phil|hon|familie|family|fam|firma|team|gruppe|group)\.?$|\.$"#,
+        options: [.caseInsensitive])
+    private static let namenszusatz: Set<String> = ["von", "van", "de", "der", "den", "del", "da", "di", "du", "la", "le",
+                                                    "ten", "ter", "vom", "zu", "zur", "zum", "af", "al", "bin", "el"]
+
+    /// gaesteAnzeige.schildName: Vornamen abgekuerzt, Titel und Nachname bleiben.
+    /// "Simone Müller" -> "S. Müller", "Dr. Hans Peter Meier" -> "Dr. H. P. Meier", "Müller, Simone" -> "S. Müller".
+    static func schildName(_ eingabe: String) -> String {
+        var text = eingabe.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        let kommaTeile = text.split(separator: ",", omittingEmptySubsequences: false)
+        if kommaTeile.count == 2 {
+            let nach = kommaTeile[0].trimmingCharacters(in: .whitespaces), vor = kommaTeile[1].trimmingCharacters(in: .whitespaces)
+            if !nach.isEmpty && !vor.isEmpty { text = "\(vor) \(nach)" }
+        }
+        var woerter = text.split(separator: " ").map(String.init)
+        if woerter.count < 2 { return text }
+        func istTitel(_ w: String) -> Bool { titel.firstMatch(in: w, range: NSRange(w.startIndex..., in: w)) != nil }
+        var vorne: [String] = []
+        while woerter.count > 1, istTitel(woerter[0]) { vorne.append(woerter.removeFirst()) }
+        if woerter.count < 2 { return (vorne + woerter).joined(separator: " ") }
+        var nachnameAb = woerter.count - 1
+        while nachnameAb > 1, namenszusatz.contains(woerter[nachnameAb - 1].lowercased()) { nachnameAb -= 1 }
+        let vornamen = woerter[..<nachnameAb].map { wort in
+            wort.split(separator: "-").compactMap { $0.first.map { "\(String($0).uppercased(with: Locale(identifier: "de_DE")))." } }
+                .joined(separator: "-")
+        }
+        return (vorne + vornamen + woerter[nachnameAb...]).joined(separator: " ")
+    }
+
     var body: some View {
         GeometryReader { geo in
             let lang = max(geo.size.width, geo.size.height), kurz = min(geo.size.width, geo.size.height)
+            let namen = self.namen.map(Self.schildName).filter { !$0.isEmpty }
             let laengster = CGFloat(max(1, namen.map(\.count).max() ?? 1))
             let zeilen = CGFloat(max(1, namen.count))
             let groesse = min(lang * 1.5 / laengster, kurz * 0.72 / zeilen, 160)

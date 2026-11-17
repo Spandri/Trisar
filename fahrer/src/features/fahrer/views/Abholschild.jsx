@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useI18n } from '../../../i18n';
+import { schildName } from '../../../shared/gaesteAnzeige';
 
 // Abholschild: Vollbild mit den Gaestenamen, gross und gedreht. Der Fahrer haelt
 // das Handy quer hoch, der Gast liest seinen Namen von weitem.
@@ -13,8 +14,9 @@ export default function Abholschild({ namen, onClose }) {
   const { t } = useI18n();
   const [quer, setQuer] = useState(istQuerformat);
   const [umgedreht, setUmgedreht] = useState(false);
+  // Vornamen abgekuerzt: "Simone Müller" -> "S. Müller" (gaesteAnzeige.schildName).
   const liste = (Array.isArray(namen) ? namen : [])
-    .map((name) => String(name || '').trim())
+    .map((name) => schildName(name))
     .filter(Boolean);
 
   useEffect(() => {
