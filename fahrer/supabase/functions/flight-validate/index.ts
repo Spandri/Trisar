@@ -1,6 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { providerConfig } from '../_shared/provider-config.ts';
+import { MUC_PLAN_ANBIETER, mucAnkunft, mucFlugplanAuffrischen, mucFlugplanTeilSpeichern } from '../_shared/muc-flughafen.ts';
+// pdf.js fuer den Saisonflugplan Muenchen. Fest eingebunden, weil die Edge Runtime keine Module nachlaedt.
+import * as pdfjs from 'https://esm.sh/pdfjs-dist@4.10.38/legacy/build/pdf.mjs';
+import * as pdfjsWorker from 'https://esm.sh/pdfjs-dist@4.10.38/legacy/build/pdf.worker.mjs';
+
+// Ohne echten Worker: pdf.js nimmt den Worker aus globalThis.pdfjsWorker.
+// deno-lint-ignore no-explicit-any
+(globalThis as any).pdfjsWorker = pdfjsWorker;
 
 type FlightProviderName = 'lufthansa_open_api' | 'aviationstack';
 
@@ -531,6 +539,29 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
+
+    // Saisonflugplan Muenchen (_shared/muc-flughafen.ts), nur mit Service-Schluessel:
+    // {muc_flugplan_teil: {stand, ab, bis}} liest einen Teil des PDFs (eigenes CPU-Budget je Aufruf),
+    // {muc_flugplan_laden: true, erzwingen?} laedt den ganzen Plan in Teilen neu (von Hand oder beim Ausrollen).
+    if (body?.muc_flugplan_teil || body?.muc_flugplan_laden === true) {
+      if (tokenRole !== 'service_role') return jsonResponse(401, { error: 'Unauthorized' });
+      const t0 = Date.now();
+      try {
+        const admin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+        if (body.muc_flugplan_teil) {
+          const { stand, ab, bis } = body.muc_flugplan_teil;
+          if (typeof stand !== 'string' || !Number.isInteger(ab) || !Number.isInteger(bis)) {
+            return jsonResponse(400, { error: 'muc_flugplan_teil braucht stand, ab, bis' });
+          }
+          return jsonResponse(200, { ...(await mucFlugplanTeilSpeichern(admin, pdfjs, stand, ab, bis)), ms: Date.now() - t0 });
+        }
+        const ankuenfte = await mucFlugplanAuffrischen(admin, { erzwingen: body?.erzwingen === true });
+        return jsonResponse(200, { geladen: ankuenfte !== null, ankuenfte, ms: Date.now() - t0 });
+      } catch (error) {
+        return jsonResponse(500, { error: error instanceof Error ? error.message : String(error), ms: Date.now() - t0 });
+      }
+    }
+
     const flightNumber = normalizeFlightNumber(body?.flight_number);
     const rideDate = normalizeRideDate(body?.ride_date);
     const targetAirportIata = normalizeAirportIata(body?.target_airport_iata);
@@ -567,6 +598,38 @@ Deno.serve(async (req) => {
     };
     let lufthansaFallbackReason: string | null = null;
     let lufthansaFallbackHttpStatus: number | null = null;
+
+    // Flughafen Muenchen zuerst (kostenlos): gestern bis morgen live inkl. Codeshare, spaeter der Saisonflugplan.
+    // Findet MUC den Flug nicht, geht es wie bisher weiter (Lufthansa, aviationstack).
+    if (!targetAirportIata || targetAirportIata === 'MUC') {
+      try {
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        if (serviceKey) {
+          const admin = createClient(supabaseUrl, serviceKey);
+          const muc = await mucAnkunft(admin, flightNumber, rideDate);
+          if (muc) {
+            const summary = muc.zusammenfassung;
+            const ausPlan = summary.provider === MUC_PLAN_ANBIETER;
+            return jsonResponse(200, {
+              ...resultBase,
+              valid: true,
+              provider: summary.provider,
+              reason: 'ok',
+              message: ausPlan ? 'Flug laut Saisonflugplan Flughafen München.' : 'Flug ist validiert (Flughafen München).',
+              operating_carrier: summary.operating_carrier,
+              is_lufthansa_group_operated: Boolean(
+                summary.operating_carrier && allowedOperatingCarriers.has(summary.operating_carrier),
+              ),
+              codeshares: muc.codeshares,
+              candidate_count: 1,
+              summary,
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('muc validation', error instanceof Error ? error.message : error);
+      }
+    }
 
     if (lufthansaClientId && lufthansaClientSecret) {
       try {

@@ -2,13 +2,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { providerConfig } from '../_shared/provider-config.ts';
 import { recordUsageWithCost } from '../_shared/usage-tracking.ts';
+import { MUC_ANBIETER, MUC_PLAN_ANBIETER, mucAnkunft } from '../_shared/muc-flughafen.ts';
 import { routenPunkteLesen, TOMTOM_PROVIDER, tomtomRoute, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
 
 type SyncReason = 'create' | 'manual_refresh' | 'live_view';
 
 // Route Fahrer -> Abholung/Ziel hoechstens so oft je Fahrt neu rechnen.
 const DRIVER_ROUTE_MIN_INTERVAL_MS = 45_000;
-type FlightProviderName = 'lufthansa_open_api' | 'aviationstack';
+type FlightProviderName = 'lufthansa_open_api' | 'aviationstack' | 'muc_flughafen' | 'muc_flugplan';
 
 type FlightSummary = {
   provider: FlightProviderName;
@@ -671,7 +672,9 @@ const extractFlightSummaryFromPayload = (payload: unknown): FlightSummary | null
   const flightIata = toNullableString(summary.flight_iata) || '';
   if (!flightIata) return null;
   return {
-    provider: summary.provider === 'aviationstack' ? 'aviationstack' : 'lufthansa_open_api',
+    provider: summary.provider === 'aviationstack' || summary.provider === MUC_ANBIETER || summary.provider === MUC_PLAN_ANBIETER
+      ? summary.provider as FlightProviderName
+      : 'lufthansa_open_api',
     flight_iata: flightIata,
     operating_carrier: toNullableString(summary.operating_carrier),
     operating_flight_number: toNullableString(summary.operating_flight_number),
@@ -2747,7 +2750,63 @@ Deno.serve(async (req) => {
             flightStatus = 'miss';
             let flightResolved = false;
 
-            if (useLufthansaProvider) {
+            // Flughafen Muenchen zuerst (kostenlos, auch Codeshare): gestern bis morgen live, spaeter Saisonflugplan.
+            // Kein Treffer: weiter wie bisher (Lufthansa, aviationstack).
+            try {
+              externalCalls += 1;
+              const muc = await mucAnkunft(admin, flightIata, flightRideDate);
+              await recordUsage(admin, {
+                job_id: jobId,
+                provider: MUC_ANBIETER,
+                action: 'flight_lookup',
+                reason,
+                cache_hit: false,
+                requested_by: usageRequestedBy,
+                error_text: muc ? null : 'flight_not_found',
+              });
+              if (muc) {
+                const summary = muc.zusammenfassung as FlightSummary;
+                const arrivalForEtd = summary.estimated_arrival_local ||
+                  summary.actual_arrival_local ||
+                  summary.scheduled_arrival_local;
+                const cacheTtlMinutes = deriveFlightCacheTtlMinutes(summary, settings.flightCacheTtlMinutes, now);
+                const expiresAt = new Date(now.getTime() + cacheTtlMinutes * 60 * 1000).toISOString();
+                const wrappedPayload = buildFlightPayload(
+                  summary.provider as FlightProviderName,
+                  { codeshares: muc.codeshares, flug_id: muc.flug_id },
+                  summary,
+                  nowIso,
+                );
+                await admin.from('api_flight_cache').upsert(
+                  [
+                    {
+                      flight_key: flightKey,
+                      flight_iata: flightIata,
+                      ride_date: flightRideDate,
+                      etd: toPgTime(parseIsoToHHMM(arrivalForEtd)),
+                      original_etd: toPgTime(parseIsoToHHMM(summary.scheduled_arrival_local)),
+                      flight_origin: summary.departure_airport,
+                      payload: wrappedPayload,
+                      expires_at: expiresAt,
+                    },
+                  ],
+                  { onConflict: 'flight_key' },
+                );
+                flightPatch = {
+                  etd: toPgTime(parseIsoToHHMM(arrivalForEtd)),
+                  original_etd: toPgTime(parseIsoToHHMM(summary.scheduled_arrival_local)),
+                  flight_origin: summary.departure_airport,
+                  ext_flight_last_sync_at: nowIso,
+                  ext_flight_payload: wrappedPayload,
+                };
+                flightResolved = true;
+                flightErrorText = null;
+              }
+            } catch (error) {
+              console.warn('muc flight lookup', error instanceof Error ? error.message : error);
+            }
+
+            if (useLufthansaProvider && !flightResolved) {
               try {
                 const accessToken = await getLufthansaAccessToken(lufthansaClientId, lufthansaClientSecret);
                 const collectedLufthansaFlights: Record<string, unknown>[] = [];
