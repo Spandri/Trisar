@@ -11,6 +11,11 @@ import { anonymeGaesteText, gaesteTeile } from '../../shared/gaesteAnzeige';
 import StandbyKacheln from '../ui/StandbyKacheln';
 import StandbyFahrten from '../ui/StandbyFahrten';
 import DienstreiseKacheln from '../ui/DienstreiseKacheln';
+import AnkunftPlakette from '../ui/AnkunftPlakette';
+import { glockeUmschalten, glockenLaden, useGlocken } from '../../shared/fahrtGlocke';
+import {
+  ankunftEintrag, ankunftLaden, ortHier, useAnkunftListe, useAnkunftMelden,
+} from '../../shared/ankunftMelden';
 
 // Fahrten mit hohem Risiko tragen "NEU", bis die Disposition sie einmal geoeffnet hat.
 const GESEHEN_SCHLUESSEL = 'trisar-demo-risiko-gesehen';
@@ -185,6 +190,9 @@ export const RideCard = ({
   onArchive = () => {},
   onDuplicate = () => {},
   risiko = null,
+  ankunft = null,
+  glocke = false,
+  onGlocke = () => {},
 }) => {
   const { t } = useI18n();
   const [offsetX, setOffsetX] = useState(0);
@@ -346,11 +354,14 @@ export const RideCard = ({
             />
           </div>
           <div className="absolute inset-y-0 right-0 w-[90px] bg-[#e3f654]">
+            {/* Glocke (17.11.): Meldungen zu dieser Fahrt an/aus, ersetzt "Fahrer hinzufuegen" ohne Funktion. */}
             <SwipeActionButton
-              icon="/icon/_Icon_Schwarz/Faecher_AddDriver.svg"
-              alt={t('board.addDriverAria')}
+              icon="/icon/_Icon_Schwarz/Glocke_Trisar_Icons_01.svg"
+              alt={glocke ? 'Glocke aus' : 'Glocke an'}
               side="right"
               position="top"
+              marker={id ? `fahrt-aktion-glocke-${id}` : undefined}
+              onPress={onGlocke}
               onReset={() => setOffsetX(0)}
             />
             <SwipeActionButton
@@ -382,6 +393,15 @@ export const RideCard = ({
         }}
       >
         <div className="w-full min-h-36 relative p-[18px]">
+        {glocke ? (
+          <div className="absolute right-2 top-2 z-10" data-tutorial={id ? `fahrt-glocke-${id}` : undefined}>
+            <img
+              src={variant === 'variant2' ? '/icon/_Icon_Lime/Glocke_Trisar_Icons_01_Lime.svg' : '/icon/_Icon_Schwarz/Glocke_Trisar_Icons_01.svg'}
+              alt=""
+              className="w-[14px] h-[14px]"
+            />
+          </div>
+        ) : null}
         {aiBooked ? (
           <div className="absolute left-2 top-2 z-10">
             <img
@@ -465,6 +485,7 @@ export const RideCard = ({
                 <div className={`${textColor} opacity-60 text-xs font-medium font-['Space_Grotesk'] leading-4 mt-1`} data-tutorial={id ? `fahrt-ankunft-${id}` : undefined}>{zeile}</div>
               ) : null;
             })()}
+            {ankunft ? <div className={textColor}><AnkunftPlakette eintrag={ankunft} /></div> : null}
           </div>
         </div>
 
@@ -494,8 +515,6 @@ export default function AnkuenfteView({
   onRideSelect = () => {},
   rides = [],
   ridesError = '',
-  airportBoard = null,
-  onRefreshAirportBoard = () => {},
   rideFilters = {},
   coordinatorLocation = '',
   onCoordinatorLocationChange = () => {},
@@ -553,6 +572,14 @@ export default function AnkuenfteView({
     withSpecial = false,
     includePast = false,
   } = rideFilters;
+  // "Ankuenfte bei mir" (Schalter im Fahrten Filter): Restzeit an Fahrten zu meinem Ort. Die Liste filtert
+  // weiter nur das Feld "Mein Standort" oben, der Schalter steuert sonst nur die Meldungen.
+  const ankunftMelden = useAnkunftMelden();
+  const ankunftListe = useAnkunftListe();
+  const glocken = useGlocken();
+  useEffect(() => { glockenLaden(); }, []);
+  useEffect(() => { ankunftLaden(); }, []);
+  const restZeigen = ankunftMelden.an && ankunftMelden.lat != null && !showArchiveOnly;
   // Auf der Karte markierte Fahrer: nur ihre Fahrten zeigen.
   const markierung = useFahrerMarkierung();
   const markierteFahrerIds = markierung.aktiv && markierung.fahrer.length
@@ -561,14 +588,6 @@ export default function AnkuenfteView({
   const normalizedStartQuery = String(startQuery || '').trim().toLowerCase();
   const normalizedZielQuery = String(zielQuery || '').trim().toLowerCase();
   const selectedDate = String(date || '').trim();
-  const boardItems = Array.isArray(airportBoard?.items) ? airportBoard.items : [];
-  const boardError = String(airportBoard?.error || '').trim();
-  const boardLoading = Boolean(airportBoard?.loading);
-  const boardAirportCode = String(airportBoard?.airportCode || '').trim();
-  const boardUpdatedAt = String(airportBoard?.updatedAt || '').trim();
-  const boardUpdatedLabel = boardUpdatedAt
-    ? new Date(boardUpdatedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
-    : '';
 
   const useDepartureTime = !hasCoordinatorLocation;
 
@@ -888,7 +907,20 @@ export default function AnkuenfteView({
         </div>
 
         <div className="mt-[24px] w-full h-14 border-2 border-[#e3f654] flex items-center px-4 gap-3">
-          <span className="text-[#e3f654] text-base font-medium font-['Space_Grotesk'] opacity-70">{t('board.myLocation')}</span>
+          {/* Tippen auf "Mein Standort" (17.11.): steht man in einem gespeicherten Ort, wird er eingetragen. */}
+          <button
+            type="button"
+            data-tutorial="fahrten-mein-standort"
+            onClick={async (event) => {
+              const feld = event.currentTarget.nextElementSibling;
+              const name = await ortHier();
+              if (name) onCoordinatorLocationChange(name);
+              else feld?.focus();
+            }}
+            className="shrink-0 text-[#e3f654] text-base font-medium font-['Space_Grotesk'] opacity-70"
+          >
+            {t('board.myLocation')}
+          </button>
           <input
             type="text"
             value={coordinatorLocation}
@@ -983,66 +1015,10 @@ export default function AnkuenfteView({
 
         <MarkierungsVermerk className="mt-3" />
 
+
         {ridesError ? (
           <div className="mt-4 border border-[#3a3a3a] bg-[#171717] p-3 text-[#ff8e8e] text-[12px] leading-[1.35] font-medium font-['Space_Grotesk']">
             {t('board.ridesLoadError', { error: ridesError })}
-          </div>
-        ) : null}
-
-        {hasCoordinatorLocation ? (
-          <div className="mt-4 border border-[#4a4f22] bg-[#101108] p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-[#e3f654] text-[12px] font-bold font-['Space_Grotesk'] tracking-wide">
-                {t('board.liveBoardArrivals')} {boardAirportCode ? `(${boardAirportCode})` : ''}
-              </div>
-              <button
-                type="button"
-                onClick={onRefreshAirportBoard}
-                className="text-[#e3f654] text-[11px] font-medium font-['Space_Grotesk'] underline"
-              >
-                {t('board.refresh')}
-              </button>
-            </div>
-            {boardUpdatedLabel ? (
-              <div className="mt-1 text-[#9ea57d] text-[11px] font-medium font-['Space_Grotesk']">
-                {t('board.updatedAt', { time: boardUpdatedLabel })}
-              </div>
-            ) : null}
-            {boardError ? (
-              <div className="mt-2 text-[#ff8e8e] text-[12px] font-medium font-['Space_Grotesk']">
-                {boardError}
-              </div>
-            ) : null}
-            {!boardError && boardLoading ? (
-              <div className="mt-2 text-[#e3f654] text-[12px] font-medium font-['Space_Grotesk'] opacity-80">
-                {t('board.loadingFlights')}
-              </div>
-            ) : null}
-            {!boardError && !boardLoading && boardItems.length === 0 ? (
-              <div className="mt-2 text-[#e3f654] text-[12px] font-medium font-['Space_Grotesk'] opacity-80">
-                {t('board.noBoardEntries')}
-              </div>
-            ) : null}
-            {!boardError && boardItems.length > 0 ? (
-              <div className="mt-2 space-y-1">
-                {boardItems.slice(0, 5).map((item, index) => (
-                  <div
-                    key={`${item?.flight_number || 'flight'}-${index}`}
-                    className="flex items-start justify-between gap-3 text-[12px] font-medium font-['Space_Grotesk'] text-[#e3f654]"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate">{item?.flight_number || '---'} · {item?.route_label || '-'}</div>
-                      <div className="text-[#9ea57d] truncate">
-                        {item?.status_description || item?.status_code || '-'}
-                        {item?.terminal ? ` · T${item.terminal}` : ''}
-                        {item?.gate ? ` · G${item.gate}` : ''}
-                      </div>
-                    </div>
-                    <div className="shrink-0">{item?.time_label || '--:--'}</div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
           </div>
         ) : null}
 
@@ -1063,11 +1039,14 @@ export default function AnkuenfteView({
             <RideCard
               {...ride}
               time={ride.displayTime || ride.time}
-              enableSwipe={!hasCoordinatorLocation && !showArchiveOnly}
+              enableSwipe={!showArchiveOnly}
               onDone={() => onRideDone(ride)}
               onArchive={() => onRideArchive(ride)}
               onDuplicate={() => onRideDuplicate(ride)}
               risiko={risikoFuer(ride)}
+              ankunft={restZeigen ? ankunftEintrag(ankunftListe, ride.rideId || ride.id) : null}
+              glocke={glocken.has(String(ride.rideId || ride.id))}
+              onGlocke={() => glockeUmschalten(ride.rideId || ride.id)}
               onClick={() => {
                 if (ride.id) { gesehenMerken(ride.id); setGesehen(gesehenLesen()); }
                 onRideSelect(mapRideToEditData(ride));

@@ -20,6 +20,9 @@ import FlaggenKnoepfe from '../ui/FlaggenKnoepfe';
 import { kartenBereich, pfadAusduennen, useKartenBereich } from '../../shared/kartenBereich';
 import { FLAGGEN, FLAGGE_UMRISS, flaggeId, flaggeNachId, flaggeSetzen } from '../../shared/flaggen';
 import { ausgeblendetMerken, useOhneSignal, zuLangeOhneSignal } from '../../shared/ohneSignal';
+import { useEigenerStandort } from '../../shared/eigenerStandort';
+import { EigenerPunkt } from '../../shared/karte/eigenerPunkt';
+import { ankunftLaden } from '../../shared/ankunftMelden';
 
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
@@ -1288,6 +1291,22 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
       setMapReady(false);
     };
   }, [clearClusterMarkers, clearRouteOverlays]);
+
+  // Eigener Standort der Dispo als blauer Punkt (17.11.), solange die Karte offen ist.
+  const eigenerStandort = useEigenerStandort();
+  const eigenerPunktRef = useRef(null);
+  // "Ankuenfte bei mir" mit Ort automatisch: auch von der Karte aus den Ort nachfuehren.
+  useEffect(() => { ankunftLaden(); }, []);
+  useEffect(() => {
+    const karte = mapInstanceRef.current?.karte;
+    if (!mapReady || !karte) return undefined;
+    const punkt = new EigenerPunkt(karte);
+    eigenerPunktRef.current = punkt;
+    return () => { punkt.entfernen(); eigenerPunktRef.current = null; };
+  }, [mapReady]);
+  useEffect(() => {
+    eigenerPunktRef.current?.setzen(eigenerStandort);
+  }, [eigenerStandort, mapReady]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;

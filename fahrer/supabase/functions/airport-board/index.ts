@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { providerConfig } from '../_shared/provider-config.ts';
+import { mucTafel } from '../_shared/muc-tafel.ts';
 
 const DEFAULT_LUFTHANSA_GROUP_OPERATING_CARRIERS = ['LH', 'VL', 'EW', 'E2', 'LX', 'OS', 'SN', 'EN', '4Y'];
 let lufthansaTokenCache: { accessToken: string; expiresAtMs: number } | null = null;
@@ -315,6 +316,34 @@ Deno.serve(async (req) => {
     const limit = toPositiveInt(body?.limit, 20, 1, 100);
     if (!airportCode) {
       return jsonResponse(400, { error: 'airport_code must be a valid IATA code, e.g. MUC' });
+    }
+
+    // MUC (17.11.): Tafel von munich-airport.de, die Lufthansa-Schnittstelle lehnt den Zugang mit 401 ab.
+    if (airportCode === 'MUC') {
+      try {
+        const items = await mucTafel({
+          abfluege: mode === 'departures',
+          datum: rideDate,
+          limit,
+          nurLhGruppe: !includeCodeshare,
+          lhGruppe: parseAllowedOperatingCarriers(),
+        });
+        return jsonResponse(200, {
+          airport_code: airportCode,
+          date: rideDate,
+          mode,
+          include_codeshare: includeCodeshare,
+          count: items.length,
+          source: 'munich_airport',
+          fetched_at: new Date().toISOString(),
+          items,
+        });
+      } catch (error) {
+        return jsonResponse(200, {
+          airport_code: airportCode, date: rideDate, mode, count: 0, items: [],
+          error: error instanceof Error ? error.message : 'muc_fehler',
+        });
+      }
     }
 
     const lufthansaClientId = `${Deno.env.get(providerConfig.lufthansa.clientIdEnvKey) || ''}`.trim();

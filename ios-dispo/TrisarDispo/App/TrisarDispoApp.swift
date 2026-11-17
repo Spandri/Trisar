@@ -52,8 +52,14 @@ struct TrisarDispoApp: App {
                 // schon gepruefte Anmeldung wieder weg. Abmelden nur bei echter Abmeldung.
                 DispoUhrBruecke.shared.einrichten()
                 switch zustand {
-                case .angemeldet: DispoUhrBruecke.shared.setzeAngemeldet(true)
-                case .abgemeldet: DispoUhrBruecke.shared.setzeAngemeldet(false)
+                case .angemeldet:
+                    DispoUhrBruecke.shared.setzeAngemeldet(true)
+                    // "Ankuenfte bei mir": gleich laden, damit die Automatik auch ohne Filter laeuft.
+                    Task { await AnkunftMelden.geteilt.laden() }
+                case .abgemeldet:
+                    DispoUhrBruecke.shared.setzeAngemeldet(false)
+                    AnkunftMelden.geteilt.zuruecksetzen()
+                    FahrtGlocke.geteilt.zuruecksetzen()
                 case .pruefe: break
                 }
             }

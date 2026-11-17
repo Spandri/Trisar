@@ -209,6 +209,12 @@ const matchesLocation = (haystack, needle) => {
 const toCompactLocationLabel = (value) => {
   const text = String(value || '').trim();
   if (!text) return '';
+// Mein Standort (17.11.): Adresse oder Name des gespeicherten Orts
+const passtStandort = (ride, seite, standort) => (
+  matchesLocation(ride?.[`${seite}Location`] || '', standort)
+  || matchesLocation(ride?.[`${seite}OrtName`] || '', standort)
+);
+
   return text.split(',')[0].trim() || text;
 };
 
@@ -2042,21 +2048,21 @@ export default function App() {
   );
   const ankuenfteRides = useMemo(() => {
     if (!hasCoordinatorLocation) return activeRides;
-    return activeRides.filter((ride) => matchesLocation(ride?.zielLocation || '', coordinatorLocation));
+    return activeRides.filter((ride) => passtStandort(ride, 'ziel', coordinatorLocation));
   }, [activeRides, coordinatorLocation, hasCoordinatorLocation]);
 
   const abfahrtenRides = useMemo(() => {
     if (!hasCoordinatorLocation) return activeRides;
-    return activeRides.filter((ride) => matchesLocation(ride?.startLocation || '', coordinatorLocation));
+    return activeRides.filter((ride) => passtStandort(ride, 'start', coordinatorLocation));
   }, [activeRides, coordinatorLocation, hasCoordinatorLocation]);
   const archivedAnkuenfteRides = useMemo(() => {
     if (!hasCoordinatorLocation) return archivedRides;
-    return archivedRides.filter((ride) => matchesLocation(ride?.zielLocation || '', coordinatorLocation));
+    return archivedRides.filter((ride) => passtStandort(ride, 'ziel', coordinatorLocation));
   }, [archivedRides, coordinatorLocation, hasCoordinatorLocation]);
 
   const archivedAbfahrtenRides = useMemo(() => {
     if (!hasCoordinatorLocation) return archivedRides;
-    return archivedRides.filter((ride) => matchesLocation(ride?.startLocation || '', coordinatorLocation));
+    return archivedRides.filter((ride) => passtStandort(ride, 'start', coordinatorLocation));
   }, [archivedRides, coordinatorLocation, hasCoordinatorLocation]);
 
   const resolvedAirportCode = useMemo(
@@ -2070,6 +2076,8 @@ export default function App() {
       setAirportBoardState({
         airportCode: '',
         mode: normalizedMode,
+    // Live-Board entfernt (17.11.): nichts mehr laden
+    if (mode) return;
         loading: false,
         error: '',
         updatedAt: '',
@@ -2127,7 +2135,8 @@ export default function App() {
   }, [hasCoordinatorLocation, resolvedAirportCode, t]);
 
   useEffect(() => {
-    if (view !== 'ankuenfte' && view !== 'abfahrten') return undefined;
+    // Live-Board entfernt (17.11.): kein Nachladen mehr alle 60 s
+    if (view) return undefined;
     const mode = view === 'abfahrten' ? 'departures' : 'arrivals';
     let cancelled = false;
 

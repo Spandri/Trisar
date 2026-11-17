@@ -92,6 +92,8 @@ targets:
       path: TrisarDispo/Info.plist
       properties:
         NFCReaderUsageDescription: NFC-Tags an den OBD-Trackern beschreiben und auslesen.
+        # Blauer Punkt auf der Dispo-Karte und "Ankuenfte bei mir" (Dienste/EigenerStandort.swift, AnkunftMelden.swift).
+        NSLocationWhenInUseUsageDescription: Dein Standort wird auf der Dispo-Karte gezeigt und für „Ankünfte bei mir“ genutzt.
         # Voice-Modus im KI-Assistenten (Ansichten/SprachModus.swift).
         NSMicrophoneUsageDescription: Das Mikrofon wird im Sprachmodus des KI-Assistenten genutzt, damit du mit ihm sprechen kannst.
         NSSpeechRecognitionUsageDescription: Deine Sprache wird im Sprachmodus des KI-Assistenten in Text umgewandelt und an den Assistenten geschickt.

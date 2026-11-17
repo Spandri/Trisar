@@ -24,6 +24,8 @@
 	<false/>
 	<key>NFCReaderUsageDescription</key>
 	<string>NFC-Tags an den OBD-Trackern beschreiben und auslesen.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Dein Standort wird auf der Dispo-Karte gezeigt und für „Ankünfte bei mir“ genutzt.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Das Mikrofon wird im Sprachmodus des KI-Assistenten genutzt, damit du mit ihm sprechen kannst.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

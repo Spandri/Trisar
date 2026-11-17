@@ -175,6 +175,9 @@ private final class AnfrageKasten: @unchecked Sendable {
     private var leereFehler = 0
     /// Ob in der laufenden Runde schon Text kam.
     private var rundeHatText = false
+    /// Apple hat den laufenden Abschnitt als fertig gemeldet (Metadaten am Ergebnis). Der naechste
+    /// Zwischentext kann dann neu anfangen, siehe neuAngefangen.
+    private var abschnittFertig = false
 
     init(frage: Bool = false) { self.frage = frage }
 
@@ -287,22 +290,59 @@ private final class AnfrageKasten: @unchecked Sendable {
         kasten.anfrage = a
         zwischen = ""
         rundeHatText = false
+        abschnittFertig = false
         aufgabe = erkenner.recognitionTask(with: a) { @Sendable [weak self] ergebnis, fehler in
             let neu = ergebnis?.bestTranscription.formattedString
+            let fertig = ergebnis?.speechRecognitionMetadata != nil
             let ende = fehler != nil || ergebnis?.isFinal == true
             let f = fehler as NSError?
             let code = f?.code
             let bereich = f?.domain
-            Task { @MainActor in self?.ergebnis(neu, ende: ende, runde: meine, fehlerCode: code, fehlerBereich: bereich) }
+            Task { @MainActor in
+                self?.ergebnis(neu, ende: ende, runde: meine, abschnittFertig: fertig, fehlerCode: code, fehlerBereich: bereich)
+            }
         }
     }
 
-    private func ergebnis(_ neu: String?, ende: Bool, runde meine: Int, fehlerCode: Int? = nil, fehlerBereich: String? = nil) {
+    private nonisolated static func woerter(_ s: String) -> [String] {
+        s.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+    }
+
+    /// Gleiches Wort oder gleicher Anfang („schick“ und „schicke“, „die“ und „dir“): die Erkennung bessert nach.
+    private nonisolated static func aehnlich(_ a: String, _ b: String) -> Bool {
+        if a == b { return true }
+        let gemeinsam = a.commonPrefix(with: b).count
+        return gemeinsam >= (min(a.count, b.count) <= 3 ? 2 : 3)
+    }
+
+    /// Apple faengt nach einer Sprechpause manchmal mitten in der Runde neu an (bekannt seit iOS 18 bei der
+    /// Erkennung auf dem Geraet): Auf „wie geht es dir“ folgt nach der Pause nur noch „gut“, ohne dass die
+    /// Runde endet. Vorher ersetzte der neue Zwischentext den alten und der Satzanfang war weg (16.11.).
+    /// Neu angefangen heisst: der neue Text enthaelt weniger als die Haelfte der alten Woerter, und es gab
+    /// entweder eine Pause (0,6 s ab drei Woertern, 1 s bei zwei) oder Apple hat den Abschnitt als fertig
+    /// gemeldet. Ein einzelnes Wort zaehlt nur mit dieser Meldung, weil Apple es oft noch ganz ersetzt.
+    /// Bessert die Erkennung nur nach („Schick Tim“ wird „Schicke Tim morgen“), bleiben die Woerter erhalten.
+    nonisolated static func neuAngefangen(alt: String, neu: String, pauseMs: Double, abschnittFertig: Bool) -> Bool {
+        let a = woerter(alt)
+        let n = woerter(neu)
+        guard !a.isEmpty, !n.isEmpty else { return false }
+        let erhalten = a.filter { w in n.contains { aehnlich(w, $0) } }.count
+        guard Double(erhalten) / Double(a.count) < 0.5 else { return false }
+        return abschnittFertig || (a.count >= 3 && pauseMs >= 600) || (a.count == 2 && pauseMs >= 1000)
+    }
+
+    private func ergebnis(_ neu: String?, ende: Bool, runde meine: Int, abschnittFertig fertig: Bool = false,
+                          fehlerCode: Int? = nil, fehlerBereich: String? = nil) {
         guard aktiv, runde == meine else { return }
         if let neu, !neu.isEmpty {
             rundeHatText = true
             leereFehler = 0
             let vorher = ganz()
+            // Neu angefangen nach einer Pause: den bisherigen Zwischentext behalten und den neuen anhaengen.
+            if Self.neuAngefangen(alt: zwischen, neu: neu, pauseMs: Self.jetzt() - letztesWort, abschnittFertig: abschnittFertig) {
+                text = vorher
+            }
+            abschnittFertig = fertig
             zwischen = neu
             let nachher = ganz()
             letztesWort = Self.jetzt()

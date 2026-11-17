@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,7 +40,11 @@ internal fun FahrtenFilterSeite(filter: FahrtenFilterWerte, aendern: (FahrtenFil
     val feldStart = 166f
     val schritt = 68f
     val schalterStart = feldStart + schritt * 3 + 12
-    val knopfOben = feldStart + schritt * 8 + 12 + 12
+    // "Ankuenfte bei mir" (17.11.): Abschnitt 24 px unter "auch vergangene", schiebt den Knopf nach unten.
+    val ankunft = AnkunftMelden.stand
+    LaunchedEffect(Unit) { AnkunftMelden.laden() }
+    val ankunftOben = schalterStart + schritt * 5 + 12
+    val knopfOben = feldStart + schritt * 8 + 12 + 12 + ankunftHoehe(ankunft.vorhanden, ankunft.an, schritt)
     val inhaltHoehe = block + knopfOben + 56 + 30 + 40
 
     Box(Modifier.fillMaxSize()) {
@@ -57,6 +62,10 @@ internal fun FahrtenFilterSeite(filter: FahrtenFilterWerte, aendern: (FahrtenFil
                 FilterSchalter("Konvoi", filter.konvoi, Modifier.platz(20f, block + schalterStart + schritt * 2, 362f, 56f)) { aendern(filter.copy(konvoi = !filter.konvoi)) }
                 FilterSchalter("mit Besonderheiten", filter.besonderheiten, Modifier.platz(20f, block + schalterStart + schritt * 3, 362f, 56f)) { aendern(filter.copy(besonderheiten = !filter.besonderheiten)) }
                 FilterSchalter("auch vergangene", filter.vergangene, Modifier.platz(20f, block + schalterStart + schritt * 4, 362f, 56f)) { aendern(filter.copy(vergangene = !filter.vergangene)) }
+
+                if (ankunft.vorhanden) {
+                    AnkunftAbschnitt(block + ankunftOben, schritt) { titel, an, modifier, umschalten -> FilterSchalter(titel, an, modifier, umschalten) }
+                }
 
                 Row(
                     Modifier.platz(20f, block + knopfOben, 362f, 56f).background(LIME).tippen(zurueck),

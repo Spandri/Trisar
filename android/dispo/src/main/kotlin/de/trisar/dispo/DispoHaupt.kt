@@ -103,6 +103,12 @@ fun DispoHaupt(anmeldung: Anmeldung) {
         }
     }
 
+    // Eigener Standort solange die App im Vordergrund ist. "Ankuenfte bei mir" gleich nach dem Anmelden
+    // laden, damit die Automatik auf jeder Seite nachfuehrt, nicht nur im Filter.
+    EigenerStandortWache()
+    androidx.compose.runtime.LaunchedEffect(Unit) { de.trisar.dispo.fahrten.AnkunftMelden.laden() }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { de.trisar.dispo.fahrten.AnkunftMelden.abmelden() } }
+
     // Android-Zurueck: erst den Editor schliessen, dann zur Startseite.
     BackHandler(enabled = gaesteImport || bearbeiteteFahrt != null || standbyNeu || offenerStandby != null
         || dienstreiseNeu || offeneDienstreise != null || ziel != DispoZiel.START) {

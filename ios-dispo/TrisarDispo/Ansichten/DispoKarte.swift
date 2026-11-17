@@ -55,6 +55,9 @@ struct DispoKarte: UIViewRepresentable {
         karte.automaticallyAdjustsContentInset = false
         karte.attributionButtonPosition = .bottomRight
         karte.attributionButton.tintColor = UIColor(white: 0.6, alpha: 0.8)
+        // Eigener Standort (17.11.): normaler blauer Punkt von MapLibre, viewFor gibt dafuer nil.
+        // Laeuft nur, solange die Karte zu sehen und die App im Vordergrund ist.
+        karte.showsUserLocation = true
 
         let tipp = UITapGestureRecognizer(target: context.coordinator, action: #selector(Koordinator.getippt(_:)))
         tipp.delegate = context.coordinator

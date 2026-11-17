@@ -166,6 +166,11 @@ internal fun DispoKarte(
 }
 
 /** Pins, Gruppen, Abholort, Ziel und Dauer-Schilder ueber der Karte. */
+    // Eigener Standort als blauer Punkt (17.11.), ohne Erlaubnis kein Punkt.
+    DisposableEffect(Unit) {
+        val ab = de.trisar.dispo.EigenerStandort.abonnieren { s.eigenerPunkt.setzen(s.karte, s.ansicht?.context, it) }
+        onDispose { ab() }
+    }
 @Composable
 private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String) -> Unit, ortTippen: (String) -> Unit) {
     @Suppress("UNUSED_VARIABLE") val takt = s.takt.intValue
@@ -367,6 +372,7 @@ internal class KartenSteuerung {
     private class Teil(val art: String, val pfad: List<KartenPunkt>, val schild: RoutenMarke?)
     private var teile = listOf<Teil>()
     private var fpTeil = 0
+    val eigenerPunkt = EigenerPunkt()
     private var fpIndex = 0
     private var fpGefunden = false
     private var routenSchluessel = ""

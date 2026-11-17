@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.NFC" />
+    <!-- Eigener Standort (Karte, Ankuenfte bei mir), nur solange die App offen ist (17.11.). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <!-- Voice-Modus im KI-Assistenten: Mikrofon, Spracherkennung und Vorlesen (13.11.). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />

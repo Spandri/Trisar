@@ -291,6 +291,21 @@ const erinnern = async () => {
     // Fehlt die Migration 20261111060000 noch, nicht jede Minute laut werden.
     if (!/push_dispo_warnungen|PGRST202/.test(String(e.message || e))) log('Fehler bei Dispo-Warnungen:', e.message || e);
   }
+  try {
+    // "Ankuenfte bei mir" (17.11.): Fahrzeug in X min bei der Dispo bzw. angekommen.
+    const anzahl = await rest('rpc/push_dispo_ankuenfte', { methode: 'POST', koerper: {} });
+    if (anzahl) log(`${anzahl} Ankunft-Meldung(en) angelegt`);
+  } catch (e) {
+    // Fehlt die Migration 20261117140000 noch, nicht jede Minute laut werden.
+    if (!/push_dispo_ankuenfte|PGRST202/.test(String(e.message || e))) log('Fehler bei Ankunft-Meldungen:', e.message || e);
+  }
+  try {
+    // Glocke je Fahrt (17.11.): beim Gast, unterwegs, 5 min vor Ankunft, angekommen.
+    const anzahl = await rest('rpc/push_fahrt_glocke', { methode: 'POST', koerper: {} });
+    if (anzahl) log(`${anzahl} Glocken-Meldung(en) angelegt`);
+  } catch (e) {
+    if (!/push_fahrt_glocke|PGRST202/.test(String(e.message || e))) log('Fehler bei Glocken-Meldungen:', e.message || e);
+  }
 };
 
 // --- Dienstreise: Zuege beobachten ------------------------------------------------

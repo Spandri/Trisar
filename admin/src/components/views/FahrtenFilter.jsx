@@ -1,7 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import BackCircleButton from '../ui/BackCircleButton';
 import TrisarFooter from '../ui/TrisarFooter';
 import { useI18n } from '../../i18n';
+import {
+  MINUTEN_AUSWAHL, ankunftLaden, ankunftOrte, ankunftSetzen, ankunftText, automatikZiel, minutenText, standortHolen,
+  useAnkunftMelden,
+} from '../../shared/ankunftMelden';
 
 const GREEN = '#E3F654';
 // Titel 30 px unter dem Zurueck-Knopf, erstes Feld 24 px unter dem Titel —
@@ -84,8 +88,123 @@ function ToggleRow({ top, label, active, onClick, marker }) {
   );
 }
 
+// Auswahlfeld im Look der Eingabezeilen: Label blass, Wert hell, Icon rechts. Das echte <select>
+// liegt unsichtbar darueber.
+function AuswahlZeile({ top, label, wert, nach, icon, optionen, onWahl, marker, fehler = false }) {
+  return (
+    <div
+      data-tutorial={marker}
+      className="absolute left-[20px] w-[362px] h-14 border-2 border-[#E3F654] flex items-center px-3"
+      style={{ top: `${top}px` }}
+    >
+      <div className="relative flex-1 h-full">
+        <select
+          value=""
+          onChange={(event) => onWahl(event.target.value)}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          aria-label={label}
+        >
+          <option value="" disabled>{label}</option>
+          {optionen.map((o) => <option key={o.wert} value={o.wert} className="text-black">{o.text}</option>)}
+        </select>
+        <div className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-4 text-base leading-6 tracking-[0.5px] font-medium font-['Space_Grotesk'] whitespace-nowrap overflow-hidden max-w-full">
+          <span style={{ color: GREEN, opacity: 0.5 }}>{label}</span>
+          <span className="truncate" style={{ color: fehler ? '#ff6f63' : GREEN }}>
+            {wert}
+            {nach ? <span style={{ opacity: 0.6 }}>{` ${nach}`}</span> : null}
+          </span>
+        </div>
+      </div>
+      <img src={icon} alt="" className="w-5 h-5 shrink-0 pointer-events-none" />
+    </div>
+  );
+}
+
+// "Ankuenfte bei mir" (17.11.): Schalter, darunter Ort und Melden, nur wenn eingeschaltet.
+// Ort zuerst "Automatisch" (gespeicherter Ort, an dem ich bin, sonst mein Standort), sonst ein fester Ort.
+// Gespeichert sofort auf dem Server (shared/ankunftMelden.js), unabhaengig von "Filter speichern".
+// Keine Hinweiszeile, ein Fehler steht rot im Ort-Feld.
+function AnkunftAbschnitt({ top, locale }) {
+  const ankunft = useAnkunftMelden();
+  const [hole, setHole] = useState(false);
+  const [ohneStandort, setOhneStandort] = useState(false);
+  const tx = (k, w) => ankunftText(locale, k, w);
+
+  const automatikStarten = async (an = true) => {
+    setHole(true);
+    setOhneStandort(false);
+    const pos = await standortHolen();
+    setHole(false);
+    if (!pos) {
+      setOhneStandort(true);
+      await ankunftSetzen({ an, automatisch: true });
+      return;
+    }
+    await ankunftSetzen({ an, automatisch: true, ...automatikZiel(pos) });
+  };
+
+  const schalten = async () => {
+    if (ankunft.an) { await ankunftSetzen({ an: false }); return; }
+    if (ankunft.automatisch || ankunft.lat == null) { await automatikStarten(true); return; }
+    await ankunftSetzen({ an: true });
+  };
+
+  const ortWaehlen = async (wert) => {
+    if (wert === '__auto') { await automatikStarten(true); return; }
+    const ort = ankunftOrte().find((o) => String(o.id) === wert);
+    if (!ort) return;
+    setOhneStandort(false);
+    await ankunftSetzen({ automatisch: false, ortId: ort.id, ortName: ort.name, lat: Number(ort.lat), lng: Number(ort.lng) });
+  };
+
+  const fehler = ankunft.fehler ? tx('fehler') : ohneStandort ? tx('standortFehlt') : '';
+  let ortWert = ankunft.ortName || (ankunft.lat != null ? tx('meinStandort') : '–');
+  if (hole) ortWert = tx('standortLaedt');
+  const ortNach = !hole && ankunft.automatisch && ankunft.ortId ? `(${tx('hier')})` : null;
+
+  return (
+    <div data-tutorial="filter-ankunft" className="absolute left-0 right-0" style={{ top: `${top}px` }}>
+      <ToggleRow top={0} label={tx('schalter')} active={ankunft.an} marker="filter-schalter-ankunft" onClick={schalten} />
+      {ankunft.an ? (
+        <>
+          <AuswahlZeile
+            top={ROW_STEP}
+            label={tx('ort')}
+            wert={fehler || ortWert}
+            nach={fehler ? null : ortNach}
+            fehler={Boolean(fehler)}
+            icon="/icon/_Icon_Lime/Pin_Nav_Trisar_Icons_01_Lime.svg"
+            optionen={[
+              { wert: '__auto', text: tx('automatisch') },
+              ...ankunftOrte().map((o) => ({ wert: String(o.id), text: o.name })),
+            ]}
+            onWahl={ortWaehlen}
+            marker="filter-ankunft-ort"
+          />
+          <AuswahlZeile
+            top={ROW_STEP * 2}
+            label={tx('melden')}
+            wert={minutenText(ankunft.minuten, locale)}
+            nach={ankunft.minuten === 0 ? null : tx('vorAnkunft')}
+            icon="/icon/_Icon_Green/clock-green.svg"
+            optionen={MINUTEN_AUSWAHL.map((m) => ({ wert: String(m), text: minutenText(m, locale) }))}
+            onWahl={(wert) => ankunftSetzen({ minuten: Number(wert) })}
+            marker="filter-ankunft-minuten"
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+// Hoehe des Abschnitts: Schalter allein oder mit Ort und Melden.
+const ankunftHoehe = (vorhanden, an) => {
+  if (!vorhanden) return 0;
+  return GAP_BEFORE_SAVE - DEFAULT_ROW_GAP + (an ? ROW_STEP * 3 : ROW_STEP);
+};
+
 export default function FahrtenFilter({ setView, filters = {}, onChangeFilters = () => {} }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const {
     startQuery = '',
     zielQuery = '',
@@ -103,7 +222,11 @@ export default function FahrtenFilter({ setView, filters = {}, onChangeFilters =
     }),
     [],
   );
-  const footerTop = BUTTON_TOP + BUTTON_HEIGHT + FOOTER_GAP;
+  const ankunft = useAnkunftMelden();
+  useEffect(() => { ankunftLaden(); }, []);
+  const ankunftTop = TOGGLE_START_TOP + ROW_STEP * 5 + (GAP_BEFORE_SAVE - DEFAULT_ROW_GAP);
+  const buttonTop = BUTTON_TOP + ankunftHoehe(ankunft.vorhanden, ankunft.an);
+  const footerTop = buttonTop + BUTTON_HEIGHT + FOOTER_GAP;
   const contentHeight = CONTENT_OFFSET_TOP + footerTop + FOOTER_HEIGHT;
   const updateFilter = (key, value) => onChangeFilters((prev) => ({ ...prev, [key]: value }));
 
@@ -225,12 +348,14 @@ export default function FahrtenFilter({ setView, filters = {}, onChangeFilters =
               />
             </div>
 
+            {ankunft.vorhanden ? <AnkunftAbschnitt top={ankunftTop} locale={locale} /> : null}
+
             <button
               type="button"
               onClick={handleBack}
               data-tutorial="filter-speichern"
               className="absolute left-[20px] w-[362px] h-14 bg-[#E3F654] border-2 border-[#E3F654] inline-flex justify-start items-center gap-1 overflow-hidden"
-              style={{ top: `${BUTTON_TOP}px` }}
+              style={{ top: `${buttonTop}px` }}
             >
               <div className="flex-1 self-stretch p-1 flex justify-start items-center">
                 <div className="flex-1 self-stretch px-3 flex justify-start items-center gap-2.5">

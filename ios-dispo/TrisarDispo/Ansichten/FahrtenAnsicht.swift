@@ -62,14 +62,7 @@ struct FahrtenAnsicht: View {
             if let id { standbyOffen = id; standby.oeffnen = nil }
         }
         .task { speicher.starten() }
-        // Board nur in den Live-Listen, alle 60 s neu (useEffect auf view in App.jsx).
-        .task(id: "\(seite)|\(speicher.standort)") {
-            guard seite == .ankuenfte || seite == .abfahrten else { return }
-            while !Task.isCancelled {
-                await speicher.boardLaden(abfahrten: seite == .abfahrten)
-                try? await Task.sleep(for: .seconds(60))
-            }
-        }
+        // Live-Board des Flughafens entfernt (17.11., Wunsch User).
         .alert("Hinweis", isPresented: Binding(get: { speicher.meldung != nil }, set: { if !$0 { speicher.meldung = nil } })) {
             Button("OK", role: .cancel) { speicher.meldung = nil }
         } message: {
@@ -97,13 +90,25 @@ struct FahrtenListeDispo: View {
     var oeffneReise: (UUID) -> Void = { _ in }
 
     @State private var suche = ""
+    @FocusState private var standortFokus: Bool
     @ObservedObject private var standby = DispoStandbySpeicher.gemeinsam
     @ObservedObject private var markierung = FahrerMarkierung.geteilt
     @ObservedObject private var dienstreise = DispoDienstreiseSpeicher.gemeinsam
+    /// "Ankuenfte bei mir" (17.11.): mit Schalter nur Fahrten zu meinem Ort.
+    @ObservedObject private var ankunft = AnkunftMelden.geteilt
+    /// Glocke je Fahrt (17.11.): Meldungen zu einzelnen Fahrten.
+    @ObservedObject private var glocke = FahrtGlocke.geteilt
 
     private var archiv: Bool { seite.istArchiv }
     private var abfahrten: Bool { seite.istAbfahrten }
     private var mitStandort: Bool { !W.ortNormal(speicher.standort).isEmpty }
+    // "Ankuenfte bei mir": nur Restzeit an den Fahrten zeigen. Die Liste filtert weiter nur das
+    // Standort-Feld oben, der Schalter steuert sonst nur die Meldungen (17.11.).
+    private var restZeigen: Bool { ankunft.nurZuMirMoeglich && !archiv }
+    /// Ankuenfte zaehlen Ziel und Abholung bei mir, Abfahrten nur die Abholung.
+    private func ankunftEintrag(_ f: DispoFahrt) -> AnkunftEintrag? {
+        ankunft.eintrag(f.id, nurAbholung: abfahrten)
+    }
 
     var body: some View {
         let liste = sichtbareFahrten()
@@ -138,6 +143,7 @@ struct FahrtenListeDispo: View {
                     MarkierungsVermerk().frame(width: 362).padding(.top, 12)
                 }
 
+
                 if !speicher.ladeFehler.isEmpty {
                     Text("Fahrten konnten nicht geladen werden: \(speicher.ladeFehler)")
                         .font(.grotesk(12, .medium)).foregroundStyle(Color(hex: 0xFF8E8E))
@@ -150,12 +156,6 @@ struct FahrtenListeDispo: View {
                         .padding(.top, 16)
                 }
 
-                if mitStandort {
-                    BoardKasten(board: speicher.board, abfahrten: abfahrten) {
-                        Task { await speicher.boardLaden(abfahrten: abfahrten) }
-                    }
-                    .padding(.top, 16)
-                }
 
                 // Standby am Event-Ort: Kacheln und Standby-Fahrten (nur Ankuenfte, nicht im Archiv).
                 if !archiv && !abfahrten {
@@ -174,11 +174,14 @@ struct FahrtenListeDispo: View {
                             fahrt: eintrag.fahrt,
                             zeiten: eintrag.zeiten,
                             datumAlsStatus: !abfahrten && W.passt(eintrag.zeiten.status, #"^\d{2}\.\d{2}$"#),
-                            wischen: !mitStandort && !archiv,
+                            wischen: !archiv, // auch in "Meine Fahrten" (17.11.)
                             oeffnen: { if let id = UUID(uuidString: eintrag.fahrt.id) { oeffneFahrt(id) } },
                             erledigt: { Task { await speicher.erledigt(eintrag.fahrt) } },
                             archivieren: { Task { await speicher.archivieren(eintrag.fahrt, ansicht: "ankuenfte") } },
-                            duplizieren: { Task { await speicher.duplizieren(eintrag.fahrt) } }
+                            duplizieren: { Task { await speicher.duplizieren(eintrag.fahrt) } },
+                            ankunft: restZeigen ? ankunftEintrag(eintrag.fahrt) : nil,
+                            glocke: glocke.an(eintrag.fahrt.id),
+                            glockeUmschalten: { Task { await glocke.umschalten(eintrag.fahrt.id) } }
                         )
                     }
                     if liste.isEmpty {
@@ -196,6 +199,16 @@ struct FahrtenListeDispo: View {
             .padding(.top, 60)
             .padding(.bottom, 175)
         }
+        .task { await ankunft.laden() }
+        .task { await glocke.laden() }
+        // Restzeiten alle 30 s neu, solange die Liste sichtbar und der Schalter an ist.
+        .task(id: ankunft.an) {
+            guard ankunft.an else { return }
+            while !Task.isCancelled {
+                await ankunft.listeLaden()
+                try? await Task.sleep(for: AnkunftMelden.listeTakt)
+            }
+        }
     }
 
     // onBack: Live-Liste -> Startseite, Archiv -> Live-Liste.
@@ -211,10 +224,19 @@ struct FahrtenListeDispo: View {
 
     private var standortFeld: some View {
         HStack(spacing: 12) {
-            Text("Mein Standort").font(.grotesk(16, .medium)).foregroundStyle(lime).opacity(0.7)
+            // Tippen auf "Mein Standort" (17.11.): steht man in einem gespeicherten Ort, wird er eingetragen.
+            Button {
+                Task {
+                    if let name = await ortHier() { speicher.standort = name } else { standortFokus = true }
+                }
+            } label: {
+                Text("Mein Standort").font(.grotesk(16, .medium)).foregroundStyle(lime).opacity(0.7)
+            }
+            .buttonStyle(.web)
             TextField("", text: $speicher.standort,
                       prompt: Text("Ort eingeben").foregroundColor(lime.opacity(0.6)))
                 .eingabeStil()
+                .focused($standortFokus)
             if !speicher.standort.trimmingCharacters(in: .whitespaces).isEmpty {
                 Button { speicher.standort = "" } label: {
                     Image("clear-x-green-24").resizable().frame(width: 24, height: 24)
@@ -226,6 +248,16 @@ struct FahrtenListeDispo: View {
         .padding(.horizontal, 16)
         .frame(width: 362, height: 56)
         .overlay(Rectangle().strokeBorder(lime, lineWidth: 2))
+    }
+
+    /// ortHier im Web: Name des gespeicherten Orts, in dem ich gerade stehe (Umkreis wie Automatik), sonst nil.
+    private func ortHier() async -> String? {
+        await ankunft.laden()
+        var pos = EigenerStandort.geteilt.position?.coordinate
+        if pos == nil { pos = await ankunft.standortHolen() }
+        guard let pos else { return nil }
+        let ziel = ankunft.automatikZiel(pos)
+        return ziel.id != nil ? ziel.name : nil
     }
 
     private var filterZeile: some View {
@@ -259,7 +291,6 @@ struct FahrtenListeDispo: View {
             } else {
                 Button {
                     speicher.neuLaden()
-                    Task { await speicher.boardLaden(abfahrten: abfahrten) }
                 } label: {
                     Image("Arrow_Nav_Trisar_Icons_01").resizable().frame(width: 36, height: 36)
                 }
@@ -374,7 +405,11 @@ struct FahrtenListeDispo: View {
         let basis = speicher.fahrten.filter { f in
             guard f.archiviert == archiv else { return false }
             guard mitStandort else { return true }
+            // Adresse oder Name (Teil der Route, z. B. "MUC T2"), wie passtStandort im Web (17.11.)
+            let teile = f.route.components(separatedBy: " - ")
+            let name = abfahrten ? (teile.first ?? "") : teile.dropFirst().joined(separator: " - ")
             return W.ortPasst(abfahrten ? f.startOrt : f.zielOrt, speicher.standort)
+                || W.ortPasst(name.trimmingCharacters(in: .whitespaces), speicher.standort)
         }
         let fi = speicher.filter
         let startSuche = fi.startSuche.trimmingCharacters(in: .whitespaces).lowercased()
@@ -514,6 +549,11 @@ struct DispoFahrtKarte: View {
     let erledigt: () -> Void
     let archivieren: () -> Void
     let duplizieren: () -> Void
+    /// "Ankuenfte bei mir": Restzeit-Plakette rechts unter der Zeit.
+    var ankunft: AnkunftEintrag? = nil
+    /// Glocke je Fahrt: an = kleine Glocke oben rechts, Wisch-Knopf schaltet um.
+    var glocke: Bool = false
+    var glockeUmschalten: () -> Void = {}
 
     @State private var versatz: CGFloat = 0
     @State private var startVersatz: CGFloat = 0
@@ -555,8 +595,8 @@ struct DispoFahrtKarte: View {
             .frame(width: aktionBreite).background(lime)
             Spacer(minLength: 0)
             VStack(spacing: 0) {
-                // Im Web ohne Aktion, setzt nur die Karte zurueck.
-                AktionsKnopf(icon: "Faecher_AddDriver", text: "Fahrer hinzufuegen") { versatz = 0 }
+                // Glocke (17.11.): Meldungen zu dieser Fahrt an/aus, ersetzt "Fahrer hinzufuegen" ohne Funktion.
+                AktionsKnopf(icon: "Glocke_Trisar_Icons_01", text: glocke ? "Glocke aus" : "Glocke an") { versatz = 0; glockeUmschalten() }
                 AktionsKnopf(icon: "Faecher_Duplicat", text: "Fahrt duplizieren") { versatz = 0; duplizieren() }
             }
             .frame(width: aktionBreite).background(lime)
@@ -586,6 +626,13 @@ struct DispoFahrtKarte: View {
             if fahrt.kiGebucht {
                 Image(rot ? "KI_Trisar_Icons_01_Lime" : "KI_Trisar_Icons_01_green").resizable()
                     .frame(width: 14, height: 13).padding(.leading, 8).padding(.top, 8)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if glocke {
+                Image(rot ? "Glocke_Trisar_Icons_01_Lime" : "Glocke_Trisar_Icons_01").resizable()
+                    .frame(width: 14, height: 14).padding(.trailing, 8).padding(.top, 8)
+                    .accessibilityHidden(true)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -682,6 +729,9 @@ struct DispoFahrtKarte: View {
                 Text(zusatz).font(.grotesk(12, .medium)).foregroundStyle(textFarbe).opacity(0.6)
                     .cssZeile(12, 16).padding(.top, 4)
             }
+            if let ankunft {
+                AnkunftPlakette(eintrag: ankunft, textFarbe: textFarbe)
+            }
         }
         .multilineTextAlignment(.trailing)
         .fixedSize()
@@ -767,83 +817,6 @@ private struct RichtungsKnopf: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.web)
-    }
-}
-
-/// Live-Board des Flughafens am Standort (nur mit Standort).
-private struct BoardKasten: View {
-    let board: FlughafenBoard
-    let abfahrten: Bool
-    let aktualisieren: () -> Void
-
-    private let gruenGrau = Color(hex: 0x9EA57D)
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                Text("\(abfahrten ? "Live-Board Abfahrten" : "Live-Board Ankünfte") \(board.code.isEmpty ? "" : "(\(board.code))")")
-                    .font(.grotesk(12, .bold)).tracking(0.3).foregroundStyle(lime)
-                Spacer(minLength: 0)
-                Button(action: aktualisieren) {
-                    Text("Aktualisieren").font(.grotesk(11, .medium)).underline().foregroundStyle(lime)
-                }
-                .buttonStyle(.web)
-            }
-            if let stand = standText {
-                Text("Stand: \(stand)").font(.grotesk(11, .medium)).foregroundStyle(gruenGrau).padding(.top, 4)
-            }
-            if !board.fehler.isEmpty {
-                Text(board.fehler).font(.grotesk(12, .medium)).foregroundStyle(Color(hex: 0xFF8E8E)).padding(.top, 8)
-            } else if board.laedt {
-                Text("Lade Live-Flugdaten...").font(.grotesk(12, .medium)).foregroundStyle(lime).opacity(0.8).padding(.top, 8)
-            } else if board.eintraege.isEmpty {
-                Text("Keine Board-Einträge gefunden.").font(.grotesk(12, .medium)).foregroundStyle(lime).opacity(0.8).padding(.top, 8)
-            }
-            if board.fehler.isEmpty && !board.eintraege.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(board.eintraege.prefix(5).enumerated()), id: \.offset) { _, e in
-                        HStack(alignment: .top, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text("\(wert(e, "flight_number", "---")) · \(wert(e, "route_label", "-"))").lineLimit(1)
-                                Text(unterzeile(e)).foregroundStyle(gruenGrau).lineLimit(1)
-                            }
-                            Spacer(minLength: 0)
-                            Text(wert(e, "time_label", "--:--"))
-                        }
-                        .font(.grotesk(12, .medium)).foregroundStyle(lime)
-                    }
-                }
-                .padding(.top, 8)
-            }
-        }
-        .padding(12)
-        .frame(width: 362, alignment: .leading)
-        .background(Color(hex: 0x101108))
-        .overlay(Rectangle().strokeBorder(Color(hex: 0x4A4F22), lineWidth: 1))
-    }
-
-    private var standText: String? {
-        guard !board.stand.isEmpty else { return nil }
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let datum = f.date(from: board.stand) ?? ISO8601DateFormatter().date(from: board.stand)
-        guard let datum else { return nil }
-        let a = DateFormatter(); a.locale = Locale(identifier: "de_DE"); a.dateFormat = "HH:mm"
-        return a.string(from: datum)
-    }
-
-    private func wert(_ e: DBZeile, _ k: String, _ ersatz: String) -> String {
-        let t = W.t(e[k]); return t.isEmpty ? ersatz : t
-    }
-
-    private func unterzeile(_ e: DBZeile) -> String {
-        var s = W.t(e["status_description"])
-        if s.isEmpty { s = W.t(e["status_code"]) }
-        if s.isEmpty { s = "-" }
-        let terminal = W.t(e["terminal"]), gate = W.t(e["gate"])
-        if !terminal.isEmpty { s += " · T\(terminal)" }
-        if !gate.isEmpty { s += " · G\(gate)" }
-        return s
     }
 }
 

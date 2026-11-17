@@ -1,5 +1,8 @@
 package de.trisar.dispo.fahrten
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -39,6 +42,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalDensity
@@ -55,7 +61,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import de.trisar.dispo.DispoZiel
+import de.trisar.dispo.EigenerStandort
 import de.trisar.dispo.FahrerMarkierung
 import de.trisar.dispo.MarkierungsVermerk
 import de.trisar.dispo.Navileiste
@@ -95,12 +104,20 @@ fun FahrtenSeite(
 
     LaunchedEffect(Unit) { speicher.starten() }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { speicher.wiederAktiv() }
-    // Board nur in den Live-Listen, alle 60 s neu (useEffect auf view in App.jsx).
-    LaunchedEffect(teil, speicher.standort) {
+    // Live-Board des Flughafens entfernt (17.11., Wunsch User).
+    // "Ankuenfte bei mir": Liste alle 30 s neu holen, solange die Live-Liste sichtbar und der Schalter an ist.
+    val lebenszyklus = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(Unit) { AnkunftMelden.laden() }
+    // Glocke je Fahrt: eigene Glocken beim Oeffnen der Liste laden.
+    LaunchedEffect(Unit) { FahrtGlocke.laden() }
+    LaunchedEffect(teil, AnkunftMelden.stand.an) {
         if (teil != Teil.ANKUENFTE && teil != Teil.ABFAHRTEN) return@LaunchedEffect
-        while (true) {
-            speicher.boardLaden(teil == Teil.ABFAHRTEN)
-            delay(60_000)
+        if (!AnkunftMelden.stand.an) return@LaunchedEffect
+        lebenszyklus.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                AnkunftMelden.listeLaden()
+                delay(AnkunftMelden.LISTE_TAKT_MS)
+            }
         }
     }
 
@@ -140,7 +157,33 @@ private fun Liste(
     // Mehrfachauswahl der Karte: nur Fahrten, bei denen ein markierter Fahrer dabei ist.
     val markierteIDs = if (FahrerMarkierung.wirkt) FahrerMarkierung.ids.toSet() else null
     val basis = if (markierteIDs == null) speicher.fahrten else speicher.fahrten.filter { f -> f.fahrerIDs.any { it in markierteIDs } }
+    // "Ankuenfte bei mir": nur Restzeit an den Fahrten (Ankuenfte beide Arten, Abfahrten nur Abholung). Die Liste
+    // filtert weiter nur das Standort-Feld oben, der Schalter steuert sonst nur die Meldungen (17.11.).
+    val ankunft = AnkunftMelden.stand
+    val restZeigen = ankunft.an && ankunft.lat != null && !archiv
+    val arten = if (abfahrten) AnkunftMelden.NUR_ABHOLUNG else listOf("ziel", "abholung")
+    // Wird beim Zusammenstellen gelesen, neue Restzeiten setzen die Liste darum neu.
+    val ankunftVon: ((DispoFahrt) -> AnkunftEintrag?)? = if (restZeigen) { f -> AnkunftMelden.eintrag(f.id, arten) } else null
     val liste = sichtbareFahrten(basis, speicher.filter, speicher.standort, suche, archiv, abfahrten, mitStandort)
+
+    // "Mein Standort" antippen (ortHier): gespeicherter Ort hier eintragen, sonst Fokus ins Eingabefeld.
+    val ctx = LocalContext.current
+    val standortFokus = remember { FocusRequester() }
+    fun ortHierEintragen() {
+        scope.launch {
+            val name = AnkunftMelden.ortHier(ctx)
+            if (name != null) speicher.standort = name
+            else runCatching { standortFokus.requestFocus() }
+        }
+    }
+    val standortErlaubnis = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        EigenerStandort.pruefen()
+        ortHierEintragen()
+    }
+    fun meinStandort() {
+        if (EigenerStandort.stand != null || EigenerStandort.erlaubt(ctx)) ortHierEintragen()
+        else standortErlaubnis.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+    }
 
     fun zurueck() = when (teil) {
         Teil.ARCHIV_ANKUENFTE -> wechseln(Teil.ANKUENFTE)
@@ -162,8 +205,10 @@ private fun Liste(
                 Modifier.padding(top = 24.dp).size(362.dp, 56.dp).border(2.dp, LIME).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Mein Standort", style = css(16f, 500, farbe = LIME.copy(alpha = 0.7f)))
-                LimeEingabe(speicher.standort, { speicher.standort = it }, Modifier.weight(1f), platzhalter = "Ort eingeben")
+                // Tippen auf "Mein Standort" (17.11.): steht man in einem gespeicherten Ort, wird er eingetragen,
+                // sonst Fokus ins Feld.
+                Text("Mein Standort", style = css(16f, 500, farbe = LIME.copy(alpha = 0.7f)), modifier = Modifier.tippen { meinStandort() })
+                LimeEingabe(speicher.standort, { speicher.standort = it }, Modifier.weight(1f).focusRequester(standortFokus), platzhalter = "Ort eingeben")
                 if (speicher.standort.isNotBlank()) {
                     Icon("clear-x-green-24", Modifier.size(24.dp).tippen { speicher.standort = "" })
                 }
@@ -202,10 +247,7 @@ private fun Liste(
                         Icon("Archiv", Modifier.size(32.dp), farbe = if (archiv) ColorFilter.tint(Color.Black) else null)
                     }
                 } else {
-                    Icon("Arrow_Nav_Trisar_Icons_01", Modifier.size(36.dp).tippen {
-                        speicher.neuLaden()
-                        scope.launch { speicher.boardLaden(abfahrten) }
-                    })
+                    Icon("Arrow_Nav_Trisar_Icons_01", Modifier.size(36.dp).tippen { speicher.neuLaden() })
                 }
             }
 
@@ -228,11 +270,6 @@ private fun Liste(
                 )
             }
 
-            if (mitStandort) {
-                BoardKasten(speicher.board, abfahrten, Modifier.padding(top = 16.dp)) {
-                    scope.launch { speicher.boardLaden(abfahrten) }
-                }
-            }
 
             // Standby am Event-Ort: je Standby eine Kachel, darunter die Standby-Fahrten (Unterwegs bzw. Rueckweg).
             if (!archiv && oeffneStandby != null) {
@@ -252,11 +289,14 @@ private fun Liste(
                             fahrt = eintrag.fahrt,
                             zeiten = eintrag.zeiten,
                             datumAlsStatus = !abfahrten && W.passt(eintrag.zeiten.status, """^\d{2}\.\d{2}$"""),
-                            wischen = !mitStandort && !archiv,
+                            wischen = !archiv, // auch in "Meine Fahrten" (17.11.)
                             oeffnen = { oeffneFahrt(eintrag.fahrt.id) },
                             erledigt = { speicher.erledigt(eintrag.fahrt) },
                             archivieren = { speicher.archivieren(eintrag.fahrt, "ankuenfte") },
                             duplizieren = { speicher.duplizieren(eintrag.fahrt) },
+                            ankunft = ankunftVon?.invoke(eintrag.fahrt),
+                            glocke = FahrtGlocke.hat(eintrag.fahrt.id),
+                            umGlocke = { FahrtGlocke.umschalten(eintrag.fahrt.id) },
                         )
                     }
                 }
@@ -335,7 +375,12 @@ private fun sichtbareFahrten(
     val basis = fahrten.filter { f ->
         if (f.archiviert != archiv) false
         else if (!mitStandort) true
-        else W.ortPasst(if (abfahrten) f.startOrt else f.zielOrt, standort)
+        else {
+            // Adresse oder Name (Teil der Route, z. B. "MUC T2"), wie passtStandort im Web (17.11.)
+            val teile = f.route.split(" - ")
+            val name = if (abfahrten) teile.firstOrNull().orEmpty() else teile.drop(1).joinToString(" - ")
+            W.ortPasst(if (abfahrten) f.startOrt else f.zielOrt, standort) || W.ortPasst(name.trim(), standort)
+        }
     }
     val startSuche = fi.startSuche.trim().lowercase()
     val zielSuche = fi.zielSuche.trim().lowercase()
@@ -408,6 +453,11 @@ internal fun FahrtKarte(
     erledigt: () -> Unit,
     archivieren: () -> Unit,
     duplizieren: () -> Unit,
+    /** "Ankuenfte bei mir": Restzeit-Plakette rechts, null = keine. */
+    ankunft: AnkunftEintrag? = null,
+    /** Glocke je Fahrt: Mini-Glocke oben rechts. */
+    glocke: Boolean = false,
+    umGlocke: () -> Unit = {},
 ) {
     val aktionBreite = 90f
     var versatz by remember { mutableFloatStateOf(0f) }
@@ -436,8 +486,8 @@ internal fun FahrtKarte(
                 }
                 Spacer(Modifier.weight(1f))
                 Column(Modifier.width(aktionBreite.dp).fillMaxHeight().background(LIME)) {
-                    // Im Web ohne Aktion, setzt nur die Karte zurueck.
-                    AktionsKnopf("Faecher_AddDriver", Modifier.weight(1f)) { gleiten(0f) }
+                    // Glocke (17.11.): Meldungen zu dieser Fahrt an/aus, ersetzt "Fahrer hinzufuegen" ohne Funktion.
+                    AktionsKnopf("Glocke_Trisar_Icons_01", Modifier.weight(1f)) { gleiten(0f); umGlocke() }
                     AktionsKnopf("Faecher_Duplicat", Modifier.weight(1f)) { gleiten(0f); duplizieren() }
                 }
             }
@@ -455,7 +505,11 @@ internal fun FahrtKarte(
                     FahrerZeile(fahrt, textFarbe)
                     NotizBlock(fahrt, notizFarbe)
                 }
-                RechteSpalte(fahrt, zeiten, strichFarbe, statusFarbe, textFarbe)
+                RechteSpalte(fahrt, zeiten, strichFarbe, statusFarbe, textFarbe, ankunft)
+            }
+            if (glocke) {
+                Icon(if (rot) "Glocke_Trisar_Icons_01_Lime" else "Glocke_Trisar_Icons_01",
+                    Modifier.align(Alignment.TopEnd).padding(end = 8.dp, top = 8.dp).size(14.dp))
             }
             if (fahrt.kiGebucht) {
                 Icon(if (rot) "KI_Trisar_Icons_01_Lime" else "KI_Trisar_Icons_01_green", Modifier.padding(start = 8.dp, top = 8.dp).size(14.dp, 13.dp))
@@ -528,7 +582,7 @@ private fun NotizBlock(fahrt: DispoFahrt, notizFarbe: Color) {
 }
 
 @Composable
-private fun RechteSpalte(fahrt: DispoFahrt, zeiten: FahrtZeiten, strichFarbe: Color, statusFarbe: Color, textFarbe: Color) {
+private fun RechteSpalte(fahrt: DispoFahrt, zeiten: FahrtZeiten, strichFarbe: Color, statusFarbe: Color, textFarbe: Color, restEintrag: AnkunftEintrag? = null) {
     // Start Zeitraum: "14:00–14:30".
     val bisText = if (zeiten.bis.isNotEmpty()) "–${zeiten.bis}" else ""
     Column(horizontalAlignment = Alignment.End) {
@@ -548,6 +602,7 @@ private fun RechteSpalte(fahrt: DispoFahrt, zeiten: FahrtZeiten, strichFarbe: Co
         val zusatz = if (gueltig(ankunft) && ankunft != gezeigt) "Ankunft $ankunft"
         else if (gueltig(abfahrt) && abfahrt != gezeigt) "Abfahrt $abfahrt" else null
         if (zusatz != null) Text(zusatz, style = css(12f, 500, 16f, farbe = textFarbe.copy(alpha = 0.6f)), modifier = Modifier.padding(top = 4.dp))
+        if (restEintrag != null) AnkunftPlakette(restEintrag, textFarbe)
     }
 }
 
@@ -579,47 +634,3 @@ private fun RichtungsKnopf(text: String, aktiv: Boolean, aktion: () -> Unit) {
     ) { Text(text, style = css(16f, 500, abstand = 0.4f, farbe = if (aktiv) Color.Black else LIME)) }
 }
 
-/** Live-Board des Flughafens am Standort (nur mit Standort). */
-@Composable
-private fun BoardKasten(board: FlughafenBoard, abfahrten: Boolean, modifier: Modifier, aktualisieren: () -> Unit) {
-    val gruenGrau = hex(0x9EA57D)
-    fun wert(e: DBZeile, k: String, ersatz: String) = W.t(e[k]).ifEmpty { ersatz }
-    fun unterzeile(e: DBZeile): String {
-        var s = W.t(e["status_description"]).ifEmpty { W.t(e["status_code"]) }.ifEmpty { "-" }
-        val terminal = W.t(e["terminal"])
-        val gate = W.t(e["gate"])
-        if (terminal.isNotEmpty()) s += " · T$terminal"
-        if (gate.isNotEmpty()) s += " · G$gate"
-        return s
-    }
-    val stand = board.stand.takeIf { it.isNotEmpty() }?.let {
-        runCatching { DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault()).format(Instant.parse(it)) }.getOrNull()
-    }
-    Column(modifier.width(362.dp).background(hex(0x101108)).border(1.dp, hex(0x4A4F22)).padding(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${if (abfahrten) "Live-Board Abfahrten" else "Live-Board Ankünfte"} ${if (board.code.isEmpty()) "" else "(${board.code})"}",
-                style = css(12f, 700, abstand = 0.3f, farbe = LIME))
-            Spacer(Modifier.weight(1f))
-            Text("Aktualisieren", style = css(11f, 500, farbe = LIME).copy(textDecoration = TextDecoration.Underline), modifier = Modifier.tippen(aktualisieren))
-        }
-        if (stand != null) Text("Stand: $stand", style = css(11f, 500, farbe = gruenGrau), modifier = Modifier.padding(top = 4.dp))
-        when {
-            board.fehler.isNotEmpty() -> Text(board.fehler, style = css(12f, 500, farbe = hex(0xFF8E8E)), modifier = Modifier.padding(top = 8.dp))
-            board.laedt -> Text("Lade Live-Flugdaten...", style = css(12f, 500, farbe = LIME.copy(alpha = 0.8f)), modifier = Modifier.padding(top = 8.dp))
-            board.eintraege.isEmpty() -> Text("Keine Board-Einträge gefunden.", style = css(12f, 500, farbe = LIME.copy(alpha = 0.8f)), modifier = Modifier.padding(top = 8.dp))
-        }
-        if (board.fehler.isEmpty() && board.eintraege.isNotEmpty()) {
-            Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                board.eintraege.take(5).forEach { e ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Column(Modifier.weight(1f)) {
-                            Text("${wert(e, "flight_number", "---")} · ${wert(e, "route_label", "-")}", style = css(12f, 500, farbe = LIME), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(unterzeile(e), style = css(12f, 500, farbe = gruenGrau), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Text(wert(e, "time_label", "--:--"), style = css(12f, 500, farbe = LIME))
-                    }
-                }
-            }
-        }
-    }
-}
