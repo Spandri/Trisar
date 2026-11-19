@@ -161,7 +161,6 @@ const AFTER_ACTION_GAP = 24;
 const DAY_DIVIDER_GAP_TOP = 44;
 const DAY_DIVIDER_HEIGHT = 32;
 const DAY_DIVIDER_GAP_BOTTOM = 56;
-const DAY_DIVIDER_BLOCK = DAY_DIVIDER_GAP_TOP + DAY_DIVIDER_HEIGHT + DAY_DIVIDER_GAP_BOTTOM;
 // Ganz oben steht immer eine Tageszeile (ueber der Dienstanfrage oder der ersten
 // Fahrt), mit gleicher Luft darueber wie darunter. Die erste Karte folgt danach.
 const FIXED_FOOTER_HEIGHT = 40;

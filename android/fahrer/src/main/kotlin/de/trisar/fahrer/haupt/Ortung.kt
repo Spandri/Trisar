@@ -12,11 +12,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.location.Location
-import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
-import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -103,12 +101,6 @@ object FahrerOrtung {
     }
 
     private fun prefs() = app.getSharedPreferences("trisar", Context.MODE_PRIVATE)
-
-    fun setzeEingeschaltet(an: Boolean) {
-        eingeschaltet.value = an
-        prefs().edit().putBoolean(SCHALTER, an).apply()
-        aktualisieren()
-    }
 
     /** Nach Anmeldung bzw. Abmeldung aufrufen. */
     fun setzeFahrer(id: String?) {
@@ -197,11 +189,6 @@ object FahrerOrtung {
         if (prefs().getBoolean(IMMER_GEFRAGT, false)) return false
         prefs().edit().putBoolean(IMMER_GEFRAGT, true).apply()
         return true
-    }
-
-    fun einstellungenOeffnen(ctx: Context) {
-        ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     // Start/Stopp

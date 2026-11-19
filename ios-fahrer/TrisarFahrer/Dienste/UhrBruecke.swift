@@ -81,8 +81,6 @@ final class UhrBruecke: NSObject {
         carPlayStand.send(standBauen())
     }
 
-    func aktuellerStand() -> UhrStand { standBauen() }
-
     /// Aktionen aus CarPlay laufen ueber dieselben Wege wie die der Uhr (UhrAktion).
     func aktion(_ nachricht: [String: Any]) async -> Bool {
         let ok = await ausfuehren(nachricht)

@@ -28,44 +28,7 @@ import { kolonnenNameKurz } from '../../shared/utils/kolonnenName';
 import { vorherigeOffeneFahrt } from '../../shared/utils/vorherigeFahrt';
 import { I18nProvider, useI18n, translate, LANGUAGE_TO_CODE, CODE_TO_LOCALE } from '../../i18n';
 
-import { 
-  Plane, 
-  Building2, 
-  ArrowRight, 
-  Check, 
-  X, 
-  MapPin, 
-  Clock, 
-  ChevronLeft, 
-  Users, 
-  Star, 
-  Baby, 
-  Accessibility, 
-  Plus, 
-  Search, 
-  AlertCircle, 
-  UserPlus, 
-  Loader2, 
-  Navigation, 
-  Timer, 
-  RefreshCw, 
-  Car, 
-  Menu, 
-  FileUp,
-  Phone,
-  MessageCircle,
-  Send,
-  LogOut,
-  Pencil,
-  ChevronDown,
-  Mail,
-  UserRound,
-  BaggageClaim,
-  CalendarDays
-} from 'lucide-react';
-import { MAP_FAHRER_STANDORT_URL, MAP_FLAG_PIN_URL, MAP_PERSON_PIN_URL } from '../../shared/ui/icons';
-import { routeTeilen, istAmEnde } from '../../shared/karte/routenFortschritt';
-import { gaesteText } from '../../shared/gaesteAnzeige';
+import { ChevronLeft, Send } from 'lucide-react';
 import { standbyEnde, useFahrerStandbys } from '../../shared/standby';
 import { useFahrerDienstreisen } from '../../shared/dienstreise';
 
@@ -89,12 +52,8 @@ const SUPABASE_URL_FOR_DEBUG = envOrDefault(import.meta.env.VITE_SUPABASE_URL, '
 const SUPABASE_KEY_FOR_DEBUG = envOrDefault(import.meta.env.VITE_SUPABASE_KEY, '');
 const OPENSKY_DEBUG_ENABLED = envFlagEnabled(import.meta.env.VITE_OPENSKY_DEBUG_ENABLED, false);
 const OPENSKY_429_CLIENT_BACKOFF_MS = 3 * 60 * 1000;
-const LIVE_VIEW_SYNC_INTERVAL_MS = 60 * 1000;
 const OPENSKY_MAX_LIVE_AGE_MS = 2 * 60 * 1000;
-const DRIVER_COORDS = { lat: 48.1215, lng: 11.6644 }; // Friedenspromenade 24, München
-const VEHICLE_IMAGE_URL = "https://larte-design.com/storage/app/media/models/bmw/x5m-competition-front-site-carbon-gray-donington.webp";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-// Blau-weißer Standort-Dot SVG für Google Maps
 
 // --- HILFSFUNKTIONEN ---
 
@@ -107,14 +66,6 @@ const addMinutesToTime = (timeStr, minsToAdd) => {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 };
 
-const formatDuration = (mins) => {
-  if (!mins || mins <= 0) return "0 min";
-  if (mins < 60) return `${mins} min`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${h}:${String(m).padStart(2, '0')} h`;
-};
-
 const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
 const isLikelyValidLatLng = (lat, lng) =>
   Number.isFinite(lat)
@@ -122,14 +73,6 @@ const isLikelyValidLatLng = (lat, lng) =>
   && Math.abs(lat) <= 90
   && Math.abs(lng) <= 180
   && !(Math.abs(lat) < 0.000001 && Math.abs(lng) < 0.000001);
-
-const getEtdColorClass = (job) => {
-  if (!job.flight || job.flight === "STADTFAHRT") return "text-[#d4ff28]";
-  if (!job.originalEtd) return "text-[#d4ff28]";
-  const landingTime = addMinutesToTime(job.etd, -(job.waitingTime || 0));
-  if (landingTime > job.originalEtd) return "text-[#ef4444]"; 
-  return "text-[#d4ff28]"; 
-};
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -140,22 +83,6 @@ const toLocalDateValue = (input = new Date()) => {
 };
 
 const normalizeRideDate = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(value || '') ? value : toLocalDateValue());
-
-const parseRideDate = (value) => {
-  const normalized = normalizeRideDate(value);
-  const [year, month, day] = normalized.split('-').map(Number);
-  return new Date(year, month - 1, day);
-};
-
-const formatRideDayLabel = (value, t, locale) => {
-  const targetDate = parseRideDate(value);
-  const today = parseRideDate(toLocalDateValue());
-  const diffDays = Math.round((targetDate.getTime() - today.getTime()) / DAY_IN_MS);
-  if (diffDays === 0) return t('app.today');
-  if (diffDays === 1) return t('app.tomorrow');
-  if (diffDays === -1) return t('app.yesterday');
-  return targetDate.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' });
-};
 
 const getRideDateFromJob = (job) => normalizeRideDate(
   job?.ride_date
@@ -961,580 +888,6 @@ const ChatListView = ({ chats, unreadByChat, chatLastByChat, setView, setActiveC
   );
 };
 
-// --- HILFSKOMPONENTE: Google Map Detailansicht ---
-const GoogleMapComponent = ({ job }) => {
-  const { t } = useI18n();
-  const mapRef = useRef(null);
-  // Fortschritt auf Anfahrt und Fahrt, damit die Linie hinter dem Fahrer nur nach vorn wandert.
-  const fortschrittRef = useRef({ schluessel: '', anfahrt: { index: 0, gefunden: false }, fahrt: { index: 0, gefunden: false } });
-
-  useEffect(() => {
-    const initMap = () => {
-      if (!window.trisarKarte || !mapRef.current) return;
-      const map = new window.trisarKarte.Map(mapRef.current, {
-        center: DRIVER_COORDS,
-        zoom: 12,
-        disableDefaultUI: true,
-        styles: [
-          { featureType: "all", elementType: "labels.text.fill", stylers: [{ color: "#334155" }] },
-          { featureType: "water", elementType: "geometry", stylers: [{ color: "#e2e8f0" }] },
-          { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#f8fafc" }] },
-          { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-        ],
-      });
-
-      const combinedBounds = new window.trisarKarte.LatLngBounds();
-      const personPinIcon = {
-        url: MAP_PERSON_PIN_URL,
-        scaledSize: new window.trisarKarte.Size(35, 41.1367),
-        anchor: new window.trisarKarte.Point(17.5, 41.1367),
-      };
-      const flagIcon = {
-        url: MAP_FLAG_PIN_URL,
-        scaledSize: new window.trisarKarte.Size(35, 41.1367),
-        anchor: new window.trisarKarte.Point(17.5, 41.1367),
-      };
-
-      const driverCoords = isFiniteNumber(job?.driverLiveLat) && isFiniteNumber(job?.driverLiveLng)
-        ? { lat: job.driverLiveLat, lng: job.driverLiveLng }
-        : DRIVER_COORDS;
-
-      new window.trisarKarte.Marker({
-        position: driverCoords,
-        map,
-        // Eigener Standort nach Figma 2557-12230: blauer Kreis mit Fahrernummer.
-        icon: {
-          url: MAP_FAHRER_STANDORT_URL,
-          scaledSize: new window.trisarKarte.Size(35, 35),
-          anchor: new window.trisarKarte.Point(17.5, 17.5),
-          labelOrigin: new window.trisarKarte.Point(17.5, 17.5),
-        },
-        label: job?.driverNumber != null ? { text: String(job.driverNumber), color: '#FFFFFF', fontSize: '20px', fontWeight: '700' } : undefined,
-        zIndex: 1000, // Auto-Standort immer ueber den Minuten-Schildern (deren Ebene liegt bei 400)
-      });
-      combinedBounds.extend(driverCoords);
-
-      const flightCoords = isFiniteNumber(job?.flightLiveLat) && isFiniteNumber(job?.flightLiveLng)
-        ? { lat: job.flightLiveLat, lng: job.flightLiveLng }
-        : null;
-      const flightHeading = isFiniteNumber(job?.flightLiveHeadingDeg) ? job.flightLiveHeadingDeg : 0;
-      const flightCallsign = String(job?.flightCallsign || job?.flight || '').trim() || null;
-      if (flightCoords) {
-        new window.trisarKarte.Marker({
-          position: flightCoords,
-          map,
-          icon: {
-            path: window.trisarKarte.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 6,
-            fillColor: '#f55757',
-            fillOpacity: 0.95,
-            strokeColor: '#ffffff',
-            strokeWeight: 1.5,
-            rotation: flightHeading,
-          },
-          title: flightCallsign || t('app.flightPosition'),
-          zIndex: 330,
-        });
-        combinedBounds.extend(flightCoords);
-      }
-
-      const routePoints = decodeGooglePolyline(job?.extRoutePolyline || '');
-      const approachPoints = decodeGooglePolyline(job?.extDriverToPickupPolyline || '');
-
-      // Schon gefahrenen Teil abtrennen. Keine Neuberechnung, nur die vorhandene Linie
-      // wird am Fahrer geteilt: davor blass, dahinter in voller Farbe.
-      const schluessel = `${job?.id || ''}|${job?.extDriverToPickupPolyline || ''}|${job?.extRoutePolyline || ''}`;
-      if (fortschrittRef.current.schluessel !== schluessel) {
-        fortschrittRef.current = { schluessel, anfahrt: { index: 0, gefunden: false }, fahrt: { index: 0, gefunden: false } };
-      }
-      const fortschritt = fortschrittRef.current;
-      const status = normalizeStatus(job?.status);
-      const gastAnBord = IN_PROGRESS_JOB_STATUSES.has(status);
-      // Anfahrt ist vorbei, sobald der Gast an Bord ist oder der Fahrer am Ende der Anfahrt steht.
-      const anfahrtVorbei = gastAnBord || istAmEnde(approachPoints, fortschritt.anfahrt);
-      const anfahrtTeilung = driverCoords && approachPoints.length >= 2 && !anfahrtVorbei
-        ? routeTeilen(approachPoints, driverCoords, fortschritt.anfahrt)
-        : null;
-      const fahrtTeilung = driverCoords && routePoints.length >= 2 && anfahrtVorbei
-        ? routeTeilen(routePoints, driverCoords, fortschritt.fahrt)
-        : null;
-
-      const linieZeichnen = (pfad, farbe, breite, deckkraft, zIndex) => new window.trisarKarte.Polyline({
-        path: pfad, geodesic: true, strokeColor: farbe, strokeOpacity: deckkraft, strokeWeight: breite, map, zIndex,
-      });
-
-      if (approachPoints.length >= 2) {
-        let anfahrtRest = approachPoints;
-        if (anfahrtVorbei && !gastAnBord) {
-          // Fahrer steht am Abholort: ganze Anfahrt blass.
-          linieZeichnen(approachPoints, '#E3F654', 4, 0.3, 300);
-          anfahrtRest = [];
-        } else if (anfahrtTeilung) {
-          linieZeichnen(anfahrtTeilung.gefahren, '#E3F654', 4, 0.3, 300);
-          anfahrtRest = anfahrtTeilung.rest;
-        }
-        if (!gastAnBord && anfahrtRest.length >= 2) {
-          const approachLine = linieZeichnen(anfahrtRest, '#E3F654', 5, 0.95, 301);
-          approachLine.getPath().forEach((p) => combinedBounds.extend(p));
-          const approachDurationMins = job?.extDriverToPickupDurationInTrafficMins || job?.extDriverToPickupDurationMins || 0;
-          if (approachDurationMins > 0) {
-            new window.trisarKarte.InfoWindow({
-              content: `<div class="custom-map-label" style="background: #E3F654; color: #111111"><span>${formatDuration(approachDurationMins)}</span></div>`,
-              position: anfahrtRest[Math.floor(anfahrtRest.length / 2)],
-              disableAutoPan: true,
-            }).open(map);
-          }
-        } else if (!gastAnBord) {
-          approachPoints.forEach((p) => combinedBounds.extend(p));
-        }
-      }
-
-      if (routePoints.length >= 2) {
-        let fahrtRest = routePoints;
-        if (fahrtTeilung) {
-          linieZeichnen(fahrtTeilung.gefahren, '#0059FF', 4, 0.3, 300);
-          fahrtRest = fahrtTeilung.rest;
-        }
-        const polyline = linieZeichnen(fahrtRest.length >= 2 ? fahrtRest : routePoints, '#0059FF', 6, 0.9, 302);
-        polyline.getPath().forEach((p) => combinedBounds.extend(p));
-        new window.trisarKarte.Marker({ position: routePoints[0], map, icon: personPinIcon, zIndex: 320 });
-        new window.trisarKarte.Marker({ position: routePoints[routePoints.length - 1], map, icon: flagIcon, zIndex: 320 });
-        const durationMins = job?.extRouteDurationInTrafficMins || job?.extRouteDurationMins || 0;
-        if (durationMins > 0) {
-          const schildPfad = fahrtRest.length >= 2 ? fahrtRest : routePoints;
-          new window.trisarKarte.InfoWindow({
-            content: `<div class="custom-map-label" style="background: #0059FF"><span>${formatDuration(durationMins)}</span><div class="eco-dot"></div></div>`,
-            position: schildPfad[Math.floor(schildPfad.length / 2)],
-            disableAutoPan: true,
-          }).open(map);
-        }
-      }
-
-      if (!combinedBounds.isEmpty()) {
-        map.fitBounds(combinedBounds, { top: 80, bottom: 250, left: 60, right: 60 });
-      }
-    };
-
-    if (window.trisarKarte) initMap();
-  }, [
-    job?.extRoutePolyline,
-    job?.extRouteDurationInTrafficMins,
-    job?.extRouteDurationMins,
-    job?.extDriverToPickupPolyline,
-    job?.extDriverToPickupDurationInTrafficMins,
-    job?.extDriverToPickupDurationMins,
-    job?.driverLiveLat,
-    job?.driverLiveLng,
-    job?.status,
-    job?.id,
-    job?.flightLiveLat,
-    job?.flightLiveLng,
-    job?.flightLiveHeadingDeg,
-    job?.flightCallsign,
-    job?.flight,
-    t,
-  ]);
-
-  return <div ref={mapRef} className="w-full h-full relative bg-slate-100" />;
-};
-
-const DetailsView = ({ job, setView, setActiveChat, currentDriverId, unreadGroupCount = 0, onOpenGroupChat, getChatReadBoundary }) => {
-  const { t, locale } = useI18n();
-  const [sheetHeight, setSheetHeight] = useState(60);
-  const [isDragging, setIsDragging] = useState(false);
-  const driveMins = job?.extRouteDurationInTrafficMins || job?.extRouteDurationMins || 0;
-  const [selectedKolonneDriver, setSelectedKolonneDriver] = useState(null); // State für Fahrer-Modal
-  const otherKolonneDrivers = (job?.kolonneDrivers || []).filter((driver) => driver.id !== currentDriverId);
-  const selectedBadges = (job?.badges || []).filter((badge) => ['child_seat', 'accessibility', 'luggage', 'vip'].includes(badge));
-  const tripLabel = job.flight && job.flight !== "STADTFAHRT" ? job.flight : t('app.cityRide');
-
-  const startY = useRef(0);
-  const startHeight = useRef(0);
-  const handleDragStart = (e) => { setIsDragging(true); startY.current = e.touches ? e.touches[0].clientY : e.clientY; startHeight.current = sheetHeight; };
-  const handleDragMove = (e) => { if (!isDragging) return; setSheetHeight(Math.min(Math.max(startHeight.current + ((startY.current - (e.touches ? e.touches[0].clientY : e.clientY)) / window.innerHeight) * 100, 25), 92)); };
-  const handleDragEnd = () => { setIsDragging(false); if (sheetHeight > 80) setSheetHeight(90); else if (sheetHeight < 45) setSheetHeight(30); else setSheetHeight(60); };
-  const calculatedEta = driveMins > 0 ? addMinutesToTime(job.etd, driveMins) : (job.etd || "--:--");
-
-  return (
-    <div className="flex flex-col h-screen bg-[#0a0a0a] max-w-md mx-auto relative overflow-hidden font-sans text-white" onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}>
-      <div className="flex-1 relative">
-        <GoogleMapComponent job={job} />
-        <button onClick={() => setView('list')} className="absolute top-6 left-6 bg-white p-3 rounded-2xl shadow-xl active:scale-90 z-20 text-black">
-          <ChevronLeft className="w-6 h-6" />
-        </button>
-      </div>
-      
-      <div className={`absolute bottom-0 left-0 right-0 bg-[#111111] rounded-t-[40px] shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col z-30 ${!isDragging ? 'transition-all duration-300 ease-out' : ''}`} style={{ height: `${sheetHeight}%` }}>
-        <div className="w-full pt-4 pb-4 cursor-grab active:cursor-grabbing flex justify-center" onMouseDown={handleDragStart} onTouchStart={handleDragStart}><div className="w-20 h-1.5 bg-[#d4ff28] rounded-full"></div></div>
-        <div className="px-8 pb-12 overflow-y-auto overscroll-none flex-1 custom-scrollbar">
-          <div className="mb-6 rounded-2xl border border-slate-800 bg-[#161618] px-4 py-3 flex items-center justify-between">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('app.rideDay')}</div>
-            <div className="text-sm font-black text-[#d4ff28]">{formatRideDayLabel(job.rideDate, t, locale)}</div>
-          </div>
-          
-          {/* ETD / ETA */}
-          <div className="flex justify-between items-start mb-10">
-            <div>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-tighter">ETD</div>
-              <div className={`text-5xl font-black leading-none mt-1 ${getEtdColorClass(job)}`}>{job.etd}</div>
-              {job.originalEtd && <div className="text-sm font-bold text-slate-500 line-through mt-2 tracking-tighter">{t('app.plan', { time: job.originalEtd })}</div>}
-            </div>
-            <div className="text-right">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-tighter">ETA</div>
-              <div className="text-5xl font-black text-[#d4ff28] leading-none mt-1">{calculatedEta}</div>
-              {driveMins > 0 && <div className="text-sm font-bold text-white mt-2">{t('app.driveMins', { mins: driveMins })}</div>}
-            </div>
-          </div>
-
-          {/* Route */}
-          <div className="flex items-center justify-between mb-10">
-            <div className="flex flex-col items-center w-[100px]">
-              <div className="bg-[#222224] w-24 h-24 rounded-3xl flex items-center justify-center mb-3">
-                {job.from.iconType === 'plane' ? <Plane size={48} strokeWidth={1} className="text-slate-400" /> : <Building2 size={48} strokeWidth={1} className="text-slate-400" />}
-              </div>
-              <div className="text-xs font-bold uppercase text-center leading-tight">{job.from.name}</div>
-            </div>
-            <ArrowRight className="w-8 h-8 text-[#d4ff28]" strokeWidth={2} />
-            <div className="flex flex-col items-center w-[100px]">
-              <div className="bg-[#222224] w-24 h-24 rounded-3xl flex items-center justify-center mb-3">
-                {job.to.iconType === 'plane' ? <Plane size={48} strokeWidth={1} className="text-slate-400" /> : <Building2 size={48} strokeWidth={1} className="text-slate-400" />}
-              </div>
-              <div className="text-xs font-bold uppercase text-center leading-tight">{job.to.name}</div>
-            </div>
-          </div>
-
-          {/* Flight Info & Badges */}
-          <div className="flex items-end justify-between mb-8">
-            <div className="flex flex-col min-w-0 flex-1 pr-3">
-              <div className="text-4xl font-black tracking-tighter uppercase leading-none text-[#d4ff28] break-all">{tripLabel}</div>
-              {job.flightOrigin && <div className="text-sm font-bold text-slate-500 mt-2">{t('app.fromOrigin', { origin: job.flightOrigin })}</div>}
-            </div>
-            {!!selectedBadges.length && (
-              <div className="flex gap-2 shrink-0">
-                {selectedBadges.includes('child_seat') && <div className="w-10 h-10 rounded-xl flex items-center justify-center border-2 border-[#d4ff28] text-[#d4ff28]"><Baby size={20} /></div>}
-                {selectedBadges.includes('accessibility') && <div className="w-10 h-10 rounded-xl flex items-center justify-center border-2 border-[#d4ff28] text-[#d4ff28]"><Accessibility size={20} /></div>}
-                {selectedBadges.includes('luggage') && <div className="w-10 h-10 rounded-xl flex items-center justify-center border-2 border-[#d4ff28] text-[#d4ff28]"><BaggageClaim size={20} /></div>}
-                {selectedBadges.includes('vip') && <div className="w-10 h-10 rounded-xl flex items-center justify-center border-2 border-[#d4ff28] text-[#d4ff28]"><Star size={20} /></div>}
-              </div>
-            )}
-          </div>
-
-          {/* Kolonne (Convoy) Section */}
-          {job.isKolonne && (
-            <div className="space-y-6 mb-10">
-              <div className="flex items-center justify-between">
-                <h3 className="text-3xl font-black text-[#d4ff28] tracking-tighter uppercase italic">{t('app.convoy')}</h3>
-                <button 
-                  onClick={() => {
-                    const chat = { id: job.convoyId || '', name: kolonnenNameKurz(job.kolonneName), type: 'group', backView: 'details', readBoundary: getChatReadBoundary ? getChatReadBoundary('group', job.convoyId) : null };
-                    setActiveChat(chat);
-                    if (onOpenGroupChat) onOpenGroupChat(chat.id);
-                    setView('chat');
-                  }}
-                  className="relative bg-[#222224] text-[#d4ff28] border border-slate-700 hover:border-[#d4ff28] px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-xs transition-colors active:scale-95"
-                >
-                  <MessageCircle size={16} /> {t('app.convoyChat')}
-                  {unreadGroupCount > 0 && (
-                    <span className="absolute -top-2 -right-2 min-w-5 h-5 px-1 rounded-full bg-[#d4ff28] text-black text-[10px] leading-5 text-center font-black">
-                      {unreadGroupCount > 9 ? '9+' : unreadGroupCount}
-                    </span>
-                  )}
-                </button>
-              </div>
-              
-              {/* Kolonne Gäste */}
-              <div className="bg-[#222224] p-5 rounded-[25px] border border-slate-700">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">{t('app.allConvoyGuests')}</div>
-                <div className="flex flex-wrap gap-2">
-                  {job.kolonneGuests?.map((guest, i) => (
-                    <span key={i} className="bg-[#111111] text-white text-xs px-4 py-2 rounded-full font-bold border border-slate-700 flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 bg-[#d4ff28] rounded-full"></div>{guest}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Kolonne Fahrer */}
-              <div className="bg-[#222224] p-5 rounded-[25px] border border-slate-700">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">{t('app.moreDriversAssignments')}</div>
-                <div className="space-y-3">
-                  {otherKolonneDrivers.map(driver => (
-                    <div key={driver.id} onClick={() => setSelectedKolonneDriver(driver)} className="flex items-center justify-between bg-[#111111] p-4 rounded-2xl cursor-pointer hover:border-[#d4ff28] border border-slate-700 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <img src={driver.image} className="w-12 h-12 rounded-full border-2 border-slate-600 object-cover shrink-0" alt={driver.name} />
-                        <div className="flex flex-col justify-center">
-                          <div className="text-sm font-black text-white">{driver.name}</div>
-                          <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1 mt-0.5"><Car size={10} /> {driver.car}</div>
-                          <div className="text-[9px] font-bold text-slate-500 mt-1 leading-tight">
-                            {t('app.guests')} <span className="text-[#d4ff28]">{driver.assignedGuests?.join(', ') || t('app.none')}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <ArrowRight size={18} className="text-slate-500 shrink-0 ml-2" />
-                    </div>
-                  ))}
-                  {otherKolonneDrivers.length === 0 && (
-                    <div className="text-xs font-bold text-slate-500">{t('app.noMoreDrivers')}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Passenger Name (eigene Gäste) */}
-          {!job.isKolonne && (
-            <div className="mb-10 bg-[#222224] py-4 rounded-2xl">
-              <div className="text-center text-sm font-bold text-white">
-                {(job.passengers?.length || job.anonymousGuests) ? gaesteText(job.passengers, job.anonymousGuests, t) : t('app.noGuestsListed')}
-              </div>
-            </div>
-          )}
-          {job.isKolonne && (
-             <div className="mb-10 bg-[#d4ff28] py-4 rounded-2xl text-black text-center font-black uppercase text-xs tracking-widest">
-                {t('app.yourGuest', { guests: job.passengers?.join(', ') || 'TBA' })}
-             </div>
-          )}
-
-          {/* Notiz */}
-          <div className="space-y-6">
-            <h3 className="text-5xl font-black text-[#d4ff28] tracking-tighter">{t('app.note')}</h3>
-            <div className="mt-6 space-y-4">
-              {job.notes?.length > 0 ? job.notes.map((note, idx) => ( 
-                <div key={idx} className="pb-4">
-                  <div className="text-[10px] text-slate-500 font-bold mb-1">{note.time}</div>
-                  <div className="text-lg font-bold text-white leading-snug">{note.text}</div>
-                </div> 
-              )) : <p className="text-slate-500 text-sm font-bold">{t('app.noNotes')}</p>}
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Driver Detail Modal */}
-      {selectedKolonneDriver && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-[#161618] w-full max-w-sm rounded-[40px] p-8 shadow-2xl relative border border-[#222224] text-center">
-            <button onClick={() => setSelectedKolonneDriver(null)} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-white bg-[#222224] rounded-full active:scale-90">
-              <X size={20} strokeWidth={3} />
-            </button>
-            <div className="relative inline-block mt-4 mb-4">
-               <img src={selectedKolonneDriver.image} className="w-32 h-32 rounded-full border-[4px] border-[#d4ff28] object-cover mx-auto" alt={selectedKolonneDriver.name} />
-               <div className="absolute bottom-0 right-0 bg-[#d4ff28] text-black p-2 rounded-full border-4 border-[#161618]">
-                  <Car size={16} strokeWidth={3} />
-               </div>
-            </div>
-            <h3 className="text-3xl font-black text-white leading-tight">{selectedKolonneDriver.name}</h3>
-            <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">{selectedKolonneDriver.car}</p>
-
-            <div className="bg-[#222224] p-3 rounded-2xl mt-5 border border-slate-700">
-              <p className="text-[9px] uppercase tracking-widest text-slate-400 mb-1">{t('app.assignedGuests')}</p>
-              <p className="text-sm font-bold text-[#d4ff28]">{selectedKolonneDriver.assignedGuests?.join(', ') || t('app.noAssignment')}</p>
-            </div>
-
-            <div className="flex gap-3 mt-8">
-              <button onClick={() => {
-                  setActiveChat({ id: selectedKolonneDriver.id, name: selectedKolonneDriver.name, type: 'individual', backView: 'details', readBoundary: getChatReadBoundary ? getChatReadBoundary('individual', selectedKolonneDriver.id) : null });
-                  setView('chat');
-                  setSelectedKolonneDriver(null);
-              }} className="flex-1 flex items-center justify-center gap-2 bg-[#222224] text-[#d4ff28] border border-[#d4ff28] py-4 rounded-2xl font-black text-sm active:scale-95 transition-transform hover:bg-[#d4ff28] hover:text-black">
-                <MessageCircle size={20} /> {t('app.chat')}
-              </button>
-              <a href={`tel:${selectedKolonneDriver.phone.replace(/\s+/g, '')}`} className="flex-1 flex items-center justify-center gap-2 bg-[#d4ff28] text-black py-4 rounded-2xl font-black text-sm active:scale-95 transition-transform">
-                <Phone size={20} fill="currentColor" /> {t('app.call')}
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style>{`.gm-style-iw { background: transparent !important; box-shadow: none !important; padding: 0 !important; border: none !important; } .gm-style-iw-d { overflow: visible !important; padding: 0 !important; } .gm-ui-hover-effect { display: none !important; } .gm-style-iw-t::after { display: none !important; } .custom-map-label { color: white; padding: 6px 12px; border-radius: 12px; font-family: sans-serif; font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); white-space: nowrap; position: relative; } .eco-dot { width: 10px; height: 10px; background: #4ade80; border-radius: 50%; border: 2px solid white; } .custom-map-label::after { content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 7px solid currentColor; } .custom-scrollbar::-webkit-scrollbar { width: 0px; background: transparent; }`}</style>
-    </div>
-  );
-};
-
-// --- ALTE ListView-KOMPONENTE WURDE ENTFERNT ---
-// Bitte nutzen Sie stattdessen FahrtenScreen01View
-const ListView = null;
-
-const PassengerListView = ({ setView, passengers }) => {
-  const { t } = useI18n();
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const filteredPassengers = (passengers || []).filter((p) => {
-    const haystack = `${p.firstName || ''} ${p.lastName || ''} ${p.email || ''}`.toLowerCase();
-    return haystack.includes(searchTerm.toLowerCase());
-  });
-
-  return (
-    <div className="min-h-screen max-w-md mx-auto bg-black text-white relative overflow-hidden">
-      <div className="absolute -top-10 -left-32 w-80 h-80 bg-[radial-gradient(circle,_rgba(212,255,40,0.36)_0%,_rgba(212,255,40,0)_70%)] pointer-events-none" />
-      <div className="relative z-10 px-6 pt-10 pb-28">
-        <button
-          onClick={() => setView('list')}
-          className="mt-8 mb-10 w-14 h-14 rounded-full border border-slate-600 text-slate-400 flex items-center justify-center active:scale-95"
-        >
-          <ChevronLeft size={28} />
-        </button>
-
-        <h1 className="text-6xl font-black tracking-tighter text-[#d4ff28] mb-8">{t('app.passengersTitle')}</h1>
-
-        <button className="w-full h-20 border-2 border-[#d4ff28] text-[#d4ff28] px-7 text-left text-4xl font-bold mb-4 flex items-center justify-between">
-          <span className="text-2xl">{t('app.importCustomers')}</span>
-          <FileUp size={28} />
-        </button>
-
-        <div className="w-full h-20 border-2 border-[#d4ff28] text-[#d4ff28] px-7 text-left text-4xl font-bold mb-4 flex items-center justify-between">
-          <input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={t('app.search')}
-            className="bg-transparent w-full text-2xl font-medium placeholder:text-[#d4ff28] text-[#d4ff28] focus:outline-none"
-          />
-          <Search size={34} />
-        </div>
-
-        <button className="w-full h-20 bg-[#d4ff28] text-black px-7 text-left text-4xl font-bold mb-4 flex items-center justify-between">
-          <span className="text-2xl flex items-center gap-3">
-            <Users size={28} />
-            {t('app.group')}
-          </span>
-          <ChevronDown size={32} />
-        </button>
-
-        <button
-          onClick={() => setView('passengerCreate')}
-          className="w-full h-20 bg-[#d4ff28] text-black px-7 text-left text-4xl font-bold mb-7 flex items-center justify-between"
-        >
-          <span className="text-2xl flex items-center gap-3">
-            <UserRound size={28} />
-            {t('app.createPassenger')}
-          </span>
-          <Plus size={30} />
-        </button>
-
-        <div className="bg-[#17181c] rounded-[26px] p-4 space-y-4">
-          {filteredPassengers.length === 0 && (
-            <div className="bg-[#f3f3f4] text-black rounded p-6 text-center font-bold">{t('app.noPassengersFound')}</div>
-          )}
-          {filteredPassengers.map((passenger) => (
-            <div key={passenger.id} className="bg-[#f3f3f4] text-black p-5">
-              <div className="text-[18px] text-slate-600 font-medium">{t('app.sportPrice')}</div>
-              <div className="flex items-start justify-between mt-2">
-                <div className="min-w-0">
-                  <div className="text-[44px] leading-none font-black truncate">
-                    {[passenger.firstName, passenger.lastName].filter(Boolean).join(' ') || t('app.unknown')}
-                  </div>
-                  <div className="text-2xl text-slate-500 mt-2 truncate">{passenger.email || '-'}</div>
-                </div>
-                <div className="flex items-center gap-3 ml-3">
-                  <span className="text-4xl font-medium">{passenger.rides ?? 0}</span>
-                  <Pencil size={28} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const PassengerCreateView = ({ setView, newPassenger, setNewPassenger, onCreatePassenger, isSavingPassenger }) => {
-  const { t } = useI18n();
-  const updateField = (field, value) => setNewPassenger((prev) => ({ ...prev, [field]: value }));
-  const toggleField = (field) => setNewPassenger((prev) => ({ ...prev, [field]: !prev[field] }));
-  const inputClass = "w-full h-20 bg-transparent border-2 border-[#d4ff28] px-6 text-[#d4ff28] text-[40px] leading-none font-medium placeholder:text-[#d4ff28]/60 focus:outline-none";
-
-  return (
-    <div className="min-h-screen max-w-md mx-auto bg-black text-white relative overflow-hidden">
-      <div className="absolute -top-10 -left-32 w-80 h-80 bg-[radial-gradient(circle,_rgba(212,255,40,0.36)_0%,_rgba(212,255,40,0)_70%)] pointer-events-none" />
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onCreatePassenger();
-        }}
-        className="relative z-10 px-6 pt-10 pb-10"
-      >
-        <button
-          type="button"
-          onClick={() => setView('passengers')}
-          className="mt-8 mb-10 w-14 h-14 rounded-full border border-slate-600 text-slate-400 flex items-center justify-center active:scale-95"
-        >
-          <ChevronLeft size={28} />
-        </button>
-
-        <h1 className="text-[64px] leading-[0.95] font-black tracking-tighter text-[#d4ff28] mb-8">{t('app.createPassenger')}</h1>
-
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <input value={newPassenger.firstName} onChange={(e) => updateField('firstName', e.target.value)} placeholder={t('app.firstNamePh')} className={inputClass} />
-          <input value={newPassenger.lastName} onChange={(e) => updateField('lastName', e.target.value)} placeholder={t('app.lastNamePh')} className={inputClass} />
-        </div>
-
-        <div className="relative mb-3">
-          <input value={newPassenger.email} onChange={(e) => updateField('email', e.target.value)} placeholder={t('app.emailPh')} className={`${inputClass} pr-16`} />
-          <Mail size={26} className="absolute right-6 top-1/2 -translate-y-1/2 text-[#d4ff28]" />
-        </div>
-
-        <div className="grid grid-cols-[92px_1fr] gap-3 mb-3">
-          <input value={newPassenger.countryCode} onChange={(e) => updateField('countryCode', e.target.value)} placeholder="+49" className={inputClass} />
-          <input value={newPassenger.phone} onChange={(e) => updateField('phone', e.target.value)} placeholder={t('app.phonePh')} className={inputClass} />
-        </div>
-
-        <div className="grid grid-cols-[1fr_86px] gap-3 mb-3">
-          <input value={newPassenger.street} onChange={(e) => updateField('street', e.target.value)} placeholder={t('app.streetPh')} className={inputClass} />
-          <input value={newPassenger.streetNumber} onChange={(e) => updateField('streetNumber', e.target.value)} placeholder={t('app.streetNoPh')} className={inputClass} />
-        </div>
-
-        <div className="mb-3">
-          <input value={newPassenger.city} onChange={(e) => updateField('city', e.target.value)} placeholder={t('app.cityPh')} className={inputClass} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <input value={newPassenger.zip} onChange={(e) => updateField('zip', e.target.value)} placeholder={t('app.zipPh')} className={inputClass} />
-          <button type="button" className={`${inputClass} flex items-center justify-between`}>
-            <span>{newPassenger.language || 'Deutsch'}</span>
-            <ChevronDown size={30} />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-4 gap-3 mb-5">
-          <button type="button" onClick={() => toggleField('vip')} className={`h-16 rounded-xl border-2 flex items-center justify-center ${newPassenger.vip ? 'border-[#d4ff28] text-[#d4ff28]' : 'border-[#8ea23c] text-[#8ea23c]'}`}><Star size={30} /></button>
-          <button type="button" onClick={() => toggleField('accessibility')} className={`h-16 rounded-xl border-2 flex items-center justify-center ${newPassenger.accessibility ? 'border-[#d4ff28] text-[#d4ff28]' : 'border-[#8ea23c] text-[#8ea23c]'}`}><Accessibility size={30} /></button>
-          <button type="button" onClick={() => toggleField('childSeat')} className={`h-16 rounded-xl border-2 flex items-center justify-center ${newPassenger.childSeat ? 'border-[#d4ff28] text-[#d4ff28]' : 'border-[#8ea23c] text-[#8ea23c]'}`}><Baby size={30} /></button>
-          <button type="button" onClick={() => toggleField('childSeat2')} className={`h-16 rounded-xl border-2 flex items-center justify-center ${newPassenger.childSeat2 ? 'border-[#d4ff28] text-[#d4ff28]' : 'border-[#8ea23c] text-[#8ea23c]'}`}><Baby size={30} /></button>
-        </div>
-
-        <div className="bg-[#17181c] rounded-[26px] p-4 mb-6">
-          <div className="bg-[#f3f3f4] text-black p-5 min-h-[220px]">
-            <div className="flex items-center justify-between">
-              <span className="text-[20px] font-black">{t('app.notes')}</span>
-              <Pencil size={24} />
-            </div>
-            <textarea
-              value={newPassenger.notes}
-              onChange={(e) => updateField('notes', e.target.value)}
-              placeholder={t('app.writePh')}
-              className="w-full mt-4 bg-transparent text-2xl text-slate-500 placeholder:text-slate-400 focus:outline-none resize-none min-h-[130px]"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={isSavingPassenger}
-          className="w-full h-20 bg-[#d4ff28] text-black px-7 text-left text-4xl font-bold mb-10 flex items-center justify-between disabled:opacity-60"
-        >
-          <span className="text-2xl">{isSavingPassenger ? t('app.saving') : t('app.createPassenger')}</span>
-          <ArrowRight size={32} />
-        </button>
-
-        <TrisarFooter className="relative w-full h-10 bg-black" />
-      </form>
-    </div>
-  );
-};
-
 // --- MAIN APP ---
 const FahrerApp = () => {
   const [viewStack, setViewStack] = useState([{ id: 0, view: 'list' }]);
@@ -1575,26 +928,6 @@ const FahrerApp = () => {
   const [currentDriverProfile, setCurrentDriverProfile] = useState(null);
   const [currentVehicle, setCurrentVehicle] = useState(null);
   const [vehicleDamages, setVehicleDamages] = useState([]);
-  const [_passengers, setPassengers] = useState([]);
-  const [_isSavingPassenger, setIsSavingPassenger] = useState(false);
-  const [newPassenger, setNewPassenger] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    countryCode: '+49',
-    phone: '',
-    street: '',
-    streetNumber: '',
-    city: '',
-    zip: '',
-    language: 'Deutsch',
-    vip: false,
-    accessibility: false,
-    childSeat: false,
-    childSeat2: false,
-    notes: '',
-  });
-
   // i18n: FahrerApp rendert den I18nProvider selbst, daher t/locale hier
   // direkt aus dem Profil ableiten (gleiche Logik wie im Provider).
   const langCode = LANGUAGE_TO_CODE[currentDriverProfile?.language] || 'de';
@@ -2300,7 +1633,6 @@ const FahrerApp = () => {
       setCurrentDriverProfile(null);
       setCurrentVehicle(null);
       setVehicleDamages([]);
-      setPassengers([]);
       return undefined;
     }
 
@@ -2417,17 +1749,6 @@ const FahrerApp = () => {
         const profileMap = Object.fromEntries((allProfiles || []).map((p) => [p.id, p]));
         const vehicleMap = Object.fromEntries((allVehicles || []).map((v) => [v.id, v]));
         const guestMap = Object.fromEntries((allGuests || []).map((g) => [g.id, g]));
-        setPassengers(
-          (allGuests || []).map((g) => ({
-            id: g.id,
-            firstName: g.first_name || '',
-            lastName: g.last_name || '',
-            email: g.email || '',
-            rides: g.rides_count ?? g.trip_count ?? g.ride_count ?? 0,
-            notes: g.notes || '',
-          })),
-        );
-
         if (profile?.vehicle_id) {
           const [{ data: vehicle }, { data: damages }] = await Promise.all([
             supabase.from('vehicles').select('*').eq('id', profile.vehicle_id).maybeSingle(),
@@ -2698,7 +2019,6 @@ const FahrerApp = () => {
         setJobs([]);
         setServiceRequests([]);
         setCurrentDriverProfile(null);
-        setPassengers([]);
       }
     };
     fetchProfileAndJobsRef.current = fetchProfileAndJobs;
@@ -2876,97 +2196,6 @@ const FahrerApp = () => {
     if (error && genau) await supabase.from('vehicle_damages').insert([zeile]);
     const { data: damages } = await supabase.from('vehicle_damages').select('*').eq('vehicle_id', currentVehicle.id).order('report_date', { ascending: false });
     setVehicleDamages(damages || []);
-  };
-
-  const resetNewPassenger = () => {
-    setNewPassenger({
-      firstName: '',
-      lastName: '',
-      email: '',
-      countryCode: '+49',
-      phone: '',
-      street: '',
-      streetNumber: '',
-      city: '',
-      zip: '',
-      language: 'Deutsch',
-      vip: false,
-      accessibility: false,
-      childSeat: false,
-      childSeat2: false,
-      notes: '',
-    });
-  };
-
-  const _handleCreatePassenger = async () => {
-    if (!newPassenger.firstName.trim() || !newPassenger.lastName.trim()) {
-      window.alert(t('app.firstLastNameRequired'));
-      return;
-    }
-
-    const fullPayload = {
-      first_name: newPassenger.firstName.trim(),
-      last_name: newPassenger.lastName.trim(),
-      email: newPassenger.email.trim() || null,
-      phone: `${newPassenger.countryCode || '+49'} ${newPassenger.phone || ''}`.trim(),
-      street: newPassenger.street.trim() || null,
-      street_number: newPassenger.streetNumber.trim() || null,
-      city: newPassenger.city.trim() || null,
-      zip: newPassenger.zip.trim() || null,
-      language: newPassenger.language || 'Deutsch',
-      notes: newPassenger.notes.trim() || null,
-      is_vip: !!newPassenger.vip,
-      needs_accessibility: !!newPassenger.accessibility,
-      needs_child_seat: !!newPassenger.childSeat,
-      needs_second_child_seat: !!newPassenger.childSeat2,
-    };
-
-    setIsSavingPassenger(true);
-    try {
-      const attempts = [
-        fullPayload,
-        {
-          first_name: fullPayload.first_name,
-          last_name: fullPayload.last_name,
-          email: fullPayload.email,
-          phone: fullPayload.phone,
-        },
-        {
-          first_name: fullPayload.first_name,
-          last_name: fullPayload.last_name,
-        },
-      ];
-
-      let savedGuest = null;
-      for (const payload of attempts) {
-        const { data, error } = await supabase.from('guests').insert([payload]).select('*').single();
-        if (!error) {
-          savedGuest = data;
-          break;
-        }
-      }
-
-      if (!savedGuest) throw new Error('insert_failed');
-
-      setPassengers((prev) => [
-        {
-          id: savedGuest.id || Date.now(),
-          firstName: savedGuest.first_name || newPassenger.firstName.trim(),
-          lastName: savedGuest.last_name || newPassenger.lastName.trim(),
-          email: savedGuest.email || newPassenger.email.trim(),
-          rides: savedGuest.rides_count ?? savedGuest.trip_count ?? 0,
-          notes: savedGuest.notes || newPassenger.notes,
-        },
-        ...prev,
-      ]);
-
-      resetNewPassenger();
-      setView('passengers');
-    } catch {
-      window.alert(t('app.passengerSaveFailed'));
-    } finally {
-      setIsSavingPassenger(false);
-    }
   };
 
   useEffect(() => () => {
@@ -3816,16 +3045,6 @@ await supabase.auth.signOut({ scope: 'local' });
       </div>
     </I18nProvider>
   );
-};
-
-export {
-  ChatListView,
-  ChatView,
-  DetailsView,
-  LoginView,
-  PassengerCreateView,
-  PassengerListView,
-  VehicleView,
 };
 
 export default FahrerApp;

@@ -44,24 +44,6 @@ export const berechneEta = (job, routeDurationMins, jetzt = new Date()) => {
   return uhrzeit(new Date(start.getTime() + dauer * 60_000));
 };
 
-// Tatsaechliche Losfahrzeit: noch nicht losgefahren und schon spaet dran -> jetzt.
-export const berechneAbfahrt = (job, jetzt = new Date()) => {
-  const status = String(job?.status || '').trim().toLowerCase();
-  const geplant = zeitAmTag(job?.etd, job?.rideDate, jetzt);
-  if (!geplant) return null;
-  if (!UNTERWEGS.has(status) && geplant.getTime() < jetzt.getTime() && geplant.toDateString() === jetzt.toDateString()) {
-    return uhrzeit(jetzt);
-  }
-  return uhrzeit(geplant);
-};
-
-// Restfahrzeit in Minuten fuer die Anzeige "-X min Fahrt".
-export const restFahrzeit = (job, routeDurationMins, jetzt = new Date()) => {
-  const live = liveAnkunftMs(job, jetzt);
-  if (live != null) return Math.max(0, Math.round((live - jetzt.getTime()) / 60_000));
-  return Number(routeDurationMins) > 0 ? Number(routeDurationMins) : 0;
-};
-
 // Laesst die Ansicht jede halbe Minute neu rechnen, damit die ETA mitlaeuft.
 export const useJetzt = (intervallMs = 30_000) => {
   const [jetzt, setJetzt] = useState(() => new Date());

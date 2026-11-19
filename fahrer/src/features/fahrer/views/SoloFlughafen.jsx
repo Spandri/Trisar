@@ -32,11 +32,6 @@ import NaviStart from './Navigation';
 import { naviVersatz } from '../../../shared/navigation/naviLogik';
 import { ortIconFuer } from '../../../shared/orte';
 import { gaesteTeile, gaesteZeilen } from '../../../shared/gaesteAnzeige';
-const envOrDefault = (value, fallback) => {
-  if (!value) return fallback;
-  if (typeof value === 'string' && value.trim().toLowerCase().startsWith('your_')) return fallback;
-  return value;
-};
 const envFlagEnabled = (value, fallback = false) => {
   const raw = String(value ?? '').trim().toLowerCase();
   if (!raw) return fallback;

@@ -5,7 +5,6 @@ import { tasteFuer, vorschlaegeFuer, ebeneFuer } from '../../../components/ui/ta
 import { useI18n } from '../../../i18n';
 import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
 
-const BASE_WIDTH = 402;
 const BASE_HEIGHT = 864;
 
 const screenBg = {

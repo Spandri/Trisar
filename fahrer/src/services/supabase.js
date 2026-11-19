@@ -26,5 +26,3 @@ const createLiveClient = () => {
 
 export const supabase = DEMO_MODE ? demoSupabase : createLiveClient();
 export { DEMO_MODE };
-
-export const GOOGLE_MAPS_API_KEY = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();

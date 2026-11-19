@@ -248,7 +248,6 @@ internal fun FahrtenListeSeite(
     val kartenHoehe = kartenHoeheMesser()
     val fahrzeugHoehe = de.trisar.kern.fahrzeugKartenHoehe(fahrzeug, ctx = androidx.compose.ui.platform.LocalContext.current)
     val stundenAlle by StundenSpeicher.eintraege.collectAsState()
-    val stundenArbeitet by StundenSpeicher.arbeitetID.collectAsState()
     val stundenFehler by StundenSpeicher.fehler.collectAsState()
     val stundenKarten = remember(stundenAlle) { StundenSpeicher.karten(stundenAlle) }
     val stundenScope = androidx.compose.runtime.rememberCoroutineScope()
