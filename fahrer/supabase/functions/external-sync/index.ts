@@ -3,7 +3,7 @@ import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { providerConfig } from '../_shared/provider-config.ts';
 import { recordUsageWithCost } from '../_shared/usage-tracking.ts';
 import { MUC_ANBIETER, MUC_PLAN_ANBIETER, mucAnkunft } from '../_shared/muc-flughafen.ts';
-import { routenPunkteLesen, TOMTOM_PROVIDER, tomtomRoute, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
+import { routeFestLesen, routenPunkteLesen, TOMTOM_PROVIDER, tomtomRoute, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
 
 type SyncReason = 'create' | 'manual_refresh' | 'live_view';
 
@@ -2536,6 +2536,12 @@ Deno.serve(async (req) => {
 
     const reason = body?.reason as SyncReason;
     const forceRefresh = Boolean(body?.force_refresh);
+    // nur_flug (16.11.): der regelmaessige Flug-Abgleich aus der Datenbank (flug_abgleich_anstossen) will nur
+    // Flugstatus und Flugposition, keine Routen (sonst jede Minute eine TomTom-Anfrage je Flug-Fahrt).
+    const nurFlug = body?.nur_flug === true;
+    // nur_ziel (18.11.): Live-Ankunft am Ziel waehrend der Fahrt (ziel_eta_anstossen in der Datenbank).
+    // Nur Anfahrt Fahrer -> Ziel, kein Flug, keine Fahrt-Route, keine Anfahrt zum Abholort.
+    const nurZiel = body?.nur_ziel === true;
     const bodyCurrentLat = toFiniteNumber(body?.current_location?.lat);
     const bodyCurrentLng = toFiniteNumber(body?.current_location?.lng);
     const bodyCurrentLocation =
@@ -2589,7 +2595,7 @@ Deno.serve(async (req) => {
     const { data: jobs, error: jobsError } = await admin
       .from('jobs')
       .select(
-        'id,driver_id,trip_type,pickup_address,dropoff_address,zwischenstopps,routen_punkte,ext_route_payload,flight_number,flight_origin,ride_date,ext_last_enriched_at,ext_driver_to_pickup_polyline,ext_flight_payload,ext_driver_to_pickup_last_sync_at,ext_driver_to_dropoff_last_sync_at',
+        'id,driver_id,trip_type,pickup_address,dropoff_address,zwischenstopps,routen_punkte,route_fest,ext_route_payload,flight_number,flight_origin,ride_date,ext_last_enriched_at,ext_driver_to_pickup_polyline,ext_flight_payload,ext_driver_to_pickup_last_sync_at,ext_driver_to_dropoff_last_sync_at',
       )
       .in('id', jobIds);
 
@@ -2705,22 +2711,33 @@ Deno.serve(async (req) => {
 
       try {
         const normalizedJobFlightNumber = normalizeFlightNumber(job.flight_number);
-        if (parseFlightIata(normalizedJobFlightNumber)) {
+        if (!nurZiel && parseFlightIata(normalizedJobFlightNumber)) {
           const flightIata = normalizedJobFlightNumber;
           const flightRideDate = typeof job.ride_date === 'string' && job.ride_date ? job.ride_date : nowIso.slice(0, 10);
           const flightKey = `${flightIata}:${flightRideDate}`;
           const bypassFlightCache = Boolean(forceRefresh && reason === 'manual_refresh');
+          // Regelmaessiger Abgleich (nur_flug, jede Minute): Der Flugstatus ist im Flug nur 1 Minute gueltig, das waere
+          // je Minute eine Abfrage beim Anbieter. aviationstack hat ein Monatskontingent, darum dort hoechstens alle
+          // 15 Minuten neu, bei Lufthansa (kein Kontingent, nur Tempolimit) alle 3 Minuten. Die Position kommt
+          // weiter jede Minute von OpenSky.
+          const flugCacheAb = nurFlug ? new Date(now.getTime() - 14 * 60 * 1000).toISOString() : nowIso;
 
-          const cachedFlight = bypassFlightCache
+          let cachedFlight = bypassFlightCache
             ? null
             : (
               await admin
                 .from('api_flight_cache')
-                .select('etd,original_etd,flight_origin,payload')
+                .select('etd,original_etd,flight_origin,payload,expires_at')
                 .eq('flight_key', flightKey)
-                .gt('expires_at', nowIso)
+                .gt('expires_at', flugCacheAb)
                 .maybeSingle()
             ).data;
+          if (cachedFlight && nurFlug && String(cachedFlight.expires_at || '') <= nowIso) {
+            // Abgelaufen, aber juenger als 15 Minuten: nur fuer aviationstack gut genug, Lufthansa nach 3 Minuten neu.
+            const vonAviationstack = (cachedFlight.payload as Record<string, unknown> | null)?.provider === 'aviationstack';
+            const abgelaufenSeitMs = now.getTime() - Date.parse(String(cachedFlight.expires_at));
+            if (!vonAviationstack && abgelaufenSeitMs > 2 * 60 * 1000) cachedFlight = null;
+          }
 
           if (cachedFlight) {
             flightStatus = 'hit';
@@ -3020,7 +3037,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (parseFlightIata(normalizedJobFlightNumber)) {
+        if (!nurZiel && parseFlightIata(normalizedJobFlightNumber)) {
           const basePayload = toRecord(flightPatch.ext_flight_payload) || toRecord(job.ext_flight_payload);
           const summaryFromPayload = extractFlightSummaryFromPayload(basePayload);
           const liveLookup = await resolveFlightLiveTracking({
@@ -3143,6 +3160,8 @@ Deno.serve(async (req) => {
         }
 
         if (
+          !nurFlug &&
+          !nurZiel &&
           typeof job.pickup_address === 'string' &&
           job.pickup_address.trim() &&
           typeof job.dropoff_address === 'string' &&
@@ -3236,6 +3255,13 @@ Deno.serve(async (req) => {
               }
             }
           }
+        }
+
+        // Freigegebene Route der Dispo (jobs.route_fest): Linie und Laenge kommen von dort, damit alle
+        // Karten genau die Route zeigen, die die Dispo uebernommen hat. Die Fahrzeit bleibt die frisch gerechnete.
+        const routeFest = routeFestLesen(job.route_fest);
+        if (routeFest && Object.keys(routePatch).length > 0) {
+          routePatch = { ...routePatch, ext_route_polyline: routeFest.polyline, ext_route_distance_m: routeFest.laenge_m };
         }
 
         const resolveDriverRoute = async ({
@@ -3395,8 +3421,8 @@ Deno.serve(async (req) => {
           };
         };
 
-        if (reason === 'manual_refresh' || reason === 'live_view') {
-          if (typeof job.pickup_address === 'string' && job.pickup_address.trim()) {
+        if (!nurFlug && (reason === 'manual_refresh' || reason === 'live_view')) {
+          if (!nurZiel && typeof job.pickup_address === 'string' && job.pickup_address.trim()) {
             const approachResult = await resolveDriverRoute({
               destinationAddress: routenPunktText(routePatch, job, 'von') || job.pickup_address,
               action: 'driver_to_pickup_lookup',

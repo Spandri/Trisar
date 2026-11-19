@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -56,6 +57,8 @@ import de.trisar.kern.hex
 import de.trisar.kern.platz
 import de.trisar.kern.tippen
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
+import androidx.compose.foundation.shape.RoundedCornerShape
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.delay
@@ -94,7 +97,9 @@ internal fun KartenFilterSeite(zurueck: () -> Unit, langeOhneSignal: List<Karten
     LaunchedEffect(Unit) { dienststart.laden() }
     val dienststartTop = 482f
     val ohneSignalTop = if (dienststart.verfuegbar) dienststartTop + 132f else dienststartTop
-    val stufeTop = ohneSignalTop + 136f
+    // Abschnitt "Karte" (Dunkel/Hell/Farbig/Satellit) unter "Ohne Signal", Hoehe 96 wie im Web.
+    val kartenStilTop = ohneSignalTop + 136f
+    val stufeTop = kartenStilTop + 96f
     val stufeZeilenTop = stufeTop + 32f + 40f + 12f
     val orteTop = if (stufen.tracker.isEmpty()) stufeTop
         else stufeZeilenTop + (stufen.tracker.size + (if (stufen.fehler == null) 0 else 1)) * 24f + 20f
@@ -169,6 +174,16 @@ internal fun KartenFilterSeite(zurueck: () -> Unit, langeOhneSignal: List<Karten
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.platz(20f, ohneSignalTop + 96f, 362f, 24f))
             }
 
+            Text("Karte", style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.6f)),
+                modifier = Modifier.platz(20f, kartenStilTop, 362f, 24f), maxLines = 1)
+            val stile = KartenStil.Art.entries.filter { it != KartenStil.Art.SATELLIT || KartenStil.satellitMoeglich }
+            val stilBreite = (362f - 8f * (stile.size - 1)) / stile.size
+            stile.forEachIndexed { i, art ->
+                ZweierKnopf(art.name_, KartenStil.wirksam == art, Modifier.platz(20f + i * (stilBreite + 8f), kartenStilTop + 32f, stilBreite, 40f)) {
+                    KartenStil.setzen(art)
+                }
+            }
+
             if (stufen.tracker.isNotEmpty()) {
                 Text("Punkte bei Fahrt", style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.6f)),
                     modifier = Modifier.platz(20f, stufeTop, 362f, 24f), maxLines = 1)
@@ -178,7 +193,9 @@ internal fun KartenFilterSeite(zurueck: () -> Unit, langeOhneSignal: List<Karten
                     }
                 }
                 stufen.tracker.forEachIndexed { i, t ->
-                    StufenStatusZeile(t, Modifier.platz(20f, stufeZeilenTop + i * 24f, 362f, 24f))
+                    StufenStatusZeile(t, Modifier.platz(20f, stufeZeilenTop + i * 24f, 362f, 24f)) {
+                        scope.launch { stufen.anschlussWechseln(t) }
+                    }
                 }
                 stufen.fehler?.let {
                     Text("Speichern fehlgeschlagen: $it", style = grotesk(14f, 500, farbe = hex(0xFF6B6B)), maxLines = 1,
@@ -437,6 +454,9 @@ internal class TrackerStufen {
         val stufe: String,
         val status: String,
         val quittungAm: String,
+        val anschluss: String = "",
+        val anschlussStatus: String = "",
+        val anschlussQuelle: String = "",
     )
 
     var tracker by mutableStateOf<List<Tracker>>(emptyList())
@@ -447,19 +467,39 @@ internal class TrackerStufen {
 
     suspend fun laden() {
         // Tabelle oder Spalte fehlt (Migration noch nicht da): Abschnitt bleibt weg.
-        val zeilen = runCatching {
-            Backend.client.from("obd_tracker")
-                .select(Columns.raw("imei, nummer, stufe, stufe_status, stufe_quittung_am, stufe_antwort")) {
-                    order("nummer", Order.ASCENDING)
-                }
-                .decodeList<JsonObject>()
-                .mapNotNull { z ->
-                    val nr = z.text("nummer").toIntOrNull() ?: return@mapNotNull null
-                    val stufe = z.text("stufe").ifEmpty { return@mapNotNull null }
-                    Tracker(z.text("imei"), nr, stufe, z.text("stufe_status"), z.text("stufe_quittung_am"))
-                }
-        }.getOrNull() ?: return
+        // Erst mit Anschluss, ohne die Spalten (Migration 20261118160000 noch nicht da) wie bisher.
+        val zeilen = holen("imei, nummer, stufe, stufe_status, stufe_quittung_am, stufe_antwort, anschluss, anschluss_status, anschluss_quelle")
+            ?: holen("imei, nummer, stufe, stufe_status, stufe_quittung_am, stufe_antwort")
+            ?: return
         tracker = zeilen
+    }
+
+    private suspend fun holen(spalten: String): List<Tracker>? = runCatching {
+        Backend.client.from("obd_tracker")
+            .select(Columns.raw(spalten)) {
+                order("nummer", Order.ASCENDING)
+            }
+            .decodeList<JsonObject>()
+            .mapNotNull { z ->
+                val nr = z.text("nummer").toIntOrNull() ?: return@mapNotNull null
+                val stufe = z.text("stufe").ifEmpty { return@mapNotNull null }
+                Tracker(z.text("imei"), nr, stufe, z.text("stufe_status"), z.text("stufe_quittung_am"),
+                    z.text("anschluss"), z.text("anschluss_status"), z.text("anschluss_quelle"))
+            }
+    }.getOrNull()
+
+    /** Anschluss von Hand umstellen (USB-C <-> OBD), sonst erkennt ihn der Server selbst (18.11.). */
+    suspend fun anschlussWechseln(t: Tracker) {
+        val neu = if (t.anschluss == "obd") "usbc" else "obd"
+        fehler = null
+        tracker = tracker.map { if (it.imei == t.imei) it.copy(anschluss = neu, anschlussStatus = "wartet", anschlussQuelle = "hand") else it }
+        runCatching {
+            Backend.client.postgrest.rpc("tracker_anschluss_waehlen", buildJsonObject {
+                put("p_imei", t.imei)
+                put("p_anschluss", neu)
+            })
+        }.onFailure { fehler = dbMeldung(it) }
+        laden()
     }
 
     suspend fun setzen(stufe: String) {
@@ -493,7 +533,7 @@ internal class TrackerStufen {
 
 /** "Nr. 2 · fein · übernommen 14:02" (TrackerStufeStatus im Web). */
 @Composable
-private fun StufenStatusZeile(t: TrackerStufen.Tracker, modifier: Modifier) {
+private fun StufenStatusZeile(t: TrackerStufen.Tracker, modifier: Modifier, anschlussTippen: () -> Unit) {
     val (text, farbe) = when (t.status) {
         "wartet" -> "wartet auf Tracker" to LIME.copy(alpha = 0.6f)
         "gesendet" -> "gesendet" to LIME.copy(alpha = 0.6f)
@@ -501,11 +541,29 @@ private fun StufenStatusZeile(t: TrackerStufen.Tracker, modifier: Modifier) {
         "fehler" -> "Fehler" to hex(0xFF6B6B)
         else -> "Stand unbekannt" to LIME.copy(alpha = 0.6f)
     }
-    Box(modifier, contentAlignment = Alignment.CenterStart) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Text(buildAnnotatedString {
             withStyle(SpanStyle(color = LIME, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)) { append("Nr. ${t.nummer}") }
             withStyle(SpanStyle(color = LIME.copy(alpha = 0.6f))) { append(" · ${t.stufe} · ") }
             withStyle(SpanStyle(color = farbe)) { append(text) }
-        }, style = grotesk(14f, 500, abstand = 0.5f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }, style = grotesk(14f, 500, abstand = 0.5f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f))
+        if (t.anschluss.isNotEmpty()) {
+            // Anschluss (vom Server erkannt), Antippen stellt von Hand um. Lime = uebernommen, blass = wartet.
+            val (rahmen, schrift) = when (t.anschlussStatus) {
+                "fehler" -> hex(0xFF6B6B) to hex(0xFF6B6B)
+                "uebernommen" -> LIME to LIME
+                else -> LIME.copy(alpha = 0.4f) to LIME.copy(alpha = 0.6f)
+            }
+            Box(
+                Modifier.padding(start = 8.dp).height(20.dp)
+                    .border(1.dp, rahmen, RoundedCornerShape(6.dp))
+                    .tippen(anschlussTippen)
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (t.anschluss == "obd") "OBD" else "USB-C", style = grotesk(12f, 700, farbe = schrift), maxLines = 1)
+            }
+        }
     }
 }

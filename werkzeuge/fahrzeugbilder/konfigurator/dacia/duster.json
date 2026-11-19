@@ -1,0 +1,14 @@
+{
+ "_quelle": "dacia.de Duster-Konfigurator 19.11.2026, Renault 3D-Dienst (3dv.renault.com), Bookmark-Set TOURNETTE_3. Grundkonfiguration Extreme (17-Zoll-Alu), Lack-Token wird je Lack getauscht.",
+ "datenbank": "43c2f572-baf7-42e3-99c1-fbd0811e4640",
+ "konfiguration": "X1310/SUV/EA2/NC/ESS/DG/TR4X2/ACCLM/BARLON/CA01/TN/HAYMAN/PBNCH/VT/RET03/SPROJA/RALU17/DRAP03/HARM06/SGAV02/SGAR03/{LACK}/KM/TAPCOF/PAVCAI/SSFRPA/PALAW/DK5C0/EQGPL/VLCUIR/TRSEV1/RETP01/LVARIP/KTGREP/APL05/RA480/BVM6/RDIF07/CSRBA2/PRUPTB/E06X/HYB01/ANTEN1/SRANCF/SKTPOU/SKTPGR/RCALL/MET04/NOBSD/ITPK0/DADWA/SMIS2/AEBA4/RRCAM/EGSRC",
+ "lacke": [
+  {"code": "OV369", "name": "Arktis-Weiß"},
+  {"code": "TEKQG", "name": "Dolomit-Grau"},
+  {"code": "TEHNV", "name": "Sandstone"},
+  {"code": "TEDQK", "name": "Zeder-Grün"},
+  {"code": "TECNZ", "name": "Terracotta-Braun"},
+  {"code": "OVKQM", "name": "Safari-Grüngrau"},
+  {"code": "NV676", "name": "Perlmutt-Schwarz"}
+ ]
+}

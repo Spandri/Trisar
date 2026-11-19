@@ -5,7 +5,7 @@ import { ebeneFuer } from './components/ui/tastaturHelfer';
 import LinkVersendetView from './features/auth/LinkVersendetView';
 import PasswortVergessenView from './features/auth/PasswortVergessenView';
 import RegistrierungView from './features/auth/RegistrierungView';
-import { useAuthSession, TRAILER_AKTIV, trailerFreigabe } from './features/auth/useAuthSession';
+import { useAuthSession, TRAILER_AKTIV, trailerFreigabe, PASSWORT_PFAD, aufPasswortSeite } from './features/auth/useAuthSession';
 import TutorialBridge from './demo/TutorialBridge';
 import { beiUeberspringen } from './demo/ueberspringen';
 
@@ -180,7 +180,7 @@ const App = () => {
 
     const ok = await sendPasswordResetEmail({
       email: loginEmail,
-      redirectTo: window.location.origin,
+      redirectTo: `${window.location.origin}${PASSWORT_PFAD}`,
     });
     if (!ok) return;
     setLastResetLinkSentAt(Date.now());
@@ -200,6 +200,8 @@ const App = () => {
     setNewPasswordInput('');
     setConfirmPassword('');
     await signOut();
+    // Zurueck auf die Haupt-URL, dort meldet man sich mit dem neuen Passwort an.
+    window.history.replaceState({}, document.title, '/');
     setAuthScreen('login');
   };
 
@@ -207,7 +209,7 @@ const App = () => {
     return <div className="min-h-screen bg-[#0a0a0a]" />;
   }
 
-  if (requiresPasswordSetup) {
+  if (requiresPasswordSetup && aufPasswortSeite()) {
     const inviteEmail = String(session?.user?.email || loginEmail || '').trim();
     return (
       <RegistrierungView

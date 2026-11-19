@@ -6,6 +6,7 @@ import { supabase } from '../../services/supabase';
 import OrtBearbeitenView, { RadiusFeld } from './OrtBearbeitenView';
 import { ortIconUrl, radienPruefen, standardSpeichern, useOrte } from '../../shared/orte';
 import { DIENSTSTART_OPTIONEN, useDienststartVorlauf } from '../../shared/dienststartVorlauf';
+import { STIL_STANDARD, kartenSchluesselLaden, kartenStilSetzen, satellitMoeglich, useKartenStil } from '../../shared/karte/kartenStil';
 import { SCHWELLE_STANDARD, ohneSignalSetzen, stundenLesen, stundenText, useAusgeblendet, useOhneSignal } from '../../shared/ohneSignal';
 
 const GREEN = '#E3F654';
@@ -190,6 +191,55 @@ function AugeIcon({ zu, farbe }) {
   );
 }
 
+// Kartenstil (17.11.): Dunkel / Hell / Farbig / Satellit, je Geraet gemerkt. Satellit nur mit
+// Esri-Schluessel. Gleiche Knoepfe wie die Tracker-Stufe.
+const KARTEN_STIL_H = 32 + 40 + 24;
+const KARTEN_STIL_KNOEPFE = [
+  { key: 'dunkel', label: 'filter.stilDunkel' },
+  { key: 'hell', label: 'filter.stilHell' },
+  { key: 'farbig', label: 'filter.stilFarbig' },
+  { key: 'satellit', label: 'filter.stilSatellit' },
+];
+
+function KartenStilAbschnitt({ top }) {
+  const { t } = useI18n();
+  const stand = useKartenStil();
+  useEffect(() => { kartenSchluesselLaden(); }, []);
+  const knoepfe = KARTEN_STIL_KNOEPFE.filter((k) => k.key !== 'satellit' || satellitMoeglich(stand));
+  const luecke = 8;
+  const breite = (362 - luecke * (knoepfe.length - 1)) / knoepfe.length;
+  const aktiv = stand.stil === 'satellit' && !satellitMoeglich(stand) ? STIL_STANDARD : stand.stil;
+  return (
+    <>
+      <div
+        data-tutorial="karte-filter-stil"
+        className="absolute left-[20px] w-[362px] h-6 text-base leading-6 tracking-[0.5px] text-[#E3F654]/60 font-medium font-['Space_Grotesk']"
+        style={{ top: `${top}px` }}
+      >
+        {t('filter.kartenStil')}
+      </div>
+      {knoepfe.map((k, index) => (
+        <button
+          key={k.key}
+          type="button"
+          data-tutorial={`karte-filter-stil-${k.key}`}
+          onClick={() => kartenStilSetzen(k.key)}
+          className="absolute h-10 border-2 border-[#E3F654] text-base font-medium font-['Space_Grotesk'] tracking-wide transition-colors"
+          style={{
+            left: `${20 + index * (breite + luecke)}px`,
+            width: `${breite}px`,
+            top: `${top + 32}px`,
+            backgroundColor: aktiv === k.key ? '#E3F654' : 'transparent',
+            color: aktiv === k.key ? '#1d1c1d' : '#E3F654',
+          }}
+        >
+          {t(k.label)}
+        </button>
+      ))}
+    </>
+  );
+}
+
 function OhneSignalAbschnitt({ top }) {
   const { t } = useI18n();
   const { minuten, zeigen } = useOhneSignal();
@@ -356,10 +406,19 @@ function useTrackerStufen() {
   const laden = async () => {
     const { data, error } = await supabase
       .from('obd_tracker')
+      .select('imei, nummer, stufe, stufe_status, stufe_quittung_am, stufe_antwort, anschluss, anschluss_status, anschluss_quelle')
+      .order('nummer', { ascending: true });
+    if (!error && Array.isArray(data)) {
+      setTracker(data.filter((row) => row.stufe));
+      return;
+    }
+    // Ohne Spalte anschluss (Migration 20261118160000 noch nicht da) wie bisher.
+    const alt = await supabase
+      .from('obd_tracker')
       .select('imei, nummer, stufe, stufe_status, stufe_quittung_am, stufe_antwort')
       .order('nummer', { ascending: true });
     // Fehlt die Tabelle oder Spalte (Demo, Migration noch nicht da), bleibt der Abschnitt weg.
-    if (!error && Array.isArray(data)) setTracker(data.filter((row) => row.stufe));
+    if (!alt.error && Array.isArray(alt.data)) setTracker(alt.data.filter((row) => row.stufe));
   };
   useEffect(() => {
     const start = setTimeout(laden, 0);
@@ -381,10 +440,19 @@ function useTrackerStufen() {
     if (error) setFehler(error.message || 'error');
     laden();
   };
-  return { tracker, setzen, fehler };
+  // Anschluss von Hand umstellen (USB-C <-> OBD), sonst erkennt ihn der Server selbst (18.11.).
+  const anschlussWechseln = async (row) => {
+    const neu = row.anschluss === 'obd' ? 'usbc' : 'obd';
+    setFehler('');
+    setTracker((prev) => prev.map((r) => (r.imei === row.imei ? { ...r, anschluss: neu, anschluss_status: 'wartet', anschluss_quelle: 'hand' } : r)));
+    const { error } = await supabase.rpc('tracker_anschluss_waehlen', { p_imei: row.imei, p_anschluss: neu });
+    if (error) setFehler(error.message || 'error');
+    laden();
+  };
+  return { tracker, setzen, fehler, anschlussWechseln };
 }
 
-function TrackerStufeStatus({ top, row }) {
+function TrackerStufeStatus({ top, row, onAnschluss }) {
   const { t } = useI18n();
   const stufe = t(`filter.level${row.stufe.charAt(0).toUpperCase()}${row.stufe.slice(1)}`);
   let text = t('filter.levelUnknown');
@@ -408,6 +476,21 @@ function TrackerStufeStatus({ top, row }) {
       <span className="text-[#E3F654] font-bold">Nr. {row.nummer}</span>
       <span className="text-[#E3F654]/60">&nbsp;· {stufe} ·&nbsp;</span>
       <span className={`truncate ${farbe}`}>{text}</span>
+      {row.anschluss ? (
+        // Anschluss (vom Server erkannt), Antippen stellt von Hand um. Lime = uebernommen, blass = wartet.
+        <button
+          type="button"
+          onClick={() => onAnschluss?.(row)}
+          className={`ml-auto shrink-0 h-5 px-2 border rounded-[6px] text-xs leading-4 font-bold ${
+            row.anschluss_status === 'fehler'
+              ? 'border-[#ff6b6b] text-[#ff6b6b]'
+              : row.anschluss_status === 'uebernommen' ? 'border-[#E3F654] text-[#E3F654]' : 'border-[#E3F654]/40 text-[#E3F654]/60'
+          }`}
+          title={row.anschluss_quelle === 'hand' ? 'von Hand' : 'erkannt'}
+        >
+          {row.anschluss === 'obd' ? 'OBD' : 'USB-C'}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -446,7 +529,7 @@ const DEFAULT_KARTEN_FILTERS = {
 
 export default function KartenFilterView({ setView, filters = {}, onChangeFilters = () => {}, onFetchPlaceSuggestions = async () => [] }) {
   const { t } = useI18n();
-  const { tracker, setzen: setzeStufe, fehler: stufeFehler } = useTrackerStufen();
+  const { tracker, setzen: setzeStufe, fehler: stufeFehler, anschlussWechseln } = useTrackerStufen();
   const dienststart = useDienststartVorlauf();
   const { orte, standard } = useOrte();
   // Bearbeiteter Ort: null = Filter, {} = neuer Ort, sonst der Ort.
@@ -479,7 +562,8 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
   // Abschnitt "Dienststart automatisch" direkt unter Feierabend, alles darunter rutscht mit.
   const dienststartTop = 462;
   const ohneSignalTop = dienststart.verfuegbar ? dienststartTop + DIENSTSTART_H : dienststartTop;
-  const stufeTop = ohneSignalTop + OHNE_SIGNAL_H;
+  const kartenStilTop = ohneSignalTop + OHNE_SIGNAL_H;
+  const stufeTop = kartenStilTop + KARTEN_STIL_H;
   const stufeZeilenTop = stufeTop + 32 + 40 + 12;
   const stufeEnde = stufeZeilenTop + (tracker.length + (stufeFehler ? 1 : 0)) * STUFE_ZEILE_H + 20;
   // Abschnitt "Orte": Standard-Radien, eigene Orte, Ort hinzufuegen.
@@ -613,6 +697,8 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
 
             <OhneSignalAbschnitt top={ohneSignalTop} />
 
+            <KartenStilAbschnitt top={kartenStilTop} />
+
             {tracker.length > 0 ? (
               <>
                 <div
@@ -640,7 +726,7 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
                   </button>
                 ))}
                 {tracker.map((row, index) => (
-                  <TrackerStufeStatus key={row.imei} row={row} top={stufeZeilenTop + index * STUFE_ZEILE_H} />
+                  <TrackerStufeStatus key={row.imei} row={row} top={stufeZeilenTop + index * STUFE_ZEILE_H} onAnschluss={anschlussWechseln} />
                 ))}
                 {stufeFehler ? (
                   <div
@@ -721,6 +807,7 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
               onClick={() => {
                 onChangeFilters({ ...DEFAULT_KARTEN_FILTERS });
                 ohneSignalSetzen({ minuten: SCHWELLE_STANDARD, zeigen: false });
+                kartenStilSetzen(STIL_STANDARD);
               }}
               className="absolute left-[20px] w-[362px] h-14 bg-[#ff6b6b] border-2 border-[#ff6b6b] flex items-center px-3"
               style={{ top: `${clearTop}px` }}

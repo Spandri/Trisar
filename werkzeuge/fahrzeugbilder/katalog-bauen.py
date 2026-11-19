@@ -5,6 +5,7 @@ Quellen:
   konfigurator/mercedes-pkw.json   Mercedes-Pkw (Namen, Modellwoerter, Lacke) -> dreh-laden.py
   konfigurator/bmw/<modell>.json   BMW (Lacke)                                -> bmw-verarbeiten.py
   konfigurator/audi/<modell>.json  Audi (Lacke, aus dem 3D-Stream)            -> audi-verarbeiten.py
+  konfigurator/dacia/<modell>.json Dacia (Lacke, Renault-3D-Dienst)           -> dacia-verarbeiten.py
   v-klasse-360/<code>/NN.webp      V-Klasse (aelterer Stand, wird nach ausgabe/ uebernommen)
 Je Modell eigene Bildgroesse und Endstellung (endbox = enger Ausschnitt um Bild 32).
 Farbwoerter: genaue Lacknamen zuerst, dann Kurzformen ohne MANUFAKTUR/metallic, dann allgemeine Woerter
@@ -40,6 +41,9 @@ AUDI = {  # Modellwoerter mit Marke davor, damit kurze Namen (q5, s5) nichts Fre
     "q7-suv": ("Audi Q7", ["audiq7", "audisq7", "q7suv"]),
     "q8-suv": ("Audi Q8", ["audiq8", "audisq8", "audirsq8", "q8suv"]),
     "q9-suv": ("Audi Q9", ["audiq9", "audisq9", "q9suv"]),
+}
+DACIA = {
+    "duster": ("Dacia Duster", ["duster"]),
 }
 VKLASSE_LACKE = {  # Code -> Name (aus dem Van-Konfigurator)
     "9197": "Obsidianschwarz metallic", "9134": "Bergkristallweiß metallic", "9922": "Hightechsilber metallic",
@@ -170,6 +174,13 @@ def main():
         if not os.path.exists(p):
             continue
         m = modell_eintrag(mid, "Audi", name, woerter, [l["name"] for l in json.load(open(p))])
+        if m: modelle.append(m)
+    dacia_ordner = os.path.join(HIER, "konfigurator", "dacia")
+    for mid, (name, woerter) in DACIA.items():
+        p = os.path.join(dacia_ordner, f"{mid}.json")
+        if not os.path.exists(p):
+            continue
+        m = modell_eintrag(mid, "Dacia", name, woerter, [l["name"] for l in json.load(open(p))["lacke"]])
         if m: modelle.append(m)
     # Kein Modellwort doppelt verschiedenen Modellen zuordnen
     gesehen = {}

@@ -1,0 +1,236 @@
+[
+ {"name": "11.11. markierte", "quelle": "ki_protokoll", "markiert": ["tim", "stefano", "marvin"], "schritte": [
+  ["Wo sind die drei gerade", "frage"]]},
+ {"name": "11.11. Fahrt mit Gast", "quelle": "ki_protokoll", "schritte": [
+  ["Schicke Stefano Spandri eine Fahrt für morgen 10:30 Uhr vom Hotel bayerischen Hof zur Allianz Arena mit dem Gast Uli Höneß", "fahrt_neu tag=morgen zeit=10:30 fahrer=Stefano von=bay nach=Allianz gast=Höneß"]]},
+ {"name": "11.11. Feierabend", "quelle": "ki_protokoll", "schritte": [
+  ["Schick Stefano  Feierabend", "dienst fahrer=Stefano tag=heute"],
+  ["Wo ist Stefano", "frage"]]},
+ {"name": "11.11. Fahrt für jetzt", "quelle": "ki_protokoll", "schritte": [
+  ["Schick Stefano Spandri eine Fahrt von Kreillerstraße 210 zur Erner Straße 5 für jetzt", "fahrt_neu tag=heute zeit=jetzt fahrer=Stefano von=Kreillerstr nach=Erner"]]},
+ {"name": "11.11. Fahrt in Schritten", "quelle": "ki_protokoll", "schritte": [
+  ["Erstelle eine neu Fahrt", "rueck"],
+  ["Von Hotel bayrischen Hof", "rueck"],
+  ["Nach Berlin um 20:30", "fahrt_neu tag=heute zeit=20:30 von=bay nach=Berlin | rueck"],
+  ["Wo ist Stefano gerade", "frage"]]},
+ {"name": "11.11. Fahrt ohne Zeit", "quelle": "ki_protokoll", "schritte": [
+  ["Fahrt morgen vom Hotel bayerischen Hof zum Marienplatz. Fahrt sie Spandri. Gast Frau Greta", "rueck"],
+  ["12:45", "fahrt_neu tag=morgen zeit=12:45 fahrer=Stefano nach=Marienplatz | rueck"]]},
+ {"name": "11.11. Adressen ohne Zeit", "quelle": "ki_protokoll", "schritte": [
+  ["Fahrt Stefano von Brudermühlstraße 2, 81371 München", "rueck"],
+  ["Fahrt Stefano von Brudermühlstraße 2, 81371 München zu Ernastraße 5 91927 Trudering", "rueck"]]},
+ {"name": "12.11. Lohn alle", "quelle": "ki_protokoll", "schritte": [
+  ["Geb allen Fahrern eine Stundenlohn von 30€", "lohn fahrer=alle"],
+  ["Ja", "-"]]},
+ {"name": "12.11. Pause und Dienststart", "quelle": "ki_protokoll", "schritte": [
+  ["Schick Stefano für morgen eine Pause von 12:00-17:00 Uhr", "dienst fahrer=Stefano tag=morgen | rueck"],
+  ["Dann schick dienstart für 9:00 Uhr", "dienst fahrer=Stefano tag=morgen start=09:00 | dienst fahrer=Stefano tag=heute start=09:00 | rueck"],
+  ["Schick Stefano dienstart für 9:00 Uhr morgen", "dienst fahrer=Stefano tag=morgen start=09:00"],
+  ["Hat Stefano morgen eine Pause eingetragen?", "frage"]]},
+ {"name": "12.11. Fahrer anlegen Liste", "quelle": "ki_protokoll", "schritte": [
+  ["Marvin Bendrix  Gregor Müller  Tim Boberschmidt  Konrad Skurej  Joris Rohrmoser  Julius Kopp  erstelle diese Fahrer", "fahrer_anlegen | rueck"]]},
+ {"name": "12.11. Salzburg mit Standby", "quelle": "ki_protokoll", "schritte": [
+  ["Erstelle eine Fahrt von Salzburg Flughafen zum Herbert von Karajan Platz in Salzburg. Morgen um 11:30 landet der Flieger mit der Kennung KK 7150 aus Bremen,  die Fahrer sollen ab 10:45 standby am Flughafen sein", "fahrt_neu tag=morgen zeit=11:30 von=Salzburg nach=Karajan | rueck"]]},
+ {"name": "12.11. Fahrer anlegen einzeln", "quelle": "ki_protokoll", "schritte": [
+  ["erstelle den fahrer TEST BERBEL", "fahrer_anlegen | rueck"],
+  ["JA", "-"],
+  ["kannst du fahrer Fertel garlo erstelln und fahrer Marvin hallo", "fahrer_anlegen | rueck"]]},
+ {"name": "12.11. Alle Fahrzeuge löschen", "quelle": "ki_protokoll", "schritte": [
+  ["Lösche alle fahrzeuge", "nichts"],
+  ["Lösch mal bitte alle Autos die es gerade gibt", "nichts"]]},
+ {"name": "12.11. Namensliste", "quelle": "ki_protokoll", "schritte": [
+  ["Marvin Bendrix  Gregor Müller  Tim Boberschmidt  Konrad Skurej  Joris Rohrmoser  Julius Kopp", "rueck | fahrer_anlegen"],
+  ["nein", "-"],
+  ["Marvin Bendrix\n\nGregor Müller\n\nTim Boberschmidt\n\nKonrad Skurej\n\nJoris Rohrmoser\n\nJulius Kopp bitte all diese Fahrer als neue Fahrer einrichten. Außer es gibt die schon", "fahrer_anlegen | rueck"]]},
+ {"name": "12.11. Passwort und Fahrzeuge für alle", "quelle": "ki_protokoll", "schritte": [
+  ["Kannst du allen das Passwort *** geben", "nichts"],
+  ["Kannst du für jeden Fahrer ein Fahrzeug erstellen", "rueck | nichts"],
+  ["Erstellen allen Fahrern ein Fahrzeug. Alles Mercedes V Klasse", "fahrzeug_anlegen | rueck"]]},
+ {"name": "12.11. Fahrt mit allen Fahrern", "quelle": "ki_protokoll", "schritte": [
+  ["Erstelle eine Fahrt mit allen Fahrern morgen vom Flughafen Salzburg zum  Herbert von Karajan Platz in Salzburg,", "rueck"],
+  ["Erstelle eine Fahrt mit allen Fahrern morgen vom Flughafen Salzburg zum  Herbert von Karajan Platz in Salzburg, Abfahrt ist um 11:30 landet der Flieger, die Fahrer sollen alle ab 10:45 am Flughafen sein", "fahrt_neu tag=morgen zeit=11:30 fahrer=alle | rueck"],
+  ["Buch auf die Fahrt alle Fahrer", "fahrt_neu fahrer=alle | fahrt_aendern fahrer=alle | rueck"],
+  ["Eine Fahrt vom Flughafen Salzburg zum Hotel Grand tirolia in Kitzbühel, für Tim um 11:30 morgen", "fahrt_neu tag=morgen zeit=11:30 fahrer=Tim nach=tirolia"]]},
+ {"name": "12.11. Dienstbeginn alle", "quelle": "ki_protokoll", "schritte": [
+  ["Für alle Fahrer Dienstbeginn um 10:45 morgen am Flughafen Salzburg", "dienst fahrer=alle tag=morgen start=10:45"],
+  ["nein", "-"],
+  ["Mach den Stundenlohn bei allen Fahrern auf 20€", "lohn fahrer=alle"]]},
+ {"name": "12.11. Stefano Dienste", "quelle": "ki_protokoll", "schritte": [
+  ["Wo ist Joris", "frage"],
+  ["Füge Stefano Spandri als neuen Fahrer hinzu", "rueck | nichts"],
+  ["Wir sagen schick Stefano Spandri für morgen wir 7:30 Uhr ein Dienstbeginn", "dienst fahrer=Stefano tag=morgen start=07:30"],
+  ["nein", "-"],
+  ["Neuer dienststart für heute 22:00 und Samstag  7:30 für Stefano Spandri", "dienst fahrer=Stefano tag=heute,wt:6 | rueck"],
+  ["nein", "-"],
+  ["Neuer dienststart für heute 22:00  für Stefano Spandri", "dienst fahrer=Stefano tag=heute start=22:00"],
+  ["nein", "-"],
+  ["Stefano Samstag Dienststart 7:30", "dienst fahrer=Stefano tag=wt:6 start=07:30"],
+  ["nein", "-"],
+  ["Neue Fahrt Stefano am Samstag um 11:58 Start in Offenburg am Bahnhof, Ende in München Möhlstr 31", "fahrt_neu tag=wt:6 zeit=11:58 fahrer=Stefano von=Offenburg nach=Möhlstr"],
+  ["nein", "-"],
+  ["Lösch das Dienstende für Samstag Stefano", "dienst_loeschen fahrer=Stefano tag=wt:6 | rueck"],
+  ["Schick Stefano eine Fahrt", "rueck"],
+  ["Neues Dienstende für Stefano um 00:00", "dienst fahrer=Stefano ende=00:00 | rueck"]]},
+ {"name": "13.11. Nachricht", "quelle": "ki_protokoll", "schritte": [
+  ["Schicke eine Nachricht an Stefano: beeil dich bitte", "nachricht fahrer=Stefano"],
+  ["Stefano", "-"]]},
+ {"name": "13.11. Dienststart gestern löschen", "quelle": "ki_protokoll", "schritte": [
+  ["Lösche dienstart von Stefano von gestern", "dienst_loeschen fahrer=Stefano tag=gestern"]]},
+ {"name": "13.11. Buchen per Stimme", "quelle": "ki_protokoll", "schritte": [
+  ["Kannst du mich hören", "nichts"],
+  ["Buche", "rueck"],
+  ["Buche bitte eine Fahrt für Stefanos Bandi", "rueck"],
+  ["Heute", "rueck"],
+  ["Heute 20:30 Uhr", "rueck"],
+  ["In München", "fahrt_neu tag=heute zeit=20:30 fahrer=Stefano | rueck"],
+  ["Suche eine Fahrt", "rueck | frage"]]},
+ {"name": "13.11. Fahrt ohne Gast", "quelle": "ki_protokoll", "schritte": [
+  ["Stefano soll Heute um 20:30 Uhr am Flughafen München zum Flughafen in Salzburg fahren ohne Gast", "fahrt_neu tag=heute zeit=20:30 fahrer=Stefano von=Flughafen nach=Salzburg"],
+  ["Hallo wie geht es dir", "nichts"]]},
+ {"name": "13.11. Fahrt für mich", "quelle": "ki_protokoll", "schritte": [
+  ["Kannst du eine Fahrt für mich schicken", "rueck"],
+  ["Vom Hotel bayerischen Hof zum Münchner Flughafen um 20:30 Uhr Der Fahrer heißt Stefano", "fahrt_neu tag=heute zeit=20:30 fahrer=Stefano von=bay nach=Flughafen"],
+  ["Hast du die Fahrt angenommen", "frage"]]},
+ {"name": "13.11. Dienstende alle", "quelle": "ki_protokoll", "schritte": [
+  ["Schick bitte allen Fahrern ein dienstende für heute 20:00", "dienst fahrer=alle tag=heute ende=20:00"]]},
+ {"name": "13.11. Fragen Joris", "quelle": "ki_protokoll", "schritte": [
+  ["Wo ist Joris Rohrmoser", "frage"],
+  ["Hat Joris Romoser das Dienstende schon angenommen", "frage"],
+  ["Ist Joris Rohrmoser noch im Dienst", "frage"],
+  ["Ist der Band noch im Dienst", "frage"],
+  ["Ist Stefanos Bundy noch im Dienst", "frage"],
+  ["Ist irgendein Fahrer aktuell noch im Dienst", "frage"],
+  ["Kannst du mir sagen wo Jod das Rohrmoser gerade ist", "frage"],
+  ["Nein", "-"]]},
+ {"name": "13.11. Dienst Sonntag", "quelle": "ki_protokoll", "schritte": [
+  ["Hallo", "nichts"],
+  ["Kannst du Stefano einen Dienst Start schicken für Sonntag 8:30 Uhr vom Flughafen München", "dienst fahrer=Stefano tag=wt:0 start=08:30"]]},
+ {"name": "13.11. Wo ist verhört", "quelle": "ki_protokoll", "schritte": [
+  ["Mercedes VK Klasse", "nichts | rueck | frage"],
+  ["Wo ist gerade Stefano Spandri", "frage"],
+  ["Wo ist Stefanos Bandy gerade", "frage"],
+  ["Wo ist der Band gerade", "frage"],
+  ["Wo ist Stefanos Band gerade", "frage"],
+  ["Boah", "nichts"],
+  ["Wo ist Jodies Rohrmoser gerade", "frage"]]},
+ {"name": "13.11. Dienststart heute abend", "quelle": "ki_protokoll", "schritte": [
+  ["Schick Stefano Spandri eine Dienst Start für heute 22:30 Uhr", "dienst fahrer=Stefano tag=heute start=22:30"],
+  ["Wie geht's dir gerade", "nichts"],
+  ["Kannst du Stefano Spandri bitte ein Dienst Start schicken für heute 22:45 Uhr", "dienst fahrer=Stefano tag=heute start=22:45"],
+  ["Wo ist Joris Rohrmoser gerade", "frage"],
+  ["Was war sein letzter Ort", "frage"]]},
+ {"name": "13.11. Dienstzeit löschen", "quelle": "ki_protokoll", "schritte": [
+  ["Lösche die aktuelle Dienstzeit von heute von Stefano", "dienst_loeschen fahrer=Stefano tag=heute"],
+  ["Ja", "-"],
+  ["Wer ist heute wie viel gefahren", "frage"]]},
+ {"name": "13.11. Dienststart 23 Uhr", "quelle": "ki_protokoll", "schritte": [
+  ["Schick Stefanos Bandy einen Dienst Start für 23:00 Uhr", "dienst fahrer=Stefano tag=heute start=23:00"],
+  ["nein", "-"],
+  ["Schick Stefano Spandri ein Dienst Start für 23:00 Uhr", "dienst fahrer=Stefano tag=heute start=23:00"],
+  ["nein", "-"],
+  ["Hat Stefano Spandri die Dienstzeit angenommen?", "frage"],
+  ["Arbeitet Stefano Spandri gerade noch?", "frage"],
+  ["Wohin fährt Stefano Spandri morgen?", "frage"],
+  ["Schicke Stefano Spandri bitte einen Dienst Start für heute 23:30 Uhr", "dienst fahrer=Stefano tag=heute start=23:30"],
+  ["nein", "-"],
+  ["Schick Stefano Spandri den Dienst statt für 23:30 Uhr heute", "dienst fahrer=Stefano tag=heute start=23:30"],
+  ["nein", "-"],
+  ["Wo Ist Stefano Spandri gerade", "frage"],
+  ["Wo Wo befindet sich Stefano Spandri gerade?", "frage"]]},
+ {"name": "14.11. Dienststart ändern und Streit", "quelle": "ki_protokoll", "schritte": [
+  ["Änder den Dienst Start von Stefano Spandri für heute von 7:30 Uhr auf 6:30 Uhr", "dienst fahrer=Stefano tag=heute start=06:30 | rueck"],
+  ["Doch ich will trotzdem, dass du es änderst auf 6:30 Uhr den Start", "dienst fahrer=Stefano tag=heute start=06:30 | rueck"],
+  ["Ja", "-"],
+  ["Gib bitte Stefano Spandri für heute ein Dienst start up für 6:30 Uhr", "dienst fahrer=Stefano tag=heute start=06:30"],
+  ["nein", "-"],
+  ["Ich will nicht, dass du es löscht. Ich will, dass du ihm einen Dienst Start gibst und zwar auf 6:30 Uhr.", "dienst fahrer=Stefano tag=heute start=06:30 | rueck"]]},
+ {"name": "14.11. alle bis auf Stefano", "quelle": "ki_protokoll", "schritte": [
+  ["Schick allen bis auf Stefano bitte ein dienstbeginn für heute 13:30 Uhr", "dienst fahrer=alle-Stefano tag=heute start=13:30"]]},
+ {"name": "14.11. unbekannter Werner", "quelle": "ki_protokoll", "schritte": [
+  ["Kannst du Werner auf die zwei Kitzbühel Fahrten hinzufügen?", "rueck"],
+  ["Dienst Start für Werner heute 13:00Uhr.", "rueck"],
+  ["Hallo bist du da", "nichts"]]},
+ {"name": "15.11. Fahrten Kitzbühel", "quelle": "ki_protokoll", "schritte": [
+  ["Erstelle eine Fahrt heute am Sonntag um 11:00 vom Grand tirolia Hotel in Kitzbühel zu Rosis sonnbergstuben mit allen Fahrern", "rueck | fahrt_neu tag=heute,wt:0 zeit=11:00 fahrer=alle"],
+  ["Dann 13:00 Rosis sonnberstuben zu Flughafen München t2 1 Person mit Marvin als Fahrer  Der Gast ist sekura Junior", "fahrt_neu tag=heute,wt:0 zeit=13:00 fahrer=Marvin | rueck"],
+  ["Vorschlag: 13:00 Uhr, Rosi´s Sonnbergstuben → Flughafen München T2, 1 Person, Marvin Bendrix als Fahrer.  Soll ich die Fahrt so buchen?  Ja sollst du", "fahrt_neu zeit=13:00 fahrer=Marvin | rueck"]]},
+ {"name": "15.11. alle außer Marvin Fahrt", "quelle": "ki_protokoll", "schritte": [
+  ["Heute am Sonntag den 15. November alle Fahrer außer außer Marvin von den Sonnenberg Stuben Rosie Sonnenberg Stuben zum Flughafen Salzburg mit unbestimmt vielen Gästen", "rueck | fahrt_neu fahrer=alle-Marvin"],
+  ["Ja genau so machen wir's", "-"],
+  ["14:30 alle Fahrer außer Marvin von sonnebergstuben zum Flughafen Salzburg", "fahrt_neu tag=heute zeit=14:30 fahrer=alle-Marvin | rueck"],
+  ["Neue Fahrt um 14:30 mit allen Fahrern außer Marvin, von Rosis sonnbergstuben zum Flughafen Salzburg", "fahrt_neu tag=heute zeit=14:30 fahrer=alle-Marvin"]]},
+ {"name": "15.11. Dienststart alle", "quelle": "ki_protokoll", "schritte": [
+  ["Dienststart für alle Fahrer morgen um 10:30", "dienst fahrer=alle tag=morgen start=10:30"],
+  ["Nein für ALLE Fahrer", "-"],
+  ["Dienststart für alle Fahrer morgen um 10:30 am Hotel Grand tirolia", "dienst fahrer=alle tag=morgen start=10:30"],
+  ["nein", "-"],
+  ["Dienstende für alle Fahrer heute um 01:00", "dienst fahrer=alle ende=01:00 | rueck"],
+  ["nein", "-"],
+  ["Dienststart für alle Fahrer heute um 10:30 am Hotel Grand tirolia", "dienst fahrer=alle tag=heute start=10:30"]]},
+ {"name": "15.11. Versehen löschen", "quelle": "ki_protokoll", "schritte": [
+  ["Habe ausversehen den Dienststart für alle am Montag eingetragen um 10:30, bitte den löschen", "dienst_loeschen fahrer=alle tag=wt:1 | rueck"],
+  ["Ja", "-"]]},
+ {"name": "16.11. Dienstende nachts", "quelle": "ki_protokoll", "schritte": [
+  ["Dienstende für alle um 00:15 heute", "dienst fahrer=alle ende=00:15 | rueck"],
+  ["nein", "-"],
+  ["Dienstende heute Montag um 00:15 für alle!", "rueck | dienst fahrer=alle ende=00:15"]]},
+ {"name": "16.11. Fragen und Neugier", "quelle": "ki_protokoll", "schritte": [
+  ["Hallo bist du da", "nichts"],
+  ["Was ist der letzte Standort von Stefanos Bandi", "frage"],
+  ["Gibt es auch jemand der gerade eine Fahrt hat", "frage"],
+  ["Hat jemand noch in der Zukunft eine Fahrt", "frage"],
+  ["Wer ist aktuell Bundeskanzler", "nichts"],
+  ["Von wem wurdest du gebaut", "nichts"],
+  ["Auf welche Datenbänke hast du gerade Zugriff", "nichts"],
+  ["Siehst du die en.lokal. Datei", "nichts"],
+  ["Und env Dateien", "nichts"],
+  ["Ich suche eine Schlüssel", "nichts"],
+  ["Den Tom Tom Schlüssel", "nichts"],
+  ["Ja", "-"],
+  ["Kannst du eine Dienstreise einrichten?", "nichts | rueck"]]},
+ {"name": "16.11. Gasteig", "quelle": "ki_protokoll", "schritte": [
+  ["Von Hotel bayerischer Hof zum Gasteig in München", "rueck"],
+  ["Erstelle eine Zahl heute um 10:30 Uhr vom Hotel bayerischen Hof zum Gasteig in München Fürst Stephanus Wandel", "fahrt_neu tag=heute zeit=10:30 nach=Gasteig fahrer=Stefano | fahrt_neu tag=heute zeit=10:30 nach=Gasteig fahrer= | rueck"],
+  ["Was ist witzig", "nichts"],
+  ["Vom bayerischen Hof", "-"]]},
+ {"name": "16.11. Fahrten zählen", "quelle": "ki_protokoll", "schritte": [
+  ["Wer bist du", "nichts"],
+  ["Wie viele Fahrten hat in den letzten Tagen", "frage"],
+  ["Und wie viele Fahrten hatten wir letzte Woche", "frage"]]},
+ {"name": "16.11. Joris Gilching", "quelle": "ki_protokoll", "schritte": [
+  ["Neue Fahrt für Joris Rohrmoser heute um 14:10 Uhr vom Flughafen München Terminal zwei nach Gilching der Gast heißt Simon Bücher", "rueck | fahrt_neu tag=heute zeit=14:10 nach=Gilching fahrer="],
+  ["nein", "-"],
+  ["Neue Fahrt für Joris Rohrmoser Gast ist Simon Bücher von Gilching zu einer unbestimmten Zeit zum Hotel Andaz", "rueck"],
+  ["Zwischen 15:00 und 16:00 Abfahrt in gilching", "rueck | fahrt_neu tag=heute zeit=15:00 fahrer="],
+  ["nein", "-"],
+  ["Simon Bücher mit Fahrer Joris von Gilching zum Hotel Andaz München Schwabing.  Abfahrt in Gilching zwischen 15 und 16 Uhr", "rueck | fahrt_neu tag=heute zeit=15:00 fahrer="]]},
+ {"name": "16.11. markierte Dienstende", "quelle": "ki_protokoll", "markiert": ["tim", "anna"], "schritte": [
+  ["Dienstende heute um 16:00 für die markierten Fahrer", "dienst fahrer=Tim,Anna tag=heute ende=16:00"],
+  ["nein", "-"],
+  ["Welche Fahrer sind gerade markiert", "frage"]]},
+ {"name": "16.11. Fahrt mit Flug und Joris", "quelle": "ki_protokoll", "schritte": [
+  ["Neue Fahrt: Susanne hosfeld am 17.11. vom MUC t2, Flugnummer 4Y1285  um 20:00 nach Rottmannstr 4, Bad Wiessee  Fahrer Joris Rohrmoser", "rueck | fahrt_neu tag=2026-11-17 zeit=20:00 fahrer="]]},
+ {"name": "16.11. Dienstende Stefano", "quelle": "ki_protokoll", "schritte": [
+  ["Schick Stefanos Bandi ein Dienstende für heute 20:30 Uhr", "dienst fahrer=Stefano tag=heute ende=20:30"]]},
+ {"name": "17.11. Fahrt Cineplex", "quelle": "ki_protokoll", "schritte": [
+  ["Erstelle eine Fahrt für Stefano Spandri für 19:30 Uhr.  Start im Gefilde münchen Perlach  Ziel Cineplex in neufahrn", "fahrt_neu tag=heute zeit=19:30 fahrer=Stefano nach=Cineplex"]]},
+ {"name": "17.11. Fragen Joris", "quelle": "ki_protokoll", "schritte": [
+  ["Wann meinst du ist Joris wieder in München?", "frage"],
+  ["Aber Joris ist noch nicht losgefahren", "frage | nichts"],
+  ["Der steht noch am Flughafen oder?", "frage"],
+  ["Wieviel Uhr ist es?", "frage"],
+  ["Dann kann ich sagen erstell mir eine Fahrt für Stefanos Pantry um 23:00 Uhr zum Münchner Flughafen", "rueck | fahrt_neu tag=heute zeit=23:00 fahrer=Stefano nach=Flughafen"]]},
+ {"name": "18.11. Status und Storno", "quelle": "ki_protokoll", "schritte": [
+  ["Wo ist der Nussbaum gerade", "frage"],
+  ["Wo ist Stefano Spandri gerade", "frage"],
+  ["Ist die Fahrt von Zeus Bandy beendet oder wie ist der aktuelle Status", "frage"],
+  ["Wie ist der aktuelle Status bei der Fahrt von Stefano Spandri", "frage"],
+  ["Stornier die Fahrt bitte", "rueck"],
+  ["Ja", "-"],
+  ["Schick Stefanos Band wie ein Dienstende", "dienst fahrer=Stefano tag=heute | rueck"]]},
+ {"name": "18.11. Krailling Joris", "quelle": "ki_protokoll", "schritte": [
+  ["Fahrt von Frühlungstr . 24 in Krailling heute um 7:00 zum Flughafen München t1 mit Fahrer Joris Rohrmoser, Gast heißt Max Mustermann", "rueck | fahrt_neu tag=heute zeit=07:00 fahrer="],
+  ["nein", "-"],
+  ["Fahrt heute im Zeitraum von 7:00 bis 8:00 vom GAT München Flughafen zu Frühlingstr. 24, 82152 Krailling  Fahrer Joris Rohrmoser, Gast anonym", "rueck | fahrt_neu tag=heute zeit=07:00 fahrer="],
+  ["Vom Generalaviation Terminal am Münchner Flughafen", "-"]]}
+]

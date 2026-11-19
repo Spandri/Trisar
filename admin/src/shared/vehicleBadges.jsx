@@ -165,13 +165,14 @@ export function EnergyBadge({ fuelType, seed, fillPercent = null, fullRangeKm = 
     // Ladezustand sichtbar: Icon nach Fuellstand, darunter Restreichweite
     // und Prozent — wie bei der Tankanzeige der Verbrenner.
     const icon = unbekannt ? BATTERY_MID_URL : (fill >= 60 ? BATTERY_FULL_URL : (fill >= 25 ? BATTERY_MID_URL : BATTERY_LOW_URL));
-    const evRange = Number.isFinite(parsedRange) && parsedRange > 0 ? parsedRange : 500;
+    const evRange = Number.isFinite(parsedRange) && parsedRange > 0 ? parsedRange : (DEMO_MODE ? 500 : null);
+    const evKm = unbekannt || evRange == null ? null : Math.round((fill / 100) * evRange);
     return (
       <BadgeFrame size={size}>
         <div className="flex flex-col items-center">
           <img src={icon} alt="" className={`w-[13px] h-[13px] object-contain${unbekannt ? ' opacity-30' : ''}`} />
           <div className="mt-[3px] text-center text-black font-bold font-['Space_Grotesk'] text-[5px] leading-[6px] whitespace-pre">
-            <p className="m-0">{unbekannt ? '–' : `${Math.round((fill / 100) * evRange)}km `}</p>
+            <p className="m-0">{evKm == null ? '–' : `${evKm}km `}</p>
             <p className="m-0 text-[#060606]">{unbekannt ? '–' : `${fill}%`}</p>
           </div>
         </div>
@@ -179,8 +180,10 @@ export function EnergyBadge({ fuelType, seed, fillPercent = null, fullRangeKm = 
     );
   }
 
-  const maxRange = Number.isFinite(parsedRange) && parsedRange > 0 ? parsedRange : 650;
-  const rangeKm = unbekannt ? null : Math.round((fill / 100) * maxRange);
+  // Ohne Reichweite bei vollem Tank (Tracker, Modellvariante) keine Kilometer: Strich statt Annahme.
+  // Nur die Demo rechnet weiter mit einer festen Annahme.
+  const maxRange = Number.isFinite(parsedRange) && parsedRange > 0 ? parsedRange : (DEMO_MODE ? 650 : null);
+  const rangeKm = unbekannt || maxRange == null ? null : Math.round((fill / 100) * maxRange);
   return (
     <BadgeFrame size={size}>
       <div className="flex flex-col items-center">
@@ -193,7 +196,7 @@ export function EnergyBadge({ fuelType, seed, fillPercent = null, fullRangeKm = 
           <img src={PUMP_URL} alt="" className="absolute inset-0 w-full h-full" />
         </div>
         <div className="mt-[3px] text-center text-black font-bold font-['Space_Grotesk'] text-[5px] leading-[6px] whitespace-pre">
-          <p className="m-0">{unbekannt ? '–' : `${rangeKm}km `}</p>
+          <p className="m-0">{rangeKm == null ? '–' : `${rangeKm}km `}</p>
           <p className="m-0 text-[#060606]">{unbekannt ? '–' : `${fill}%`}</p>
         </div>
       </div>

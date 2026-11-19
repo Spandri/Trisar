@@ -1,0 +1,5 @@
+[
+ {"name": "L1 zwei Fahrten in einem Satz", "saetze": ["Neue Fahrt für Joris Worm Moser heute um 14:10 Uhr vom Flughafen München Terminal zwei nach Gilching und von Gilching zu einer unbestimmten Zeit zum Hotel Ander"]},
+ {"name": "L2 unbestimmte Zeit, dann Zeitraum", "saetze": ["Neue Fahrt für Tim Schedler Gast ist Simon Bücher von Gilching zu einer unbestimmten Zeit zum Hotel Andaz", "Zwischen 15:00 und 16:00 Abfahrt in gilching"]},
+ {"name": "L3 Gast vorn, Zeitraum hinten", "saetze": ["Simon Bücher mit Fahrer Tim von Gilching zum Hotel Andaz München Schwabing. \nAbfahrt in Gilching zwischen 15 und 16 Uhr"]}
+]

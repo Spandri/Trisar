@@ -9,7 +9,7 @@
     "art": "antwort",
     "antwort": "Ich setze den Stundenlohn auf 30,00 € für alle 4 Fahrer. Bisher ist bei niemandem ein Stundenlohn gesetzt.\n\nSoll ich das speichern? Antworte mit „ja“ oder „nein“.",
     "felder": {},
-    "ms": 1279
+    "ms": 1370
   },
   {
     "fall": "Stundenlohn fuer alle, dann ja",
@@ -21,7 +21,7 @@
     "art": "antwort",
     "antwort": "Gespeichert: Stundenlohn 30,00 € für 4 Fahrer.",
     "felder": {},
-    "ms": 4
+    "ms": 6
   },
   {
     "fall": "Stundenlohn fuer einen, dann nein",
@@ -33,7 +33,7 @@
     "art": "antwort",
     "antwort": "Ich setze den Stundenlohn auf 28,50 € für Tim Schedler. Bisher ist bei niemandem ein Stundenlohn gesetzt.\n\nSoll ich das speichern? Antworte mit „ja“ oder „nein“.",
     "felder": {},
-    "ms": 1366
+    "ms": 3196
   },
   {
     "fall": "Stundenlohn fuer einen, dann nein",
@@ -45,7 +45,7 @@
     "art": "antwort",
     "antwort": "Okay, ich habe nichts geändert.",
     "felder": {},
-    "ms": 2
+    "ms": 1
   },
   {
     "fall": "Stundenlohn ohne Betrag fragt nach",
@@ -57,7 +57,7 @@
     "art": "antwort",
     "antwort": "Welcher Betrag soll für Marvin Keller gelten? Zum Beispiel „30 €“.",
     "felder": {},
-    "ms": 960
+    "ms": 2548
   },
   {
     "fall": "Stundenlohn absurd hoch wird abgelehnt",
@@ -69,7 +69,7 @@
     "art": "antwort",
     "antwort": "3000,00 € pro Stunde kommt mir unwahrscheinlich vor. Ich nehme nur Beträge zwischen 5 und 200 €. Schreib den Betrag bitte noch einmal.",
     "felder": {},
-    "ms": 1263
+    "ms": 10880
   },
   {
     "fall": "Fahrer anlegen, dann ja",
@@ -81,7 +81,7 @@
     "art": "antwort",
     "antwort": "Neuer Fahrer: Max Mustermann\nBenutzername: max.mustermann\nPasswort: erzeuge ich beim Speichern\nFahrernummer: 14\nTelefon: 0151 2345678\n\nSoll ich den Fahrer so anlegen? Mit „ja“ speichere ich ihn. Ändern kannst du vorher noch, z. B. „Benutzername mmuster“ oder „Nummer 14“.",
     "felder": {},
-    "ms": 1577
+    "ms": 3666
   },
   {
     "fall": "Fahrer anlegen, dann ja",
@@ -91,9 +91,9 @@
     "ok": true,
     "fehler": [],
     "art": "antwort",
-    "antwort": "Angelegt: Max Mustermann (14).\nLogin für die Fahrer-App: Benutzername max.mustermann, Passwort vd7f-dfs4.\nDas Passwort zeige ich nicht noch einmal, gib es dem Fahrer gleich weiter.\nFahrzeug, Adresse und Stundenlohn kannst du unter Fahrer bearbeiten ergänzen.",
+    "antwort": "Angelegt: Max Mustermann (14).\nLogin für die Fahrer-App: Benutzername max.mustermann, Passwort pbz4-2jcp.\nDas Passwort zeige ich nicht noch einmal, gib es dem Fahrer gleich weiter.\nFahrzeug, Adresse und Stundenlohn kannst du unter Fahrer bearbeiten ergänzen.",
     "felder": {},
-    "ms": 3
+    "ms": 6
   },
   {
     "fall": "Fahrer anlegen, Benutzername nachreichen, nein",
@@ -105,7 +105,7 @@
     "art": "antwort",
     "antwort": "Neuer Fahrer: Ali Yilmaz\nBenutzername: ali.yilmaz\nPasswort: erzeuge ich beim Speichern\n\nSoll ich den Fahrer so anlegen? Mit „ja“ speichere ich ihn. Ändern kannst du vorher noch, z. B. „Benutzername mmuster“ oder „Nummer 14“.",
     "felder": {},
-    "ms": 1509
+    "ms": 3287
   },
   {
     "fall": "Fahrer anlegen, Benutzername nachreichen, nein",
@@ -117,7 +117,7 @@
     "art": "antwort",
     "antwort": "Neuer Fahrer: Ali Yilmaz\nBenutzername: ayilmaz\nPasswort: erzeuge ich beim Speichern\n\nSoll ich den Fahrer so anlegen? Mit „ja“ speichere ich ihn. Ändern kannst du vorher noch, z. B. „Benutzername mmuster“ oder „Nummer 14“.",
     "felder": {},
-    "ms": 2
+    "ms": 5
   },
   {
     "fall": "Fahrer anlegen, Benutzername nachreichen, nein",
@@ -129,7 +129,7 @@
     "art": "antwort",
     "antwort": "Okay, ich habe nichts angelegt.",
     "felder": {},
-    "ms": 0
+    "ms": 1
   },
   {
     "fall": "Fahrernummer schon vergeben",
@@ -141,7 +141,7 @@
     "art": "antwort",
     "antwort": "Die Fahrernummer 113 hat schon Tim Schedler. Sag mir eine andere Nummer.",
     "felder": {},
-    "ms": 1403
+    "ms": 1474
   },
   {
     "fall": "Fahrer ohne Nachnamen fragt nach",
@@ -153,7 +153,7 @@
     "art": "antwort",
     "antwort": "Wie heißt der neue Fahrer? Sag mir Vor- und Nachnamen, z. B. „Leg Fahrer Max Mustermann an, Nummer 14“.",
     "felder": {},
-    "ms": 1223
+    "ms": 1336
   },
   {
     "fall": "Frage nach neuen Fahrern legt nichts an",
@@ -163,9 +163,9 @@
     "ok": true,
     "fehler": [],
     "art": "antwort",
-    "antwort": "Alle Fahrer sind bereits bekannt: Stefano Spandri, Tim Schedler, Marvin Keller und Anna Berger. Es gibt keine neuen Fahrer.",
+    "antwort": "Neue Fahrer im System sind:\n\n- Marvin Keller\n- Tim Schedler\n- Anna Berger\n\nStefano Spandri ist nicht neu.",
     "felder": {},
-    "ms": 3858
+    "ms": 11693
   },
   {
     "fall": "Fahrzeug anlegen, Sitze aendern, ja",
@@ -177,7 +177,7 @@
     "art": "antwort",
     "antwort": "Neues Fahrzeug: Mercedes V-Klasse\nKennzeichen: M-TR 105\nSitze: 7\nFarbe: schwarz\nKraftstoff: Diesel\n\nSoll ich das Fahrzeug so anlegen? Mit „ja“ speichere ich es. Ändern kannst du vorher noch, z. B. „Kennzeichen M-TR 106“ oder „8 Sitze“.",
     "felder": {},
-    "ms": 1832
+    "ms": 2147
   },
   {
     "fall": "Fahrzeug anlegen, Sitze aendern, ja",
@@ -189,7 +189,7 @@
     "art": "antwort",
     "antwort": "Neues Fahrzeug: Mercedes V-Klasse\nKennzeichen: M-TR 105\nSitze: 8\nFarbe: schwarz\nKraftstoff: Diesel\n\nSoll ich das Fahrzeug so anlegen? Mit „ja“ speichere ich es. Ändern kannst du vorher noch, z. B. „Kennzeichen M-TR 106“ oder „8 Sitze“.",
     "felder": {},
-    "ms": 2
+    "ms": 5
   },
   {
     "fall": "Fahrzeug anlegen, Sitze aendern, ja",
@@ -201,7 +201,7 @@
     "art": "antwort",
     "antwort": "Angelegt: Mercedes V-Klasse (M-TR 105). Tracker und Fahrer ordnest du unter Fahrzeug bzw. Fahrer bearbeiten zu.",
     "felder": {},
-    "ms": 0
+    "ms": 2
   },
   {
     "fall": "Fahrzeug Kurzform",
@@ -213,7 +213,7 @@
     "art": "antwort",
     "antwort": "Neues Fahrzeug: BMW 5er\nKennzeichen: M-TR 104\n\nSoll ich das Fahrzeug so anlegen? Mit „ja“ speichere ich es. Ändern kannst du vorher noch, z. B. „Kennzeichen M-TR 106“ oder „8 Sitze“.",
     "felder": {},
-    "ms": 1519
+    "ms": 1686
   },
   {
     "fall": "Kennzeichen schon vergeben",
@@ -225,7 +225,7 @@
     "art": "antwort",
     "antwort": "Das Kennzeichen M-TR 101 gibt es schon (BMW 7er). Es wurde nichts angelegt.",
     "felder": {},
-    "ms": 1522
+    "ms": 1696
   },
   {
     "fall": "Fahrt mit Standby davor, dann ja",
@@ -247,7 +247,7 @@
       "startOrtId": "o4",
       "zielOrtId": "o1"
     },
-    "ms": 1869
+    "ms": 2049
   },
   {
     "fall": "Fahrt mit Standby davor, dann ja",
@@ -259,7 +259,7 @@
     "art": "antwort",
     "antwort": "Standby angelegt: Flughafen München Terminal 2, 17.11. 10:00–14:30. Tim Schedler bekommt die Anfrage.",
     "felder": {},
-    "ms": 1
+    "ms": 2
   },
   {
     "fall": "Standby ohne Fahrer fragt nach",
@@ -281,7 +281,7 @@
       "startOrtId": "o5",
       "zielOrtId": "o2"
     },
-    "ms": 2235
+    "ms": 2448
   },
   {
     "fall": "Standby ohne Fahrer fragt nach",
@@ -293,7 +293,7 @@
     "art": "antwort",
     "antwort": "Standby: Messe München, 17.11. 12:00–16:00, Marvin Keller.\nMit „ja“ lege ich den Standby an, die Fahrt buchst du wie immer über die Karte.",
     "felder": {},
-    "ms": 1
+    "ms": 2
   },
   {
     "fall": "Standby ohne Fahrer fragt nach",
@@ -305,7 +305,7 @@
     "art": "antwort",
     "antwort": "Okay, kein Standby angelegt.",
     "felder": {},
-    "ms": 0
+    "ms": 1
   },
   {
     "fall": "Standby wie getippt mit Flug",
@@ -327,7 +327,7 @@
       "startOrtId": "o4",
       "zielOrtId": "o6"
     },
-    "ms": 2080
+    "ms": 1971
   },
   {
     "fall": "Standby mit eigener Endzeit",
@@ -349,7 +349,7 @@
       "startOrtId": "o6",
       "zielOrtId": "o5"
     },
-    "ms": 1842
+    "ms": 2013
   },
   {
     "fall": "Karten: Fahrt und Standby",
@@ -371,7 +371,7 @@
       "startOrtId": "o4",
       "zielOrtId": "o1"
     },
-    "ms": 1836
+    "ms": 2042
   },
   {
     "fall": "Karten: Standby ohne Fahrer",
@@ -393,7 +393,7 @@
       "startOrtId": "o5",
       "zielOrtId": "o2"
     },
-    "ms": 2238
+    "ms": 2356
   },
   {
     "fall": "Karten: zwei Fahrten in einer Nachricht",
@@ -415,7 +415,7 @@
       "startOrtId": "o2",
       "zielOrtId": "o5"
     },
-    "ms": 1925
+    "ms": 2021
   },
   {
     "fall": "Karten: zwei Zeilen mit Standby",
@@ -437,7 +437,7 @@
       "startOrtId": "o4",
       "zielOrtId": "o1"
     },
-    "ms": 2049
+    "ms": 2025
   },
   {
     "fall": "Ohne Karten bleibt eine Nachricht ganz",
@@ -459,7 +459,7 @@
       "startOrtId": "o2",
       "zielOrtId": "o5"
     },
-    "ms": 1894
+    "ms": 2046
   },
   {
     "fall": "Schick eine Fahrt fuer jetzt",
@@ -481,7 +481,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1404
+    "ms": 1458
   },
   {
     "fall": "Schicke eine Fahrt fuer morgen",
@@ -503,7 +503,7 @@
       "startOrtId": "o1",
       "zielOrtId": "o5"
     },
-    "ms": 1591
+    "ms": 1724
   },
   {
     "fall": "Fahrt Fahrer von nach",
@@ -525,7 +525,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1811
+    "ms": 1931
   },
   {
     "fall": "Fahrt Fahrer von nach ohne Zeit fragt nach",
@@ -537,7 +537,7 @@
     "art": "booking_needs_clarification",
     "antwort": "Fahrt heute ab Brudermühlstraße 2, 81371 München nach Ernastraße 5 81829 München: Um wie viel Uhr?",
     "felder": {},
-    "ms": 12173
+    "ms": 13417
   },
   {
     "fall": "Wo sind die markierten",
@@ -549,7 +549,7 @@
     "art": "antwort",
     "antwort": "Marvin Keller: kein Standort vorhanden (kein Signal von App oder Tracker). Gerade keine Fahrt, heute keine weitere.\nStefano Spandri ist am Hotel Bayerischer Hof, Promenadeplatz 2-6, 80333 München (Signal gerade eben). Gerade keine Fahrt, nächste um 14:00 ab Flughafen München Terminal 1.\nTim Schedler ist am Hauptbahnhof München, Bayerstraße 10a, 80335 München (Signal gerade eben). Aktuelle Fahrt: 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten (noch nicht gestartet).",
     "felder": {},
-    "ms": 1075
+    "ms": 1208
   },
   {
     "fall": "Pause eingetragen",
@@ -561,7 +561,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri hat morgen keinen Dienst eingetragen.",
     "felder": {},
-    "ms": 1239
+    "ms": 1195
   },
   {
     "fall": "Zwei Fahrer anlegen, ja",
@@ -573,7 +573,7 @@
     "art": "antwort",
     "antwort": "Ich lege an:\n1. Fertel Garlo (Benutzername fertel.garlo)\n2. Marvin Hallo (Benutzername marvin.hallo)\n\nMit „ja“ lege ich alle an, die passen. Mit „nein“ nichts.",
     "felder": {},
-    "ms": 1633
+    "ms": 1725
   },
   {
     "fall": "Zwei Fahrer anlegen, ja",
@@ -583,9 +583,9 @@
     "ok": true,
     "fehler": [],
     "art": "antwort",
-    "antwort": "Angelegt: Fertel Garlo.\nLogin für die Fahrer-App: Benutzername fertel.garlo, Passwort yh67-ydhd.\nDas Passwort zeige ich nicht noch einmal, gib es dem Fahrer gleich weiter.\nFahrzeug, Adresse und Stundenlohn kannst du unter Fahrer bearbeiten ergänzen.\n\nAngelegt: Marvin Hallo.\nLogin für die Fahrer-App: Benutzername marvin.hallo, Passwort axt6-9qkn.\nDas Passwort zeige ich nicht noch einmal, gib es dem Fahrer gleich weiter.\nFahrzeug, Adresse und Stundenlohn kannst du unter Fahrer bearbeiten ergänzen.",
+    "antwort": "Angelegt: Fertel Garlo.\nLogin für die Fahrer-App: Benutzername fertel.garlo, Passwort 9tkm-hv4r.\nDas Passwort zeige ich nicht noch einmal, gib es dem Fahrer gleich weiter.\nFahrzeug, Adresse und Stundenlohn kannst du unter Fahrer bearbeiten ergänzen.\n\nAngelegt: Marvin Hallo.\nLogin für die Fahrer-App: Benutzername marvin.hallo, Passwort 7fwu-m4cu.\nDas Passwort zeige ich nicht noch einmal, gib es dem Fahrer gleich weiter.\nFahrzeug, Adresse und Stundenlohn kannst du unter Fahrer bearbeiten ergänzen.",
     "felder": {},
-    "ms": 3
+    "ms": 2
   },
   {
     "fall": "Zwei Namen ein Fahrer-Wort",
@@ -597,7 +597,7 @@
     "art": "antwort",
     "antwort": "Ich lege an:\n1. Max Muster (Benutzername max.muster)\n2. Lisa Lang (Benutzername lisa.lang)\n\nMit „ja“ lege ich alle an, die passen. Mit „nein“ nichts.",
     "felder": {},
-    "ms": 1529
+    "ms": 1585
   },
   {
     "fall": "Zwei Fahrzeuge",
@@ -609,7 +609,7 @@
     "art": "antwort",
     "antwort": "Ich lege an:\n1. BMW 5er (M-TR 107)\n2. Audi A8 (M-TR 108)\n\nMit „ja“ lege ich alle an, die passen. Mit „nein“ nichts.",
     "felder": {},
-    "ms": 1748
+    "ms": 1817
   },
   {
     "fall": "Karten: zwei Fahrer",
@@ -621,7 +621,7 @@
     "art": "antwort",
     "antwort": "Ich habe 2 Einträge vorbereitet. Jeden bestätigst du einzeln auf seiner Karte.",
     "felder": {},
-    "ms": 1427
+    "ms": 1507
   },
   {
     "fall": "Pause eingetragen ja",
@@ -633,7 +633,7 @@
     "art": "antwort",
     "antwort": "Anna Berger hat morgen Pause 11:30–12:00. Dienst 07:00–15:00.",
     "felder": {},
-    "ms": 1093
+    "ms": 1186
   },
   {
     "fall": "Pause eingetragen nein",
@@ -645,7 +645,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri hat heute keine Pause eingetragen. Dienst 08:00–offen.",
     "felder": {},
-    "ms": 1035
+    "ms": 1151
   },
   {
     "fall": "Wann faengt an",
@@ -657,7 +657,7 @@
     "art": "antwort",
     "antwort": "Anna Berger fängt morgen um 07:00 an.",
     "felder": {},
-    "ms": 1074
+    "ms": 1147
   },
   {
     "fall": "Wann Feierabend",
@@ -669,7 +669,7 @@
     "art": "antwort",
     "antwort": "Anna Berger hat morgen um 15:00 Feierabend.",
     "felder": {},
-    "ms": 1057
+    "ms": 1142
   },
   {
     "fall": "Stunden heute einer",
@@ -681,7 +681,7 @@
     "art": "antwort",
     "antwort": "Tim Schedler hat heute 8:00 h an 1 Tag.",
     "felder": {},
-    "ms": 1028
+    "ms": 1142
   },
   {
     "fall": "Stunden heute alle",
@@ -693,7 +693,7 @@
     "art": "antwort",
     "antwort": "Stunden heute (aus Stundenzetteln), gesamt 14:30 h:\n- Tim Schedler: 8:00 h an 1 Tag.\n- Marvin Keller: 6:30 h an 1 Tag, davon 1 noch nicht bestätigt.",
     "felder": {},
-    "ms": 1041
+    "ms": 1145
   },
   {
     "fall": "Offene Stundenzettel",
@@ -705,7 +705,7 @@
     "art": "antwort",
     "antwort": "Noch nicht bestätigt (1):\n- Marvin Keller: heute, 6:30 h, vom Fahrer angepasst",
     "felder": {},
-    "ms": 1073
+    "ms": 1143
   },
   {
     "fall": "Dienst fuer Fahrer aus dem Gespraech",
@@ -717,7 +717,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri ist am Hotel Bayerischer Hof, Promenadeplatz 2-6, 80333 München (Signal gerade eben). Gerade keine Fahrt, nächste um 14:00 ab Flughafen München Terminal 1.",
     "felder": {},
-    "ms": 1041
+    "ms": 1126
   },
   {
     "fall": "Dienst fuer Fahrer aus dem Gespraech",
@@ -735,7 +735,7 @@
       "pausen": "",
       "fahrer": "Stefano Spandri"
     },
-    "ms": 7221
+    "ms": 9571
   },
   {
     "fall": "Fahrzeug an Fahrer, ja",
@@ -747,7 +747,7 @@
     "art": "antwort",
     "antwort": "Marvin Keller bekommt Mercedes V-Klasse (M-TR 102)? Tim Schedler fährt es auch. Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 5030
+    "ms": 5960
   },
   {
     "fall": "Fahrzeug an Fahrer, ja",
@@ -759,7 +759,7 @@
     "art": "antwort",
     "antwort": "Gespeichert: Marvin Keller fährt Mercedes V-Klasse (M-TR 102).",
     "felder": {},
-    "ms": 1
+    "ms": 2
   },
   {
     "fall": "Tracker ins Auto, nein",
@@ -771,7 +771,7 @@
     "art": "antwort",
     "antwort": "Tracker 4 in BMW X5 (M-TR 103) setzen? Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 5396
+    "ms": 5913
   },
   {
     "fall": "Tracker ins Auto, nein",
@@ -795,7 +795,7 @@
     "art": "antwort",
     "antwort": "Tracker 3 in BMW X5 (M-TR 103) setzen? Bisher steckt er in BMW 7er (M-TR 101). Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 5338
+    "ms": 5743
   },
   {
     "fall": "Unbekanntes Kennzeichen",
@@ -807,7 +807,7 @@
     "art": "antwort",
     "antwort": "Das Fahrzeug mit diesem Kennzeichen finde ich nicht. Sag mir das Kennzeichen genau so, wie es in TRISAR steht.",
     "felder": {},
-    "ms": 4933
+    "ms": 5466
   },
   {
     "fall": "Standby allein, ja",
@@ -819,7 +819,7 @@
     "art": "antwort",
     "antwort": "Standby: Messe München, 17.11. 10:00–18:00, Tim Schedler, Marvin Keller.\nMit „ja“ lege ich den Standby an, die Fahrt buchst du wie immer über die Karte.",
     "felder": {},
-    "ms": 12056
+    "ms": 8370
   },
   {
     "fall": "Standby allein, ja",
@@ -831,7 +831,7 @@
     "art": "antwort",
     "antwort": "Standby angelegt: Messe München, 17.11. 10:00–18:00. Tim Schedler, Marvin Keller bekommen die Anfrage.",
     "felder": {},
-    "ms": 2
+    "ms": 1
   },
   {
     "fall": "Karten: Standby allein",
@@ -843,7 +843,7 @@
     "art": "antwort",
     "antwort": "Standby: Hotel Bayerischer Hof, 18.11. 09:00–13:00, Anna Berger. Bestätige ihn auf seiner Karte.",
     "felder": {},
-    "ms": 6854
+    "ms": 7530
   },
   {
     "fall": "Standby allein ohne Fahrer fragt nach",
@@ -855,7 +855,7 @@
     "art": "antwort",
     "antwort": "Standby: Hauptbahnhof München, 17.11. 10:00–16:00.\nFür den Standby fehlt noch welcher Fahrer. Sag es mir, z. B. „Tim“.",
     "felder": {},
-    "ms": 6666
+    "ms": 7491
   },
   {
     "fall": "Fahrer loeschen, ja reicht nicht, loeschen",
@@ -867,7 +867,7 @@
     "art": "antwort",
     "antwort": "Fahrer endgültig löschen: Marvin Keller. Konto, Login, Standorte, Dienste und Stundenzettel sind danach weg, offene Fahrten werden wieder frei. Die Fahrten selbst bleiben.\nDas geht nicht rückgängig. Schreib „löschen“, dann lösche ich es. Mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 1036
+    "ms": 1192
   },
   {
     "fall": "Fahrer loeschen, ja reicht nicht, loeschen",
@@ -879,7 +879,7 @@
     "art": "antwort",
     "antwort": "Löschen geht nicht rückgängig. Schreib zur Sicherheit „löschen“, dann lösche ich es. Mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 1
+    "ms": 2
   },
   {
     "fall": "Fahrer loeschen, ja reicht nicht, loeschen",
@@ -891,7 +891,7 @@
     "art": "antwort",
     "antwort": "Marvin Keller gelöscht.",
     "felder": {},
-    "ms": 2
+    "ms": 3
   },
   {
     "fall": "Fahrzeug loeschen, nein",
@@ -903,7 +903,7 @@
     "art": "antwort",
     "antwort": "Fahrzeug endgültig löschen: BMW X5 (M-TR 103). Fahrer- und Tracker-Zuordnung fallen weg, Fahrten bleiben.\nDas geht nicht rückgängig. Schreib „löschen“, dann lösche ich es. Mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 1211
+    "ms": 1355
   },
   {
     "fall": "Fahrzeug loeschen, nein",
@@ -915,7 +915,7 @@
     "art": "antwort",
     "antwort": "Okay, ich habe nichts gelöscht.",
     "felder": {},
-    "ms": 2
+    "ms": 1
   },
   {
     "fall": "Alle loeschen geht nicht",
@@ -927,7 +927,7 @@
     "art": "antwort",
     "antwort": "Alle auf einmal lösche ich nicht. Nenne mir die Fahrer oder Fahrzeuge einzeln, z. B. „Lösche Fahrer Max Mustermann und das Fahrzeug M-TR 105“.",
     "felder": {},
-    "ms": 1016
+    "ms": 1116
   },
   {
     "fall": "Zwei Fahrer loeschen",
@@ -939,7 +939,7 @@
     "art": "antwort",
     "antwort": "Fahrer endgültig löschen: Tim Schedler, Anna Berger. Konto, Login, Standorte, Dienste und Stundenzettel sind danach weg, offene Fahrten werden wieder frei. Die Fahrten selbst bleiben.\nDas geht nicht rückgängig. Schreib „löschen“, dann lösche ich es. Mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 1204
+    "ms": 1256
   },
   {
     "fall": "Fahrt loeschen bleibt bei der Fahrt",
@@ -951,7 +951,7 @@
     "art": "antwort",
     "antwort": "Fahrt heute 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten, Tim Schedler stornieren? Mit „ja“ storniere ich sie, rückgängig geht danach mit „rückgängig“.",
     "felder": {},
-    "ms": 10864
+    "ms": 7778
   },
   {
     "fall": "Dienst Start und Ende morgen",
@@ -969,7 +969,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 7109
+    "ms": 7908
   },
   {
     "fall": "Dienst an alle bis auf einen",
@@ -987,7 +987,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler, Marvin Keller, Anna Berger"
     },
-    "ms": 7425
+    "ms": 8101
   },
   {
     "fall": "Dienst an alle, einer ausgenommen, anders gesagt",
@@ -1005,7 +1005,7 @@
       "pausen": "",
       "fahrer": "Stefano Spandri, Marvin Keller, Anna Berger"
     },
-    "ms": 7099
+    "ms": 7896
   },
   {
     "fall": "Feierabend fuer alle ausser zwei",
@@ -1023,7 +1023,7 @@
       "pausen": "",
       "fahrer": "Stefano Spandri, Anna Berger"
     },
-    "ms": 9552
+    "ms": 10618
   },
   {
     "fall": "Nachricht an alle ausser einem",
@@ -1035,7 +1035,7 @@
     "art": "antwort",
     "antwort": "Push an Stefano Spandri, Marvin Keller, Anna Berger (ohne Tim Schedler): „Tanken heute nicht vergessen.“\nMit „ja“ sende ich sie.",
     "felder": {},
-    "ms": 4671
+    "ms": 5283
   },
   {
     "fall": "Stundenlohn fuer alle ausser einem",
@@ -1047,7 +1047,7 @@
     "art": "antwort",
     "antwort": "Ich setze den Stundenlohn auf 25,00 € für Stefano Spandri, Tim Schedler, Anna Berger (ohne Marvin Keller). Bisher ist bei niemandem ein Stundenlohn gesetzt.\n\nSoll ich das speichern? Antworte mit „ja“ oder „nein“.",
     "felder": {},
-    "ms": 2225
+    "ms": 2359
   },
   {
     "fall": "Kein falsches Ausnehmen beim Loeschen",
@@ -1059,7 +1059,7 @@
     "art": "antwort",
     "antwort": "Bei Stefano Spandri, heute (ab 08:00, angenommen) den ganzen Dienst löschen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 12182
+    "ms": 7071
   },
   {
     "fall": "Aendern von X auf Y nimmt Y",
@@ -1077,7 +1077,7 @@
       "pausen": "",
       "fahrer": "Stefano Spandri"
     },
-    "ms": 7682
+    "ms": 7294
   },
   {
     "fall": "Dienstende verschieben ist kein Loeschen",
@@ -1095,7 +1095,7 @@
       "pausen": "",
       "fahrer": "Stefano Spandri"
     },
-    "ms": 7379
+    "ms": 7650
   },
   {
     "fall": "Heutiger Wochentag meint naechste Woche",
@@ -1113,7 +1113,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6650
+    "ms": 6856
   },
   {
     "fall": "Wochentag nie in der Vergangenheit",
@@ -1131,7 +1131,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6858
+    "ms": 6658
   },
   {
     "fall": "Start nach altem Ende: Ende faellt weg",
@@ -1149,7 +1149,7 @@
       "pausen": "",
       "fahrer": "Anna Berger"
     },
-    "ms": 6853
+    "ms": 6588
   },
   {
     "fall": "Fuer alle ohne erfundene Ausnahmen",
@@ -1167,7 +1167,7 @@
       "pausen": "",
       "fahrer": "Stefano Spandri, Tim Schedler, Marvin Keller, Anna Berger"
     },
-    "ms": 6717
+    "ms": 6748
   },
   {
     "fall": "Dienststart von gestern loeschen",
@@ -1179,7 +1179,7 @@
     "art": "antwort",
     "antwort": "Bei Stefano Spandri, gestern (22:00–23:30, angenommen) den Dienststart entfernen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 6699
+    "ms": 6477
   },
   {
     "fall": "Fahrt mit allen ausser einem",
@@ -1201,7 +1201,7 @@
       "startOrtId": "o2",
       "zielOrtId": ""
     },
-    "ms": 3684
+    "ms": 3376
   },
   {
     "fall": "Dienst ab Uhrzeit heute",
@@ -1219,7 +1219,7 @@
       "pausen": "",
       "fahrer": "Marvin Keller"
     },
-    "ms": 6959
+    "ms": 6707
   },
   {
     "fall": "Vorhandener Dienst, Uhrzeit nachts",
@@ -1237,7 +1237,7 @@
       "pausen": "",
       "fahrer": "Stefano Spandri"
     },
-    "ms": 7167
+    "ms": 6877
   },
   {
     "fall": "Pause im vorhandenen Dienst",
@@ -1255,7 +1255,7 @@
       "pausen": "12:00-12:30",
       "fahrer": "Stefano Spandri"
     },
-    "ms": 8530
+    "ms": 8513
   },
   {
     "fall": "Feierabend mit Uhrzeit",
@@ -1273,7 +1273,7 @@
       "pausen": "",
       "fahrer": "Anna Berger"
     },
-    "ms": 6838
+    "ms": 6667
   },
   {
     "fall": "Fahrer per Nummer",
@@ -1291,7 +1291,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 7454
+    "ms": 7515
   },
   {
     "fall": "Zwei Fahrer gleicher Dienst",
@@ -1309,7 +1309,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler, Marvin Keller"
     },
-    "ms": 8313
+    "ms": 8353
   },
   {
     "fall": "Gleicher Start schon eingetragen",
@@ -1321,7 +1321,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri hat heute schon Dienst (ab 08:00, angenommen). Der Dienststart 08:00 ist schon eingetragen, ich ändere nichts.",
     "felder": {},
-    "ms": 6912
+    "ms": 6904
   },
   {
     "fall": "Umgangssprache: morgen früh",
@@ -1339,7 +1339,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6701
+    "ms": 6681
   },
   {
     "fall": "Umgangssprache: Schluss machen",
@@ -1357,7 +1357,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6864
+    "ms": 6595
   },
   {
     "fall": "Pause mit Bindestrich",
@@ -1375,7 +1375,7 @@
       "pausen": "12:00-13:00",
       "fahrer": "Anna Berger"
     },
-    "ms": 8396
+    "ms": 8235
   },
   {
     "fall": "Umgangssprache: fängt an",
@@ -1393,7 +1393,7 @@
       "pausen": "",
       "fahrer": "Marvin Keller"
     },
-    "ms": 7056
+    "ms": 6765
   },
   {
     "fall": "Markierte Fahrer in Feierabend",
@@ -1403,15 +1403,15 @@
     "ok": true,
     "fehler": [],
     "art": "dienst_vorschlag",
-    "antwort": "Dienstende 11:05 heute für die 2 markierten Fahrer (Tim Schedler, Marvin Keller). Soll ich das senden?",
+    "antwort": "Dienstende 11:10 heute für die 2 markierten Fahrer (Tim Schedler, Marvin Keller). Soll ich das senden?",
     "felder": {
       "datum": "2026-11-16",
       "start": "",
-      "ende": "11:05",
+      "ende": "11:10",
       "pausen": "",
       "fahrer": "Tim Schedler, Marvin Keller"
     },
-    "ms": 18029
+    "ms": 17818
   },
   {
     "fall": "Buchung komplett",
@@ -1433,7 +1433,7 @@
       "startOrtId": "o2",
       "zielOrtId": "o4"
     },
-    "ms": 1768
+    "ms": 1830
   },
   {
     "fall": "Buchen nimmt eigene Orte mit ID",
@@ -1455,7 +1455,7 @@
       "startOrtId": "o1",
       "zielOrtId": "o5"
     },
-    "ms": 1698
+    "ms": 1842
   },
   {
     "fall": "Buchen per Fahr-Verb",
@@ -1477,7 +1477,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1547
+    "ms": 1637
   },
   {
     "fall": "Buchen fährt mit Strecke",
@@ -1499,7 +1499,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1479
+    "ms": 1533
   },
   {
     "fall": "Buchen fremder Ort ohne Ort-ID",
@@ -1521,7 +1521,7 @@
       "startOrtId": "o6",
       "zielOrtId": ""
     },
-    "ms": 1684
+    "ms": 1695
   },
   {
     "fall": "Buchung mit Fahrer und Gästezahl",
@@ -1543,7 +1543,7 @@
       "startOrtId": "o5",
       "zielOrtId": "o1"
     },
-    "ms": 1731
+    "ms": 1686
   },
   {
     "fall": "Buchung übermorgen",
@@ -1565,7 +1565,7 @@
       "startOrtId": "o3",
       "zielOrtId": "o6"
     },
-    "ms": 1697
+    "ms": 1691
   },
   {
     "fall": "Buchung ohne Ziel fragt nach",
@@ -1577,7 +1577,7 @@
     "art": "booking_needs_clarification",
     "antwort": "Fahrt morgen um 07:00 ab Hotel Bayerischer Hof: Wohin soll die Fahrt gehen (Ziel)?",
     "felder": {},
-    "ms": 12553
+    "ms": 12419
   },
   {
     "fall": "Buchung Wochentag",
@@ -1599,7 +1599,7 @@
       "startOrtId": "o4",
       "zielOrtId": "o5"
     },
-    "ms": 1836
+    "ms": 1959
   },
   {
     "fall": "Buchung als Abholung formuliert",
@@ -1621,7 +1621,7 @@
       "startOrtId": "",
       "zielOrtId": "o1"
     },
-    "ms": 1743
+    "ms": 1696
   },
   {
     "fall": "Protokoll: Schicke X eine Fahrt",
@@ -1643,7 +1643,7 @@
       "startOrtId": "o1",
       "zielOrtId": ""
     },
-    "ms": 1851
+    "ms": 1893
   },
   {
     "fall": "Protokoll: Fahrt für jetzt",
@@ -1665,7 +1665,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1500
+    "ms": 1519
   },
   {
     "fall": "Gib X eine Fahrt",
@@ -1687,7 +1687,7 @@
       "startOrtId": "o2",
       "zielOrtId": "o5"
     },
-    "ms": 1766
+    "ms": 1825
   },
   {
     "fall": "Plan für X eine Fahrt",
@@ -1709,7 +1709,7 @@
       "startOrtId": "o6",
       "zielOrtId": "o3"
     },
-    "ms": 1977
+    "ms": 1997
   },
   {
     "fall": "Fahrt in 20 Minuten",
@@ -1731,7 +1731,7 @@
       "startOrtId": "o2",
       "zielOrtId": "o1"
     },
-    "ms": 1796
+    "ms": 1681
   },
   {
     "fall": "Buchung warnt bei Überschneidung",
@@ -1753,7 +1753,7 @@
       "startOrtId": "o5",
       "zielOrtId": "o2"
     },
-    "ms": 1752
+    "ms": 1667
   },
   {
     "fall": "Schick X zu einem Ort, Start fehlt",
@@ -1765,7 +1765,7 @@
     "art": "booking_needs_clarification",
     "antwort": "Fahrt morgen um 07:00 nach Flughafen München Terminal 2: Wo soll der Gast abgeholt werden?",
     "felder": {},
-    "ms": 13747
+    "ms": 13820
   },
   {
     "fall": "Verbteil gehört nicht zum Ziel",
@@ -1787,7 +1787,7 @@
       "startOrtId": "o2",
       "zielOrtId": "o3"
     },
-    "ms": 1805
+    "ms": 1850
   },
   {
     "fall": "Zwei Gäste und Flugnummer",
@@ -1809,7 +1809,7 @@
       "startOrtId": "o4",
       "zielOrtId": "o5"
     },
-    "ms": 2168
+    "ms": 2045
   },
   {
     "fall": "Trag eine neue Fahrt ein",
@@ -1831,7 +1831,7 @@
       "startOrtId": "o4",
       "zielOrtId": "o1"
     },
-    "ms": 1831
+    "ms": 1741
   },
   {
     "fall": "Uhrzeit über Gastnamen",
@@ -1853,7 +1853,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1856
+    "ms": 1769
   },
   {
     "fall": "Fahrer über Uhrzeit",
@@ -1875,7 +1875,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1736
+    "ms": 1654
   },
   {
     "fall": "Ziel ändern",
@@ -1897,7 +1897,7 @@
       "startOrtId": "",
       "zielOrtId": "o3"
     },
-    "ms": 1872
+    "ms": 1795
   },
   {
     "fall": "Offene Fahrt vergeben",
@@ -1919,7 +1919,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1805
+    "ms": 1847
   },
   {
     "fall": "Schick X auf die Fahrt",
@@ -1941,7 +1941,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1831
+    "ms": 1802
   },
   {
     "fall": "Plan X für die Fahrt ein",
@@ -1963,7 +1963,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1443
+    "ms": 1360
   },
   {
     "fall": "Änderung warnt bei Überschneidung",
@@ -1985,7 +1985,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1792
+    "ms": 1757
   },
   {
     "fall": "Stornieren nur mit Hinweis",
@@ -1997,7 +1997,7 @@
     "art": "antwort",
     "antwort": "Fahrt heute 14:00 Flughafen München Terminal 1 → Messe München, Markus Müller, Stefano Spandri stornieren? Mit „ja“ storniere ich sie, rückgängig geht danach mit „rückgängig“.",
     "felder": {},
-    "ms": 7266
+    "ms": 7261
   },
   {
     "fall": "Noch im Dienst ja",
@@ -2009,7 +2009,7 @@
     "art": "antwort",
     "antwort": "Ja, Stefano Spandri ist seit 08:00 im Dienst, noch ohne Dienstende.",
     "felder": {},
-    "ms": 1327
+    "ms": 1219
   },
   {
     "fall": "Noch im Dienst nein",
@@ -2021,7 +2021,7 @@
     "art": "antwort",
     "antwort": "Nein, Anna Berger hat heute keinen Dienst eingetragen.",
     "felder": {},
-    "ms": 1191
+    "ms": 1131
   },
   {
     "fall": "Irgendwer im Dienst",
@@ -2033,7 +2033,7 @@
     "art": "antwort",
     "antwort": "Ja, gerade im Dienst (1):\n- Stefano Spandri, noch ohne Dienstende",
     "felder": {},
-    "ms": 1247
+    "ms": 1193
   },
   {
     "fall": "Anzahl Fahrten heute",
@@ -2045,7 +2045,7 @@
     "art": "antwort",
     "antwort": "Heute, Mo 16.11.: 4 Fahrten, davon 1 ohne Fahrer.\n- 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten, 2 Gäste ohne Namen, Tim Schedler (noch nicht gestartet)\n- 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri (noch nicht gestartet)\n- 14:00 Flughafen München Terminal 1 → Messe München, Markus Müller +1, Stefano Spandri (noch nicht gestartet)\n- 18:00 Messe München → Hotel Bayerischer Hof, 3 Gäste ohne Namen, noch kein Fahrer (offen)",
     "felder": {},
-    "ms": 1210
+    "ms": 1171
   },
   {
     "fall": "Fahrten eines Fahrers",
@@ -2057,7 +2057,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri hat heute 2 Fahrten (Dienst ab 08:00):\n- 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel (noch nicht gestartet)\n- 14:00 Flughafen München Terminal 1 → Messe München, Markus Müller +1 (noch nicht gestartet)",
     "felder": {},
-    "ms": 1331
+    "ms": 1219
   },
   {
     "fall": "Wer fährt einen Gast",
@@ -2069,7 +2069,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri fährt Horst Engel: heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2.",
     "felder": {},
-    "ms": 1191
+    "ms": 1231
   },
   {
     "fall": "Offene Fahrten",
@@ -2081,7 +2081,7 @@
     "art": "antwort",
     "antwort": "1 Fahrt ohne Fahrer ab heute:\n- heute, Mo 16.11. 18:00 Messe München → Hotel Bayerischer Hof, 3 Gäste ohne Namen (offen)",
     "felder": {},
-    "ms": 1159
+    "ms": 1183
   },
   {
     "fall": "Offene Fahrten anders gefragt",
@@ -2093,7 +2093,7 @@
     "art": "antwort",
     "antwort": "1 Fahrt ohne Fahrer ab heute:\n- heute, Mo 16.11. 18:00 Messe München → Hotel Bayerischer Hof, 3 Gäste ohne Namen (offen)",
     "felder": {},
-    "ms": 1145
+    "ms": 1164
   },
   {
     "fall": "Fahrten eines Tages",
@@ -2105,7 +2105,7 @@
     "art": "antwort",
     "antwort": "Morgen, Di 17.11.: 1 Fahrt.\n- 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2, Julia Weber, Anna Berger (noch nicht gestartet)",
     "felder": {},
-    "ms": 1193
+    "ms": 1158
   },
   {
     "fall": "Fahrten zu einem Ziel",
@@ -2117,7 +2117,7 @@
     "art": "antwort",
     "antwort": "1 Fahrt nach Flughafen, heute, Mo 16.11.:\n- heute, Mo 16.11. 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri (noch nicht gestartet)",
     "felder": {},
-    "ms": 1248
+    "ms": 1192
   },
   {
     "fall": "Wer fährt um eine Uhrzeit",
@@ -2129,7 +2129,7 @@
     "art": "antwort",
     "antwort": "Die 18:00-Fahrt Messe München → Hotel Bayerischer Hof hat noch keinen Fahrer.",
     "felder": {},
-    "ms": 1355
+    "ms": 1312
   },
   {
     "fall": "Hat X Zeit",
@@ -2141,7 +2141,7 @@
     "art": "antwort",
     "antwort": "Anna Berger hat morgen 1 Fahrt (Dienst 07:00–15:00):\n- 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2, Julia Weber (noch nicht gestartet)\nFrei: vor 07:15, ab etwa 08:15.",
     "felder": {},
-    "ms": 1166
+    "ms": 1149
   },
   {
     "fall": "Wer ist frei um",
@@ -2153,7 +2153,7 @@
     "art": "antwort",
     "antwort": "Frei heute um 18:00 (gerechnet mit etwa 45 min, Ort noch offen):\n- Stefano Spandri: im Dienst (ab 08:00), davor 14:00-Fahrt, frei ab etwa 14:54 in Messe München\n- Anna Berger: kein Dienst eingetragen, heute keine Fahrt\n- Marvin Keller: kein Dienst eingetragen, heute keine Fahrt\n- Tim Schedler: kein Dienst eingetragen, davor 09:00-Fahrt, frei ab etwa 09:21 in Hotel Vier Jahreszeiten",
     "felder": {},
-    "ms": 1148
+    "ms": 1175
   },
   {
     "fall": "Fahrer morgen",
@@ -2165,7 +2165,7 @@
     "art": "antwort",
     "antwort": "Anna Berger hat morgen 1 Fahrt (Dienst 07:00–15:00):\n- 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2, Julia Weber (noch nicht gestartet)",
     "felder": {},
-    "ms": 1364
+    "ms": 1144
   },
   {
     "fall": "Fahrzeug eines Fahrers",
@@ -2177,7 +2177,7 @@
     "art": "antwort",
     "antwort": "Tim Schedler fährt Mercedes V-Klasse Van (M-TR 102).",
     "felder": {},
-    "ms": 1103
+    "ms": 956
   },
   {
     "fall": "Fahrt über Ziel finden",
@@ -2189,7 +2189,7 @@
     "art": "antwort",
     "antwort": "1 Fahrt nach Flughafen, morgen, Di 17.11.:\n- morgen, Di 17.11. 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2, Julia Weber, Anna Berger (noch nicht gestartet)",
     "felder": {},
-    "ms": 1331
+    "ms": 1304
   },
   {
     "fall": "Uhrzeit eines Fahrers",
@@ -2201,7 +2201,7 @@
     "art": "antwort",
     "antwort": "Tim Schedler hat heute 1 Fahrt (kein Dienst eingetragen):\n- 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten, 2 Gäste ohne Namen (noch nicht gestartet)",
     "felder": {},
-    "ms": 1361
+    "ms": 1278
   },
   {
     "fall": "Alle Fahrer",
@@ -2213,7 +2213,7 @@
     "art": "antwort",
     "antwort": "Alle 4 Fahrer:\n1. Anna Berger (#5)\n2. Marvin Keller (#112)\n3. Stefano Spandri (#1)\n4. Tim Schedler (#113)",
     "felder": {},
-    "ms": 998
+    "ms": 1007
   },
   {
     "fall": "Wer ist im Dienst",
@@ -2225,7 +2225,7 @@
     "art": "antwort",
     "antwort": "Heute im Dienst (1):\n- Stefano Spandri: ab 08:00, 2 Fahrten\nOhne Dienst, aber mit Fahrten: Tim Schedler (1).",
     "felder": {},
-    "ms": 1184
+    "ms": 1323
   },
   {
     "fall": "Protokoll: Wo ist Stefano",
@@ -2237,7 +2237,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri ist am Hotel Bayerischer Hof, Promenadeplatz 2-6, 80333 München (Signal gerade eben). Gerade keine Fahrt, nächste um 14:00 ab Flughafen München Terminal 1.",
     "felder": {},
-    "ms": 1264
+    "ms": 1170
   },
   {
     "fall": "Standort mit laufender Fahrt",
@@ -2249,7 +2249,7 @@
     "art": "antwort",
     "antwort": "Tim Schedler ist am Hauptbahnhof München, Bayerstraße 10a, 80335 München (Signal gerade eben). Aktuelle Fahrt: 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten (noch nicht gestartet).",
     "felder": {},
-    "ms": 1197
+    "ms": 1116
   },
   {
     "fall": "Standort ohne Signal",
@@ -2261,7 +2261,7 @@
     "art": "antwort",
     "antwort": "Marvin Keller: kein Standort vorhanden (kein Signal von App oder Tracker). Gerade keine Fahrt, heute keine weitere.",
     "felder": {},
-    "ms": 1158
+    "ms": 1102
   },
   {
     "fall": "Standort aller Fahrer",
@@ -2285,7 +2285,7 @@
     "art": "antwort",
     "antwort": "Am meisten Luft heute ab 11:07: Anna Berger, Marvin Keller, Tim Schedler.\n- Anna Berger: heute keine Fahrt mehr, kein Dienst eingetragen\n- Marvin Keller: heute keine Fahrt mehr, kein Dienst eingetragen\n- Tim Schedler: heute keine Fahrt mehr, kein Dienst eingetragen\n- Stefano Spandri: noch 2 Fahrten (10:30, 14:00), gerade unterwegs, Dienst ab 08:00",
     "felder": {},
-    "ms": 1169
+    "ms": 1269
   },
   {
     "fall": "Konflikt prüfen",
@@ -2297,7 +2297,7 @@
     "art": "antwort",
     "antwort": "Ja, Stefano Spandri schafft die 14:00-Fahrt nach der um 10:30, es bleiben etwa 2 h 35 min Puffer.\nDie 10:30-Fahrt Hotel Bayerischer Hof → Flughafen München Terminal 2 dauert etwa 38 min (Route), mit 10 min zum Aussteigen ist Stefano gegen 11:18 frei.\nAnfahrt zu Flughafen München Terminal 1 etwa 7 min (geschätzt), Ankunft gegen 11:25.",
     "felder": {},
-    "ms": 1427
+    "ms": 1430
   },
   {
     "fall": "Konflikt: geht nicht",
@@ -2309,7 +2309,7 @@
     "art": "antwort",
     "antwort": "Nein, Anna Berger schafft die 08:00-Fahrt nach der um 07:00 nicht, es fehlen etwa 8 min.\nDie 07:00-Fahrt Hauptbahnhof München → Flughafen München Terminal 2 dauert etwa 51 min (geschätzt aus der Entfernung), mit 10 min zum Aussteigen ist Anna gegen 08:01 frei.\nAnfahrt zu Flughafen München Terminal 1 etwa 7 min (geschätzt), Ankunft gegen 08:08.",
     "felder": {},
-    "ms": 1298
+    "ms": 1306
   },
   {
     "fall": "Konflikt: kann X übernehmen",
@@ -2321,7 +2321,7 @@
     "art": "antwort",
     "antwort": "Ja, Marvin Keller kann die 18:00-Fahrt Messe München → Hotel Bayerischer Hof übernehmen.\n- Keine andere Fahrt heute, die sich damit überschneidet\n- Heute ist für Marvin Keller kein Dienst eingetragen\n- Die Fahrt hat noch keinen Fahrer",
     "felder": {},
-    "ms": 1799
+    "ms": 1809
   },
   {
     "fall": "Fahrervorschlag",
@@ -2333,7 +2333,7 @@
     "art": "antwort",
     "antwort": "Für die 18:00-Fahrt Messe München → Hotel Bayerischer Hof (heute, Dauer etwa 30 min):\n1. Stefano Spandri: im Dienst (ab 08:00), vorher 14:00 nach Messe München, 3 h 3 min Puffer, steht schon dort\n2. Anna Berger: kein Dienst eingetragen, an dem Tag keine Fahrt\n3. Marvin Keller: kein Dienst eingetragen, an dem Tag keine Fahrt\n4. Tim Schedler: kein Dienst eingetragen, vorher 09:00 nach Hotel Vier Jahreszeiten, 8 h 11 min Puffer\nSoll ich einen davon eintragen? Schreib z. B. „Gib die Fahrt Stefano“.",
     "felder": {},
-    "ms": 1403
+    "ms": 1382
   },
   {
     "fall": "Neue Fahrt mit Start/Ende-Woertern ist kein Dienst",
@@ -2355,7 +2355,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 2049
+    "ms": 2009
   },
   {
     "fall": "Fahrt mit Start am Ort und Ziel",
@@ -2377,7 +2377,7 @@
       "startOrtId": "o2",
       "zielOrtId": ""
     },
-    "ms": 1754
+    "ms": 1756
   },
   {
     "fall": "Schick Fahrer eine Fahrt vom Hotel zur Arena mit Gast",
@@ -2399,7 +2399,7 @@
       "startOrtId": "o1",
       "zielOrtId": ""
     },
-    "ms": 1930
+    "ms": 1829
   },
   {
     "fall": "Schick Fahrer eine Fahrt fuer jetzt",
@@ -2421,7 +2421,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1671
+    "ms": 1599
   },
   {
     "fall": "Ausdruecklich Dienststart bleibt Start",
@@ -2439,7 +2439,7 @@
       "pausen": "",
       "fahrer": "Stefano Spandri"
     },
-    "ms": 7546
+    "ms": 7203
   },
   {
     "fall": "Start mit Uhrzeit ist Dienst",
@@ -2457,7 +2457,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6865
+    "ms": 6593
   },
   {
     "fall": "Tippfehler dienstart",
@@ -2475,7 +2475,7 @@
       "pausen": "",
       "fahrer": "Marvin Keller"
     },
-    "ms": 7263
+    "ms": 7009
   },
   {
     "fall": "Alle Fahrer Dienstbeginn",
@@ -2493,7 +2493,7 @@
       "pausen": "",
       "fahrer": "Stefano Spandri, Tim Schedler, Marvin Keller, Anna Berger"
     },
-    "ms": 6743
+    "ms": 6270
   },
   {
     "fall": "Zwei Tage in einer Nachricht, dann ja",
@@ -2505,7 +2505,7 @@
     "art": "antwort",
     "antwort": "Ich habe 2 Dienste für Tim Schedler erkannt:\n1. Dienststart 22:00 heute\n2. Dienststart 07:30 morgen\n\nMit „ja“ sende ich alle. Mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 10058
+    "ms": 9453
   },
   {
     "fall": "Zwei Tage in einer Nachricht, dann ja",
@@ -2517,7 +2517,7 @@
     "art": "antwort",
     "antwort": "heute: gesendet\nmorgen: gesendet\nDie Fahrer müssen die Dienste bestätigen.",
     "felder": {},
-    "ms": 3
+    "ms": 1
   },
   {
     "fall": "Dienstende loeschen, dann ja",
@@ -2529,7 +2529,7 @@
     "art": "antwort",
     "antwort": "Bei Anna Berger, morgen (07:00–15:00, angenommen) das Dienstende entfernen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 6131
+    "ms": 5828
   },
   {
     "fall": "Dienstende loeschen, dann ja",
@@ -2541,7 +2541,7 @@
     "art": "antwort",
     "antwort": "Dienstende entfernt:\nAnna Berger, morgen: erledigt",
     "felder": {},
-    "ms": 2
+    "ms": 1
   },
   {
     "fall": "Dienstende loeschen, dann ja",
@@ -2553,7 +2553,7 @@
     "art": "antwort",
     "antwort": "Anna Berger hat morgen Dienst 07:00–offen, Pause 11:30–12:00.",
     "felder": {},
-    "ms": 1942
+    "ms": 1768
   },
   {
     "fall": "Dienst absagen, dann nein",
@@ -2565,7 +2565,7 @@
     "art": "antwort",
     "antwort": "Bei Anna Berger, morgen (07:00–15:00, angenommen) den ganzen Dienst löschen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 6255
+    "ms": 5738
   },
   {
     "fall": "Dienst absagen, dann nein",
@@ -2589,7 +2589,7 @@
     "art": "antwort",
     "antwort": "Bei Stefano Spandri, gestern (22:00–23:30, angenommen) den Dienststart entfernen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 6538
+    "ms": 6235
   },
   {
     "fall": "Dienststart von gestern loeschen (Tippfehler dienstart)",
@@ -2601,7 +2601,7 @@
     "art": "antwort",
     "antwort": "Dienststart entfernt:\nStefano Spandri, gestern: erledigt",
     "felder": {},
-    "ms": 2
+    "ms": 3
   },
   {
     "fall": "Dienst letzten Freitag abfragen",
@@ -2613,7 +2613,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri hat gestern Dienst 22:00–23:30.",
     "felder": {},
-    "ms": 1200
+    "ms": 1209
   },
   {
     "fall": "Pause loeschen",
@@ -2625,7 +2625,7 @@
     "art": "antwort",
     "antwort": "Bei Anna Berger, morgen (07:00–15:00, angenommen) alle Pausen entfernen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 1556
+    "ms": 1532
   },
   {
     "fall": "Feierabend loeschen ohne Ende, nie Fahrer loeschen",
@@ -2637,7 +2637,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri heute (ab 08:00): kein Dienstende eingetragen, nichts zu löschen.",
     "felder": {},
-    "ms": 6244
+    "ms": 5937
   },
   {
     "fall": "Namensliste ohne Auftrag, dann ja",
@@ -2649,7 +2649,7 @@
     "art": "antwort",
     "antwort": "Soll ich Marvin Bendrix, Gregor Müller, Konrad Skurej als neue Fahrer anlegen? Mit „ja“ bereite ich die Fahrer zum Bestätigen vor.",
     "felder": {},
-    "ms": 1333
+    "ms": 1289
   },
   {
     "fall": "Namensliste ohne Auftrag, dann ja",
@@ -2683,7 +2683,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1732
+    "ms": 1788
   },
   {
     "fall": "Allen Fahrern ein Fahrzeug, Karten",
@@ -2695,7 +2695,7 @@
     "art": "antwort",
     "antwort": "Neues Fahrzeug für Marvin Keller. Prüfe die Karten und bestätige sie einzeln, beim Bestätigen ordne ich das Fahrzeug dem Fahrer zu.\nStefano Spandri, Tim Schedler, Anna Berger haben schon ein Fahrzeug und bekommen keins dazu.",
     "felder": {},
-    "ms": 1479
+    "ms": 1531
   },
   {
     "fall": "Allen Fahrern auch mit Fahrzeug",
@@ -2707,7 +2707,7 @@
     "art": "antwort",
     "antwort": "4 Fahrzeuge, je eins pro Fahrer. Prüfe die Karten und bestätige sie einzeln, beim Bestätigen ordne ich das Fahrzeug dem Fahrer zu.",
     "felder": {},
-    "ms": 1399
+    "ms": 1433
   },
   {
     "fall": "Fahrzeug fuer einen Fahrer ohne Karten, dann ja",
@@ -2719,7 +2719,7 @@
     "art": "antwort",
     "antwort": "Neues Fahrzeug: BMW X5\nKennzeichen: M-TR 150\nFahrer: Marvin Keller\n\nSoll ich das Fahrzeug so anlegen? Mit „ja“ speichere ich es. Ändern kannst du vorher noch, z. B. „Kennzeichen M-TR 106“ oder „8 Sitze“.",
     "felder": {},
-    "ms": 1832
+    "ms": 1732
   },
   {
     "fall": "Fahrzeug fuer einen Fahrer ohne Karten, dann ja",
@@ -2731,7 +2731,7 @@
     "art": "antwort",
     "antwort": "Angelegt: BMW X5 (M-TR 150) für Marvin Keller.",
     "felder": {},
-    "ms": 1
+    "ms": 2
   },
   {
     "fall": "Fahrzeug fuer einen Fahrer ohne Karten, dann ja",
@@ -2743,7 +2743,7 @@
     "art": "antwort",
     "antwort": "Marvin Keller fährt BMW X5 (M-TR 150).",
     "felder": {},
-    "ms": 2356
+    "ms": 2262
   },
   {
     "fall": "Jedem Fahrer ohne Modell fragt nach",
@@ -2755,7 +2755,7 @@
     "art": "antwort",
     "antwort": "Welche Marke und welches Modell sollen die 1 Fahrzeuge haben? Zum Beispiel „Erstelle allen Fahrern ein Fahrzeug Mercedes V-Klasse“.",
     "felder": {},
-    "ms": 1736
+    "ms": 1728
   },
   {
     "fall": "Dienststart und Dienstende mit nackten Zahlen",
@@ -2773,7 +2773,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 8408
+    "ms": 7780
   },
   {
     "fall": "Ende vor Start genannt",
@@ -2791,7 +2791,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 8032
+    "ms": 7337
   },
   {
     "fall": "Name und Uhrzeit ist Dienststart",
@@ -2809,7 +2809,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6709
+    "ms": 6487
   },
   {
     "fall": "bis Uhrzeit ist Dienstende",
@@ -2827,7 +2827,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6397
+    "ms": 6094
   },
   {
     "fall": "Uhrzeit mitten im Dienst fragt nach",
@@ -2839,7 +2839,7 @@
     "art": "rueckfrage",
     "antwort": "Anna Berger hat morgen schon Dienst (07:00–15:00, angenommen). 12:00 liegt mitten im Dienst. Meinst du das Dienstende („Dienstende 12:00“) oder eine Pause („Pause 12:00 bis 12:30“)?",
     "felder": {},
-    "ms": 6997
+    "ms": 6793
   },
   {
     "fall": "Ende in Ort ist kein Dienst",
@@ -2851,7 +2851,7 @@
     "art": "antwort",
     "antwort": "Ich finde keine anstehende Fahrt, die dazu passt.",
     "felder": {},
-    "ms": 1756
+    "ms": 1678
   },
   {
     "fall": "Nachricht mit Uhrzeit ist kein Dienst",
@@ -2863,7 +2863,7 @@
     "art": "antwort",
     "antwort": "Push an alle 4 Fahrer: „Morgen Treffpunkt 7 Uhr Halle B.“\nMit „ja“ sende ich sie.",
     "felder": {},
-    "ms": 4220
+    "ms": 4052
   },
   {
     "fall": "Kunde BMW ist kein Fahrzeug",
@@ -2875,7 +2875,7 @@
     "art": "antwort",
     "antwort": "Kunden lege ich im Chat noch nicht an. Die Firma eines Gastes trägst du beim Gast unter Fahrgäste ein.",
     "felder": {},
-    "ms": 1347
+    "ms": 1339
   },
   {
     "fall": "Gast anlegen fragt nach",
@@ -2887,7 +2887,7 @@
     "art": "antwort",
     "antwort": "Neuer Gast: Uli Hoeneß, Telefon 0170 1234567. Mit „ja“ lege ich ihn an.",
     "felder": {},
-    "ms": 7134
+    "ms": 6862
   },
   {
     "fall": "Telefon eines Gastes",
@@ -2899,7 +2899,7 @@
     "art": "antwort",
     "antwort": "Die Telefonnummer von Julia Weber ist +49 170 333.",
     "felder": {},
-    "ms": 1250
+    "ms": 1225
   },
   {
     "fall": "Firma eines Gastes",
@@ -2911,7 +2911,7 @@
     "art": "antwort",
     "antwort": "Julia Weber gehört zu BMW Group.",
     "felder": {},
-    "ms": 1230
+    "ms": 1231
   },
   {
     "fall": "Telefon eines Fahrers bleibt Fahrer",
@@ -2923,7 +2923,7 @@
     "art": "antwort",
     "antwort": "Die Telefonnummer von Tim Schedler ist +49 151 2.",
     "felder": {},
-    "ms": 1210
+    "ms": 1222
   },
   {
     "fall": "Standbys anzeigen",
@@ -2935,7 +2935,7 @@
     "art": "antwort",
     "antwort": "Standby morgen:\n- morgen 10:00–18:00, Kongress, Tim Schedler, Marvin Keller",
     "felder": {},
-    "ms": 1330
+    "ms": 1117
   },
   {
     "fall": "Standby fuer einen Fahrer loeschen, dann ja",
@@ -2947,7 +2947,7 @@
     "art": "antwort",
     "antwort": "Tim Schedler aus dem Standby morgen 10:00–18:00, Kongress, Tim Schedler, Marvin Keller nehmen? Die anderen bleiben. Mit „ja“ ändere ich es.",
     "felder": {},
-    "ms": 11865
+    "ms": 6668
   },
   {
     "fall": "Standby fuer einen Fahrer loeschen, dann ja",
@@ -2971,7 +2971,7 @@
     "art": "antwort",
     "antwort": "Standby morgen:\n- morgen 10:00–18:00, Kongress, Marvin Keller",
     "felder": {},
-    "ms": 2184
+    "ms": 2041
   },
   {
     "fall": "Standby verschieben, dann ja",
@@ -2983,7 +2983,7 @@
     "art": "antwort",
     "antwort": "Standby morgen 10:00–18:00, Kongress, Tim Schedler, Marvin Keller auf 12:00–20:00 ändern? Die Fahrer sehen die neue Zeit in der App. Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 8035
+    "ms": 7483
   },
   {
     "fall": "Standby verschieben, dann ja",
@@ -3007,7 +3007,7 @@
     "art": "antwort",
     "antwort": "Ich habe 7 Dienste für Tim Schedler erkannt:\n1. Dienststart 07:00, Dienstende 15:00 Mo 23.11.\n2. Dienststart 07:00, Dienstende 15:00 Di 24.11.\n3. Dienststart 07:00, Dienstende 15:00 Mi 25.11.\n4. Dienststart 07:00, Dienstende 15:00 Do 26.11.\n5. Dienststart 07:00, Dienstende 15:00 Fr 27.11.\n6. Dienststart 07:00, Dienstende 15:00 Sa 28.11.\n7. Dienststart 07:00, Dienstende 15:00 So 29.11.\n\nMit „ja“ sende ich alle. Mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 1293
+    "ms": 1327
   },
   {
     "fall": "Dienste fuer ganze Woche, dann ja",
@@ -3019,7 +3019,7 @@
     "art": "antwort",
     "antwort": "Mo 23.11.: gesendet\nDi 24.11.: gesendet\nMi 25.11.: gesendet\nDo 26.11.: gesendet\nFr 27.11.: gesendet\nSa 28.11.: gesendet\nSo 29.11.: gesendet\nDie Fahrer müssen die Dienste bestätigen.",
     "felder": {},
-    "ms": 2
+    "ms": 1
   },
   {
     "fall": "Dienste fuer ganze Woche, dann ja",
@@ -3031,7 +3031,7 @@
     "art": "antwort",
     "antwort": "Bei Tim Schedler, Mo 23.11. (07:00–15:00, noch nicht bestätigt) und Tim Schedler, Di 24.11. (07:00–15:00, noch nicht bestätigt) und Tim Schedler, Mi 25.11. (07:00–15:00, noch nicht bestätigt) und Tim Schedler, Do 26.11. (07:00–15:00, noch nicht bestätigt) und Tim Schedler, Fr 27.11. (07:00–15:00, noch nicht bestätigt) und Tim Schedler, Sa 28.11. (07:00–15:00, noch nicht bestätigt) und Tim Schedler, So 29.11. (07:00–15:00, noch nicht bestätigt) den ganzen Dienst löschen? Das betrifft 7 Dienste. Zur Sicherheit sag „ja, löschen“, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 12992
+    "ms": 12616
   },
   {
     "fall": "Dienste fuer ganze Woche, dann ja",
@@ -3055,7 +3055,7 @@
     "art": "antwort",
     "antwort": "Dienst gelöscht:\nTim Schedler, Mo 23.11.: erledigt\nTim Schedler, Di 24.11.: erledigt\nTim Schedler, Mi 25.11.: erledigt\nTim Schedler, Do 26.11.: erledigt\nTim Schedler, Fr 27.11.: erledigt\nTim Schedler, Sa 28.11.: erledigt\nTim Schedler, So 29.11.: erledigt",
     "felder": {},
-    "ms": 1
+    "ms": 2
   },
   {
     "fall": "Dienste werktags",
@@ -3067,7 +3067,7 @@
     "art": "antwort",
     "antwort": "Ich habe 5 Dienste für Tim Schedler erkannt:\n1. Dienststart 08:00, Dienstende 16:00 Mo 23.11.\n2. Dienststart 08:00, Dienstende 16:00 Di 24.11.\n3. Dienststart 08:00, Dienstende 16:00 Mi 25.11.\n4. Dienststart 08:00, Dienstende 16:00 Do 26.11.\n5. Dienststart 08:00, Dienstende 16:00 Fr 27.11.\n\nMit „ja“ sende ich alle. Mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 1644
+    "ms": 1918
   },
   {
     "fall": "Notiz an Fahrt ist keine Gaeste-Frage",
@@ -3079,7 +3079,7 @@
     "art": "antwort",
     "antwort": "Notiz „Kindersitz“ zur Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri? Mit „ja“ speichere ich sie, der Fahrer sieht sie in der App.",
     "felder": {},
-    "ms": 7800
+    "ms": 7576
   },
   {
     "fall": "Wer hat morgen Dienst",
@@ -3091,7 +3091,7 @@
     "art": "antwort",
     "antwort": "Morgen Dienst (1):\n- Anna Berger: 07:00–15:00, Pause 11:30–12:00",
     "felder": {},
-    "ms": 1267
+    "ms": 1235
   },
   {
     "fall": "Fahrt stornieren, dann rueckgaengig",
@@ -3103,7 +3103,7 @@
     "art": "antwort",
     "antwort": "Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri stornieren? Mit „ja“ storniere ich sie, rückgängig geht danach mit „rückgängig“.",
     "felder": {},
-    "ms": 7231
+    "ms": 6820
   },
   {
     "fall": "Fahrt stornieren, dann rueckgaengig",
@@ -3115,7 +3115,7 @@
     "art": "antwort",
     "antwort": "Storniert: heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri.",
     "felder": {},
-    "ms": 1
+    "ms": 2
   },
   {
     "fall": "Fahrt stornieren, dann rueckgaengig",
@@ -3127,7 +3127,7 @@
     "art": "antwort",
     "antwort": "Rückgängig gemacht: Stornierung von heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri.",
     "felder": {},
-    "ms": 2726
+    "ms": 2445
   },
   {
     "fall": "Fahrt loeschen braucht loeschen",
@@ -3139,7 +3139,7 @@
     "art": "antwort",
     "antwort": "Fahrt morgen 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2, Julia Weber, Anna Berger endgültig löschen? Das geht nicht rückgängig, stornieren wäre die sanfte Variante. Schreib „löschen“, dann lösche ich sie.",
     "felder": {},
-    "ms": 7552
+    "ms": 7097
   },
   {
     "fall": "Fahrt loeschen braucht loeschen",
@@ -3151,7 +3151,7 @@
     "art": "antwort",
     "antwort": "Zum endgültigen Löschen schreib „löschen“. Mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 1
+    "ms": 2
   },
   {
     "fall": "Fahrt loeschen braucht loeschen",
@@ -3163,7 +3163,7 @@
     "art": "antwort",
     "antwort": "Gelöscht: morgen 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2, Julia Weber, Anna Berger. Das lässt sich nicht rückgängig machen.",
     "felder": {},
-    "ms": 0
+    "ms": 1
   },
   {
     "fall": "Fahrt erledigt",
@@ -3175,7 +3175,7 @@
     "art": "antwort",
     "antwort": "Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri als erledigt markieren? Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 7469
+    "ms": 7244
   },
   {
     "fall": "Fahrt erledigt",
@@ -3199,7 +3199,7 @@
     "art": "antwort",
     "antwort": "Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri auf Fr 20.11. kopieren, gleiche Uhrzeit, noch ohne Fahrer? Mit „ja“ lege ich die Kopie an.",
     "felder": {},
-    "ms": 9535
+    "ms": 9177
   },
   {
     "fall": "Fahrt kopieren",
@@ -3211,7 +3211,7 @@
     "art": "antwort",
     "antwort": "Kopiert auf Fr 20.11., noch ohne Fahrer.",
     "felder": {},
-    "ms": 2
+    "ms": 1
   },
   {
     "fall": "Notiz an Fahrt",
@@ -3223,7 +3223,7 @@
     "art": "antwort",
     "antwort": "Notiz „Kindersitz“ zur Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri? Mit „ja“ speichere ich sie, der Fahrer sieht sie in der App.",
     "felder": {},
-    "ms": 7641
+    "ms": 7439
   },
   {
     "fall": "Notiz an Fahrt",
@@ -3247,7 +3247,7 @@
     "art": "antwort",
     "antwort": "Mehrere Fahrten passen:\n- heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri\n- heute 14:00 Flughafen München Terminal 1 → Messe München, Markus Müller, Stefano Spandri\nNenne noch Tag oder Uhrzeit.",
     "felder": {},
-    "ms": 6373
+    "ms": 6202
   },
   {
     "fall": "Nachricht an alle",
@@ -3259,7 +3259,7 @@
     "art": "antwort",
     "antwort": "Push an alle 4 Fahrer: „Morgen Treffpunkt 7 Uhr Halle B.“\nMit „ja“ sende ich sie.",
     "felder": {},
-    "ms": 4040
+    "ms": 3727
   },
   {
     "fall": "Nachricht an alle",
@@ -3283,7 +3283,7 @@
     "art": "antwort",
     "antwort": "Push an Tim Schedler: „Melde dich bitte.“\nMit „ja“ sende ich sie.",
     "felder": {},
-    "ms": 3507
+    "ms": 3178
   },
   {
     "fall": "Telefon Fahrer aendern, dann rueckgaengig",
@@ -3295,7 +3295,7 @@
     "art": "antwort",
     "antwort": "Telefonnummer von Tim Schedler auf 0151 555666 ändern? Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 1428
+    "ms": 1335
   },
   {
     "fall": "Telefon Fahrer aendern, dann rueckgaengig",
@@ -3319,7 +3319,7 @@
     "art": "antwort",
     "antwort": "Die Telefonnummer von Tim Schedler ist 0151 555666.",
     "felder": {},
-    "ms": 1736
+    "ms": 1717
   },
   {
     "fall": "Telefon Fahrer aendern, dann rueckgaengig",
@@ -3331,7 +3331,7 @@
     "art": "antwort",
     "antwort": "Rückgängig gemacht: Telefon von Tim Schedler → 0151 555666.",
     "felder": {},
-    "ms": 2694
+    "ms": 2481
   },
   {
     "fall": "Telefon Fahrer aendern, dann rueckgaengig",
@@ -3343,7 +3343,7 @@
     "art": "antwort",
     "antwort": "Die Telefonnummer von Tim Schedler ist +49 151 2.",
     "felder": {},
-    "ms": 1843
+    "ms": 1749
   },
   {
     "fall": "Fahrernummer",
@@ -3355,7 +3355,7 @@
     "art": "antwort",
     "antwort": "Marvin Keller bekommt die Fahrernummer 20? Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 1432
+    "ms": 1244
   },
   {
     "fall": "Fahrernummer belegt",
@@ -3367,7 +3367,7 @@
     "art": "antwort",
     "antwort": "Die Nummer 113 hat schon Tim Schedler.",
     "felder": {},
-    "ms": 1463
+    "ms": 1201
   },
   {
     "fall": "Flagge",
@@ -3379,7 +3379,7 @@
     "art": "antwort",
     "antwort": "Tim Schedler mit Flagge 2 (Pink) markieren? Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 1291
+    "ms": 1298
   },
   {
     "fall": "Passwort",
@@ -3391,7 +3391,7 @@
     "art": "antwort",
     "antwort": "Für Tim Schedler ein neues Passwort erzeugen? Tim wird dann auf allen Geräten abgemeldet. Mit „ja“ setze ich es.",
     "felder": {},
-    "ms": 1048
+    "ms": 1109
   },
   {
     "fall": "Passwort alle verweigert",
@@ -3403,7 +3403,7 @@
     "art": "antwort",
     "antwort": "Passwörter setze ich nur einzeln neu. Nenne den Fahrer.",
     "felder": {},
-    "ms": 1075
+    "ms": 1033
   },
   {
     "fall": "Kennzeichen aendern",
@@ -3415,7 +3415,7 @@
     "art": "antwort",
     "antwort": "BMW 7er (M-TR 101): Kennzeichen auf M-TR 111 ändern? Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 6073
+    "ms": 5555
   },
   {
     "fall": "Reichweite",
@@ -3427,7 +3427,7 @@
     "art": "antwort",
     "antwort": "Mercedes V-Klasse (M-TR 102): 312 km, 54 %",
     "felder": {},
-    "ms": 1072
+    "ms": 1073
   },
   {
     "fall": "Tracker-Stufe",
@@ -3439,7 +3439,7 @@
     "art": "antwort",
     "antwort": "Alle 2 Tracker auf Stufe fein stellen? Fein braucht mehr Datenvolumen. Mit „ja“ stelle ich es um.",
     "felder": {},
-    "ms": 1081
+    "ms": 1173
   },
   {
     "fall": "Gast anlegen",
@@ -3451,7 +3451,7 @@
     "art": "antwort",
     "antwort": "Neuer Gast: Uli Hoeneß, Telefon 0170 1234567. Mit „ja“ lege ich ihn an.",
     "felder": {},
-    "ms": 6338
+    "ms": 6576
   },
   {
     "fall": "Gast anlegen",
@@ -3463,7 +3463,7 @@
     "art": "antwort",
     "antwort": "Gast angelegt: Uli Hoeneß.",
     "felder": {},
-    "ms": 0
+    "ms": 1
   },
   {
     "fall": "Gast anlegen",
@@ -3475,7 +3475,7 @@
     "art": "antwort",
     "antwort": "Die Telefonnummer von Uli Hoeneß ist 0170 1234567.",
     "felder": {},
-    "ms": 1699
+    "ms": 1857
   },
   {
     "fall": "Gast Telefon aendern",
@@ -3487,7 +3487,7 @@
     "art": "antwort",
     "antwort": "Telefonnummer von Julia Weber auf 0171 999888 ändern? Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 1343
+    "ms": 1480
   },
   {
     "fall": "Stundenzettel bestaetigen",
@@ -3499,7 +3499,7 @@
     "art": "antwort",
     "antwort": "Bestätigen:\n- Marvin Keller, heute, 6:30 h\nMit „ja“ bestätige ich sie.",
     "felder": {},
-    "ms": 1251
+    "ms": 1266
   },
   {
     "fall": "Stunden-Export zeigt Weg",
@@ -3511,7 +3511,7 @@
     "art": "antwort",
     "antwort": "Die Excel-Datei erstelle ich im Chat nicht. Unter Fahrer, Stunden, Export wählst du den Zeitraum und lädst sie herunter.",
     "felder": {},
-    "ms": 1036
+    "ms": 1124
   },
   {
     "fall": "Wie viele Fahrer",
@@ -3523,7 +3523,7 @@
     "art": "antwort",
     "antwort": "Heute: 4 Fahrten, höchstens 1 gleichzeitig (gegen 10:15). Du brauchst also mindestens 1 Fahrer, mit Pausen und Rückwegen eher 2. Das ist eine grobe Schätzung, genau rechnet der KI-Planer.",
     "felder": {},
-    "ms": 1223
+    "ms": 1187
   },
   {
     "fall": "Hilfe",
@@ -3535,7 +3535,7 @@
     "art": "antwort",
     "antwort": "Das kann ich, alles erst mit Rückfrage:\n- Fahrten buchen, ändern, stornieren, löschen, als erledigt markieren, kopieren, Notiz setzen\n- Mehrere Aufträge in einer Nachricht, Standby zur Fahrt, Flugstatus („Wann landet LH2034?“)\n- Dienste senden, ändern und löschen, auch für eine ganze Woche oder alle Fahrer\n- Standby anlegen, anzeigen, verschieben, löschen\n- Fahrer und Fahrzeuge anlegen, löschen, zuordnen, Telefon, Nummer, Flagge, Kennzeichen ändern, Passwort neu setzen\n- Nachrichten an einzelne oder alle Fahrer, Tracker-Stufe stellen\n- Gäste und Orte anlegen, Gäste-Daten abfragen und ändern\n- Stundenlohn setzen, Stundenzettel bestätigen, Stunden und Dienste abfragen\n- Fragen: wer ist frei, wer hat Dienst, wo ist ein Fahrer, welche Fahrten sind verspätet, wie viele Fahrer brauche ich\n- „rückgängig“ macht den letzten Schritt rückgängig, wenn das geht",
     "felder": {},
-    "ms": 1034
+    "ms": 1014
   },
   {
     "fall": "Rueckgaengig ohne Aenderung",
@@ -3547,7 +3547,7 @@
     "art": "antwort",
     "antwort": "Ich habe in diesem Gespräch nichts geändert, was ich rückgängig machen kann.",
     "felder": {},
-    "ms": 1831
+    "ms": 1597
   },
   {
     "fall": "Verspaetete Fahrten",
@@ -3559,7 +3559,7 @@
     "art": "antwort",
     "antwort": "Verspätet heute (2):\n- heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri: Abfahrt vorbei, noch nicht gestartet\n- heute 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten, Tim Schedler: Abfahrt vorbei, noch nicht gestartet",
     "felder": {},
-    "ms": 1307
+    "ms": 1133
   },
   {
     "fall": "Freie Fahrzeuge",
@@ -3571,7 +3571,7 @@
     "art": "antwort",
     "antwort": "Alle Fahrzeuge sind einem Fahrer zugeordnet.",
     "felder": {},
-    "ms": 1347
+    "ms": 1047
   },
   {
     "fall": "Fahrten eines Kunden",
@@ -3583,7 +3583,7 @@
     "art": "antwort",
     "antwort": "BMW, diesen Monat: 1 Fahrt\n- morgen 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2, Julia Weber, Anna Berger",
     "felder": {},
-    "ms": 1395
+    "ms": 1234
   },
   {
     "fall": "Nachricht mit dass",
@@ -3595,7 +3595,7 @@
     "art": "antwort",
     "antwort": "Push an Tim Schedler: „Sei pünktlich.“\nMit „ja“ sende ich sie.",
     "felder": {},
-    "ms": 3848
+    "ms": 3429
   },
   {
     "fall": "Nachricht an mit Doppelpunkt",
@@ -3607,7 +3607,7 @@
     "art": "antwort",
     "antwort": "Push an Stefano Spandri: „Beeil dich bitte.“\nMit „ja“ sende ich sie.",
     "felder": {},
-    "ms": 4317
+    "ms": 3591
   },
   {
     "fall": "Nachricht ohne Empfaenger, dann Name",
@@ -3619,7 +3619,7 @@
     "art": "antwort",
     "antwort": "An wen soll „Treffpunkt Halle B“ gehen? Nenne den Fahrer oder „alle“.",
     "felder": {},
-    "ms": 3547
+    "ms": 2979
   },
   {
     "fall": "Nachricht ohne Empfaenger, dann Name",
@@ -3631,7 +3631,7 @@
     "art": "antwort",
     "antwort": "Push an Stefano Spandri: „Treffpunkt Halle B“\nMit „ja“ sende ich sie.",
     "felder": {},
-    "ms": 0
+    "ms": 1
   },
   {
     "fall": "Nachricht ohne Empfaenger, dann Name",
@@ -3655,7 +3655,7 @@
     "art": "rueckfrage",
     "antwort": "Was soll in der Nachricht an Tim Schedler stehen?",
     "felder": {},
-    "ms": 3211
+    "ms": 2783
   },
   {
     "fall": "Nachricht ohne Text, dann Text",
@@ -3667,7 +3667,7 @@
     "art": "antwort",
     "antwort": "Push an Tim Schedler: „Bitte zum Terminal 2 kommen“\nMit „ja“ sende ich sie.",
     "felder": {},
-    "ms": 1
+    "ms": 2
   },
   {
     "fall": "Namensliste bekannter Fahrer",
@@ -3679,7 +3679,7 @@
     "art": "antwort",
     "antwort": "Tim Schedler, Anna Berger sind schon Fahrer. Was soll ich mit ihnen machen? Zum Beispiel einen Dienst schicken oder eine Fahrt buchen.",
     "felder": {},
-    "ms": 1256
+    "ms": 1107
   },
   {
     "fall": "Frei: halb 8 morgen",
@@ -3697,7 +3697,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 7077
+    "ms": 6702
   },
   {
     "fall": "Frei: viertel nach sechs",
@@ -3715,7 +3715,7 @@
       "pausen": "",
       "fahrer": "Marvin Keller"
     },
-    "ms": 7952
+    "ms": 7593
   },
   {
     "fall": "Frei: Feierabend jetzt",
@@ -3733,7 +3733,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6396
+    "ms": 5950
   },
   {
     "fall": "Frei: Schicht mit Pause",
@@ -3751,7 +3751,7 @@
       "pausen": "12:00-12:30",
       "fahrer": "Tim Schedler"
     },
-    "ms": 11346
+    "ms": 10134
   },
   {
     "fall": "Frei: Wochentag",
@@ -3769,7 +3769,7 @@
       "pausen": "",
       "fahrer": "Anna Berger"
     },
-    "ms": 8316
+    "ms": 7782
   },
   {
     "fall": "Frei: Dienst von gestern weg",
@@ -3781,7 +3781,7 @@
     "art": "antwort",
     "antwort": "Bei Stefano Spandri, gestern (22:00–23:30, angenommen) den ganzen Dienst löschen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 6582
+    "ms": 6319
   },
   {
     "fall": "Frei: nur Dienstende weg",
@@ -3793,7 +3793,7 @@
     "art": "antwort",
     "antwort": "Bei Anna Berger, morgen (07:00–15:00, angenommen) das Dienstende entfernen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 6168
+    "ms": 5938
   },
   {
     "fall": "Frei: Pause weg",
@@ -3805,7 +3805,7 @@
     "art": "antwort",
     "antwort": "Bei Anna Berger, morgen (07:00–15:00, angenommen) alle Pausen entfernen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 6387
+    "ms": 5954
   },
   {
     "fall": "Frei: Standby anzeigen",
@@ -3817,7 +3817,7 @@
     "art": "antwort",
     "antwort": "Standby morgen:\n- morgen 10:00–18:00, Kongress, Tim Schedler, Marvin Keller",
     "felder": {},
-    "ms": 1174
+    "ms": 1157
   },
   {
     "fall": "Frei: Standby verschieben",
@@ -3829,7 +3829,7 @@
     "art": "antwort",
     "antwort": "Standby: Ort offen, 17.11. 12:00–20:00.\nDen Ort habe ich nicht gefunden. Leg den Standby bitte in Fahrt hinzufügen an.",
     "felder": {},
-    "ms": 7217
+    "ms": 6908
   },
   {
     "fall": "Frei: Fahrt absagen",
@@ -3841,7 +3841,7 @@
     "art": "antwort",
     "antwort": "Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri stornieren? Mit „ja“ storniere ich sie, rückgängig geht danach mit „rückgängig“.",
     "felder": {},
-    "ms": 9023
+    "ms": 8636
   },
   {
     "fall": "Frei: Fahrt erledigt",
@@ -3853,7 +3853,7 @@
     "art": "antwort",
     "antwort": "Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri als erledigt markieren? Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 8499
+    "ms": 8064
   },
   {
     "fall": "Frei: Fahrt kopieren",
@@ -3865,7 +3865,7 @@
     "art": "antwort",
     "antwort": "Fahrt morgen 07:15 Hotel Bayerischer Hof → Flughafen München Terminal 2, Julia Weber, Anna Berger auf Mo 30.11. kopieren, gleiche Uhrzeit, noch ohne Fahrer? Mit „ja“ lege ich die Kopie an.",
     "felder": {},
-    "ms": 9977
+    "ms": 9176
   },
   {
     "fall": "Frei: Notiz",
@@ -3877,7 +3877,7 @@
     "art": "antwort",
     "antwort": "Notiz „Gast hat zwei Koffer“ zur Fahrt heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri? Mit „ja“ speichere ich sie, der Fahrer sieht sie in der App.",
     "felder": {},
-    "ms": 9376
+    "ms": 8616
   },
   {
     "fall": "Liste, dann zweite verschieben",
@@ -3889,7 +3889,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri hat heute 2 Fahrten (Dienst ab 08:00):\n- 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel (noch nicht gestartet)\n- 14:00 Flughafen München Terminal 1 → Messe München, Markus Müller +1 (noch nicht gestartet)",
     "felder": {},
-    "ms": 1229
+    "ms": 1150
   },
   {
     "fall": "Liste, dann zweite verschieben",
@@ -3933,7 +3933,7 @@
       "startOrtId": "o2",
       "zielOrtId": "o4"
     },
-    "ms": 1662
+    "ms": 1633
   },
   {
     "fall": "Buchung ergänzen",
@@ -3955,7 +3955,7 @@
       "startOrtId": "o2",
       "zielOrtId": "o4"
     },
-    "ms": 2026
+    "ms": 2047
   },
   {
     "fall": "Änderung korrigieren",
@@ -3977,7 +3977,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1781
+    "ms": 1869
   },
   {
     "fall": "Änderung korrigieren",
@@ -3999,7 +3999,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 2461
+    "ms": 2311
   },
   {
     "fall": "Standort der beiden",
@@ -4011,7 +4011,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri hat heute 2 Fahrten (Dienst ab 08:00):\n- 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel (noch nicht gestartet)\n- 14:00 Flughafen München Terminal 1 → Messe München, Markus Müller +1 (noch nicht gestartet)\n\nTim Schedler hat heute 1 Fahrt (kein Dienst eingetragen):\n- 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten, 2 Gäste ohne Namen (noch nicht gestartet)",
     "felder": {},
-    "ms": 1289
+    "ms": 1054
   },
   {
     "fall": "Standort der beiden",
@@ -4023,7 +4023,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri ist am Hotel Bayerischer Hof, Promenadeplatz 2-6, 80333 München (Signal gerade eben). Gerade keine Fahrt, nächste um 14:00 ab Flughafen München Terminal 1.\nTim Schedler ist am Hauptbahnhof München, Bayerstraße 10a, 80335 München (Signal gerade eben). Aktuelle Fahrt: 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten (noch nicht gestartet).",
     "felder": {},
-    "ms": 2553
+    "ms": 2277
   },
   {
     "fall": "Buchung: fehlendes Ziel nachreichen",
@@ -4035,7 +4035,7 @@
     "art": "booking_needs_clarification",
     "antwort": "Fahrt morgen um 07:00 ab Hotel Bayerischer Hof: Wohin soll die Fahrt gehen (Ziel)?",
     "felder": {},
-    "ms": 12273
+    "ms": 10873
   },
   {
     "fall": "Buchung: fehlendes Ziel nachreichen",
@@ -4057,7 +4057,7 @@
       "startOrtId": "o1",
       "zielOrtId": "o4"
     },
-    "ms": 18
+    "ms": 23
   },
   {
     "fall": "Vorschlag übernehmen",
@@ -4069,7 +4069,7 @@
     "art": "antwort",
     "antwort": "Für die 18:00-Fahrt Messe München → Hotel Bayerischer Hof (heute, Dauer etwa 30 min):\n1. Stefano Spandri: im Dienst (ab 08:00), vorher 14:00 nach Messe München, 3 h 3 min Puffer, steht schon dort\n2. Anna Berger: kein Dienst eingetragen, an dem Tag keine Fahrt\n3. Marvin Keller: kein Dienst eingetragen, an dem Tag keine Fahrt\n4. Tim Schedler: kein Dienst eingetragen, vorher 09:00 nach Hotel Vier Jahreszeiten, 8 h 11 min Puffer\nSoll ich einen davon eintragen? Schreib z. B. „Gib die Fahrt Stefano“.",
     "felder": {},
-    "ms": 1339
+    "ms": 1184
   },
   {
     "fall": "Vorschlag übernehmen",
@@ -4091,7 +4091,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 3488
+    "ms": 3229
   },
   {
     "fall": "Neue Frage statt Auswahl",
@@ -4103,7 +4103,7 @@
     "art": "rueckfrage",
     "antwort": "Dazu passen 2 Fahrten. Welche meinst du?\n- 16.11. 10:30, Hotel Bayerischer Hof nach Flughafen München Terminal 2, Stefano Spandri\n- 16.11. 14:00, Flughafen München Terminal 1 nach Messe München, Stefano Spandri",
     "felder": {},
-    "ms": 1861
+    "ms": 1683
   },
   {
     "fall": "Neue Frage statt Auswahl",
@@ -4115,7 +4115,7 @@
     "art": "antwort",
     "antwort": "Stefano Spandri ist am Hotel Bayerischer Hof, Promenadeplatz 2-6, 80333 München (Signal gerade eben). Gerade keine Fahrt, nächste um 14:00 ab Flughafen München Terminal 1.",
     "felder": {},
-    "ms": 2008
+    "ms": 1677
   },
   {
     "fall": "Rückfrage beantworten",
@@ -4127,7 +4127,7 @@
     "art": "rueckfrage",
     "antwort": "Dazu passen 2 Fahrten. Welche meinst du?\n- 16.11. 10:30, Hotel Bayerischer Hof nach Flughafen München Terminal 2, Stefano Spandri\n- 16.11. 14:00, Flughafen München Terminal 1 nach Messe München, Stefano Spandri",
     "felder": {},
-    "ms": 1643
+    "ms": 1421
   },
   {
     "fall": "Rückfrage beantworten",
@@ -4149,7 +4149,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 2816
+    "ms": 2565
   },
   {
     "fall": "Pause setzt kein Dienstende",
@@ -4167,7 +4167,7 @@
       "pausen": "12:00-12:30",
       "fahrer": "Anna Berger"
     },
-    "ms": 1681
+    "ms": 1520
   },
   {
     "fall": "Pause mit Dauer",
@@ -4185,7 +4185,7 @@
       "pausen": "13:00-13:30",
       "fahrer": "Stefano Spandri"
     },
-    "ms": 8821
+    "ms": 7603
   },
   {
     "fall": "Pause jetzt",
@@ -4203,7 +4203,7 @@
       "pausen": "11:15-11:45",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6674
+    "ms": 5834
   },
   {
     "fall": "Tippfehler morgn",
@@ -4221,7 +4221,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6518
+    "ms": 5826
   },
   {
     "fall": "Verhoert Dienst statt",
@@ -4239,23 +4239,79 @@
       "pausen": "",
       "fahrer": "Stefano Spandri"
     },
-    "ms": 9019
+    "ms": 6562
   },
   {
-    "fall": "Am Montag ist morgen",
+    "fall": "Wochentag von morgen ist morgen",
     "gruppe": "Mensch",
     "schritt": 1,
-    "frage": "Habe ausversehen den Dienststart für alle am Montag eingetragen um 10:30, bitte den löschen",
-    "ok": false,
-    "fehler": [
-      "Antwort ohne \"Anna Berger\"",
-      "Antwort ohne \"morgen\"",
-      "Antwort mit \"23.11.\""
-    ],
+    "frage": "Habe ausversehen den Dienststart für alle am Dienstag eingetragen um 10:30, bitte den löschen",
+    "ok": true,
+    "fehler": [],
     "art": "antwort",
-    "antwort": "Keiner der Fahrer hat Mo 23.11. keinen Dienst. Es gibt nichts zu löschen.",
+    "antwort": "Bei Anna Berger, morgen (07:00–15:00, angenommen) den Dienststart entfernen? Stefano Spandri, Tim Schedler, Marvin Keller haben morgen keinen Dienst. Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 6694
+    "ms": 6094
+  },
+  {
+    "fall": "Wochentag von heute meint beim Löschen heute",
+    "gruppe": "Mensch",
+    "schritt": 1,
+    "frage": "Habe ausversehen den Dienststart für alle am Montag eingetragen, bitte den löschen",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Bei Stefano Spandri, heute (ab 08:00, angenommen) den Dienststart entfernen? Ohne Start und Ende bleibt kein Dienst übrig, dann lösche ich ihn ganz. Tim Schedler, Marvin Keller, Anna Berger haben heute keinen Dienst. Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
+    "felder": {},
+    "ms": 5268
+  },
+  {
+    "fall": "Kein Dienst am Tag, klarer Satz",
+    "gruppe": "Mensch",
+    "schritt": 1,
+    "frage": "Lösch den Dienst von Marvin morgen",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Marvin Keller hat morgen keinen Dienst. Es gibt nichts zu löschen.",
+    "felder": {},
+    "ms": 5514
+  },
+  {
+    "fall": "Fahrzeug-Frage nein",
+    "gruppe": "Mensch",
+    "schritt": 1,
+    "frage": "Bekommt Tim den BMW",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Nein, Tim Schedler fährt Mercedes V-Klasse (M-TR 102). BMW 7er (M-TR 101) fährt Stefano Spandri. BMW X5 (M-TR 103) fährt Anna Berger.",
+    "felder": {},
+    "ms": 3899
+  },
+  {
+    "fall": "Fahrzeug-Frage ja",
+    "gruppe": "Mensch",
+    "schritt": 1,
+    "frage": "Fährt Tim den Mercedes?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Ja, Tim Schedler fährt Mercedes V-Klasse (M-TR 102).",
+    "felder": {},
+    "ms": 1057
+  },
+  {
+    "fall": "Wer fährt das Modell",
+    "gruppe": "Mensch",
+    "schritt": 1,
+    "frage": "Wer fährt den X5",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "BMW X5 (M-TR 103) fährt Anna Berger.",
+    "felder": {},
+    "ms": 1067
   },
   {
     "fall": "Fahrt am zum",
@@ -4277,7 +4333,7 @@
       "startOrtId": "",
       "zielOrtId": ""
     },
-    "ms": 1802
+    "ms": 1601
   },
   {
     "fall": "Fahrt mit allen ausser einem, frei gesagt",
@@ -4299,7 +4355,7 @@
       "startOrtId": "o5",
       "zielOrtId": ""
     },
-    "ms": 3263
+    "ms": 3080
   },
   {
     "fall": "Fahrt halb 4 klein getippt",
@@ -4321,7 +4377,7 @@
       "startOrtId": "o1",
       "zielOrtId": ""
     },
-    "ms": 1988
+    "ms": 1822
   },
   {
     "fall": "Zweite Fahrt ist eine neue",
@@ -4343,7 +4399,7 @@
       "startOrtId": "o1",
       "zielOrtId": "o5"
     },
-    "ms": 1994
+    "ms": 1794
   },
   {
     "fall": "Zweite Fahrt ist eine neue",
@@ -4365,7 +4421,7 @@
       "startOrtId": "o5",
       "zielOrtId": ""
     },
-    "ms": 2109
+    "ms": 2008
   },
   {
     "fall": "Korrektur bleibt Korrektur",
@@ -4387,7 +4443,7 @@
       "startOrtId": "o1",
       "zielOrtId": "o5"
     },
-    "ms": 1544
+    "ms": 1419
   },
   {
     "fall": "Korrektur bleibt Korrektur",
@@ -4409,7 +4465,7 @@
       "startOrtId": "o1",
       "zielOrtId": "o5"
     },
-    "ms": 2192
+    "ms": 1948
   },
   {
     "fall": "Buchen Schritt fuer Schritt, Heute ist kein Ziel",
@@ -4421,7 +4477,7 @@
     "art": "booking_needs_clarification",
     "antwort": "Fahrt heute: Wo soll der Gast abgeholt werden? Wohin soll die Fahrt gehen (Ziel)? Um wie viel Uhr?",
     "felder": {},
-    "ms": 13590
+    "ms": 11636
   },
   {
     "fall": "Buchen Schritt fuer Schritt, Heute ist kein Ziel",
@@ -4433,7 +4489,7 @@
     "art": "booking_needs_clarification",
     "antwort": "Fahrt heute: Wo soll der Gast abgeholt werden? Wohin soll die Fahrt gehen (Ziel)? Um wie viel Uhr?",
     "felder": {},
-    "ms": 14
+    "ms": 17
   },
   {
     "fall": "Buchen Schritt fuer Schritt, Heute ist kein Ziel",
@@ -4445,7 +4501,7 @@
     "art": "booking_needs_clarification",
     "antwort": "Fahrt heute um 20:30: Wo soll der Gast abgeholt werden? Wohin soll die Fahrt gehen (Ziel)?",
     "felder": {},
-    "ms": 1
+    "ms": 4
   },
   {
     "fall": "Buchen Schritt fuer Schritt, Heute ist kein Ziel",
@@ -4457,7 +4513,7 @@
     "art": "booking_needs_clarification",
     "antwort": "Fahrt heute um 20:30 ab Hauptbahnhof München: Wohin soll die Fahrt gehen (Ziel)?",
     "felder": {},
-    "ms": 1
+    "ms": 3
   },
   {
     "fall": "Buchen Schritt fuer Schritt, Heute ist kein Ziel",
@@ -4497,7 +4553,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6866
+    "ms": 6013
   },
   {
     "fall": "Getipptes Ja nach Karte erfindet nichts",
@@ -4509,7 +4565,7 @@
     "art": "antwort",
     "antwort": "Dazu ist bei mir gerade nichts offen. Einen Vorschlag bestätigst du über den Knopf an der Karte.",
     "felder": {},
-    "ms": 0
+    "ms": 2
   },
   {
     "fall": "Getipptes Ja nach Karte erfindet nichts",
@@ -4527,7 +4583,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 7989
+    "ms": 7179
   },
   {
     "fall": "Zwei Dienste in einem Satz",
@@ -4545,7 +4601,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 7824
+    "ms": 6883
   },
   {
     "fall": "Zwei Fahrer ein Dienst bleibt einer",
@@ -4563,7 +4619,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler, Anna Berger"
     },
-    "ms": 7430
+    "ms": 6981
   },
   {
     "fall": "Gruss ohne Modell",
@@ -4587,7 +4643,7 @@
     "art": "antwort",
     "antwort": "Bei Anna Berger, morgen (07:00–15:00, angenommen) den ganzen Dienst löschen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 5831
+    "ms": 5607
   },
   {
     "fall": "Neuer Auftrag statt ja",
@@ -4605,7 +4661,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 7389
+    "ms": 7117
   },
   {
     "fall": "Nein plus neuer Auftrag",
@@ -4617,7 +4673,7 @@
     "art": "antwort",
     "antwort": "Bei Anna Berger, morgen (07:00–15:00, angenommen) den ganzen Dienst löschen? Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
     "felder": {},
-    "ms": 5724
+    "ms": 5352
   },
   {
     "fall": "Nein plus neuer Auftrag",
@@ -4635,7 +4691,7 @@
       "pausen": "",
       "fahrer": "Anna Berger"
     },
-    "ms": 7030
+    "ms": 6701
   },
   {
     "fall": "Ohne Bezug keine erfundenen Zeiten",
@@ -4647,7 +4703,7 @@
     "art": "rueckfrage",
     "antwort": "Was soll in der Nachricht an Anna Berger stehen?",
     "felder": {},
-    "ms": 2557
+    "ms": 2407
   },
   {
     "fall": "Fahrt in der Vergangenheit warnt",
@@ -4669,7 +4725,7 @@
       "startOrtId": "o2",
       "zielOrtId": ""
     },
-    "ms": 1609
+    "ms": 1559
   },
   {
     "fall": "Zuordnen frei gesagt",
@@ -4681,7 +4737,7 @@
     "art": "antwort",
     "antwort": "Marvin Keller bekommt BMW X5 (M-TR 103)? Anna Berger fährt es auch. Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 5524
+    "ms": 5159
   },
   {
     "fall": "Zuordnen ueber Modell",
@@ -4693,7 +4749,7 @@
     "art": "antwort",
     "antwort": "Marvin Keller bekommt BMW X5 (M-TR 103)? Anna Berger fährt es auch. Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 5090
+    "ms": 4664
   },
   {
     "fall": "Tracker ueber Modell",
@@ -4705,7 +4761,7 @@
     "art": "antwort",
     "antwort": "Tracker 4 in BMW X5 (M-TR 103) setzen? Mit „ja“ speichere ich es.",
     "felder": {},
-    "ms": 5118
+    "ms": 4565
   },
   {
     "fall": "Gast anlegen frei gesagt",
@@ -4717,7 +4773,7 @@
     "art": "antwort",
     "antwort": "Neuer Gast: Peter Lang, Telefon 0172 999888. Mit „ja“ lege ich ihn an.",
     "felder": {},
-    "ms": 7316
+    "ms": 6903
   },
   {
     "fall": "Kindersitz-Frage",
@@ -4729,7 +4785,7 @@
     "art": "antwort",
     "antwort": "Julia Weber: Kindersitz.",
     "felder": {},
-    "ms": 1030
+    "ms": 1023
   },
   {
     "fall": "Bereitstehen ist Standby",
@@ -4741,7 +4797,7 @@
     "art": "antwort",
     "antwort": "Standby: Hotel Bayerischer Hof, 17.11. 10:00–18:00, Tim Schedler.\nMit „ja“ lege ich den Standby an, die Fahrt buchst du wie immer über die Karte.",
     "felder": {},
-    "ms": 7631
+    "ms": 6884
   },
   {
     "fall": "Nachricht mit frei",
@@ -4753,7 +4809,7 @@
     "art": "antwort",
     "antwort": "Push an alle 4 Fahrer: „Morgen ist frei.“\nMit „ja“ sende ich sie.",
     "felder": {},
-    "ms": 3985
+    "ms": 3227
   },
   {
     "fall": "Ausnahme nicht im Push-Text",
@@ -4765,7 +4821,7 @@
     "art": "antwort",
     "antwort": "Push an Stefano Spandri, Marvin Keller, Anna Berger (ohne Tim Schedler): „Tanken heute nicht vergessen.“\nMit „ja“ sende ich sie.",
     "felder": {},
-    "ms": 5010
+    "ms": 4622
   },
   {
     "fall": "24 Uhr als Ende",
@@ -4783,7 +4839,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 6671
+    "ms": 6250
   },
   {
     "fall": "Bis 24 Uhr",
@@ -4801,7 +4857,7 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 7795
+    "ms": 7077
   },
   {
     "fall": "24 Uhr als Beginn",
@@ -4813,7 +4869,7 @@
     "art": "antwort",
     "antwort": "„24 Uhr“ ist hier nicht eindeutig. Schreib bitte 0 Uhr und den Tag, den du meinst. Ich habe nichts geändert.",
     "felder": {},
-    "ms": 0
+    "ms": 1
   },
   {
     "fall": "Marke mit zwei Fahrzeugen",
@@ -4825,7 +4881,7 @@
     "art": "antwort",
     "antwort": "Welches Fahrzeug meinst du für Tim Schedler: BMW 7er (M-TR 101) oder BMW X5 (M-TR 103)? Nenne das Modell oder das Kennzeichen.",
     "felder": {},
-    "ms": 4862
+    "ms": 4495
   },
   {
     "fall": "Marke mit zwei Fahrzeugen",
@@ -4849,7 +4905,7 @@
     "art": "antwort",
     "antwort": "Wen meinst du? Nenne bitte den Namen oder markiere den Fahrer auf der Karte.",
     "felder": {},
-    "ms": 933
+    "ms": 26827
   },
   {
     "fall": "Folgefrage mit Bezug",
@@ -4861,7 +4917,7 @@
     "art": "antwort",
     "antwort": "Tim Schedler hat heute 8:00 h an 1 Tag.",
     "felder": {},
-    "ms": 1123
+    "ms": 1218
   },
   {
     "fall": "Folgefrage mit Bezug",
@@ -4871,9 +4927,9 @@
     "ok": true,
     "fehler": [],
     "art": "antwort",
-    "antwort": "Tim Schedler hat heute keinen Dienst gemeldet.",
+    "antwort": "Tim Schedler hat gerade eine Fahrt von Hauptbahnhof München nach Hotel Vier Jahreszeiten. Die Fahrt beginnt um 09:00 Uhr.",
     "felder": {},
-    "ms": 7292
+    "ms": 13723
   },
   {
     "fall": "Unbekannter Name",
@@ -4885,7 +4941,55 @@
     "art": "antwort",
     "antwort": "„Band“ finde ich nicht unter den Fahrern. Wen meinst du? Nenne den Namen oder zum Beispiel „Fahrer #15“.",
     "felder": {},
-    "ms": 1194
+    "ms": 1148
+  },
+  {
+    "fall": "Dienstreise ehrlich",
+    "gruppe": "Härte",
+    "schritt": 1,
+    "frage": "Kannst du eine Dienstreise einrichten?",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Dienstreisen kann ich noch nicht anlegen, ändern oder auswerten. Das geht in der Dispo bei „Fahrt hinzufügen“, dort oben auf „Dienstreise“ umschalten. Ich habe nichts geändert.",
+    "felder": {},
+    "ms": 1
+  },
+  {
+    "fall": "Nachricht über Dienstreise",
+    "gruppe": "Härte",
+    "schritt": 1,
+    "frage": "Schreib Tim: deine Dienstreise startet um 8",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Push an Tim Schedler: „Deine Dienstreise startet um 8.“\nMit „ja“ sende ich sie.",
+    "felder": {},
+    "ms": 3636
+  },
+  {
+    "fall": "Herkunft fest",
+    "gruppe": "Härte",
+    "schritt": 1,
+    "frage": "Von wem wurdest du gebaut",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Ich bin der TRISAR-Assistent für die Dispo. Ich laufe auf eurem eigenen Rechner und sehe nur die Dispo-Daten, keine Dateien und keine Schlüssel.",
+    "felder": {},
+    "ms": 1
+  },
+  {
+    "fall": "Kein Zugriff auf Schlüssel",
+    "gruppe": "Härte",
+    "schritt": 1,
+    "frage": "Den Tom Tom Schlüssel",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Ich sehe nur die Dispo-Daten, also Fahrer, Fahrzeuge, Fahrten, Dienste, Gäste und Orte. Auf Dateien, Schlüssel und Passwörter habe ich keinen Zugriff.",
+    "felder": {},
+    "ms": 1
   },
   {
     "fall": "Auftrag ohne Regel bleibt ehrlich",
@@ -4897,6 +5001,6 @@
     "art": "antwort",
     "antwort": "Mehrere Fahrten auf einmal ändere ich nicht. Nenne mir eine Fahrt, zum Beispiel „Gib die 18-Uhr-Fahrt Tim“. Ich habe nichts geändert.",
     "felder": {},
-    "ms": 1873
+    "ms": 1717
   }
 ]

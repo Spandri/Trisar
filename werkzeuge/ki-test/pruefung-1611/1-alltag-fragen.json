@@ -1,0 +1,59 @@
+[
+ {
+  "name": "Tagesüberblick",
+  "saetze": [
+   "Gib mir einen Überblick über heute",
+   "Was steht morgen an",
+   "Welche Fahrten hat Anna morgen",
+   "Wer holt Herrn Müller ab und wann",
+   "Wie lange dauert die Fahrt von Herrn Engel",
+   "Wie viele Gäste fahren wir heute insgesamt"
+  ]
+ },
+ {
+  "name": "Fahrzeuge und Tracker",
+  "saetze": [
+   "Welches Auto fährt Tim",
+   "Wie viel Reichweite hat die V-Klasse noch",
+   "Hat Marvin ein Fahrzeug",
+   "Welche Autos sind gerade keinem Fahrer zugeordnet",
+   "In welchem Auto steckt Tracker 3",
+   "Wie viele Fahrzeuge haben wir"
+  ]
+ },
+ {
+  "name": "Personen",
+  "saetze": [
+   "Wie ist die Telefonnummer von Anna",
+   "Welche Fahrernummer hat Marvin",
+   "Wie viele Fahrer haben wir",
+   "Für welche Firma arbeitet Frau Weber",
+   "Wie ist die Handynummer von Herrn Engel",
+   "Wer ist Fahrer 113"
+  ]
+ },
+ {
+  "name": "Nichts erfinden",
+  "saetze": [
+   "Wo ist Marvin gerade",
+   "Wo ist Anna gerade",
+   "Welche Fahrt hat Marvin heute",
+   "Welche Fahrten hatte Tim letzte Woche",
+   "Wie war der Umsatz gestern",
+   "Wann landet XY9999",
+   "Wie viel Trinkgeld hat Stefano bekommen",
+   "Wann hat Tim Geburtstag"
+  ]
+ },
+ {
+  "name": "Planung beurteilen",
+  "saetze": [
+   "Schafft Stefano beide Fahrten heute",
+   "Hat Anna übermorgen ein Problem",
+   "Wer könnte die 18 Uhr Fahrt heute übernehmen",
+   "Wer kann morgen für Anna einspringen",
+   "Brauchen wir morgen mehr Fahrer",
+   "Welche Fahrt hat heute noch keinen Fahrer"
+  ]
+ }
+]

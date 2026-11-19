@@ -27,6 +27,8 @@ import { routenOrtText } from '../../../shared/utils/routenPunkt';
 import { gleicherOrt } from '../../../shared/utils/vorherigeFahrt';
 import { getRouteNavigationUrl } from '../../../shared/utils/navigation';
 import ZwischenstoppZeile from './ZwischenstoppZeile';
+import NaviStart from './Navigation';
+import { naviVersatz } from '../../../shared/navigation/naviLogik';
 import { ortIconFuer } from '../../../shared/orte';
 import { gaesteTeile, gaesteZeilen } from '../../../shared/gaesteAnzeige';
 const envOrDefault = (value, fallback) => {
@@ -1012,9 +1014,13 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
   const guestRowCount = visibleGuestNames.length;
   const driverRowCount = convoyDriverRows.length;
   const hasMarkers = markerTypes.length > 0;
-  const GUESTS_TITLE_TOP = hasMarkers
+  // Navigation (16.11.): bei Route von Dispo steht unter den Orten der Knopf "Navigation starten",
+  // alles darunter rueckt um seine Hoehe nach unten.
+  const NAVI_TOP = 386;
+  const naviShift = naviVersatz(job);
+  const GUESTS_TITLE_TOP = (hasMarkers
     ? 563 + AFTER_GUESTS_SHIFT
-    : LOCATION_BLOCK_TOP + LOCATION_BLOCK_HEIGHT + LOCATION_TO_GUESTS_GAP_NO_MARKERS;
+    : LOCATION_BLOCK_TOP + LOCATION_BLOCK_HEIGHT + LOCATION_TO_GUESTS_GAP_NO_MARKERS) + naviShift;
   const GUEST_ROW_TOP = GUESTS_TITLE_TOP + SECTION_TITLE_TO_FIRST_ROW_GAP;
   const guestLastRowBottom = GUEST_ROW_TOP + ((guestRowCount - 1) * LIST_ROW_STEP) + LIST_ROW_HEIGHT;
   const DRIVER_TITLE_TOP = guestLastRowBottom + GUEST_TO_DRIVER_TITLE_GAP;
@@ -1151,7 +1157,7 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
 
 
             {markerTypes.length > 0 && (
-              <div className="absolute left-[20px] top-[386px] flex items-center gap-[8px]">
+              <div className="absolute left-[20px] flex items-center gap-[8px]" style={{ top: `${386 + naviShift}px` }}>
                 {markerTypes.map((type) => (
                   <MarkerIcon key={`marker-${type}`} type={type} />
                 ))}
@@ -1171,6 +1177,7 @@ export default function KoloneNormal({ job, setView, onCancelRide, onEndRide, on
             </div>
 
             <ZwischenstoppZeile stopps={job?.zwischenstopps} routenPunkte={job?.routenPunkte} top={352} />
+            <NaviStart job={job} top={NAVI_TOP} />
 
             <div className="absolute left-[20px] right-[20px] top-[289px] grid grid-cols-[minmax(0,1fr)_18px_minmax(0,1fr)] items-start">
               <div className="min-w-0">

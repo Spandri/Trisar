@@ -43,7 +43,7 @@ const sortVehicles = (rows, sortKey, sortDesc) => {
   });
 };
 
-function VehicleCard({ plate, vin, color, imageUrl = '', seatCount = null, fuelType = '', fillPercent = null, fullRangeKm = null, onClick = null, marker }) {
+function VehicleCard({ plate, vin, color, imageUrl = '', seatCount = null, fuelType = '', fillPercent = null, fullRangeKm = null, onClick = null, marker, neu = false }) {
   return (
     <button
       type="button"
@@ -78,12 +78,19 @@ function VehicleCard({ plate, vin, color, imageUrl = '', seatCount = null, fuelT
         {plate}
       </div>
 
-      <div className="absolute left-[170px] top-[76px] flex items-center gap-[6px]">
-        <FuelBadge fuelType={fuelType} />
-        <ColorBadge color={color} />
-        <EnergyBadge fuelType={fuelType} seed={vin} fillPercent={fillPercent} fullRangeKm={fullRangeKm} />
-        <SeatBadge seatCount={seatCount} />
-      </div>
+      {neu ? (
+        // Vom OBD-Tracker angelegt (vehicles.neu_erkannt), bis ein Kennzeichen eingetragen ist.
+        <div className="absolute left-[170px] top-[76px] h-[36px] px-3 bg-[#e3f654] text-[#1d1c1d] text-[14px] font-bold font-['Space_Grotesk'] flex items-center">
+          Neu
+        </div>
+      ) : (
+        <div className="absolute left-[170px] top-[76px] flex items-center gap-[6px]">
+          <FuelBadge fuelType={fuelType} />
+          <ColorBadge color={color} />
+          <EnergyBadge fuelType={fuelType} seed={vin} fillPercent={fillPercent} fullRangeKm={fullRangeKm} />
+          <SeatBadge seatCount={seatCount} />
+        </div>
+      )}
     </button>
   );
 }
@@ -180,7 +187,7 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
   );
   const angezeigteFahrzeuge = markierteFahrzeuge
     ? [...filteredVehicles.filter((v) => markierteFahrzeuge.has(v.id)), ...filteredVehicles.filter((v) => !markierteFahrzeuge.has(v.id))]
-    : filteredVehicles;
+    : [...filteredVehicles.filter((v) => v.neuErkannt), ...filteredVehicles.filter((v) => !v.neuErkannt)];
 
   useEffect(() => {
     let mounted = true;
@@ -197,7 +204,8 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
       range_km: row?.range_km ?? null,
       fuel_type: String(row?.fuel_type || '').trim(),
       image_url: String(row?.image_url || '').trim(),
-      plate: String(row?.license_plate || '').trim() || '-',
+      plate: String(row?.license_plate || '').trim() || (row?.neu_erkannt ? String(row?.brand_model || '').trim() : '') || '-',
+      neuErkannt: row?.neu_erkannt === true,
       brandModel: String(row?.brand_model || '').trim(),
       vinLabel: String(row?.vin || '').trim() || '-',
       imageUrl: String(row?.image_url || '').trim(),
@@ -350,6 +358,7 @@ export default function FahrzeugeView({ setView, onEditVehicle = null, filters =
                 fullRangeKm={vehicle.rangeKm}
                 fillPercent={vehicle.battery_fuel_percent}
                 fullRangeKm={vehicle.range_km}
+                neu={vehicle.neuErkannt}
                 onClick={() => {
                   if (typeof onEditVehicle === 'function') onEditVehicle(vehicle);
                 }}

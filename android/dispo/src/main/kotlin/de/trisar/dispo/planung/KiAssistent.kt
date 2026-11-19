@@ -142,6 +142,8 @@ internal object KiAssistentDienst {
         val text: String, val buchungsVorschlag: KiBuchungsVorschlag? = null, val dienstVorschlag: KiDienstVorschlag? = null,
         /** Weitere Karten nach der ersten Fahrt: Fahrten und Standbys (aktionen neuer Server). */
         val karten: List<KiKarte> = emptyList(),
+        /** Ort unsicher (18.11.): Auswahl zum Antippen statt Fahrtkarte (dispo-admin/ortWahl.ts). */
+        val ortWahl: KiOrtWahl? = null,
     )
 
     /** Standby aus einer Karte direkt anlegen (standbyAnlegen im Web). Liefert die ID. */
@@ -260,6 +262,8 @@ internal object KiAssistentDienst {
             putJsonArray("markierteFahrer") { markierteFahrer.forEach { f -> addJsonObject { put("id", f.id); put("name", f.name) } } }
             // Mehrere Vorschlaege als Karten (aktionen), wie das Web.
             put("karten", true)
+            // Diese App speichert den Start Zeitraum eines Vorschlags (startZeitBis) an der Fahrt.
+            put("zeitraum", true)
             // Umschalter Regeln/Frei: bei "frei" beantwortet das Modell reine Fragen selbst.
             put("modus", KiModus.modus)
         }
@@ -297,9 +301,20 @@ internal object KiAssistentDienst {
         val dienst = if ((aktion?.get("type") as? JsonPrimitive)?.content == "dienst_vorschlag") {
             aktion["vorschlag"]?.let { runCatching { Backend.json.decodeFromJsonElement(KiDienstVorschlag.serializer(), it) }.getOrNull() }
         } else null
-        return Antwort((antwort["answer"] as? JsonPrimitive)?.content.orEmpty(), vorschlag, dienst, karten)
+        val ortWahl = aktionen.firstOrNull { art(it) == "ort_auswahl" }?.let {
+            runCatching { Backend.json.decodeFromJsonElement(KiOrtWahl.serializer(), it) }.getOrNull()
+        }
+        return Antwort((antwort["answer"] as? JsonPrimitive)?.content.orEmpty(), vorschlag, dienst, karten, ortWahl)
     }
 }
+
+/** Ein Ort zur Auswahl: wert geht als Nachricht an den Server, titel und zeile stehen auf der Kachel. */
+@Serializable
+internal data class KiOrtOption(val wert: String = "", val titel: String = "", val zeile: String = "")
+
+/** Ortsauswahl: "Welchen Start meinst du?" mit bis zu 3 Orten, ohne Orte heisst nicht gefunden. */
+@Serializable
+internal data class KiOrtWahl(val feld: String = "", val frage: String = "", val optionen: List<KiOrtOption> = emptyList())
 
 /** Dienststart/Dienstende fuer markierte Fahrer (action dienst_vorschlag von dispo-admin). */
 @Serializable
@@ -346,6 +361,8 @@ internal data class KiBuchungsVorschlag(
     val flugUnbestaetigt: Boolean = false,
     /** Eigener Ort, vom Server erkannt (dispo-admin/ortSuche.ts): gespeichert wie bei Auswahl im Formular. */
     val startOrtId: String = "", val startAdresse: String = "", val zielOrtId: String = "", val zielAdresse: String = "",
+    /** Start Zeitraum ("zwischen 15 und 16 Uhr"): Ende des Zeitraums, wird als etd_bis gespeichert. */
+    val startZeitBis: String = "",
 ) {
     /** Nur die geaenderten Felder uebernehmen, alles andere bleibt wie an der Fahrt. */
     fun aenderung(g: GeladeneFahrt): FahrtVorlage {
@@ -363,7 +380,7 @@ internal data class KiBuchungsVorschlag(
     /** Startwerte fuer das Fahrtformular (toCreateRidePayload). */
     val vorlage: FahrtVorlage get() = FahrtVorlage(
         FahrtFormularWerte(
-            datum = datum, startZeit = startZeit, start = start, ziel = ziel, startOrtID = startOrtId, zielOrtID = zielOrtId,
+            datum = datum, startZeit = startZeit, startZeitBis = startZeitBis, start = start, ziel = ziel, startOrtID = startOrtId, zielOrtID = zielOrtId,
             flugnummer = flugnummer, konvoi = konvoi,
             anonymeGaeste = if (anonymeGaeste == "0") "" else anonymeGaeste, aktuellerStatus = "offen",
         ),
@@ -417,6 +434,9 @@ internal data class KiNachricht(
     val dienstAnzahl: Int? = null,
     val dienstFehler: String? = null,
     val karten: List<KiKarte> = emptyList(),
+    /** Ortsauswahl (18.11.): offen, bis eine neuere Antwort kommt, dann erledigt. */
+    val ortWahl: KiOrtWahl? = null,
+    val ortWahlStatus: String? = null,
 ) {
     companion object {
         fun uhrzeit(): String = LocalTime.now().let { zwei(it.hour) + ":" + zwei(it.minute) }
@@ -579,6 +599,8 @@ internal fun KiAssistentAnsicht(
             if (ergebnis.getOrNull()?.buchungsVorschlag != null) {
                 nachrichten = nachrichten.map { if (it.id != wartendID && it.bookingStatus == "pending") it.copy(bookingStatus = "cancelled") else it }
             }
+            // Jede neue Antwort beendet eine offene Ortsauswahl, angetippt wird nur die juengste.
+            nachrichten = nachrichten.map { if (it.id != wartendID && it.ortWahlStatus == "offen") it.copy(ortWahlStatus = "erledigt") else it }
             aendern(wartendID) { n ->
                 ergebnis.fold(
                     onSuccess = { a ->
@@ -587,6 +609,7 @@ internal fun KiAssistentAnsicht(
                             bookingProposal = a.buchungsVorschlag, bookingStatus = if (a.buchungsVorschlag == null) null else "pending",
                             karten = a.karten,
                             dienstVorschlag = a.dienstVorschlag, dienstStatus = if (a.dienstVorschlag == null) null else "offen",
+                            ortWahl = a.ortWahl, ortWahlStatus = if (a.ortWahl == null) null else "offen",
                         )
                     },
                     onFailure = { f -> n.copy(text = "Fehler: ${f.message?.ifEmpty { null } ?: "Unbekannter KI-Fehler"}") },
@@ -747,10 +770,13 @@ internal fun KiAssistentAnsicht(
             val frage = if (n.dienstStatus == "offen") "Soll ich das senden?" else "Soll ich das so machen?"
             if (!Regex("""\?\s*$""").containsMatchIn(text)) text = "$text $frage"
         } else if (Regex("""(?i)„ja“|"ja"|\bmit ja\b""").containsMatchIn(text) || Regex("""\?\s*$""").containsMatchIn(text)) {
-            offen = SprachOffen(lokal = false, titel = text.trim())
+            // Ja/Nein-Knoepfe nur bei einer Ja/Nein-Frage (19.11.): „Um wie viel Uhr?“ beantwortet man nicht mit ja.
+            val hinweisJa = Regex("""(?i)„ja“|"ja"|\bmit ja\b""").containsMatchIn(text)
+            offen = SprachOffen(lokal = false, titel = text.trim(), jaNein = hinweisJa || !kiWFrage(text))
         }
         return SprachAntwort(text, offen)
     }
+
 
     fun letzteOffene(): KiNachricht? = nachrichten.lastOrNull { istOffen(it) }
 
@@ -792,21 +818,24 @@ internal fun KiAssistentAnsicht(
     )
 
     // Vorschlaege einer Antwort mit ihren Knoepfen, im Chat und im Voice-Modus gleich (vorschlaegeVon im Web).
-    // Im Voice-Modus oeffnet Antippen einer Karte kein Formular.
+    // Antippen einer Karte oeffnet das Formular, auch im Voice-Modus (18.11.), der tritt so lange zur Seite.
     @Composable
     fun Vorschlaege(n: KiNachricht, imSprachModus: Boolean) {
+        n.ortWahl?.takeIf { n.ortWahlStatus == "offen" && it.optionen.isNotEmpty() }?.let { w ->
+            OrtWahlKacheln(w, sendet) { senden(it) }
+        }
         n.dienstVorschlag?.let { v -> DienstVorschlagKnoepfe(n, v, { dienstSenden(n.id, v) }) { aendern(n.id) { it.copy(dienstStatus = "verworfen") } } }
         n.bookingProposal?.let { v ->
             Buchung(
                 n, v,
-                if (imSprachModus) null else ({ formular = KiFormular(n.id, vorschlag = v) }),
+                { formular = KiFormular(n.id, vorschlag = v) },
                 { buchen(n.id, v) }, { aendern(n.id) { it.copy(bookingStatus = "cancelled") } }, oeffneFahrt,
             )
         }
         n.karten.forEach { k ->
             WeitereKarte(
                 k,
-                oeffnen = if (imSprachModus) null else ({ formular = KiFormular(n.id, vorschlag = k.proposal, standby = k.standby, karteId = k.id) }),
+                oeffnen = { formular = KiFormular(n.id, vorschlag = k.proposal, standby = k.standby, karteId = k.id) },
                 buchen = { karteBuchen(n.id, k) },
                 verwerfen = { karteSetzen(n.id, k.id) { it.copy(status = "cancelled", offen = false) } },
                 oeffneFahrt = oeffneFahrt,
@@ -818,7 +847,8 @@ internal fun KiAssistentAnsicht(
 
     // Juengste Antwort mit Vorschlaegen fuer den Voice-Modus (auch nach dem Bestaetigen, damit man das Ergebnis sieht).
     val sprachVorschlag = nachrichten.lastOrNull {
-        it.role == "assistant" && it.pending != true && (it.bookingProposal != null || it.dienstVorschlag != null || it.karten.isNotEmpty())
+        it.role == "assistant" && it.pending != true && (it.bookingProposal != null || it.dienstVorschlag != null || it.karten.isNotEmpty()
+            || it.ortWahlStatus == "offen")
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -998,7 +1028,7 @@ private fun AssistentBlase(n: KiNachricht, kopiert: Boolean, kopieren: () -> Uni
     val form = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 6.dp)
     Column(Modifier.width(314.dp).background(hex(0x242525), form).border(1.dp, hex(0x3A3A3A), form).padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp)) {
         Box(Modifier.padding(bottom = 12.dp)) { KiMarke() }
-        val text = mitTelefonLinks(n.text)
+        val text = mitTelefonLinks(n.ortWahl?.frage ?: n.text)
         SelectionContainer {
             @Suppress("DEPRECATION")
             ClickableText(text, style = grotesk(16f, farbe = Color.White), modifier = Modifier.fillMaxWidth()) { pos ->
@@ -1069,6 +1099,27 @@ private fun Buchung(n: KiNachricht, v: KiBuchungsVorschlag, oeffnen: (() -> Unit
 }
 
 /** BookingPreviewCard */
+/** Ortsauswahl: weisse Kacheln wie die Fahrtkarte, Antippen schickt den Ort als Nachricht. */
+@Composable
+private fun OrtWahlKacheln(w: KiOrtWahl, sendet: Boolean, waehlen: (String) -> Unit) {
+    Column(Modifier.padding(top = 12.dp).widthIn(max = 362.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        w.optionen.forEach { o ->
+            Column(
+                Modifier.fillMaxWidth().background(Color.White).let { if (sendet) it else it.tippen { waehlen(o.wert) } }
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                PAbsatz(o.titel, 18f, 700, 22f, Color.Black)
+                if (o.zeile.isNotEmpty()) PAbsatz(o.zeile, 12f, 500, 16f, Color.Black.copy(alpha = 0.8f))
+            }
+        }
+        Box(
+            Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = 0.3f)).let { if (sendet) it else it.tippen { waehlen("Keiner davon") } }
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+        ) { PAbsatz("Keiner davon", 16f, 500, 20f, Color.White) }
+    }
+}
+
 @Composable
 private fun KiBuchungsKarte(v: KiBuchungsVorschlag, oeffnen: (() -> Unit)? = null) {
     val r = v.datum.trim()
@@ -1089,7 +1140,7 @@ private fun KiBuchungsKarte(v: KiBuchungsVorschlag, oeffnen: (() -> Unit)? = nul
         }
         Column(Modifier.align(Alignment.TopEnd).padding(top = 18.dp, end = 16.dp), horizontalAlignment = Alignment.End) {
             Box(Modifier.height(20.dp), contentAlignment = Alignment.Center) { PText(datum, 16f, 700, Color.Black) }
-            Box(Modifier.height(20.dp), contentAlignment = Alignment.Center) { PText(v.startZeit.ifEmpty { "--:--" }, 16f, 400, Color.Black) }
+            Box(Modifier.height(20.dp), contentAlignment = Alignment.Center) { PText(if (v.startZeit.isEmpty()) "--:--" else if (v.startZeitBis.isEmpty()) v.startZeit else "${v.startZeit}–${v.startZeitBis}", 16f, 400, Color.Black) }
         }
         Icon("Arrow_Trisar_Icons_01", Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp).size(34.dp, 21.dp).scale(1.2f), skalierung = ContentScale.FillBounds)
     }
@@ -1339,4 +1390,11 @@ internal fun KiModusSchalter(modifier: Modifier = Modifier) {
             ) { PText(text, 12f, 500, if (an) hex(0x0E1008) else kiLime) }
         }
     }
+}
+
+/** Letzte Frage im Text ist eine W-Frage („…: Um wie viel Uhr?“, „Welches Ziel meinst du?“). */
+private fun kiWFrage(text: String): Boolean {
+    val letzte = text.trim().split(Regex("""[.!:\n]""")).lastOrNull()?.trim().orEmpty()
+    if (!letzte.endsWith("?")) return false
+    return Regex("""(?i)^(um\s+wie\s+viel|wie|was|wann|wo|wohin|woher|welche[rsmn]?|wer|wen|wem|wessen|warum|wieso|weshalb|an\s+wen|f(ü|ue)r\s+wen|mit\s+wem|bis\s+wann|ab\s+wann|von\s+wo)\b""").containsMatchIn(letzte)
 }

@@ -22,6 +22,7 @@ import FahrtAdd from './components/views/FahrtAdd';
 import FahrtBearbeitenView from './components/views/FahrtBearbeitenView';
 import KiAssistentView from './components/views/KiAssistentView';
 import KartenView from './components/views/KartenView';
+import DispoFahrzeugView from './components/views/dispoFahrzeug/DispoFahrzeugView';
 import KartenFilterView from './components/views/KartenFilterView';
 import FahrtenFilter from './components/views/FahrtenFilter';
 import { I18nProvider, LANGUAGE_TO_CODE, translate } from './i18n';
@@ -66,9 +67,12 @@ const MISSING_TRAIN_TIMES_COLUMNS_RE = /column .*train_planned_time|column .*tra
 const MISSING_JOBS_EXT_COLUMN_RE = /column .*ext_flight_payload|column .*ext_flight_last_sync_at|could not find the ['"]?ext_flight_payload['"]? column|could not find the ['"]?ext_flight_last_sync_at['"]? column/i;
 const MISSING_AI_BOOKED_COLUMN_RE = /column .*ai_booked|could not find the ['"]?ai_booked['"]? column/i;
 // Eigene Orte (Migration 20261107090000_orte_radien): fehlt die Spalte noch, ohne sie weiter.
-const MISSING_ORT_COLUMN_RE = /column .*((pickup|dropoff)_ort_id|zwischenstopps|routen_punkte)|could not find the ['"]?((pickup|dropoff)_ort_id|zwischenstopps|routen_punkte)['"]? column/i;
+const MISSING_ORT_COLUMN_RE = /column .*((pickup|dropoff)_ort_id|zwischenstopps|routen_punkte|route_fest)|could not find the ['"]?((pickup|dropoff)_ort_id|zwischenstopps|routen_punkte|route_fest)['"]? column/i;
 // Routenpunkte der Dispo (Migration 20261115130000_routen_punkte): nur mitschicken, wenn das Formular sie liefert.
-const routenPunkteAusPayload = (payload) => (Array.isArray(payload?.routenPunkte) ? { routen_punkte: payload.routenPunkte } : {});
+// route_fest = freigegebene Route dazu (Migration 20261116100000_route_fest), ohne Punkte null.
+const routenPunkteAusPayload = (payload) => (Array.isArray(payload?.routenPunkte)
+  ? { routen_punkte: payload.routenPunkte, route_fest: payload.routenPunkte.length ? (payload.routeFest || null) : null }
+  : {});
 // Zwischenstopps aus dem Formular, ohne leere Zeilen.
 const stoppsAusPayload = (payload) => (Array.isArray(payload?.zwischenstopps) ? payload.zwischenstopps.map((t) => String(t || '').trim()).filter(Boolean) : []);
 // Start/Ziel aus dem Formular: mit eigenem Ort ist start/ziel der Ortsname, die Adresse
@@ -206,15 +210,15 @@ const matchesLocation = (haystack, needle) => {
   return left.includes(right) || right.includes(left);
 };
 
-const toCompactLocationLabel = (value) => {
-  const text = String(value || '').trim();
-  if (!text) return '';
 // Mein Standort (17.11.): Adresse oder Name des gespeicherten Orts
 const passtStandort = (ride, seite, standort) => (
   matchesLocation(ride?.[`${seite}Location`] || '', standort)
   || matchesLocation(ride?.[`${seite}OrtName`] || '', standort)
 );
 
+const toCompactLocationLabel = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
   return text.split(',')[0].trim() || text;
 };
 
@@ -271,11 +275,13 @@ const normalizeRideDateValue = (value, fallback = '') => {
 // Sonst zeigte der Editor z. B. bei 'completed' oder 'storniert' "offen", und Speichern ohne
 // Statuswahl hielt das fuer keine Aenderung.
 const EDITOR_UNTERWEGS_STATUS = new Set(['in_progress', 'unterwegs', 'started', 'on_trip', 'ongoing', 'active']);
+const EDITOR_BEIM_GAST_STATUS = new Set(['at_pickup', 'beim_pickup', 'beim pickup']);
 const EDITOR_BEENDET_STATUS = new Set(['done', 'completed', 'arrived', 'beendet']);
 const EDITOR_STORNIERT_STATUS = new Set(['cancelled', 'canceled', 'refused', 'storniert', 'stoniert', 'archived']);
 const mapJobStatusToEditorStatus = (status) => {
   const value = String(status || '').trim().toLowerCase();
   if (EDITOR_UNTERWEGS_STATUS.has(value)) return 'unterwegs';
+  if (EDITOR_BEIM_GAST_STATUS.has(value)) return 'beimGast';
   if (EDITOR_BEENDET_STATUS.has(value)) return 'beendet';
   if (EDITOR_STORNIERT_STATUS.has(value)) return 'stoniert';
   return 'offen';
@@ -284,6 +290,7 @@ const mapJobStatusToEditorStatus = (status) => {
 const mapEditorStatusToJobStatus = (status) => {
   const value = String(status || '').trim().toLowerCase();
   if (value === 'unterwegs') return 'in_progress';
+  if (value === 'beimgast') return 'at_pickup';
   if (value === 'beendet') return 'done';
   if (value === 'stoniert') return 'cancelled';
   return 'pending';
@@ -291,6 +298,7 @@ const mapEditorStatusToJobStatus = (status) => {
 
 const OPEN_LIKE_JOB_STATUSES = new Set(['pending', 'assigned', 'offen', 'new', 'requested', 'offered', 'zugewiesen', 'at_pickup', 'beim_pickup', 'beim pickup']);
 const IN_PROGRESS_LIKE_JOB_STATUSES = new Set(['in_progress', 'unterwegs', 'started', 'on_trip', 'ongoing', 'active']);
+const DONE_LIKE_JOB_STATUSES_FOR_TIMES = new Set(['done', 'completed', 'arrived', 'beendet']);
 const ARCHIVED_LIKE_JOB_STATUSES = new Set(['archived', 'cancelled']);
 
 const normalizeFlightNumberValue = (value) =>
@@ -946,6 +954,10 @@ export default function App() {
   const [driverAnsichtData, setDriverAnsichtData] = useState(() => {
     try { return JSON.parse(window.sessionStorage.getItem('trisar.fahrerAnsicht.v1') || 'null'); } catch { return null; }
   });
+  // Fahrzeug-Seite aus dem Fahrer-Blatt der Karte: { driverId, vehicleId }, uebersteht ein Neuladen.
+  const [dispoFahrzeugData, setDispoFahrzeugData] = useState(() => {
+    try { return JSON.parse(window.sessionStorage.getItem('trisar.dispoFahrzeug.v1') || 'null'); } catch { return null; }
+  });
   const [guestEditorData, setGuestEditorData] = useState(null);
   const [vehicleEditorData, setVehicleEditorData] = useState(null);
   const [driverDirectory, setDriverDirectory] = useState([]);
@@ -1319,7 +1331,12 @@ export default function App() {
         const fallbackReadClient = hasSupabaseAdminConfig ? supabase : supabaseAdmin;
         const jobSelectBase = 'id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins';
         const jobSelectCandidates = [
+          // Danach Dienstende (19.11.), ohne die Spalte weiter mit den naechsten.
+          `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis, routen_punkte, route_fest, abfahrt_echt, ankunft_echt, ankunft_erwartet, danach_dienstende`,
+          // Echte Abfahrt/Ankunft (18.11.), ohne die Spalten weiter mit den naechsten.
+          `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis, routen_punkte, route_fest, abfahrt_echt, ankunft_echt, ankunft_erwartet`,
           // Routenpunkte der Dispo (15.11.), ohne die Spalte weiter mit den naechsten.
+          `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis, routen_punkte, route_fest`,
           `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis, routen_punkte`,
           // Start Zeitraum (13.11.): etd_bis = Ende des Zeitraums.
           `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis`,
@@ -1355,7 +1372,8 @@ export default function App() {
             || MISSING_AI_BOOKED_COLUMN_RE.test(jobsResult.error.message || '')
             || MISSING_TRAIN_TIMES_COLUMNS_RE.test(jobsResult.error.message || '')
             || MISSING_JOBS_EXT_COLUMN_RE.test(jobsResult.error.message || '')
-            || MISSING_ORT_COLUMN_RE.test(jobsResult.error.message || '');
+            || MISSING_ORT_COLUMN_RE.test(jobsResult.error.message || '')
+            || /abfahrt_echt|ankunft_echt|ankunft_erwartet/.test(jobsResult.error.message || '');
           if (!isMissingKnownColumn) break;
         }
         console.log('✅ Jobs-Ergebnis:', jobsResult);
@@ -1788,7 +1806,37 @@ export default function App() {
             || originalEtd
             || effectiveEtd
             || '--:--';
-          const isDelayed = delayMins > 0 || Boolean(effectiveEtd && originalEtd && effectiveEtd !== originalEtd);
+          // Echte Zeiten (18.11.): Ab "Unterwegs" steht die echte Abfahrt (GPS, sonst Tipp auf Unterwegs) statt
+          // des Plans, die Ankunft ist live (TomTom) bzw. nach dem Ende die echte. Den Plan nur durchgestrichen
+          // zeigen, wenn die echte Abfahrt mehr als 5 min ausserhalb des Startfensters liegt.
+          const uhrBerlin = (iso) => {
+            const ms = Date.parse(String(iso || ''));
+            return Number.isFinite(ms)
+              ? new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' })
+              : '';
+          };
+          const abfahrtEcht = (isUnderway || DONE_LIKE_JOB_STATUSES_FOR_TIMES.has(normalizedJobStatusFromRow)) ? uhrBerlin(job.abfahrt_echt) : '';
+          const ankunftEcht = abfahrtEcht ? (uhrBerlin(job.ankunft_echt) || uhrBerlin(job.ankunft_erwartet)) : '';
+          const planBis = normalizeClockValue(job.etd_bis, '');
+          const planText = plannedEtd ? `${plannedEtd}${planBis ? `–${planBis}` : ''}` : '';
+          const abfahrtEchtMin = parseClockToMinutes(abfahrtEcht);
+          const ausserhalbFenster = Boolean(abfahrtEcht) && Number.isFinite(abfahrtEchtMin) && Number.isFinite(plannedEtdMinutes) && (() => {
+            const ende = (Number.isFinite(spaetAbMinutes) ? spaetAbMinutes : plannedEtdMinutes) % 1440;
+            // Abstand im Tageskreis (ueber Mitternacht), unter 12 h zaehlt als vor bzw. nach dem Fenster.
+            const zuFrueh = (plannedEtdMinutes - abfahrtEchtMin + 1440) % 1440;
+            const zuSpaet = (abfahrtEchtMin - ende + 1440) % 1440;
+            return (zuFrueh > 5 && zuFrueh < 720) || (zuSpaet > 5 && zuSpaet < 720);
+          })();
+          const isDelayed = abfahrtEcht
+            ? ausserhalbFenster
+            : (delayMins > 0 || Boolean(effectiveEtd && originalEtd && effectiveEtd !== originalEtd));
+          const zeitAnzeige = abfahrtEcht
+            ? (isDelayed
+              ? { original: planText || '--:--', status: '', new: abfahrtEcht, bis: '',
+                  arrivalOriginal, arrivalNew: ankunftEcht || arrivalNew, arrivalTime: ankunftEcht || arrivalNew }
+              : { status: '', time: abfahrtEcht, bis: '',
+                  arrivalTime: ankunftEcht || arrivalNew, arrivalOriginal, arrivalNew: ankunftEcht || arrivalNew })
+            : null;
           const noteMeta = noteByJobId.get(jobId) || { noteText: '', aiBooked: false };
           const dispoNoteMeta = dispoNoteByJobId.get(jobId) || { noteText: '', aiBooked: false };
           const aiBookedFromColumn = Boolean(job?.ai_booked);
@@ -1808,10 +1856,14 @@ export default function App() {
             startOrtName: startOrtId ? pickupName : '',
             zielOrtId,
             zielOrtName: zielOrtId ? dropoffName : '',
-            startZeit: effectiveEtd || originalEtd || '--:--',
+            startZeit: abfahrtEcht || effectiveEtd || originalEtd || '--:--',
             startZeitBis: normalizeClockValue(job.etd_bis, ''),
+            abfahrtEcht,
+            ankunftEcht,
             zwischenstopps: Array.isArray(job.zwischenstopps) ? job.zwischenstopps : [],
             routenPunkte: Array.isArray(job.routen_punkte) ? job.routen_punkte : [],
+            routeFest: job.route_fest || null,
+            danach: job.danach_dienstende ? 'dienstende' : '',
             fahrerNamen,
             // Fuer die Mehrfachauswahl der Karte (Fahrten nur der markierten Fahrer).
             fahrerIds: mergedDriverEntries.map((entry) => String(entry?.id || '').trim()).filter(Boolean),
@@ -1833,7 +1885,7 @@ export default function App() {
             notizen: (notizenByJobId.get(jobId) || []).slice().reverse(),
             dispoNote: dispoNoteMeta.noteText || '',
             aiBooked: Boolean(aiBookedFromColumn || noteMeta.aiBooked || dispoNoteMeta.aiBooked),
-            time: isDelayed
+            time: zeitAnzeige || (isDelayed
               ? {
                   original: originalEtd || effectiveEtd || '--:--',
                   status: '',
@@ -1850,8 +1902,8 @@ export default function App() {
                   arrivalTime: arrivalNew,
                   arrivalOriginal,
                   arrivalNew,
-                },
-            delayMins,
+                }),
+            delayMins: abfahrtEcht ? 0 : delayMins,
             status: isDelayed ? 'delayed' : 'default',
             variant: hasDrivers ? 'default' : 'variant2',
             date: rideDate,
@@ -2071,13 +2123,13 @@ export default function App() {
   );
 
   const refreshAirportBoard = useCallback(async (mode = 'arrivals') => {
+    // Live-Board entfernt (17.11.): nichts mehr laden
+    if (mode) return;
     const normalizedMode = mode === 'departures' ? 'departures' : 'arrivals';
     if (!hasCoordinatorLocation) {
       setAirportBoardState({
         airportCode: '',
         mode: normalizedMode,
-    // Live-Board entfernt (17.11.): nichts mehr laden
-    if (mode) return;
         loading: false,
         error: '',
         updatedAt: '',
@@ -2369,6 +2421,8 @@ export default function App() {
         zielOrtName: ride.zielOrtName || '',
         zwischenstopps: Array.isArray(ride.zwischenstopps) ? ride.zwischenstopps : [],
         routenPunkte: Array.isArray(ride.routenPunkte) ? ride.routenPunkte : [],
+        routeFest: ride.routeFest || null,
+        danach: ride.danach || '',
         konvoi: ride.konvoi || '',
         anzahlFahrzeuge: String(ride.anzahlFahrzeuge || ''),
         fahrerNamen: Array.isArray(ride.fahrerNamen) && ride.fahrerNamen.length > 0 ? ride.fahrerNamen : [''],
@@ -2563,6 +2617,15 @@ export default function App() {
       setDriverAnsichtData(driverData);
       try { window.sessionStorage.setItem('trisar.fahrerAnsicht.v1', JSON.stringify(driverData)); } catch { /* voll oder gesperrt */ }
       navigateTo('fahrerAnsicht');
+    },
+    [navigateTo],
+  );
+  const openDispoFahrzeug = useCallback(
+    (daten) => {
+      if (!daten?.vehicleId) return;
+      setDispoFahrzeugData(daten);
+      try { window.sessionStorage.setItem('trisar.dispoFahrzeug.v1', JSON.stringify(daten)); } catch { /* voll oder gesperrt */ }
+      navigateTo('dispoFahrzeug');
     },
     [navigateTo],
   );
@@ -2767,7 +2830,7 @@ export default function App() {
       const resolvedDriverId = resolvedDriverIds[0] || fallbackDriverId || existingJobDriverId || null;
       const requestedJobStatus = mapEditorStatusToJobStatus(payload?.aktuellerStatus);
       const normalizedRequestedStatus = String(requestedJobStatus || '').trim().toLowerCase();
-      const isFinalRequestedStatus = ['done', 'completed', 'cancelled', 'canceled', 'refused', 'in_progress'].includes(normalizedRequestedStatus);
+      const isFinalRequestedStatus = ['done', 'completed', 'cancelled', 'canceled', 'refused', 'in_progress', 'at_pickup'].includes(normalizedRequestedStatus);
       const sameClock = (a, b) => String(a || '').slice(0, 5) === String(b || '').slice(0, 5);
       // Uhrzeit im Editor nicht angefasst: dann bleibt die gespeicherte ETD. Bei ueberfaelligen offenen
       // Fahrten zeigt der Editor "jetzt" statt der Planzeit. Ohne diese Pruefung schrieb jede reine
@@ -2828,6 +2891,8 @@ export default function App() {
         ext_flight_last_sync_at: hasValidatedTrain ? new Date().toISOString() : null,
         anonymous_guests: anonymousCount,
         ai_booked: Boolean(payload?.aiBooked ?? editor?.aiBooked),
+        // Danach Dienstende (19.11.): nur wenn das Formular das Feld kennt.
+        ...(payload && 'danach' in payload ? { danach_dienstende: payload.danach === 'dienstende' } : {}),
       };
       if (zeitUnberuehrt) {
         delete updatePayload.etd;
@@ -2867,6 +2932,7 @@ export default function App() {
         delete updatePayload.dropoff_ort_id;
         delete updatePayload.zwischenstopps;
         delete updatePayload.routen_punkte;
+        delete updatePayload.route_fest;
         updateResult = await runJobUpdate(supabase, updatePayload);
         if (
           (updateResult.error && ADMIN_FALLBACK_ERROR_RE.test(updateResult.error.message || ''))
@@ -3218,6 +3284,7 @@ export default function App() {
         ext_flight_last_sync_at: hasValidatedTrain ? new Date().toISOString() : null,
         anonymous_guests: anonymousCount,
         ai_booked: Boolean(options?.aiBooked),
+        ...(payload?.danach === 'dienstende' ? { danach_dienstende: true } : {}),
       };
 
       let createResult = await supabase.from('jobs').insert(insertPayload).select('id').single();
@@ -3229,6 +3296,7 @@ export default function App() {
         delete insertPayload.dropoff_ort_id;
         delete insertPayload.zwischenstopps;
         delete insertPayload.routen_punkte;
+        delete insertPayload.route_fest;
         createResult = await supabase.from('jobs').insert(insertPayload).select('id').single();
         if (createResult.error && ADMIN_FALLBACK_ERROR_RE.test(createResult.error.message || '')) {
           createResult = await supabaseAdmin.from('jobs').insert(insertPayload).select('id').single();
@@ -3984,7 +4052,20 @@ export default function App() {
       return <KiAssistentView setView={navigateTo} onCreateRide={handleCreateRide} onFetchPlaceSuggestions={handleFetchPlaceSuggestions} onValidateFlight={validateFlightForDisplay} onValidateTrain={validateTrainForDisplay} onOpenRideEditorById={openRideEditorById} rideEditorAusListe={rideEditorAusListe} onSaveRideEdit={handleSaveRideEdit} onDeleteRide={handleDeleteRide} />;
     }
     if (view === 'karten') {
-      return <KartenView setView={navigateTo} filters={kartenFilter} />;
+      return <KartenView setView={navigateTo} filters={kartenFilter} onOpenVehicle={openDispoFahrzeug} />;
+    }
+    if (view === 'dispoFahrzeug' && dispoFahrzeugData?.vehicleId) {
+      return (
+        <DispoFahrzeugView
+          key={dispoFahrzeugData.vehicleId}
+          vehicleId={dispoFahrzeugData.vehicleId}
+          driverId={dispoFahrzeugData.driverId || null}
+          onBack={() => navigateTo('karten')}
+        />
+      );
+    }
+    if (view === 'dispoFahrzeug') {
+      return <KartenView setView={navigateTo} filters={kartenFilter} onOpenVehicle={openDispoFahrzeug} />;
     }
     if (view === 'kartenFilter') {
       return <KartenFilterView setView={navigateTo} filters={kartenFilter} onChangeFilters={setKartenFilter} onFetchPlaceSuggestions={handleFetchPlaceSuggestions} />;
@@ -3993,7 +4074,7 @@ export default function App() {
       return <FahrtenFilter setView={navigateTo} filters={fahrtenFilter} onChangeFilters={setFahrtenFilter} />;
     }
     return <HomeScreen setView={navigateTo} coordinatorName={coordinatorFirstName} avatarUrl={profileData.avatarUrl} />;
-  }, [profileData, view, coordinatorName, coordinatorFirstName, navigateTo, openRideEditor, openRideEditorById, rideEditorData, driverEditorData, driverAnsichtData, activeRides, openDriverAnsicht, guestEditorData, vehicleEditorData, openDriverCreate, openDriverEditor, openGuestCreate, openGuestEditor, openVehicleEditor, openVehicleById, openDriverById, navigateToMapWithSelectedDrivers, ankuenfteRides, abfahrtenRides, archivedAnkuenfteRides, archivedAbfahrtenRides, handleSaveRideEdit, handleCreateRide, handleDeleteRide, handleMarkRideDone, handleArchiveRide, handleDuplicateRide, fahrtenFilter, kartenFilter, fahrzeugFilter, coordinatorLocation, hasCoordinatorLocation, ridesError, loadRidesFromDb, handleFetchPlaceSuggestions, refreshAirportBoard, airportBoardState, validateFlightForDisplay, validateTrainForDisplay]);
+  }, [profileData, view, coordinatorName, coordinatorFirstName, navigateTo, openRideEditor, openRideEditorById, rideEditorData, driverEditorData, driverAnsichtData, activeRides, openDriverAnsicht, guestEditorData, vehicleEditorData, openDriverCreate, openDriverEditor, openGuestCreate, openGuestEditor, openVehicleEditor, openVehicleById, openDriverById, navigateToMapWithSelectedDrivers, ankuenfteRides, abfahrtenRides, archivedAnkuenfteRides, archivedAbfahrtenRides, handleSaveRideEdit, handleCreateRide, handleDeleteRide, handleMarkRideDone, handleArchiveRide, handleDuplicateRide, fahrtenFilter, kartenFilter, fahrzeugFilter, dispoFahrzeugData, openDispoFahrzeug, coordinatorLocation, hasCoordinatorLocation, ridesError, loadRidesFromDb, handleFetchPlaceSuggestions, refreshAirportBoard, airportBoardState, validateFlightForDisplay, validateTrainForDisplay]);
 
   return (
     <I18nProvider language={profileData.language}>

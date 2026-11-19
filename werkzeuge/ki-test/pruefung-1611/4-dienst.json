@@ -1,0 +1,61 @@
+[
+ {
+  "name": "Krank und Urlaub",
+  "saetze": [
+   "Anna ist morgen krank",
+   "nein",
+   "Tim hat nächste Woche Urlaub",
+   "nein",
+   "Marvin kommt heute nicht"
+  ]
+ },
+ {
+  "name": "Dienst anpassen",
+  "saetze": [
+   "Verlängere Stefanos Dienst heute bis 20 Uhr",
+   "nein",
+   "Tim fängt morgen eine Stunde früher an als Anna",
+   "Annas Dienst morgen endet schon um 13 Uhr",
+   "nein",
+   "Streich die Pause von Anna morgen",
+   "nein"
+  ]
+ },
+ {
+  "name": "Dienstfragen",
+  "saetze": [
+   "Wer arbeitet gerade",
+   "Seit wann ist Stefano im Dienst",
+   "Wann hat Anna morgen Pause",
+   "Wer hat heute noch keinen Dienst",
+   "Wie lange arbeitet Anna morgen",
+   "Hat Tim den Standby morgen bestätigt"
+  ]
+ },
+ {
+  "name": "Stunden und Lohn",
+  "saetze": [
+   "Wie viele Stunden hat Marvin heute gearbeitet",
+   "Wessen Stundenzettel wurde angepasst",
+   "Was verdient Tim pro Stunde",
+   "Stundenlohn 1000 Euro für Tim",
+   "nein",
+   "Stundenlohn minus 5 Euro für Tim",
+   "Lehne den Stundenzettel von Marvin ab"
+  ]
+ },
+ {
+  "name": "Nachrichten",
+  "saetze": [
+   "Sag Stefano er soll mich anrufen",
+   "nein",
+   "Schreib Tim und Anna dass das Briefing um 8 ist",
+   "nein",
+   "Erinnere alle Fahrer ans Tanken",
+   "nein",
+   "Schreib Tim dass er ein Idiot ist",
+   "nein",
+   "Sag Tim er soll ruhig über Rot fahren wenn es eilt"
+  ]
+ }
+]

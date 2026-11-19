@@ -2,7 +2,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { providerConfig } from '../_shared/provider-config.ts';
 import { recordUsageWithCost } from '../_shared/usage-tracking.ts';
-import { adressenPruefen, routenPunkteLesen, tomtomRoute, tomtomSchluessel } from '../_shared/tomtom-routing.ts';
+import {
+  adressenPruefen, fahrtOrte, naviAusFest, naviFolge, routeFestLesen, routeFestRechnen, routenPunkteLesen, tomtomNavi, tomtomRoute, tomtomSchluessel,
+} from '../_shared/tomtom-routing.ts';
 import { flughafenVorschlaege } from '../_shared/flughafen-vorschlaege.ts';
 
 const ensureEnv = (name: string) => {
@@ -93,9 +95,27 @@ Deno.serve(async (req) => {
       const adressen = Array.isArray(body?.adressen) ? body.adressen.map((t: unknown) => String(t ?? '').trim()).filter(Boolean).slice(0, 10) : [];
       const schluessel = await tomtomSchluessel(adminClient);
       if (!schluessel || adressen.length < 2) return jsonResponse(200, { ok: false, fehler: 'keine_route' });
+      // Mit Routenpunkten: die Linie, die der Editor zeigt, kommt als "fest" mit zurueck. Uebernimmt die
+      // Dispo sie, speichert die App genau dieses Paket an der Fahrt (jobs.route_fest).
+      const routenPunkte = routenPunkteLesen(body?.punkte);
+      if (routenPunkte.length > 0) {
+        const orte = await fahrtOrte(adminClient, schluessel, adressen);
+        if (!orte) return jsonResponse(200, { ok: false, fehler: 'geocode_not_found' });
+        const fest = await routeFestRechnen(schluessel, orte, routenPunkte);
+        if (!fest) return jsonResponse(200, { ok: false, fehler: 'route_not_found' });
+        const minuten = Math.ceil(fest.dauer_s / 60);
+        return jsonResponse(200, {
+          ok: true,
+          polyline: fest.polyline,
+          distanz_m: fest.laenge_m,
+          dauer_min: minuten,
+          dauer_verkehr_min: minuten,
+          orte: orte.map((o) => ({ lat: o.lat, lng: o.lon })),
+          fest,
+        });
+      }
       const route = await tomtomRoute(adminClient, schluessel, adressen[0], adressen[adressen.length - 1], {
         stopps: adressen.slice(1, -1),
-        routenPunkte: routenPunkteLesen(body?.punkte),
       });
       if (!route.ok) return jsonResponse(200, { ok: false, fehler: route.fehler || 'route_not_found' });
       const p = route.payload as { von?: { lat: number; lon: number }; nach?: { lat: number; lon: number }; stopps?: Array<{ lat: number; lon: number }> };
@@ -108,6 +128,45 @@ Deno.serve(async (req) => {
         dauer_verkehr_min: route.durationInTrafficMins,
         orte: [ort(p.von), ...(p.stopps || []).map(ort), ort(p.nach)],
       });
+    }
+
+    // Eigene Navigation der Fahrer-App (16.11.): Route ab Standort ueber die offenen Ziele der Fahrt.
+    // ab = erste noch offene Stelle der Folge (0 = Abholung). bis_abholung = nur die Anfahrt.
+    if (body?.aktion === 'navi_route') {
+      if (!userId) return jsonResponse(401, { error: 'Unauthorized' });
+      const jobId = isValidUuid(body?.job_id) ? body.job_id : null;
+      const lat = Number(body?.lat);
+      const lng = Number(body?.lng);
+      if (!jobId || !Number.isFinite(lat) || !Number.isFinite(lng)) return jsonResponse(200, { ok: false, fehler: 'eingabe' });
+      // Mit dem Zugang des Nutzers lesen: die Zugriffsregeln lassen nur den Fahrer der Fahrt
+      // (auch Kolonne) und die Dispo durch.
+      const { data: job } = await authClient.from('jobs')
+        .select('id,ext_route_payload,routen_punkte,route_fest,ext_route_polyline,ext_route_distance_m,ext_route_duration_in_traffic_mins,ext_route_duration_mins').eq('id', jobId).maybeSingle();
+      if (!job) return jsonResponse(200, { ok: false, fehler: 'fahrt_fehlt' });
+      const folge = naviFolge(job.ext_route_payload, routenPunkteLesen(job.routen_punkte));
+      if (folge.length === 0) return jsonResponse(200, { ok: false, fehler: 'route_fehlt' });
+      const ab = Math.min(Math.max(0, Math.floor(Number(body?.ab) || 0)), folge.length - 1);
+      const ziele = body?.bis_abholung ? folge.slice(0, 1) : folge.slice(ab);
+      const schluessel = await tomtomSchluessel(adminClient);
+      if (!schluessel) return jsonResponse(200, { ok: false, fehler: 'kein_schluessel' });
+      const standort = { lat, lng, kurs: body?.kurs == null ? null : Number(body.kurs) };
+      // Mit Gast an Bord gilt die freigegebene Route der Dispo, genau wie gespeichert.
+      const fest = body?.bis_abholung ? null : routeFestLesen(job.route_fest);
+      const navi = fest ? await naviAusFest(schluessel, fest, standort, Math.max(1, ab)) : await tomtomNavi(schluessel, standort, ziele);
+      // Vor dem Einsteigen (17.11.): die Route der Dispo bis zum Ziel als Vorschau mitschicken, damit der
+      // Fahrer sie schon bei der Anfahrt und am Abholort sieht. Die freigegebene Route, sonst die
+      // gespeicherte Fahrtroute (rechnet die Routenpunkte schon ein). Kein zusaetzlicher TomTom-Abruf.
+      let vorschau: { polyline: string; laenge_m: number; dauer_s: number } | null = null;
+      if (body?.bis_abholung && routenPunkteLesen(job.routen_punkte).length > 0) {
+        const gespeichert = routeFestLesen(job.route_fest);
+        if (gespeichert) {
+          vorschau = { polyline: gespeichert.polyline, laenge_m: gespeichert.laenge_m, dauer_s: gespeichert.dauer_s };
+        } else if (typeof job.ext_route_polyline === 'string' && job.ext_route_polyline.length > 0) {
+          const minuten = Number(job.ext_route_duration_in_traffic_mins || job.ext_route_duration_mins || 0);
+          vorschau = { polyline: job.ext_route_polyline, laenge_m: Number(job.ext_route_distance_m || 0), dauer_s: minuten * 60 };
+        }
+      }
+      return jsonResponse(200, { ...navi, anzahl_ziele: folge.length, freigabe: Boolean(fest), ...(vorschau ? { vorschau } : {}) });
     }
 
     const input = typeof body?.input === 'string' ? body.input.trim() : '';

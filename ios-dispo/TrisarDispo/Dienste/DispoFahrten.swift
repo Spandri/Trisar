@@ -187,6 +187,8 @@ final class DispoFahrtenSpeicher: ObservableObject {
 
     private static let spaltenBasis = "id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins"
     private static let spaltenVarianten = [
+        // Echte Abfahrt/Ankunft (18.11.), ohne die Spalten weiter mit den naechsten.
+        "\(spaltenBasis), ai_booked, flight_number, train_number, etd_bis, abfahrt_echt, ankunft_echt, ankunft_erwartet",
         // Start Zeitraum (13.11.): etd_bis = Ende des Zeitraums.
         "\(spaltenBasis), ai_booked, flight_number, train_number, etd_bis",
         "\(spaltenBasis), ai_booked, flight_number, train_number",
@@ -215,6 +217,7 @@ final class DispoFahrtenSpeicher: ObservableObject {
                     letzterFehler = error
                     let text = Self.text(error)
                     let fehlendeSpalte = Self.passt(text, #"column .*etd_bis|could not find the ['"]?etd_bis['"]? column"#)
+                        || Self.passt(text, #"column .*(abfahrt_echt|ankunft_echt|ankunft_erwartet)|could not find the ['"]?(abfahrt_echt|ankunft_echt|ankunft_erwartet)['"]? column"#)
                         || Self.passt(text, #"column .*flight_number|could not find the ['"]?flight_number['"]? column"#)
                         || Self.passt(text, #"column .*ai_booked|could not find the ['"]?ai_booked['"]? column"#)
                         || Self.passt(text, #"column .*train_planned_time|column .*train_predicted_time|could not find the ['"]?train_planned_time['"]? column|could not find the ['"]?train_predicted_time['"]? column"#)
@@ -467,7 +470,23 @@ final class DispoFahrtenSpeicher: ObservableObject {
             let ankunftNeu = W.erste(W.plus(bezug, dauer), W.plus(wirksameEtd, dauer), W.plus(originalEtd, dauer),
                                      bezug, wirksameEtd, originalEtd) ?? "--:--"
             let ankunftOriginal = W.erste(W.plus(originalEtd, dauer), W.plus(wirksameEtd, dauer), originalEtd, wirksameEtd) ?? "--:--"
-            let verspaetet = verzug > 0 || (!wirksameEtd.isEmpty && !originalEtd.isEmpty && wirksameEtd != originalEtd)
+            // Echte Zeiten (18.11.): Ab "Unterwegs" die echte Abfahrt (GPS, sonst Tipp auf Unterwegs) statt des Plans,
+            // Ankunft live (TomTom) bzw. nach dem Ende die echte. Plan nur durchgestrichen, wenn die echte Abfahrt
+            // mehr als 5 min ausserhalb des Startfensters liegt.
+            let fertig = ["done", "completed", "arrived", "beendet"].contains(rohStatus)
+            let abfahrtEcht = (unterwegs || fertig) ? W.uhrBerlin(W.t(job["abfahrt_echt"])) : ""
+            let ankunftEcht = abfahrtEcht.isEmpty ? "" : (W.erste(W.uhrBerlin(W.t(job["ankunft_echt"])),
+                                                              W.uhrBerlin(W.t(job["ankunft_erwartet"]))) ?? "")
+            let ausserhalbFenster: Bool = {
+                guard let echt = W.minuten(abfahrtEcht), let plan = geplantMin else { return false }
+                let ende = (spaetAb ?? plan) % 1440
+                let zuFrueh = (plan - echt + 1440) % 1440
+                let zuSpaet = (echt - ende + 1440) % 1440
+                return (zuFrueh > 5 && zuFrueh < 720) || (zuSpaet > 5 && zuSpaet < 720)
+            }()
+            let verspaetet = abfahrtEcht.isEmpty
+                ? (verzug > 0 || (!wirksameEtd.isEmpty && !originalEtd.isEmpty && wirksameEtd != originalEtd))
+                : ausserhalbFenster
             let notiz = notizNachJob[jobID] ?? ("", false)
             let dispoNotiz = dispoNotizNachJob[jobID] ?? ("", false)
             let kiSpalte = job["ai_booked"]?.boolValue == true
@@ -483,6 +502,20 @@ final class DispoFahrtenSpeicher: ObservableObject {
             zeiten.ankunftNeu = ankunftNeu
             zeiten.ankunftZeit = ankunftNeu
             zeiten.bis = etdBis
+            if !abfahrtEcht.isEmpty {
+                let plan = W.erste(originalEtd, etd) ?? ""
+                let ankunft = W.erste(ankunftEcht, ankunftNeu) ?? ankunftNeu
+                zeiten = FahrtZeiten()
+                if verspaetet {
+                    zeiten.original = plan.isEmpty ? "--:--" : plan + (etdBis.isEmpty ? "" : "–\(etdBis)")
+                    zeiten.neu = abfahrtEcht
+                } else {
+                    zeiten.zeit = abfahrtEcht
+                }
+                zeiten.ankunftOriginal = ankunftOriginal
+                zeiten.ankunftNeu = ankunft
+                zeiten.ankunftZeit = ankunft
+            }
 
             return DispoFahrt(
                 id: jobID,
@@ -492,7 +525,7 @@ final class DispoFahrtenSpeicher: ObservableObject {
                 route: "\(startEtikett) - \(zielEtikett)",
                 startOrt: startWert,
                 zielOrt: zielWert,
-                startZeit: W.erste(wirksameEtd, originalEtd) ?? "--:--",
+                startZeit: W.erste(abfahrtEcht, wirksameEtd, originalEtd) ?? "--:--",
                 fahrerNamen: hatFahrer ? etiketten : [""],
                 fahrerAntworten: hatFahrer ? antworten : [],
                 anonymeGaeste: anonym,
@@ -504,7 +537,7 @@ final class DispoFahrtenSpeicher: ObservableObject {
                 notizen: Array((alleNotizen[jobID] ?? []).reversed()),
                 kiGebucht: kiSpalte || notiz.ki || dispoNotiz.ki,
                 zeiten: zeiten,
-                verzugMinuten: verzug,
+                verzugMinuten: abfahrtEcht.isEmpty ? verzug : 0,
                 verspaetet: verspaetet,
                 ohneFahrerVariante: !hatFahrer,
                 datum: datum,
@@ -756,6 +789,21 @@ enum W {
         guard let basis = minuten(uhr), dauer > 0 else { return "" }
         let summe = ((basis + Int(dauer)) % 1440 + 1440) % 1440
         return String(format: "%02d:%02d", summe / 60, summe % 60)
+    }
+
+    /// Zeitstempel (timestamptz, UTC) als Uhrzeit in Berlin, "HH:mm". Leer, wenn nicht lesbar.
+    static func uhrBerlin(_ wert: String) -> String {
+        let text = wert.trimmingCharacters(in: .whitespaces)
+        if text.isEmpty { return "" }
+        let mitBruch = ISO8601DateFormatter()
+        mitBruch.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let ohneBruch = ISO8601DateFormatter()
+        guard let datum = mitBruch.date(from: text) ?? ohneBruch.date(from: text) else { return "" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.timeZone = TimeZone(identifier: "Europe/Berlin")
+        f.dateFormat = "HH:mm"
+        return f.string(from: datum)
     }
 
     static func uhrAusISO(_ wert: String) -> String {

@@ -66,6 +66,9 @@ struct StammFahrzeug: Identifiable, Hashable {
     let brandModel: String
     let trim: String
     let vin: String
+    /// Fahrzeugschein 2.1 (Hersteller) und 2.2 (Typ).
+    let hsn: String
+    let tsn: String
     let licensePlate: String
     let color: String
     /// seat_count roh (fuer die Suche "5 sitze") und als Zahl.
@@ -74,12 +77,18 @@ struct StammFahrzeug: Identifiable, Hashable {
     let range: Double?
     let fuelType: String
     let imageUrl: String
+    /// Vom OBD-Tracker angelegt (vehicles.neu_erkannt), bis ein Kennzeichen eingetragen ist.
+    let neuErkannt: Bool
+    /// Gewaehlte Modellvariante (fahrzeug_varianten: Tank und Verbrauch).
+    let varianteID: String
 
     init(_ z: DBZeile) {
         id = z.text("id")
         brandModel = z.text("brand_model")
         trim = z.text("trim")
         vin = z.text("vin")
+        hsn = z.text("hsn")
+        tsn = z.text("tsn")
         licensePlate = z.text("license_plate")
         color = z.text("color")
         seatCount = z.ganz("seat_count")
@@ -87,9 +96,11 @@ struct StammFahrzeug: Identifiable, Hashable {
         range = z.zahl("range_km")
         fuelType = z.text("fuel_type")
         imageUrl = z.text("image_url")
+        neuErkannt = z.text("neu_erkannt") == "true"
+        varianteID = z.text("variante_id")
     }
 
-    var plate: String { licensePlate.isEmpty ? "-" : licensePlate }
+    var plate: String { licensePlate.isEmpty ? (neuErkannt && !brandModel.isEmpty ? brandModel : "-") : licensePlate }
     var vinLabel: String { vin.isEmpty ? "-" : vin }
 
     /// resolveBodyType: Karosserie aus Modell/Variante (keine eigene Spalte).
@@ -156,7 +167,29 @@ final class FahrzeugFilterAblage: ObservableObject {
     }
 }
 
+/// Eine Zeile aus kba_typen (HSN/TSN aus dem Fahrzeugschein).
+struct KbaTyp: Decodable {
+    let brand_model: String?
+    let trim: String?
+    let fuel_type: String?
+    let sitze: Int?
+}
+
 /// Fahrzeugliste laden und live halten (vehicles, Realtime auf alle Aenderungen).
+/// Eine Zeile aus fahrzeug_varianten (Modell + Motorisierung + Baujahre).
+struct FahrzeugVariante: Decodable, Identifiable, Hashable {
+    let id: String
+    let modell: String
+    let variante: String
+    let generation: String
+    let kraftstoff: String?
+
+    /// Passt zu „Marke & Modell“ (gleich, ohne Gross-/Kleinschreibung).
+    func passt(_ markeModell: String) -> Bool {
+        modell.lowercased() == markeModell.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
 struct TrackerWahl: Decodable, Identifiable {
     let imei: String
     let nummer: Int
@@ -230,6 +263,19 @@ final class FahrzeugeDienst: ObservableObject {
         let zeile: DBZeile = try await Backend.client.from("vehicles").insert(inhalt)
             .select("*").single().execute().value
         return zeile
+    }
+
+    /// Modellvarianten mit Tank und Verbrauch fuer die Auswahl „Modell Variante“.
+    static func variantenLaden() async -> [FahrzeugVariante] {
+        (try? await Backend.client.from("fahrzeug_varianten").select("id, modell, variante, generation, kraftstoff")
+            .order("modell").order("generation").order("variante").execute().value) ?? []
+    }
+
+    /// Typdaten zu HSN/TSN (maybeSingle wie im Web, keine Zeile ergibt nil).
+    static func kbaTypLaden(hsn: String, tsn: String) async -> KbaTyp? {
+        let zeilen: [KbaTyp]? = try? await Backend.client.from("kba_typen").select("brand_model, trim, fuel_type, sitze")
+            .eq("hsn", value: hsn).eq("tsn", value: tsn).limit(1).execute().value
+        return zeilen?.first
     }
 
     /// OBD-Tracker fuer die Auswahl am Fahrzeug (obd_tracker.vehicle_id).

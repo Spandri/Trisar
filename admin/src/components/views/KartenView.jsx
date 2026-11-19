@@ -23,6 +23,7 @@ import { ausgeblendetMerken, useOhneSignal, zuLangeOhneSignal } from '../../shar
 import { useEigenerStandort } from '../../shared/eigenerStandort';
 import { EigenerPunkt } from '../../shared/karte/eigenerPunkt';
 import { ankunftLaden } from '../../shared/ankunftMelden';
+import FahrzeugMiniBild from '../ui/FahrzeugMiniBild';
 
 const envOrDefault = (value, fallback) => {
   if (!value) return fallback;
@@ -621,6 +622,9 @@ const getMinSheetPercent = () => {
 };
 // Blatt gerade so weit offen, dass der Name zu sehen ist (Telefon bleibt verdeckt):
 // Rest-Griff 8 + Abstand im Namensblock 18 + Name 30, minus 2 gegen den Telefon-Streifen.
+// Fahrer, dessen Fahrzeug-Seite gerade offen ist (fuer den Rueckweg auf die Karte).
+const FAHRZEUG_ZURUECK_KEY = 'trisar.karte.fahrzeugZurueck';
+
 const getNameSheetPercent = () => {
   const viewportHeight = window.innerHeight || 874;
   const minSheetPx = Math.max(34, (NAV_TOP_FROM_BOTTOM_PX - NAV_BLOCK_OFFSET_PX) + SHEET_PEEK_PX);
@@ -652,6 +656,8 @@ const FAHRTRICHTUNG_KEGEL_URL = '/icon/_Icon_Karte/Fahrtrichtung_Kegel_Trisar_01
 const KNOEPFE_OBEN_PX = 200;
 const GRUPPE_KREIS_URL = '/icon/_Icon_Karte/Gruppe_Kreis_Trisar_01.svg';
 const PIN_BREITE = 35;
+// Fahrer am gleichen Ort: so weit auseinander, dass sich die Pins leicht ueberlappen, die Nummer aber frei bleibt.
+const NEBENEINANDER_PX = 26;
 const PIN_HOEHE = 41.1367;
 const KEGEL_BREITE = 60.7094;
 const KEGEL_HOEHE = 50.5079;
@@ -1237,6 +1243,48 @@ function GoogleMapSurface({ drivers, selectedDriver, onDriverSelect, onMapEmptyC
 
       clusterMarkersRef.current.push(clusterMarker);
     }
+
+    // Fahrer am gleichen Ort (2 bis 4, oder die immer einzelnen) nicht uebereinander, sondern nebeneinander:
+    // Pins, die sich so ueberdecken, dass die Nummer unlesbar wird, kommen mittig in eine Reihe,
+    // NEBENEINANDER_PX auseinander (leicht ueberlappend), sortiert nach Fahrernummer. Nur Anzeige.
+    const sichtbar = [
+      ...entries.filter((_, index) => !clustered.has(index)),
+      ...[...immerEinzeln].map((einzelId) => {
+        const marker = markersByDriverRef.current.get(einzelId);
+        const position = marker?.getPosition?.();
+        if (!marker || !position) return null;
+        const p = projection.fromLatLngToPoint(position);
+        return { id: einzelId, marker, position, x: p.x * pixelFactor, y: p.y * pixelFactor };
+      }).filter(Boolean),
+    ];
+    const nummerVon = new Map(drivers.map((d) => [String(d.id), d.driverNumber]));
+    sichtbar.forEach((e) => e.marker.setZusatzVersatz?.(0, 0));
+    const zugeteilt = new Set();
+    sichtbar.forEach((start, i) => {
+      if (zugeteilt.has(i)) return;
+      // Alle, die ueber Nachbarn an diesem Pin haengen (Kette), bilden eine Reihe.
+      const reihe = [i];
+      zugeteilt.add(i);
+      for (let k = 0; k < reihe.length; k += 1) {
+        const a = sichtbar[reihe[k]];
+        sichtbar.forEach((b, j) => {
+          if (zugeteilt.has(j) || Math.hypot(a.x - b.x, a.y - b.y) >= NEBENEINANDER_PX) return;
+          zugeteilt.add(j);
+          reihe.push(j);
+        });
+      }
+      if (reihe.length < 2) return;
+      const glieder = reihe.map((j) => sichtbar[j]).sort((a, b) => {
+        const na = Number(nummerVon.get(a.id)); const nb = Number(nummerVon.get(b.id));
+        if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+        return String(nummerVon.get(a.id) ?? a.id).localeCompare(String(nummerVon.get(b.id) ?? b.id)) || a.id.localeCompare(b.id);
+      });
+      const mx = glieder.reduce((s, e) => s + e.x, 0) / glieder.length;
+      const my = glieder.reduce((s, e) => s + e.y, 0) / glieder.length;
+      glieder.forEach((e, n) => {
+        e.marker.setZusatzVersatz?.(mx + (n - (glieder.length - 1) / 2) * NEBENEINANDER_PX - e.x, my - e.y);
+      });
+    });
   }, [clearClusterMarkers, drivers, selectedDriver?.id, markierungSchluessel]);
 
   useEffect(() => {
@@ -2223,7 +2271,7 @@ function DienstreiseBlatt({ reise }) {
   );
 }
 
-function ActiveRideSheet({ driver, sheetPercent, setSheetPercent }) {
+function ActiveRideSheet({ driver, sheetPercent, setSheetPercent, onOpenVehicle }) {
   const { t } = useI18n();
   const ride = driver?.rideInfo || {
     hatFahrt: false,
@@ -2450,10 +2498,21 @@ function ActiveRideSheet({ driver, sheetPercent, setSheetPercent }) {
           </a>
         </div>
 
-        <div data-tutorial="karte-blatt-kennzeichen" className="mt-3 w-full bg-white py-[10px] text-center">
-          <div className="text-[#1d1c1d] text-[30px] leading-[1] font-bold tracking-[-0.8px] font-['Space_Grotesk']">{driver.plate}</div>
-          <div className="mt-[4px] text-[#1d1c1d]/35 text-[16px] leading-[1] font-bold tracking-[-0.5px] font-['Space_Grotesk']">{driver.vehicle}</div>
-        </div>
+        {/* Kennzeichen und Modell links, rechts das Fahrzeugbild wie auf der Startseite der Fahrer-App.
+            Tipp oeffnet die Fahrzeug-Seite. */}
+        <button
+          type="button"
+          data-tutorial="karte-blatt-kennzeichen"
+          onClick={() => onOpenVehicle?.(driver)}
+          disabled={!driver.vehicleId}
+          className="mt-3 w-full bg-white py-[10px] px-[18px] flex items-center gap-[12px] text-left"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="text-[#1d1c1d] text-[30px] leading-[1] font-bold tracking-[-0.8px] font-['Space_Grotesk'] truncate">{driver.plate}</div>
+            <div className="mt-[4px] text-[#1d1c1d]/35 text-[16px] leading-[1] font-bold tracking-[-0.5px] font-['Space_Grotesk'] truncate">{driver.vehicle}</div>
+          </div>
+          {driver.fahrzeugDaten ? <FahrzeugMiniBild vehicle={driver.fahrzeugDaten} /> : null}
+        </button>
 
         {/* Uhrzeit des letzten Signals in der Farbe der Signal-Stufe (grau, orange werdend, rot). */}
         {!DEMO_MODE ? (
@@ -2613,11 +2672,17 @@ function DriverQuickFilterBar({ counts, selectedFilters, onToggle, onInactiveLon
   );
 }
 
-export default function KartenView({ setView, filters = {} }) {
+export default function KartenView({ setView, filters = {}, onOpenVehicle }) {
   const { t, locale } = useI18n();
   const [drivers, setDrivers] = useState(() => readDriverMapCache());
   const [driversError, setDriversError] = useState('');
-  const [selectedDriverId, setSelectedDriverId] = useState(null);
+  // Zurueck von der Fahrzeug-Seite: derselbe Fahrer ist wieder gewaehlt, sein Blatt offen.
+  const [selectedDriverId, setSelectedDriverId] = useState(() => {
+    try { return window.sessionStorage.getItem(FAHRZEUG_ZURUECK_KEY) || null; } catch { return null; }
+  });
+  useEffect(() => {
+    try { window.sessionStorage.removeItem(FAHRZEUG_ZURUECK_KEY); } catch { /* gesperrt */ }
+  }, []);
   const [routeMetrics, setRouteMetrics] = useState(null);
   const [resetCameraSignal, setResetCameraSignal] = useState(0);
   // Eigener Bereich (13.11.): mit dem Finger frei zeichnen, "Maps" zoomt dann darauf.
@@ -2664,7 +2729,7 @@ export default function KartenView({ setView, filters = {} }) {
     bereichSchliessen();
   };
   const [quickFilters, setQuickFilters] = useState([...ALL_DRIVER_STATES]);
-  const [sheetPercent, setSheetPercent] = useState(getMinSheetPercent());
+  const [sheetPercent, setSheetPercent] = useState(() => (selectedDriverId ? getNameSheetPercent() : getMinSheetPercent()));
   const [inactiveLookaheadHours, setInactiveLookaheadHours] = useState(1);
   const [showInactiveLookaheadSlider, setShowInactiveLookaheadSlider] = useState(false);
   const normalizedDriverSearchTerms = useMemo(
@@ -2705,7 +2770,7 @@ export default function KartenView({ setView, filters = {} }) {
           await ensureCoordinatorReadSession();
         }
 
-        const profileSelectBase = 'id, first_name, last_name, phone, role, is_dispo, vehicle_id, driver_number, vehicles:vehicle_id(license_plate, brand_model, trim)';
+        const profileSelectBase = 'id, first_name, last_name, phone, role, is_dispo, vehicle_id, driver_number, vehicles:vehicle_id(*)';
         const profileSelectWithAvatar = `${profileSelectBase}, avatar_url`;
         const profileSelectCandidates = [
           `${profileSelectWithAvatar}, driver_activity_state, service_start_time, service_end_time, flagge`,
@@ -2952,6 +3017,19 @@ export default function KartenView({ setView, filters = {} }) {
             const plate = String(profile?.vehicles?.license_plate || '').trim() || '-';
             const brandModel = String(profile?.vehicles?.brand_model || '').trim();
             const trim = String(profile?.vehicles?.trim || '').trim();
+            // Fahrzeugangaben fuer das kleine Bild im Blatt (wie Startseite der Fahrer-App).
+            const fz = profile?.vehicles || null;
+            const fahrzeugDaten = fz ? {
+              id: fz.id ?? null,
+              license_plate: fz.license_plate ?? null,
+              brand_model: fz.brand_model ?? null,
+              trim: fz.trim ?? null,
+              color: fz.color ?? null,
+              image_url: fz.image_url ?? null,
+              vin: fz.vin ?? null,
+              fuel_type: fz.fuel_type ?? null,
+              seat_count: fz.seat_count ?? null,
+            } : null;
             const vehicle = [brandModel, trim].filter(Boolean).join(' ').trim() || t('karten.vehicleFallback');
             const driverJobs = jobsByDriverId.get(id) || [];
             const liveActiveJobId = String(row?.active_job_id || '').trim();
@@ -3005,6 +3083,7 @@ export default function KartenView({ setView, filters = {} }) {
               plate,
               vehicle,
               vehicleId: String(profile?.vehicle_id || '').trim(),
+              fahrzeugDaten,
               lat,
               lng,
               driverState,
@@ -3724,18 +3803,6 @@ export default function KartenView({ setView, filters = {} }) {
         />
       )}
 
-      {/* Hinweis unter der Statusleiste: so viele Fahrer sind lange ohne Signal ausgeblendet, Tippen oeffnet den Filter. */}
-      {!kartenAuswahl && ohneSignalAusblenden ? (
-        <button
-          type="button"
-          data-tutorial="karte-ohne-signal"
-          onClick={() => setView('kartenFilter')}
-          className="absolute left-[20px] top-[196px] z-[31] h-[30px] px-[10px] bg-black border border-[#E3F654]/50 text-[#E3F654] text-[12px] leading-[28px] font-medium font-['Space_Grotesk'] tracking-[0.3px]"
-        >
-          {t('karten.ohneSignalAusgeblendet', { anzahl: langeOhneSignal.length })} ›
-        </button>
-      ) : null}
-
       {showInactiveLookaheadSlider ? (
         <div data-tutorial="karte-inaktiv-fenster" className="absolute left-1/2 -translate-x-1/2 top-[190px] z-20 w-[362px] bg-black/90 border border-[#2c2c2c] rounded-xl px-3 py-3">
           <button
@@ -3782,6 +3849,11 @@ export default function KartenView({ setView, filters = {} }) {
           driver={blattFahrer}
           sheetPercent={sheetPercent}
           setSheetPercent={setSheetPercent}
+          onOpenVehicle={(fahrer) => {
+            if (!fahrer?.vehicleId) return;
+            try { window.sessionStorage.setItem(FAHRZEUG_ZURUECK_KEY, String(fahrer.id)); } catch { /* gesperrt */ }
+            onOpenVehicle?.({ driverId: fahrer.id, vehicleId: fahrer.vehicleId });
+          }}
         />
       ) : null}
 

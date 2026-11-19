@@ -707,6 +707,7 @@ private final class SimFahrerPunkt: MLNPointAnnotation {}
 
 /// Gruener Pin mit Fahrtnummer(n), 35 x 41,14, Spitze auf dem Ort.
 private final class SimStationPin: MLNAnnotationView {
+    override func layoutSubviews() { super.layoutSubviews(); KartenStil.rand(self) }
     init(text: String, z: CGFloat) {
         super.init(reuseIdentifier: nil)
         frame = CGRect(x: 0, y: 0, width: 35, height: 41.1367)
@@ -729,6 +730,7 @@ private final class SimStationPin: MLNAnnotationView {
 
 /// Fahrer als Punkt mit Nummer: rot mit Gast, gruen beim Laden, gelb (Kopf des gelben Pins) leer.
 private final class SimFahrerAnsicht: MLNAnnotationView {
+    override func layoutSubviews() { super.layoutSubviews(); KartenStil.rand(self) }
     private let bild = UIImageView()
     private let nummer = UILabel()
     private var zustand = ""
@@ -781,7 +783,7 @@ private struct NebenSimKarte: UIViewRepresentable {
     func makeCoordinator() -> Koordinator { Koordinator() }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let karte = MLNMapView(frame: .zero, styleURL: DispoKarte.stil)
+        let karte = MLNMapView(frame: .zero, styleURL: KartenStil.geteilt.url)
         karte.delegate = context.coordinator
         karte.backgroundColor = UIColor(hex: 0x0E0E0E)
         karte.setCenter(CLLocationCoordinate2D(latitude: 48.137154, longitude: 11.576124), zoomLevel: 11, animated: false)
@@ -792,6 +794,8 @@ private struct NebenSimKarte: UIViewRepresentable {
         karte.attributionButtonPosition = .bottomRight
         karte.attributionButton.tintColor = UIColor(white: 0.6, alpha: 0.8)
         context.coordinator.karte = karte
+        // Kartenstil aus dem Karten Filter (Dunkel/Hell/Farbig/Satellit), wechselt live.
+        KartenStil.geteilt.anbinden(karte)
         return karte
     }
 

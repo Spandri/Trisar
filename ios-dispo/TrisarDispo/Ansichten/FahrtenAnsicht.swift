@@ -361,6 +361,7 @@ struct FahrtenListeDispo: View {
         case "beendet": return "Beendet"
         case "stoniert": return "Storniert"
         case "unterwegs": return "Unterwegs"
+        case "beimGast": return "Beim Gast"
         default: break
         }
         if f.verzugMinuten > 0 { return "+\(f.verzugMinuten) min" }

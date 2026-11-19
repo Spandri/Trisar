@@ -1,0 +1,94 @@
+[
+ {
+  "name": "K1 Name gleich gesprochen",
+  "saetze": [
+   "Wo ist Anna gerade",
+   "Feierabend für Stephano",
+   "nein",
+   "Dienststart für Marwin morgen um 9"
+  ]
+ },
+ {
+  "name": "K1b unbekannter Name nach anderem Fahrer",
+  "saetze": [
+   "Wo ist Anna gerade",
+   "Feierabend für Klaus",
+   "Dienststart für Paula morgen um 9",
+   "Dann schick ihr Dienststart morgen um 9"
+  ]
+ },
+ {
+  "name": "K1c Folgeauftrag ohne Namen bleibt",
+  "saetze": [
+   "Wo ist Tim gerade",
+   "Dann schick Dienststart für 9 morgen"
+  ]
+ },
+ {
+  "name": "K2 Notiz mit Befehlswörtern",
+  "saetze": [
+   "Notiz zur Fahrt von Müller: Gast will, dass wir die Rückfahrt stornieren",
+   "ja",
+   "Notiz zur Fahrt von Herrn Engel: bitte nicht löschen, Gast kommt später",
+   "nein",
+   "Notiz zur Fahrt von Müller: Abholung 10:30 am Gate B",
+   "nein",
+   "Storniere die Fahrt von Müller",
+   "nein"
+  ]
+ },
+ {
+  "name": "K3 Uhrzeit süddeutsch",
+  "saetze": [
+   "Fahrt morgen um dreiviertel 7 vom Bayerischen Hof zur Messe",
+   "Dienststart für Tim morgen um viertel 8",
+   "nein",
+   "Dienststart für Tim morgen um halb 8",
+   "nein",
+   "Dienststart für Tim morgen um viertel nach 7"
+  ]
+ },
+ {
+  "name": "K4 Wochenangaben",
+  "saetze": [
+   "Dienststart für Tim in drei Wochen am Dienstag um 9",
+   "nein",
+   "Dienststart für Tim in zwei Wochen um 9",
+   "nein",
+   "Dienststart für Tim übernächsten Freitag um 9",
+   "nein",
+   "Dienststart für Tim in 10 Tagen um 9",
+   "nein",
+   "Dienststart für Tim am Freitag um 9"
+  ]
+ },
+ {
+  "name": "K5 Lohn",
+  "saetze": [
+   "Stundenlohn minus 5 Euro für Tim",
+   "Stundenlohn -12 Euro für Tim",
+   "Stundenlohn 25 Euro für Tim",
+   "nein"
+  ]
+ },
+ {
+  "name": "K6 Rechte und Ortung",
+  "saetze": [
+   "Gib Marvin Admin-Rechte",
+   "Schalte die Ortung für Tim ab",
+   "Mach Tim zum Disponenten",
+   "Melde alle Fahrer aus der App ab",
+   "Gib die 18 Uhr Fahrt Marvin",
+   "nein",
+   "Wo ist die Ortung von Tim gerade"
+  ]
+ },
+ {
+  "name": "K7 Tauschen",
+  "saetze": [
+   "Tausch die Fahrer der Fahrten von Engel und Tim",
+   "Die Fahrt von Herrn Engel macht Tim",
+   "nein"
+  ]
+ }
+]

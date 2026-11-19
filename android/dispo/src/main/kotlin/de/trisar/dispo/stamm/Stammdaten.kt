@@ -76,6 +76,13 @@ internal data class StammFahrzeug(
     val range: Double?,
     val fuelType: String,
     val imageUrl: String,
+    /** Vom OBD-Tracker angelegt (vehicles.neu_erkannt), bis ein Kennzeichen eingetragen ist. */
+    val neuErkannt: Boolean = false,
+    /** Gewaehlte Modellvariante (fahrzeug_varianten: Tank und Verbrauch). */
+    val varianteID: String = "",
+    /** Fahrzeugschein 2.1 / 2.2 (vehicles.hsn, vehicles.tsn). */
+    val hsn: String? = null,
+    val tsn: String? = null,
 ) {
     constructor(z: JsonObject) : this(
         id = z.text("id"),
@@ -89,9 +96,13 @@ internal data class StammFahrzeug(
         range = z.zahl("range_km"),
         fuelType = z.text("fuel_type"),
         imageUrl = z.text("image_url"),
+        neuErkannt = z.text("neu_erkannt") == "true",
+        varianteID = z.text("variante_id"),
+        hsn = z.text("hsn").ifEmpty { null },
+        tsn = z.text("tsn").ifEmpty { null },
     )
 
-    val plate get() = licensePlate.ifEmpty { "-" }
+    val plate get() = licensePlate.ifEmpty { if (neuErkannt && brandModel.isNotEmpty()) brandModel else "-" }
     val vinLabel get() = vin.ifEmpty { "-" }
 
     /** resolveBodyType: Karosserie aus Modell/Variante (keine eigene Spalte). */
@@ -146,6 +157,16 @@ internal object FahrzeugFilterAblage {
         return gefiltert.sortedWith(if (absteigend) vergleich.reversed() else vergleich)
     }
 }
+
+/** Eine Zeile aus fahrzeug_varianten (Modell + Motorisierung + Baujahre). */
+@Serializable
+internal data class FahrzeugVariante(val id: String, val modell: String, val variante: String, val generation: String = "", val kraftstoff: String? = null) {
+    /** Passt zu „Marke & Modell“ (gleich, ohne Gross-/Kleinschreibung). */
+    fun passt(markeModell: String) = modell.equals(markeModell.trim(), ignoreCase = true)
+}
+
+/** Treffer aus kba_typen zu HSN/TSN. */
+@Serializable internal data class KbaTyp(val brand_model: String? = null, val trim: String? = null, val fuel_type: String? = null, val sitze: Int? = null)
 
 /** Fahrzeugliste laden und live halten (vehicles, Realtime auf alle Aenderungen). */
 @Serializable
@@ -206,6 +227,21 @@ internal class FahrzeugeDienst {
             }
             return Backend.client.from("vehicles").insert(inhalt) { select() }.decodeList<JsonObject>().firstOrNull()
         }
+
+        /** Modellvarianten mit Tank und Verbrauch fuer die Auswahl „Modell Variante“. */
+        suspend fun variantenLaden(): List<FahrzeugVariante> = runCatching {
+            Backend.client.from("fahrzeug_varianten").select(Columns.raw("id, modell, variante, generation, kraftstoff")) {
+                order("modell", Order.ASCENDING); order("generation", Order.ASCENDING); order("variante", Order.ASCENDING)
+            }.decodeList<FahrzeugVariante>()
+        }.getOrDefault(emptyList())
+
+        /** KBA-Typliste: Modell, Variante, Kraftstoff und Sitze zu HSN/TSN, null ohne Treffer. */
+        suspend fun kbaLaden(hsn: String, tsn: String): KbaTyp? = runCatching {
+            Backend.client.from("kba_typen").select(Columns.raw("brand_model, trim, fuel_type, sitze")) {
+                filter { eq("hsn", hsn); eq("tsn", tsn) }
+                limit(1)
+            }.decodeList<KbaTyp>().firstOrNull()
+        }.getOrNull()
 
         /** OBD-Tracker fuer die Auswahl am Fahrzeug (obd_tracker.vehicle_id). */
         suspend fun trackerLaden(): List<TrackerWahl> = runCatching {

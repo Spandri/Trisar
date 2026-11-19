@@ -146,6 +146,14 @@ const haversineMeters = (from, to) => {
 };
 const isFiniteCoordinate = (lat, lng) => Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
 const isNearZeroCoordinate = (lat, lng) => Math.abs(Number(lat)) <= ZERO_COORD_EPSILON && Math.abs(Number(lng)) <= ZERO_COORD_EPSILON;
+// Ohne GPS-Fix schickt der Tracker die zuletzt gespeicherte Position weiter (18.11.: Tracker 2 stand
+// so in Augsburg statt in Muenchen). Fix nur mit Satelliten und, falls gemeldet, GNSS-Status 1 (IO 69).
+const hatGpsFix = (record) => {
+  if (!isFiniteCoordinate(record?.lat, record?.lng) || isNearZeroCoordinate(record.lat, record.lng)) return false;
+  if (Number.isFinite(record.satellites) && record.satellites === 0) return false;
+  if (record.io?.has?.(69) && record.io.get(69) !== 1) return false;
+  return true;
+};
 let commandSeq = 0;
 const nextCommandId = () => {
   commandSeq += 1;
@@ -1003,8 +1011,7 @@ const handleCodec12Message = (connection, message) => {
   }
   const vinTreffer = /VIN:([A-Za-z0-9]{17})\b/.exec(responseText || '');
   if (vinTreffer && connection?.imei) {
-    getDriverIdByImei(connection.imei)
-      .then((driverId) => saveVehicleVin(driverId, vinTreffer[1], 'obdinfo'))
+    fahrzeugAusVin(connection.imei, vinTreffer[1], 'obdinfo')
       .catch((err) => log('warn', 'vin_from_command_failed', { detail: err?.message || String(err) }));
   }
   // Erst quittieren, dann den naechsten holen, sonst kommt derselbe DB-Befehl nochmal.
@@ -1012,27 +1019,80 @@ const handleCodec12Message = (connection, message) => {
   else sendNextCommandIfIdle(connection, { force: true });
 };
 
-// Echte Fahrgestellnummer aus dem OBD ins Fahrzeug des Fahrers uebernehmen
-// (vehicles.vin). Nur gueltige 17-stellige VINs, jede nur einmal je Fahrer.
+// Fahrzeug aus der VIN des Trackers (18.11.2026, Migration 20261118140000_fahrzeug_aus_vin).
+// Die DB-Funktion trisar_fahrzeug_aus_vin entscheidet: bekanntes Fahrzeug, VIN am Tracker-Fahrzeug
+// eintragen oder neues Fahrzeug anlegen (Push an die Dispo). Tracker und verbundener Fahrer kommen mit.
+// Marke aus den ersten 3 Zeichen (WMI), Modell nur, wenn NHTSA vPIC es ohne Fehler liefert
+// (europaeische VINs liefern dort meist nur die Marke).
 const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
-const savedVinByDriver = new Map();
-const saveVehicleVin = async (driverId, rawVin, quelle) => {
+const WMI_MARKE = {
+  WBA: 'BMW', WBS: 'BMW', WBY: 'BMW', WMW: 'MINI',
+  WDB: 'Mercedes-Benz', WDC: 'Mercedes-Benz', WDD: 'Mercedes-Benz', WDF: 'Mercedes-Benz',
+  W1K: 'Mercedes-Benz', W1N: 'Mercedes-Benz', W1V: 'Mercedes-Benz', W1W: 'Mercedes-Benz', W1T: 'Mercedes-Benz',
+  WAU: 'Audi', WUA: 'Audi', TRU: 'Audi', WA1: 'Audi',
+  WVW: 'Volkswagen', WV1: 'Volkswagen', WV2: 'Volkswagen', WVG: 'Volkswagen',
+  WP0: 'Porsche', WP1: 'Porsche', TMB: 'Skoda', VSS: 'Seat', WF0: 'Ford', W0L: 'Opel', W0V: 'Opel',
+  SAL: 'Land Rover', SAJ: 'Jaguar', YV1: 'Volvo', YV4: 'Volvo', VF1: 'Renault', UU1: 'Dacia', VF3: 'Peugeot', VR3: 'Peugeot',
+  VF7: 'Citroen', ZFA: 'Fiat', JTD: 'Toyota', JTM: 'Toyota', SB1: 'Toyota', JTH: 'Lexus',
+  '5YJ': 'Tesla', '7SA': 'Tesla', XP7: 'Tesla', LRW: 'Tesla', KMH: 'Hyundai', TMA: 'Hyundai', KNA: 'Kia', U5Y: 'Kia',
+};
+const vinMarke = (vin) => WMI_MARKE[vin.slice(0, 3)] || null;
+
+const vpicAbfragen = async (vin) => {
+  try {
+    const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${vin}?format=json`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return {};
+    const r = (await res.json())?.Results?.[0] || {};
+    const fehlerfrei = String(r.ErrorCode || '').split(',').map((c) => c.trim()).every((c) => c === '0');
+    const text = (t) => String(t || '').trim();
+    return {
+      marke: text(r.Make) || null,
+      modell: fehlerfrei && text(r.Model) ? text(r.Model) : null,
+    };
+  } catch (err) {
+    log('warn', 'vpic_failed', { vin, detail: err?.message || String(err) });
+    return {};
+  }
+};
+
+// Je Tracker nur einmal je VIN und Fahrer (VIN kommt in jedem Paket).
+const vinErledigt = new Map();
+const fahrzeugAusVin = async (imei, rawVin, quelle) => {
   const vin = String(rawVin || '').trim().toUpperCase();
-  if (!driverId || !VIN_RE.test(vin)) return;
-  if (savedVinByDriver.get(driverId) === vin) return;
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles').select('vehicle_id').eq('id', driverId).maybeSingle();
-  if (profileError || !profile?.vehicle_id) {
-    log('warn', 'vin_no_vehicle', { driverId, vin, detail: profileError?.message || null });
-    return;
+  if (!imei || !VIN_RE.test(vin)) return;
+  const driverId = await getDriverIdByImei(imei).catch(() => null);
+  const schluessel = `${vin}|${driverId || ''}`;
+  if (vinErledigt.get(imei) === schluessel) return;
+
+  // vPIC nur, wenn wirklich neu angelegt werden muss.
+  let marke = null;
+  let modell = null;
+  const { data: bekannt } = await supabase.from('vehicles').select('id').eq('vin', vin).maybeSingle();
+  if (!bekannt) {
+    const { data: tracker } = await supabase.from('obd_tracker').select('vehicle_id').eq('imei', imei).maybeSingle();
+    let trackerAutoOhneVin = false;
+    if (tracker?.vehicle_id) {
+      const { data: auto } = await supabase.from('vehicles').select('vin').eq('id', tracker.vehicle_id).maybeSingle();
+      trackerAutoOhneVin = Boolean(auto) && !String(auto.vin || '').trim();
+    }
+    if (!trackerAutoOhneVin) {
+      const v = await vpicAbfragen(vin);
+      marke = vinMarke(vin) || v.marke || null;
+      modell = v.modell || null;
+    }
   }
-  const { error } = await supabase.from('vehicles').update({ vin }).eq('id', profile.vehicle_id);
+
+  const { data, error } = await supabase.rpc('trisar_fahrzeug_aus_vin', {
+    p_imei: imei, p_vin: vin, p_marke: marke, p_modell: modell,
+  });
   if (error) {
-    log('warn', 'vin_update_failed', { driverId, vin, detail: error.message });
+    log('warn', 'vin_fahrzeug_failed', { imei, vin, detail: error.message });
     return;
   }
-  savedVinByDriver.set(driverId, vin);
-  log('info', 'vin_saved', { driverId, vehicleId: profile.vehicle_id, vin, quelle });
+  vinErledigt.set(imei, schluessel);
+  log('info', 'vin_fahrzeug', { imei, vin, quelle, ...data });
 };
 
 // Fahrzeugdaten aus dem OBD: letzter Stand je Fahrer (vehicle_telemetry_live)
@@ -1048,21 +1108,31 @@ const writeTelemetry = async (imei, driverId, activeJobId, records, latest) => {
   }
   const rawIo = latest?.io ? Object.fromEntries(Array.from(latest.io.entries()).map(([k, v]) => [String(k), v])) : null;
 
-  // Zuendung an, aber kein einziger OBD-Wert im Paket: das Auto spricht kein OBD (z. B. Elektroauto
-  // wie Mini Aceman) oder der Tracker steckt in einem anderen Auto. Alte Werte (Tank, km, VIN eines
-  // frueheren Autos) duerfen dann nicht stehen bleiben.
-  const zuendungAn = sorted.some((record) => record.io?.get(239) === 1);
+  // Pakete ohne OBD-Werte sind normal (Motor aus, unter 13,3 V fragt der Tracker nicht ab, und auch
+  // waehrend der Fahrt kommt OBD nicht in jedem Paket). Die letzten Werte bleiben dann stehen, das
+  // Upsert schreibt nur gelieferte Felder. Geloescht wird nur, wenn der Tracker eine andere VIN meldet,
+  // also wirklich in einem anderen Auto steckt (18.11.2026, vorher: geloescht bei jedem Paket ohne OBD).
+  // Reine Momentwerte (Drehzahl, Tempo, Last) ohne frische OBD-Daten nicht als aktuell stehen lassen.
   const hatObd = sorted.some((record) =>
     OBD_IO_IDS.some((id) => record.io?.has(id)) || OBD_TEXT_IDS.some((id) => record.ioText?.get(id)));
-  if (zuendungAn && !hatObd) {
-    for (const feld of OBD_FELDER) merged[feld] = null;
+  if (!hatObd) {
+    for (const feld of ['rpm', 'obd_speed_kph', 'engine_load_pct', 'throttle_pct', 'fuel_rate_lph']) merged[feld] = null;
+  }
+  if (merged.vin) {
+    const { data: bisher } = await supabase
+      .from('vehicle_telemetry_live').select('vin').eq('driver_id', driverId).maybeSingle();
+    const alteVin = String(bisher?.vin || '').trim().toUpperCase();
+    if (alteVin && alteVin !== String(merged.vin).trim().toUpperCase()) {
+      for (const feld of OBD_FELDER) if (!(feld in merged)) merged[feld] = null;
+      log('info', 'obd_werte_anderes_auto', { imei, driverId, alteVin, neueVin: merged.vin });
+    }
   }
 
   const events = [];
   for (const record of sorted) {
     const event = describeEvent(record);
     if (!event) continue;
-    const hatPos = isFiniteCoordinate(record.lat, record.lng) && !isNearZeroCoordinate(record.lat, record.lng);
+    const hatPos = hatGpsFix(record);
     events.push({
       driver_id: driverId,
       imei,
@@ -1084,7 +1154,16 @@ const writeTelemetry = async (imei, driverId, activeJobId, records, latest) => {
     throw error;
   };
 
-  if (Object.keys(merged).length > 0 || rawIo) {
+  // Nur neuere Pakete duerfen den Live-Stand ersetzen (nachgelieferte alte Pakete nicht).
+  let liveNeuer = true;
+  {
+    const { data: bisher } = await supabase
+      .from('vehicle_telemetry_live').select('captured_at').eq('driver_id', driverId).maybeSingle();
+    const bisherMs = Date.parse(bisher?.captured_at || '');
+    const neuMs = Date.parse(latest?.capturedAt || '');
+    if (Number.isFinite(bisherMs) && Number.isFinite(neuMs) && neuMs < bisherMs) liveNeuer = false;
+  }
+  if (liveNeuer && (Object.keys(merged).length > 0 || rawIo)) {
     const liveRow = {
       driver_id: driverId,
       imei,
@@ -1098,7 +1177,7 @@ const writeTelemetry = async (imei, driverId, activeJobId, records, latest) => {
     if (error && handleError(error, 'live')) return;
     state.telemetryWrites += 1;
   }
-  if (merged.vin) await saveVehicleVin(driverId, merged.vin, 'io_256');
+  if (merged.vin) await fahrzeugAusVin(imei, merged.vin, 'io_256');
 
   if (events.length > 0) {
     const { error } = await supabase.from('vehicle_telemetry_events').insert(events);
@@ -1108,8 +1187,69 @@ const writeTelemetry = async (imei, driverId, activeJobId, records, latest) => {
   }
 };
 
+// Nachgelieferte Pakete (aelter als MAX_RECORD_AGE_SEC, z. B. "Zuendung aus" kurz vor dem Tiefschlaf,
+// erst beim Aufwachen gesendet): in Verlauf und Telemetrie, Live-Standort bleibt unberuehrt.
+// writeTelemetry ueberschreibt den Live-Stand nur, wenn das Paket neuer ist als der gespeicherte.
+const altePaketeVerarbeiten = async (imei, alte) => {
+  if (!alte.length) return;
+  const driverId = await getDriverIdByImei(imei);
+  if (!driverId) return;
+  const sortiert = [...alte].sort((a, b) => Date.parse(a.capturedAt || '') - Date.parse(b.capturedAt || ''));
+  const mitFix = sortiert.filter(hatGpsFix);
+  if (state.historyTableAvailable && mitFix.length) {
+    const { error } = await supabase.from('driver_location_history').insert(mitFix.map((record) => ({
+      driver_id: driverId,
+      job_id: null,
+      lat: record.lat,
+      lng: record.lng,
+      speed_mps: Number.isFinite(record.speedKph) ? (record.speedKph / 3.6) : null,
+      heading_deg: Number.isFinite(record.headingDeg) ? record.headingDeg : null,
+      source: SOURCE,
+      captured_at: record.capturedAt,
+    })));
+    if (error) log('warn', 'old_records_history_failed', { imei, detail: error.message });
+  }
+  if (state.telemetryTableAvailable) {
+    await writeTelemetry(imei, driverId, null, sortiert, sortiert[sortiert.length - 1]);
+  }
+};
+
+// Testmessung gefahrene Kilometer (18.11.2026, Tabelle km_messung): fuer die Tracker in km_messung_geraete
+// jedes Paket mitschreiben, auch ohne Fahrerzuordnung und auch nachgelieferte. Liste jede Minute neu laden.
+const kmMessung = { imeis: new Set(), geladen: 0 };
+const kmMessungSchreiben = async (imei, records) => {
+  if (Date.now() - kmMessung.geladen > 60_000) {
+    kmMessung.geladen = Date.now();
+    const { data, error } = await supabase.from('km_messung_geraete').select('imei').eq('aktiv', true);
+    if (!error) kmMessung.imeis = new Set((data || []).map((z) => String(z.imei)));
+  }
+  if (!kmMessung.imeis.has(String(imei))) return;
+  const zahl = (record, id, faktor = 1) => (record.io?.has(id) ? record.io.get(id) / faktor : null);
+  const zeilen = [...records]
+    .sort((a, b) => Date.parse(a.capturedAt || '') - Date.parse(b.capturedAt || ''))
+    .map((record) => ({
+      imei: String(imei),
+      erfasst: record.capturedAt,
+      lat: record.lat,
+      lng: record.lng,
+      satelliten: Number.isFinite(record.satellites) ? record.satellites : null,
+      tempo_kmh: Number.isFinite(record.speedKph) ? record.speedKph : null,
+      zuendung: record.io?.has(239) ? record.io.get(239) === 1 : null,
+      obd_km: zahl(record, 389),
+      gps_zaehler_km: zahl(record, 16, 1000),
+      gps_trip_km: zahl(record, 199, 1000),
+    }));
+  // Einzeln, damit der Trigger jeden Punkt an den vorigen anschliesst.
+  for (const zeile of zeilen) {
+    const { error } = await supabase.from('km_messung').upsert(zeile, { onConflict: 'imei,erfasst', ignoreDuplicates: true });
+    if (error) { log('warn', 'km_messung_failed', { imei, detail: error.message }); return; }
+  }
+};
+
 const writeLocations = async (imei, records) => {
   if (!Array.isArray(records) || records.length === 0) return;
+  await kmMessungSchreiben(imei, records).catch((err) =>
+    log('warn', 'km_messung_failed', { imei, detail: err?.message || String(err) }));
   if (MAX_RECORD_AGE_SEC > 0) {
     const cutoffMs = Date.now() - MAX_RECORD_AGE_SEC * 1000;
     const fresh = records.filter((record) => {
@@ -1117,9 +1257,16 @@ const writeLocations = async (imei, records) => {
       return Number.isFinite(ts) && ts >= cutoffMs;
     });
     if (fresh.length !== records.length) {
-      const dropped = records.length - fresh.length;
-      state.oldRecordsDropped += dropped;
-      log('info', 'old_records_dropped', { imei, dropped, kept: fresh.length, maxAgeSec: MAX_RECORD_AGE_SEC });
+      const alte = records.filter((record) => !fresh.includes(record));
+      state.oldRecordsDropped += alte.length;
+      log('info', 'old_records_dropped', {
+        imei, dropped: alte.length, kept: fresh.length, maxAgeSec: MAX_RECORD_AGE_SEC,
+        // Was drin stand (18.11.: "Zuendung aus" vor dem Tiefschlaf kam erst beim Aufwachen an).
+        inhalt: alte.map((record) => ({ t: record.capturedAt, zuendung: record.io?.get(239) ?? null, ereignis: record.eventIoId || null })),
+      });
+      // Alte Pakete nicht wegwerfen: Zuendung, Ereignisse und Verlauf zaehlen, nur der Live-Standort nicht.
+      await altePaketeVerarbeiten(imei, alte).catch((err) =>
+        log('warn', 'old_records_failed', { imei, detail: err?.message || String(err) }));
     }
     records = fresh;
     if (records.length === 0) return;
@@ -1131,10 +1278,9 @@ const writeLocations = async (imei, records) => {
     return;
   }
 
-  // Ohne GPS-Fix seit dem Start liefert der Tracker 0/0. Solche Records duerfen weder den
+  // Ohne GPS-Fix liefert der Tracker 0/0 oder die letzte gespeicherte Position (hatGpsFix). Solche Records duerfen weder den
   // Live-Standort noch den Verlauf ueberschreiben, Zuendung & Co. gehen trotzdem in die Telemetrie.
-  const positionRecords = records.filter((record) =>
-    isFiniteCoordinate(record.lat, record.lng) && !isNearZeroCoordinate(record.lat, record.lng));
+  const positionRecords = records.filter(hatGpsFix);
   if (positionRecords.length === 0) {
     state.invalidLiveSkipped += records.length;
     log('info', 'records_without_fix', { imei, driverId, records: records.length });

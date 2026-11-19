@@ -28,6 +28,7 @@ final class OrtSchildPunkt: MLNPointAnnotation {
 /// Ort auf der Karte nach Figma 2832-12397: 35 wie die Fahrer, gestrichelter Ring aussen,
 /// Lime-Kreis 29 bei 3/3, schwarzes Symbol 15 bei 10/10, Mitte auf dem Ort.
 final class OrtMarkerAnsicht: MLNAnnotationView {
+    override func layoutSubviews() { super.layoutSubviews(); KartenStil.rand(self) }
     static let groesse: CGFloat = 35
     private let ring = UIImageView(image: UIImage(named: "Ort_Ring_Trisar_01"))
     private let kreis = UIImageView(image: UIImage(named: "Ort_Kreis_Trisar_01"))
@@ -173,7 +174,7 @@ struct OrtKarte: UIViewRepresentable {
     func makeCoordinator() -> Koordinator { Koordinator() }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let karte = MLNMapView(frame: .zero, styleURL: DispoKarte.stil)
+        let karte = MLNMapView(frame: .zero, styleURL: KartenStil.geteilt.url)
         karte.delegate = context.coordinator
         karte.backgroundColor = UIColor(hex: 0x0E0E0E)
         karte.setCenter(punkt ?? CLLocationCoordinate2D(latitude: 48.137154, longitude: 11.576124),
@@ -191,6 +192,8 @@ struct OrtKarte: UIViewRepresentable {
         }
         karte.addGestureRecognizer(tipp)
         context.coordinator.karte = karte
+        // Kartenstil aus dem Karten Filter (Dunkel/Hell/Farbig/Satellit), wechselt live.
+        KartenStil.geteilt.anbinden(karte)
         return karte
     }
 

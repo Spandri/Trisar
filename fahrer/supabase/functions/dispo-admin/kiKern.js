@@ -231,6 +231,8 @@ const loadDatabaseSnapshot = async ({ includeAll = false, forceRefresh = false }
   const perTableLimit = includeAll ? 1000 : 500;
   const [jobsResult, profilesResult, vehiclesResult, guestsResult, jobGuestsResult, notesResult, convoyAssignmentsResult, convoysResult, liveLocationsResult] = await Promise.all([
     queryTableWithFallback('jobs', [
+      // Echte Abfahrt/Ankunft und Startfenster (18.11.), ohne die Spalten weiter wie bisher.
+      'id, ride_date, etd, etd_bis, abfahrt_echt, ankunft_echt, ankunft_erwartet, status, driver_id, convoy_id, pickup_name, pickup_address, dropoff_name, dropoff_address, passengers, anonymous_guests, pickup_ort_id, dropoff_ort_id, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_distance_m, route_von:ext_route_payload->von, route_nach:ext_route_payload->nach',
       // Routendauer und Koordinaten fuer Konfliktpruefung, Fahrervorschlag und Standort.
       'id, ride_date, etd, status, driver_id, convoy_id, pickup_name, pickup_address, dropoff_name, dropoff_address, passengers, anonymous_guests, pickup_ort_id, dropoff_ort_id, ext_route_duration_mins, ext_route_duration_in_traffic_mins, ext_route_distance_m, route_von:ext_route_payload->von, route_nach:ext_route_payload->nach',
       'id, ride_date, etd, status, driver_id, convoy_id, pickup_name, pickup_address, dropoff_name, dropoff_address, passengers, anonymous_guests, ext_route_duration_mins',
@@ -340,6 +342,7 @@ Du bist der KI-Assistent der Trisar Koordinator-App.
 Jetzt ist ${jetztBerlin().toISOString().slice(0, 16).replace('T', ' ')} Uhr (Deutschland).
 Regeln:
 - Fahrten stehen fertig in fahrten_uebersicht. Die Zahl der passenden Fahrten steht in anzahl, zaehle nicht selbst. Ist anzahl 0, gibt es im genannten Zeitraum keine passende Fahrt.
+- Die Uhrzeit einer Fahrt ist die geplante Zeit zum Losfahren, nie die Ankunft. Eine Ankunft nennst du nur, wenn Angekommen oder Ankunft voraussichtlich dasteht. Rechne keine Ankunft selbst aus.
 - Nenne nie IDs. Nenne Fahrer, Orte und Uhrzeiten.
 - Worueber gerade gesprochen wurde, steht in im_gespraech_genannt, die erste Zeile ist die zuletzt genannte Fahrt. Mit 'die Fahrt', 'dort' oder 'die' ist diese gemeint.
 - Antworte auf Deutsch, klar und knapp.
@@ -348,6 +351,7 @@ Regeln:
 - Wenn Information fehlt, sage das explizit.
 - Erfinde keine IDs, Zeiten, Namen oder Status.
 - Sprich den Disponenten mit du an, nie mit Sie.
+- Du heisst TRISAR-Assistent. Nenne nie den Hersteller oder den Namen eines Sprachmodells.
 - Behaupte nie, du haettest etwas gebucht, gesendet, geaendert oder geloescht. Das kannst du nicht.
 - Du aenderst selbst nichts. Ist eine Buchung, Aenderung oder ein Dienst gemeint, frage in einem Satz nach, welche Fahrt oder welcher Fahrer und was genau passieren soll.
 - Gib Antworten bevorzugt als kurze Stichpunkte, wenn mehrere Fakten genannt werden.
@@ -1373,6 +1377,7 @@ const callOllamaGenerate = async ({ systemPrompt, userPrompt, dbSnapshot, chatHi
       prompt: promptText,
       stream: false,
       keep_alive: -1,
+      think: false,
       options: { num_ctx: kontextFuer(promptText, MAX_OUTPUT_TOKENS),
         temperature: 0.2,
         num_predict: MAX_OUTPUT_TOKENS,
@@ -1414,6 +1419,7 @@ const callOllamaGenerate = async ({ systemPrompt, userPrompt, dbSnapshot, chatHi
         prompt: strictPrompt,
         stream: false,
       keep_alive: -1,
+        think: false,
         options: { num_ctx: kontextFuer(strictPrompt, 220),
           temperature: 0.1,
           num_predict: 220,
@@ -1544,6 +1550,7 @@ const callOllamaRideBookingPlanner = async ({ prompt, chatHistory = [], snapshot
       prompt: plannerPrompt,
       stream: false,
       keep_alive: -1,
+      think: false,
       options: { num_ctx: kontextFuer(plannerPrompt, 320), temperature: 0.0, num_predict: 320 },
     }),
   });
@@ -1625,6 +1632,7 @@ const mergeBookingProposals = (primary, fallback) => {
     ...primary.payload,
     datum: String(primary?.payload?.datum || fallback?.payload?.datum || '').trim(),
     startZeit: String(primary?.payload?.startZeit || fallback?.payload?.startZeit || '').trim(),
+    startZeitBis: String(primary?.payload?.startZeit ? (primary?.payload?.startZeitBis || '') : (fallback?.payload?.startZeitBis || '')).trim(),
     start: String(primary?.payload?.start || fallback?.payload?.start || '').trim(),
     ziel: String(primary?.payload?.ziel || fallback?.payload?.ziel || '').trim(),
     fahrgaeste: String(primary?.payload?.fahrgaeste || fallback?.payload?.fahrgaeste || '').trim(),
@@ -1657,7 +1665,19 @@ const mergeBookingProposals = (primary, fallback) => {
   };
 };
 
+// "zwischen 15 und 16 Uhr", "zwischen 15:00 und 16:00" (16.11.): Start Zeitraum. Vorher nahm die Regel bei
+// "zwischen 15 und 16 Uhr" die 16 (nur dort steht "Uhr") und bei "15:00 und 16:00" still nur den Anfang.
+const zeitraumIn = (prompt) => {
+  const m = String(prompt || '').match(/\bzwischen\s+(\d{1,2})(?:[:.](\d{2}))?\s*(?:uhr\s*)?(?:und|bis|-|–)\s*(\d{1,2})(?:[:.](\d{2}))?(?:\s*uhr)?/i);
+  if (!m) return null;
+  const von = uhrzeitAus(m[1], m[2] || 0);
+  const bis = uhrzeitAus(m[3], m[4] || 0);
+  return von && bis && von < bis ? { von, bis } : null;
+};
+
 const extractBookingTimeFromPrompt = (prompt) => {
+  const raum = zeitraumIn(prompt);
+  if (raum) return raum.von;
   const match = String(prompt || '').match(/\b(\d{1,2}:\d{2})\b/);
   if (match) return normalizeBookingTime(match[1]);
   const mitUhr = uhrzeitenIn(prompt)[0];
@@ -1690,6 +1710,9 @@ const extractBookingRouteFromPrompt = (prompt) => {
   const pattern = /\b(von|vom|ab|aus)\s+(.+?)\s+(?:nach|zu|zum|zur|ins|in die|in den)\s+(.+?)(?=(?:\s+mit\b|\s+und\b|\s+der\s+gast\b|\s+gast\s+hei(?:ss|ß)t\b|\s+fahrer\b|\s+f(?:ü|ue)r\b|\s+um\s+\d|\s+(?:heute|morgen|übermorgen|jetzt|sofort|gleich)\b|\s+\d{1,2}(?::\d{2})?\s*uhr\b|,(?!\s*\d{5}\b)|[.!?](?!\d)|$))/i;
   const match = raw.match(pattern);
   if (match?.[2] && match?.[3] && !/^(und|bring|mit)\b/i.test(match[2])) {
+    // "Gast ist Max von Hohenberg von der Messe zum Hbf" (16.11.): der Start beginnt nach dem letzten "von".
+    const letztesVon = String(match[2]).match(/^.*\s(?:von der|von dem|von|vom|ab|aus)\s+(\S.*)$/i);
+    if (letztesVon) match[2] = letztesVon[1];
     return ohneVerbReste({
       start: String(match[2]).trim(),
       ziel: String(match[3]).trim(),
@@ -1723,6 +1746,9 @@ const sanitizeGuestName = (value) => {
     .trim();
 };
 
+// Woerter am Satzanfang, die kein Gastname sind ("Neue Fahrt von ...", "Hotel Andaz ...").
+const KEIN_GAST_ANFANG_RE = /^(neue[rs]?|bitte|buche?|plane?|trag|fahrt|fahrer|flughafen|hotel|hauptbahnhof|bahnhof|messe|terminal|dienst|standby|heute|morgen|eine?n?|der|die|das|kannst|k(?:ö|oe)nntest|ich|wir|mach|leg|erstell\w*|abholung|transfer|shuttle)\b/i;
+
 const extractBookingGuestNameFromPrompt = (prompt, fahrer = []) => {
   const raw = String(prompt || '').trim();
   if (!raw) return '';
@@ -1734,13 +1760,15 @@ const extractBookingGuestNameFromPrompt = (prompt, fahrer = []) => {
     /\bmit\s+((?:Herrn?|Frau)\s+[A-ZÄÖÜ][\p{L}-]+(?:\s+[A-ZÄÖÜ][\p{L}-]+)?)/u,
     /\b(?:für|fuer)\s+((?:(?:Herrn?|Frau|Dr\.?)\s+[A-ZÄÖÜ][\p{L}-]+(?:\s+[A-ZÄÖÜ][\p{L}-]+)?|[A-ZÄÖÜ][\p{L}-]+\s+[A-ZÄÖÜ][\p{L}-]+)(?:\s*(?:,|und)\s*(?:(?:Herrn?|Frau|Dr\.?)\s+[A-ZÄÖÜ][\p{L}-]+(?:\s+[A-ZÄÖÜ][\p{L}-]+)?|[A-ZÄÖÜ][\p{L}-]+\s+[A-ZÄÖÜ][\p{L}-]+))*)/u,
     /\b[Hh]ol(?:e|t)?\s+((?:Herrn?|Frau)\s+[A-ZÄÖÜ][\p{L}-]+(?:\s+[A-ZÄÖÜ][\p{L}-]+)?)/u,
+    // Gast steht vorn (16.11.): "Simon Bücher mit Fahrer Joris von Gilching zum Hotel", "Max Müller morgen 10 Uhr vom ...".
+    /^((?:(?:Herrn?|Frau|Dr\.?)\s+)?[A-ZÄÖÜ][\p{L}-]+\s+[A-ZÄÖÜ][\p{L}-]+)(?=\s+(?:mit\s+(?:dem\s+|der\s+)?[Ff]ahrer(?:in)?\b|von\b|vom\b|ab\b|aus\b|heute\b|morgen\b|übermorgen\b|um\s+\d|\d{1,2}[:.]\d{2}))/u,
   ];
   for (const pattern of patterns) {
     const match = raw.match(pattern);
     const name = sanitizeGuestName(match?.[1] || '').replace(/\s+und\s+/g, ', ')
       .split(/\s*,\s*/).filter((teil) => teil && !/^(flug|flugnummer|terminal|hotel|gate|fahrer|fahrerin)\b/i.test(teil)).join(', ');
     // Ein Fahrername ist kein Gast ("Plan fuer Stefano Spandri eine Fahrt").
-    if (name && !istFahrerName(name, fahrer)) return name;
+    if (name && !istFahrerName(name, fahrer) && !(match.index === 0 && pattern.source.startsWith('^') && KEIN_GAST_ANFANG_RE.test(name))) return name;
   }
   return '';
 };
@@ -1779,7 +1807,26 @@ const buildRuleBasedBookingProposal = ({ prompt, snapshot }) => {
   const roheRoute = extractBookingRouteFromPrompt(prompt);
   const route = { start: ortVereinheitlichen(roheRoute.start, daten), ziel: ortVereinheitlichen(roheRoute.ziel, daten) };
   const drivers = Array.isArray(daten.fahrer_profiles) ? daten.fahrer_profiles : [];
-  const guestName = extractBookingGuestNameFromPrompt(prompt, drivers);
+  // Der Gastname endet vor der Strecke (16.11.): "Gast ist Simon Bücher von Gilching zum Hotel Andaz" hiess sonst
+  // als Ganzes so. Abschneiden, wo Start oder Ziel der gelesenen Strecke beginnt.
+  let guestName = extractBookingGuestNameFromPrompt(prompt, drivers);
+  for (const ort of [roheRoute.start, roheRoute.ziel].filter(Boolean)) {
+    const stelle = guestName.indexOf(ort);
+    if (stelle > 0) {
+      guestName = sanitizeGuestName(guestName.slice(0, stelle)
+        .replace(/\s+(?:von|vom|von der|von dem|ab|aus|nach|zu|zum|zur|ins|in die|in den|am|an der|an dem|beim)\s*$/i, ''));
+    }
+  }
+  if (istFahrerName(guestName, drivers)) guestName = '';
+  const raum = relativ ? null : zeitraumIn(prompt);
+  // Zweite Fahrt im selben Satz (16.11.): "... nach Gilching und von Gilching zum Hotel" legte still nur die erste an.
+  const hinweise = [];
+  const nachZiel = roheRoute.ziel ? String(prompt).slice(String(prompt).indexOf(roheRoute.ziel) + roheRoute.ziel.length) : '';
+  const zweite = nachZiel.match(/(?:^|[\s,])(?:und|dann|danach|anschlie(?:ß|ss)end|sp(?:ä|ae)ter)(?:\s+(?:dann|danach|anschlie(?:ß|ss)end|sp(?:ä|ae)ter|weiter|wieder|zur(?:ü|ue)ck))*\s+((?:von|vom|ab)\s+.+?\s+(?:nach|zu|zum|zur|ins|in die|in den)\s+.+?)\s*[.!?]*$/i);
+  if (zweite) hinweise.push(`Ich lege hier nur die erste Fahrt an. Die zweite (${zweite[1].trim()}) sag mir bitte danach einzeln.`);
+  else if (/\b(?:hin\s+und\s+zur(?:ü|ue)ck|und\s+(?:\S+\s+){0,4}zur(?:ü|ue)ck|r(?:ü|ue)ckfahrt)\b/i.test(prompt)) {
+    hinweise.push('Ich lege hier nur die Hinfahrt an. Die Rückfahrt sag mir bitte danach einzeln.');
+  }
   // Fahrer nur aus der Frage: per Nummer oder Name. Namen in Gast, Start und Ziel zaehlen nicht.
   let rest = String(prompt || '');
   [guestName, roheRoute.start, roheRoute.ziel].filter(Boolean).forEach((teil) => { rest = rest.split(teil).join(' '); });
@@ -1805,9 +1852,11 @@ const buildRuleBasedBookingProposal = ({ prompt, snapshot }) => {
       ? `Für die Buchung fehlen noch: ${missingFields.join(', ')}.`
       : '',
     missingFields,
+    hinweise,
     payload: {
       datum: rideDate,
       startZeit,
+      startZeitBis: raum && startZeit === raum.von ? raum.bis : '',
       start: route.start,
       ziel: route.ziel,
       fahrgaeste: guestName,
@@ -1856,17 +1905,18 @@ const buchungErgaenzen = (regel, modell, prompt, chatHistory, daten) => {
 
 // Antwort auf eine Buchung: Rueckfrage (und merken, was schon da ist) oder Vorschlag.
 const buchungsAntwort = (proposal, snapshot) => {
+  const hinweis = (proposal.hinweise || []).length ? `\n\n${proposal.hinweise.join('\n')}` : '';
   if (proposal.needsClarification) {
     conversationContext.offeneBuchung = { payload: proposal.payload, missing: proposal.missingFields || [], zeit: Date.now() };
     return {
-      answer: buchungsRueckfrage(proposal.payload, proposal.missingFields || []),
+      answer: `${buchungsRueckfrage(proposal.payload, proposal.missingFields || [])}${hinweis}`,
       action: { type: 'booking_needs_clarification', missingFields: proposal.missingFields || [] },
       meta: snapshot.meta,
     };
   }
   conversationContext.offeneBuchung = null;
   return {
-    answer: buchungsText(proposal.payload, snapshot.data),
+    answer: `${buchungsText(proposal.payload, snapshot.data)}${hinweis}`,
     action: { type: 'booking_proposal', proposal: proposal.payload },
     meta: snapshot.meta,
   };
@@ -1880,7 +1930,10 @@ const buchungFortsetzen = (offen, prompt, snapshot) => {
   let neu = false;
   const setze = (feld, wert) => { if (wert && JSON.stringify(p[feld]) !== JSON.stringify(wert)) { p[feld] = wert; neu = true; } };
   if (extractDateHint(prompt)?.type === 'date') setze('datum', teil.datum);
-  if (uhrzeitenIn(prompt).length || /\bum \d/.test(normalizeText(prompt)) || relativeBuchungszeit(prompt)) setze('startZeit', teil.startZeit);
+  if (uhrzeitenIn(prompt).length || /\bum \d/.test(normalizeText(prompt)) || relativeBuchungszeit(prompt) || zeitraumIn(prompt)) {
+    setze('startZeit', teil.startZeit);
+    if ((p.startZeitBis || '') !== (teil.startZeitBis || '')) { p.startZeitBis = teil.startZeitBis || ''; neu = true; }
+  }
   setze('start', teil.start);
   setze('ziel', teil.ziel);
   setze('fahrgaeste', teil.fahrgaeste);
@@ -1914,7 +1967,7 @@ const buchungFortsetzen = (offen, prompt, snapshot) => {
 const buchungsRueckfrage = (payload, fehlend) => {
   const bekannt = [
     payload.datum ? tagWort(payload.datum) : '',
-    payload.startZeit ? `um ${payload.startZeit}` : '',
+    payload.startZeit ? (payload.startZeitBis ? `zwischen ${payload.startZeit} und ${payload.startZeitBis}` : `um ${payload.startZeit}`) : '',
     payload.start ? `ab ${payload.start}` : '',
     payload.ziel ? `nach ${payload.ziel}` : '',
   ].filter(Boolean).join(' ');
@@ -1927,7 +1980,7 @@ const buchungsRueckfrage = (payload, fehlend) => {
 
 // Kurze Zusammenfassung der Buchung plus Warnung, wenn der Fahrer dann schon eine Fahrt hat.
 const buchungsText = (payload, daten) => {
-  const teile = [`${datumMitTag(payload.datum)} um ${payload.startZeit}`, `${payload.start} → ${payload.ziel}`];
+  const teile = [`${datumMitTag(payload.datum)} ${payload.startZeitBis ? `zwischen ${payload.startZeit} und ${payload.startZeitBis}` : `um ${payload.startZeit}`}`, `${payload.start} → ${payload.ziel}`];
   if (payload.fahrgaeste) teile.push(`Gast ${payload.fahrgaeste}`);
   if (payload.flugnummer) teile.push(`Flug ${payload.flugnummer}`);
   if (Number(payload.anonymeGaeste) > 0) teile.push(`${payload.anonymeGaeste} ${Number(payload.anonymeGaeste) === 1 ? 'Gast' : 'Gäste'} ohne Namen`);
@@ -2041,14 +2094,25 @@ const fahrtenFuerModell = (snapshot, prompt) => {
     const roh = Array.isArray(job?.passengers) ? job.passengers.join(', ') : String(job?.passengers || '');
     return roh.trim() || 'keine Namen';
   };
+  // Echte Zeiten (18.11.): Startfenster ausdruecklich als Losfahr-Zeit, sonst las das Modell "bis 21:00" als Ankunft.
+  const uhrBerlin = (iso) => {
+    const ms = Date.parse(String(iso || ''));
+    return Number.isFinite(ms)
+      ? new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' })
+      : '';
+  };
   const zeile = (job) => [
     `${job.ride_date} ${String(job.etd || '').slice(0, 5)}`,
+    job.etd_bis ? `Losfahren geplant zwischen ${String(job.etd || '').slice(0, 5)} und ${String(job.etd_bis).slice(0, 5)}` : '',
     `Fahrer: ${fahrerVon(job).map((id) => namen.get(id) || 'unbekannt').join(', ') || 'keiner'}`,
     `Von: ${job.pickup_name || job.pickup_address || '-'}`,
     `Nach: ${job.dropoff_name || job.dropoff_address || '-'}`,
-    `Status: ${job.status || '-'}`,
+    `Status: ${statusText(job.status)}`,
+    job.abfahrt_echt ? `Losgefahren: ${uhrBerlin(job.abfahrt_echt)}` : '',
+    job.ankunft_echt ? `Angekommen: ${uhrBerlin(job.ankunft_echt)}`
+      : (job.ankunft_erwartet ? `Ankunft voraussichtlich: ${uhrBerlin(job.ankunft_erwartet)}` : ''),
     `Gaeste: ${gaeste(job)}`,
-  ].join(' | ');
+  ].filter(Boolean).join(' | ');
   const nachId = new Map((daten.jobs || []).map((job) => [job.id, job]));
   const imGespraech = conversationContext.fahrten.slice(0, 8).map((id) => nachId.get(id)).filter(Boolean);
   // Eine Fahrt: die ist ab jetzt gemeint. Mehrere: bei "die Fahrt" muss nachgefragt werden.
@@ -2182,6 +2246,14 @@ const aenderungLesen = (prompt, snapshot) => {
   const ziel = ortAus('ziel|zieladresse');
   if (start) aenderung.start = ortVereinheitlichen(start, snapshot?.data);
   if (ziel) aenderung.ziel = ortVereinheitlichen(ziel, snapshot?.data);
+  // Nur ein Ort mit Richtung zum offenen Vorschlag (18.11.): "Vom Generalaviation Terminal am Münchner Flughafen"
+  // meldete "kann ich so nicht ausführen". vom/von/ab/aus = Start, zum/zur/nach = Ziel.
+  if (!start && !ziel) {
+    const nurOrt = roh.trim().match(/^(vom|von der|von|ab|aus|zum|zur|nach)\s+(.+?)[.!]*$/i);
+    if (nurOrt && nurOrt[2].split(/\s+/).length <= 8 && !/\b(uhr|\d{1,2}:\d{2})\b/i.test(nurOrt[2]) && !genannt.length) {
+      aenderung[/^(zum|zur|nach)$/i.test(nurOrt[1]) ? 'ziel' : 'start'] = ortVereinheitlichen(nurOrt[2], snapshot?.data);
+    }
+  }
 
   return { aenderung, merkmale, woerter: text.split(/[^a-z0-9]+/).filter((wort) => wort.length >= 4), gastName: gast || '' };
 };
@@ -3281,15 +3353,21 @@ const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVorschlag
   const buchung = (isBookingPrompt(trimmedPrompt) && !(aendernLautModell && vorhandeneGemeint)) || neuLautModell;
   const zeigWunsch = /^(bitte\s+)?(gib|zeig|zeige|nenn|nenne|liste|schick|schicke)\s+(mir|uns)\b/.test(frageNorm)
     && !/\b(eine|neue)\s+fahrt\b/.test(frageNorm);
+  // Offene Rueckfrage zur Buchung ("Um wie viel Uhr?", 19.11.): Sie ist immer neuer als eine noch offene Karte, denn
+  // jede fertige Karte loescht sie (buchungsAntwort). "Um 18:30 Uhr" gehoert dann zur Rueckfrage, nicht zur alten Karte.
+  const buchungFragtNoch = !!conversationContext.offeneBuchung?.payload && Date.now() - Number(conversationContext.offeneBuchung.zeit || 0) < 15 * 60 * 1000;
+  const karteOffen = buchungFragtNoch ? null : offenerVorschlag;
   const istAenderung = !buchung && !zeigWunsch && (
     AENDERN_RE.test(frageNorm)
-    || (AENDERN_KURZ_RE.test(frageNorm) && !mitFragezeichen)
+    || (AENDERN_KURZ_RE.test(frageNorm) && !mitFragezeichen && !buchungFragtNoch)
     || (ZUWEISEN_RE.test(frageNorm) && !mitFragezeichen && !FRAGEWORT_RE.test(frageNorm))
-    || (offenerVorschlag && !mitFragezeichen && !FRAGEWORT_RE.test(frageNorm) && ANPASSUNG_RE.test(frageNorm))
+    || (karteOffen && !mitFragezeichen && !FRAGEWORT_RE.test(frageNorm) && ANPASSUNG_RE.test(frageNorm))
     // Das Modell hat "Fahrt aendern" verstanden ("die Fahrt von Müller macht jetzt Tim statt Stefano").
     || (aendernLautModell && !FRAGEWORT_RE.test(frageNorm))
     // "mach 16 Uhr draus" zu einem offenen Vorschlag.
-    || (offenerVorschlag && /\b(draus|daraus)\b/.test(frageNorm))
+    || (karteOffen && /\b(draus|daraus)\b/.test(frageNorm))
+    // "Vom GAT", "nach Terminal 2" zu einem offenen Vorschlag (18.11.).
+    || (karteOffen && !mitFragezeichen && /^(vom|von der|von|ab|aus|zum|zur|nach)\s/.test(frageNorm))
   );
   if (aendernLautModell && !buchung && /\b(zwei|drei|vier|beide[n]?|alle[n]?|mehrere[n]?|samtliche[n]?)\b(\s+[a-z0-9:]+){0,3}\s+fahrten\b/.test(frageNorm)) {
     return 'Mehrere Fahrten auf einmal ändere ich nicht. Nenne mir eine Fahrt, zum Beispiel „Gib die 18-Uhr-Fahrt Tim“. Ich habe nichts geändert.';

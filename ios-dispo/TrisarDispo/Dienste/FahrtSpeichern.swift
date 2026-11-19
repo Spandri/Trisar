@@ -21,6 +21,8 @@ struct FahrtFormularWerte: Equatable {
     var startOrtAdresse = ""
     var zielOrtID: UUID?
     var zielOrtAdresse = ""
+    /// Danach Dienstende (19.11.): "" oder "dienstende" (jobs.danach_dienstende).
+    var danach = ""
 }
 
 /// Stand einer Fahrt beim Oeffnen des Editors (rideEditorData aus openRideEditorById).
@@ -41,6 +43,11 @@ struct GeladeneFahrt: Equatable {
     var mitBisSpalte = false
     /// Routenpunkte der Dispo (jobs.routen_punkte, 15.11.), leer = schnellste Route.
     var routenPunkte: [RoutenPunkt] = []
+    /// Freigegebene Route zu diesen Punkten (jobs.route_fest, 16.11.), rohes JSON vom Server.
+    /// Undurchsichtig: nicht auswerten, bei unveraenderten Punkten unveraendert wieder speichern.
+    var routeFest: AnyJSON?
+    /// jobs.danach_dienstende gibt es in der Datenbank (Migration 19.11. da).
+    var mitDanachSpalte = false
 }
 
 /// payload an onCreateRide / onSave.
@@ -58,6 +65,8 @@ struct FahrtEingabe {
     var flugOhnePruefung = false
     /// Routenpunkte aus dem Routen-Editor (leer = schnellste Route).
     var routenPunkte: [RoutenPunkt] = []
+    /// „fest“ der Vorschau, die beim Übernehmen im Editor zu sehen war (bzw. das geladene). Ohne Punkte nil.
+    var routeFest: AnyJSON?
 }
 
 /// Vorschlag des KI-Assistenten als Startwerte fuer „Fahrt erstellen“.
@@ -198,6 +207,8 @@ enum FahrtSpeichern {
     private struct ArchivZeile: Decodable { let job_id: UUID? }
     private struct BisZeile: Decodable { let etd_bis: String? }
     private struct RoutenZeile: Decodable { let routen_punkte: RoutenPunktListe? }
+    private struct DanachZeile: Decodable { let danach_dienstende: Bool? }
+    private struct RoutenFestZeile: Decodable { let routen_punkte: RoutenPunktListe?; let route_fest: AnyJSON? }
 
     private static func nummerText(_ w: AnyJSON?) -> String {
         switch w {
@@ -366,8 +377,19 @@ enum FahrtSpeichern {
                              fahrgaeste: wirksam.joined(separator: ", "), notiz: dispoText, aiBooked: aiBooked,
                              mitOrtSpalten: mitOrtSpalten)
         ergebnis.mitBisSpalte = mitBisSpalte
-        // Routenpunkte: eigene Abfrage, fehlt die Spalte noch, bleibt es die schnellste Route.
-        if let r: RoutenZeile = try? await c.from("jobs").select("routen_punkte").eq("id", value: id).single().execute().value {
+        // Danach Dienstende: eigene Abfrage, fehlt die Spalte noch, bleibt die Auswahl leer.
+        if let d: DanachZeile = try? await c.from("jobs").select("danach_dienstende").eq("id", value: id).single().execute().value {
+            ergebnis.mitDanachSpalte = true
+            ergebnis.werte.danach = d.danach_dienstende == true ? "dienstende" : ""
+        }
+        // Routenpunkte und Freigabe: eigene Abfrage. Fehlt route_fest noch, nur die Punkte,
+        // fehlt auch die Spalte der Punkte, bleibt es die schnellste Route.
+        if let r: RoutenFestZeile = try? await c.from("jobs").select("routen_punkte, route_fest")
+            .eq("id", value: id).single().execute().value {
+            ergebnis.routenPunkte = r.routen_punkte?.punkte ?? []
+            // JSON-null der Datenbank ist keine Freigabe.
+            if let fest = r.route_fest, fest != .null, !ergebnis.routenPunkte.isEmpty { ergebnis.routeFest = fest }
+        } else if let r: RoutenZeile = try? await c.from("jobs").select("routen_punkte").eq("id", value: id).single().execute().value {
             ergebnis.routenPunkte = r.routen_punkte?.punkte ?? []
         }
         return ergebnis
@@ -401,6 +423,7 @@ enum FahrtSpeichern {
         var zugZeiten: FahrtPruefung.ZugZeiten
         var zugLive: AnyJSON
         var routenPunkte: [RoutenPunkt] = []
+        var routeFest: AnyJSON?
     }
 
     private static func vorbereiten(_ e: FahrtEingabe) async -> Result<Vorbereitet, TrisarFehler> {
@@ -441,7 +464,8 @@ enum FahrtSpeichern {
             gaeste: FahrtText.gaesteTeilen(e.fahrgaeste),
             anonym: max(0, Int(FahrtText.getrimmt(e.werte.anonymeGaeste.isEmpty ? "0" : e.werte.anonymeGaeste)) ?? 0),
             flugNr: flugNr, zugNr: zugNr, flug: flug, flugUngeprueft: ungeprueft, zug: zug, zugZeiten: zeiten, zugLive: live,
-            routenPunkte: e.routenPunkte
+            routenPunkte: e.routenPunkte,
+            routeFest: e.routenPunkte.isEmpty ? nil : e.routeFest
         ))
     }
 
@@ -500,6 +524,9 @@ enum FahrtSpeichern {
             zeile["routen_punkte"] = .array(v.routenPunkte.map { p in
                 .object(["lat": .double(p.lat), "lng": .double(p.lng), "nach": .integer(p.nach)])
             })
+            // Freigegebene Route immer zusammen mit den Punkten: das Paket aus dem Editor 1:1,
+            // ohne Punkte (oder ohne Paket) JSON-null.
+            zeile["route_fest"] = v.routenPunkte.isEmpty ? .null : (v.routeFest ?? .null)
         }
         return zeile
     }
@@ -533,8 +560,10 @@ enum FahrtSpeichern {
             for n in v.fahrerNamen { if let f = fahrerID(n, fahrer), !fahrerIDs.contains(f) { fahrerIDs.append(f) } }
             let kolonnenSync = kolonne != nil || v.fahrerNamen.count > 1 || fahrerIDs.count > 1
 
-            let zeile = jobSpalten(v, status: FahrtText.jobStatus(e.werte.aktuellerStatus), kolonne: kolonne,
+            var zeile = jobSpalten(v, status: FahrtText.jobStatus(e.werte.aktuellerStatus), kolonne: kolonne,
                                    fahrer: fahrerIDs.first, aiBooked: e.aiBooked)
+            // Danach Dienstende nur, wenn gewaehlt (DB-Trigger setzt das Dienstende).
+            if e.werte.danach == "dienstende" { zeile["danach_dienstende"] = .bool(true) }
             let neu: NeueID = try await Backend.client.from("jobs").insert(zeile).select("id").single().execute().value
 
             await kolonneAbgleichen(neu.id, kolonnenSync ? fahrerIDs : [])
@@ -589,7 +618,7 @@ enum FahrtSpeichern {
                 .eq("id", value: fahrtID).single().execute().value
             let fahrerNeu = fahrerIDs.first ?? bisher?.driver_id
             let gewuenscht = FahrtText.jobStatus(e.werte.aktuellerStatus)
-            let endStatus = ["done", "completed", "cancelled", "canceled", "refused", "in_progress"].contains(gewuenscht)
+            let endStatus = ["done", "completed", "cancelled", "canceled", "refused", "in_progress", "at_pickup"].contains(gewuenscht)
             let gleicheUhr: (String?, String) -> Bool = { String(($0 ?? "").prefix(5)) == String($1.prefix(5)) }
             // Uhrzeit im Formular nicht angefasst: die gespeicherte ETD bleibt. Bei ueberfaelligen offenen
             // Fahrten zeigt das Formular "jetzt" statt der Planzeit. Sonst schrieb jede reine Statusaenderung
@@ -616,6 +645,10 @@ enum FahrtSpeichern {
             var zeile = jobSpalten(v, status: naechster, kolonne: kolonne, fahrer: fahrerNeu, aiBooked: geladen.aiBooked,
                                    mitOrtSpalten: geladen.mitOrtSpalten, mitStoppSpalte: geladen.mitStoppSpalte,
                                    mitBisSpalte: geladen.mitBisSpalte, mitRoutenPunkten: !geladen.routenPunkte.isEmpty)
+            // Danach Dienstende immer true/false, solange die Spalte sicher da ist (oder gewaehlt).
+            if geladen.mitDanachSpalte || e.werte.danach == "dienstende" {
+                zeile["danach_dienstende"] = .bool(e.werte.danach == "dienstende")
+            }
             if neuAnfragen {
                 zeile["driver_response_status"] = "pending"
                 zeile["driver_responded_at"] = .null

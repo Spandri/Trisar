@@ -225,6 +225,7 @@ export default {
   "misc.sendDamage": "Signaler le dommage",
   "misc.sendNote": "Envoyer la note",
   "misc.settings": "Paramètres",
+  "misc.afterShiftEnd": "Ensuite fin de service",
   "misc.shiftEnd": "Fin de service {time}",
   "misc.shiftStart": "Prise de service {time}",
   "misc.sourceCamera": "Prendre une photo",
@@ -314,4 +315,5 @@ export default {
   "soloF.typeAirport": "Aéroport",
   "soloF.typeHotel": "Hôtel",
   "abholschild.schliessen": "Fermer la pancarte d’accueil",
+  "misc.damageReportedBy": "signalé par {name}",
 };

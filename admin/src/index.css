@@ -19,6 +19,40 @@ body,
   min-height: -webkit-fill-available;
 }
 
+/* Seite waechst mit dem Bildschirm (bildschirm.js): Hoehen in App-Pixeln, sonst wuerde scale sie mitvergroessern. */
+html.wachsen,
+html.wachsen body {
+  overflow: hidden;
+}
+
+/* #root bekommt seine Groesse in App-Pixeln von bildschirm.js, min-height 100vh wuerde sie aufblaehen. */
+html.wachsen #root {
+  min-height: 0;
+}
+
+/* 100vw wuerde scale mitvergroessern, auf schmalen Handys waere die Spalte dann zu schmal. */
+html.wachsen .w-\[min\(402px\,100vw\)\] {
+  width: min(402px, var(--app-w));
+}
+
+html.wachsen .h-dvh,
+html.wachsen .h-screen {
+  height: var(--app-h);
+}
+
+html.wachsen .min-h-dvh,
+html.wachsen .min-h-screen,
+html.wachsen .min-h-lvh {
+  min-height: var(--app-h);
+}
+
+/* Spalte durchsichtig, ihr Verlauf liegt ueber dem ganzen Bildschirm (hintergrundBreit.js). */
+html.wachsen body,
+html.wachsen #root,
+html.wachsen [data-hintergrund-breit] {
+  background: transparent !important;
+}
+
 @supports not (height: 100dvh) {
   .h-dvh {
     height: 100vh;

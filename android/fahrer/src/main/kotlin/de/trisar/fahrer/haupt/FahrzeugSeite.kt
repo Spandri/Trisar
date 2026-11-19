@@ -179,7 +179,7 @@ internal fun FahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: 
 private fun FahrzeugBlock(a: FahrzeugAngaben, r: FahrzeugAngaben.BlockRaster, modifier: Modifier, dreh: DrehSatz? = null) {
     val blass = Color(28, 28, 29).copy(alpha = 0.15f)
     Box(modifier.background(Color.White)) {
-        SchrumpfText(a.kennzeichen.ifEmpty { "Kein Fahrzeug" }, grotesk(30f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 353f,
+        SchrumpfText(a.kennzeichen.ifEmpty { a.modell.ifEmpty { "Kein Fahrzeug" } }, grotesk(30f, 700, abstand = -0.5f, farbe = hex(0x1C1C1D)), 353f,
             Modifier.platz(0f, 15.29f, 353f, 36.68f))
         val bild = a.bild
         r.bild?.let { o ->
@@ -209,6 +209,7 @@ private fun TelemetrieBlock(zeilen: List<FahrzeugDaten.TelemetrieZeile>, ereigni
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(z.titel, style = grotesk(11f, farbe = grundfarbe.copy(alpha = 0.5f)), maxLines = 1)
                             Text(z.wert, style = grotesk(18f, 700, farbe = if (z.warnung) hex(0xD9381E) else hex(0x1C1C1D)), maxLines = 1)
+                            if (z.unter.isNotEmpty()) Text(z.unter, style = grotesk(11f, farbe = grundfarbe.copy(alpha = 0.5f)), maxLines = 1)
                         }
                     }
                     repeat(3 - reihe.size) { Spacer(Modifier.weight(1f)) }
@@ -243,6 +244,9 @@ private fun SchadensBericht(schaeden: List<FahrzeugDaten.Schaden>, satz: DrehSat
                     Column(Modifier.weight(1f)) {
                         Text(s.stelle, style = grotesk(10f, 700, abstand = -0.5f, farbe = hex(0x1D1C1C)), modifier = Modifier.padding(bottom = 5.dp))
                         Text(s.beschreibung, style = grotesk(14f, 700, abstand = -0.5f, farbe = hex(0x1D1C1C)))
+                        if (s.gemeldetVon.isNotEmpty()) {
+                            Text("gemeldet von ${s.gemeldetVon}", style = grotesk(11f, farbe = hex(0x1D1C1C, 0.45f)), modifier = Modifier.padding(top = 5.dp))
+                        }
                     }
                     // Am drehbaren Auto markiert: Ansicht mit Punkt, sonst die Aufsicht
                     if (satz != null && s.genau != null && de.trisar.kern.stellePasst(s.genau, satz)) de.trisar.kern.StelleAnsicht(satz, s.genau)

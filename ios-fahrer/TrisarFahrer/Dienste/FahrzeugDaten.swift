@@ -16,6 +16,8 @@ final class FahrzeugDaten: ObservableObject {
         var punkt: CGPoint? = nil
         /// ganze gespeicherte Stelle (mit Ansicht und Bildpunkt, wenn am drehbaren Auto markiert)
         var genau: SchadenStelle? = nil
+        /// vehicle_damages.gemeldet_von (DB-Trigger), z. B. "Stefano Spandri (Dispo)". Leer, wenn unbekannt.
+        var gemeldetVon: String = ""
     }
 
     struct TelemetrieZeile: Identifiable, Equatable {
@@ -23,6 +25,8 @@ final class FahrzeugDaten: ObservableObject {
         let titel: String
         let wert: String
         let warnung: Bool
+        /// Kleine Zeile unter dem Wert (z. B. "seit 13:05" bei Geparkt).
+        var unter: String = ""
     }
 
     struct Ereignis: Identifiable, Equatable {
@@ -43,6 +47,9 @@ final class FahrzeugDaten: ObservableObject {
     @Published var fehler: String?
 
     private let fahrerID: UUID
+    /// Dispo-App: Fahrzeugseite fuer einen anderen Fahrer. Meldet Schaeden nicht als Fahrer
+    /// (reported_by_driver false) und merkt sich keinen Standort im Geraet.
+    private let vonDispo: Bool
     private var fahrzeugID: UUID?
     private var kanal: RealtimeChannelV2?
     private var beobachter: [Task<Void, Never>] = []
@@ -50,10 +57,11 @@ final class FahrzeugDaten: ObservableObject {
 
     private static let standortSchluessel = "trisar_fahrzeug_letzter_standort"
 
-    init(fahrerID: UUID) {
+    init(fahrerID: UUID, vonDispo: Bool = false) {
         self.fahrerID = fahrerID
+        self.vonDispo = vonDispo
         // Letzten bekannten Standort sofort zeigen, die Karte muss nicht auf die Datenbank warten.
-        if let w = UserDefaults.standard.array(forKey: Self.standortSchluessel) as? [Double], w.count == 2 {
+        if !vonDispo, let w = UserDefaults.standard.array(forKey: Self.standortSchluessel) as? [Double], w.count == 2 {
             standort = CLLocationCoordinate2D(latitude: w[0], longitude: w[1])
         }
     }
@@ -119,7 +127,7 @@ final class FahrzeugDaten: ObservableObject {
             standort = neu
             standortQuelle = z.source ?? ""
             standortZeit = (z.captured_at ?? z.updated_at).flatMap(Datum.ausISO)
-            UserDefaults.standard.set([lat, lng], forKey: Self.standortSchluessel)
+            if !vonDispo { UserDefaults.standard.set([lat, lng], forKey: Self.standortSchluessel) }
         }
     }
 
@@ -133,6 +141,8 @@ final class FahrzeugDaten: ObservableObject {
         let image_url: String?
         let image_urls: [String]?
         let stelle: SchadenStelle?
+        /// Optional: fehlt die Spalte noch, bleibt es nil.
+        let gemeldet_von: String?
     }
 
     func schaedenLaden() async {
@@ -144,7 +154,8 @@ final class FahrzeugDaten: ObservableObject {
             let bilder = (z.image_urls?.isEmpty == false ? z.image_urls! : [z.image_url].compactMap { $0 })
                 .filter { !$0.isEmpty && !$0.hasPrefix("blob:") }
             return Schaden(id: z.id, datum: Self.datumKurz(z.report_date ?? ""), stelle: z.part_name ?? "",
-                           beschreibung: z.description ?? "", bilder: bilder, punkt: z.stelle?.punkt, genau: z.stelle)
+                           beschreibung: z.description ?? "", bilder: bilder, punkt: z.stelle?.punkt, genau: z.stelle,
+                           gemeldetVon: (z.gemeldet_von ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
         }
     }
 
@@ -181,14 +192,14 @@ final class FahrzeugDaten: ObservableObject {
         }
         do {
             let neu = Neu(vehicle_id: id, report_date: heute, part_name: stelle, description: beschreibung,
-                          image_url: bilder.first, image_urls: bilder, reported_by_driver: true, stelle: genau)
+                          image_url: bilder.first, image_urls: bilder, reported_by_driver: !vonDispo, stelle: genau)
             do {
                 try await Backend.client.from("vehicle_damages").insert(neu).execute()
             } catch where genau != nil {
                 // Spalte stelle noch nicht ausgerollt: ohne Punkt speichern statt die Meldung zu verlieren.
                 try await Backend.client.from("vehicle_damages").insert(Neu(
                     vehicle_id: id, report_date: heute, part_name: stelle, description: beschreibung,
-                    image_url: bilder.first, image_urls: bilder, reported_by_driver: true, stelle: nil)).execute()
+                    image_url: bilder.first, image_urls: bilder, reported_by_driver: !vonDispo, stelle: nil)).execute()
             }
             await schaedenLaden()
             return true
@@ -257,9 +268,19 @@ final class FahrzeugDaten: ObservableObject {
     static func zeilen(_ live: [String: Any]?) -> [TelemetrieZeile] {
         guard let live else { return [] }
         var z: [TelemetrieZeile] = []
-        if let an = live["ignition"] as? Bool { z.append(.init(id: "ignition", titel: "Zündung", wert: an ? "An" : "Aus", warnung: false)) }
-        if let v = zahl(live["rpm"]) { z.append(.init(id: "rpm", titel: "Drehzahl", wert: "\(Int(v.rounded()))", warnung: false)) }
-        if let v = zahl(live["obd_speed_kph"]) { z.append(.init(id: "speed", titel: "Tempo (OBD)", wert: "\(Int(v.rounded())) km/h", warnung: false)) }
+        // Geparkt: Zuendung aus oder seit 2 Minuten keine Meldung (bei Zuendung an kommt alle 30 s eine,
+        // am OBD-Stecker schlaeft der Tracker nach dem Abstellen ohne letzte "Aus"-Meldung ein).
+        let stand = (live["captured_at"] as? String).flatMap(Datum.ausISO)
+        let an = live["ignition"] as? Bool
+        let geparkt = an == false || (stand.map { Date().timeIntervalSince($0) > 120 } ?? false)
+        if geparkt {
+            z.append(.init(id: "ignition", titel: "Zündung", wert: "Geparkt", warnung: false,
+                           unter: stand.map { "seit " + Datum.uhrzeit($0) } ?? ""))
+        } else if an == true {
+            z.append(.init(id: "ignition", titel: "Zündung", wert: "An", warnung: false))
+        }
+        if !geparkt, let v = zahl(live["rpm"]) { z.append(.init(id: "rpm", titel: "Drehzahl", wert: "\(Int(v.rounded()))", warnung: false)) }
+        if !geparkt, let v = zahl(live["obd_speed_kph"]) { z.append(.init(id: "speed", titel: "Tempo (OBD)", wert: "\(Int(v.rounded())) km/h", warnung: false)) }
         let tank = zahl(live["fuel_level_pct"])
         if let v = tank { z.append(.init(id: "fuel", titel: "Tank", wert: "\(Int(v.rounded())) %", warnung: v < 15)) }
         if tank == nil, let v = zahl(live["oem_fuel_l"]) { z.append(.init(id: "fuel", titel: "Tank", wert: "\(dezimal(v)) l", warnung: false)) }

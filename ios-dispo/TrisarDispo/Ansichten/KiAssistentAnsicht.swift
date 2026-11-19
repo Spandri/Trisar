@@ -172,8 +172,10 @@ struct KiAssistentAnsicht: View {
     }
 
     /// vorschlaegeVon: Vorschlaege einer Antwort (Fahrt, weitere Karten, Dienst) mit ihren Knoepfen.
-    /// Gleich im Chat und im Voice-Modus. Im Voice-Modus oeffnet Antippen der Karte kein Formular.
+    /// Gleich im Chat und im Voice-Modus. Antippen der Karte oeffnet das Formular, auch im Voice-Modus (18.11.),
+    /// der tritt so lange zur Seite.
     @ViewBuilder private func vorschlaege(_ n: KiNachricht, imSprachModus: Bool = false) -> some View {
+        if let w = n.ortWahl, n.ortWahlStatus == "offen", !w.optionen.isEmpty { ortWahl(w) }
         if let vorschlag = n.bookingProposal { buchung(n, vorschlag, imSprachModus: imSprachModus) }
         ForEach(n.karten ?? []) { k in karte(n, k, imSprachModus: imSprachModus) }
         if let d = n.dienstVorschlag { dienst(n, d) }
@@ -216,7 +218,7 @@ struct KiAssistentAnsicht: View {
                                           bottomTrailingRadius: 16, topTrailingRadius: 16)
         return VStack(alignment: .leading, spacing: 0) {
             KiMarke().padding(.bottom, 12)
-            Text(KiTelefonLinks.text(n.text)).font(.grotesk(16)).foregroundStyle(.white)
+            Text(KiTelefonLinks.text(n.ortWahl?.frage ?? n.text)).font(.grotesk(16)).foregroundStyle(.white)
                 .tint(Color(hex: 0xE3F654))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
@@ -263,9 +265,42 @@ struct KiAssistentAnsicht: View {
         .padding(.top, 12 + 8)
     }
 
+    /// Ortsauswahl: weisse Kacheln wie die Fahrtkarte, Antippen schickt den Ort als Nachricht.
+    private func ortWahl(_ w: KiOrtWahl) -> some View {
+        VStack(spacing: 8) {
+            ForEach(w.optionen, id: \.self) { o in
+                Button { Task { await senden(o.wert) } } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(o.titel).font(.grotesk(18, .bold)).foregroundStyle(.black)
+                            .multilineTextAlignment(.leading)
+                        if !o.zeile.isEmpty {
+                            Text(o.zeile).font(.grotesk(12, .medium)).foregroundStyle(.black.opacity(0.8))
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18).padding(.vertical, 12)
+                    .background(Color.white)
+                }
+                .buttonStyle(.web)
+                .disabled(sendet)
+            }
+            Button { Task { await senden("Keiner davon") } } label: {
+                Text("Keiner davon").font(.grotesk(16, .medium)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18).padding(.vertical, 12)
+                    .overlay(Rectangle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+            }
+            .buttonStyle(.web)
+            .disabled(sendet)
+        }
+        .frame(maxWidth: 362)
+        .padding(.top, 12)
+    }
+
     @ViewBuilder private func buchung(_ n: KiNachricht, _ v: KiBuchungsVorschlag, imSprachModus: Bool = false) -> some View {
         VStack(spacing: 0) {
-            if n.bookingStatus == "pending" && !imSprachModus {
+            if n.bookingStatus == "pending" {
                 Button { formular = KiFormular(nachricht: n.id, vorschlag: v) } label: { KiBuchungsKarte(vorschlag: v) }
                     .buttonStyle(.web)
             } else {
@@ -340,7 +375,7 @@ struct KiAssistentAnsicht: View {
                     }
                 }
                 .contentShape(Rectangle())
-                .onTapGesture { if k.status == "pending" && !imSprachModus { karteOeffnen(n.id, k) } }
+                .onTapGesture { if k.status == "pending" { karteOeffnen(n.id, k) } }
             }
             switch k.status {
             case "pending":
@@ -605,6 +640,12 @@ struct KiAssistentAnsicht: View {
                 nachrichten[i].karten = antwort.karten.isEmpty ? nil : antwort.karten
                 nachrichten[i].dienstVorschlag = antwort.dienstVorschlag
                 nachrichten[i].dienstStatus = antwort.dienstVorschlag == nil ? nil : "offen"
+                // Jede neue Antwort beendet eine offene Ortsauswahl, angetippt wird nur die juengste.
+                for j in nachrichten.indices where j != i && nachrichten[j].ortWahlStatus == "offen" {
+                    nachrichten[j].ortWahlStatus = "erledigt"
+                }
+                nachrichten[i].ortWahl = antwort.ortWahl
+                nachrichten[i].ortWahlStatus = antwort.ortWahl == nil ? nil : "offen"
             case .failure(let fehler):
                 let meldung = fehler.localizedDescription.isEmpty ? "Unbekannter KI-Fehler" : fehler.localizedDescription
                 nachrichten[i].text = "Fehler: \(meldung)"
@@ -707,8 +748,20 @@ struct KiAssistentAnsicht: View {
                     || text.range(of: #"\?\s*$"#, options: .regularExpression) != nil {
             // Ganzer Text, nicht nur die ersten 80 Zeichen (war abgeschnitten).
             offen = SprachOffen(lokal: false, titel: text.trimmingCharacters(in: .whitespacesAndNewlines))
+            // Ja/Nein-Knoepfe nur bei einer Ja/Nein-Frage (19.11.): „Um wie viel Uhr?“ beantwortet man nicht mit ja.
+            let hinweisJa = text.range(of: #"„ja“|"ja"|\bmit ja\b"#, options: [.regularExpression, .caseInsensitive]) != nil
+            offen?.jaNein = hinweisJa || !Self.wFrage(text)
         }
         return SprachAntwort(text: text, offen: offen)
+    }
+
+    /// Letzte Frage im Text ist eine W-Frage („…: Um wie viel Uhr?“, „Welches Ziel meinst du?“).
+    static func wFrage(_ text: String) -> Bool {
+        let letzte = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: CharacterSet(charactersIn: ".!:\n")).last?.trimmingCharacters(in: .whitespaces) ?? ""
+        guard letzte.hasSuffix("?") else { return false }
+        return letzte.range(of: #"^(um\s+wie\s+viel|wie|was|wann|wo|wohin|woher|welche[rsmn]?|wer|wen|wem|wessen|warum|wieso|weshalb|an\s+wen|f(ü|ue)r\s+wen|mit\s+wem|bis\s+wann|ab\s+wann|von\s+wo)\b"#,
+                            options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     /// Laeuft noch eine Anfrage, kurz warten (alle 100 ms, hoechstens 60 s) statt sie zu verwerfen.
@@ -728,7 +781,8 @@ struct KiAssistentAnsicht: View {
     /// Juengste Antwort mit Vorschlaegen fuer den Voice-Modus (auch nach dem Bestaetigen, damit man das Ergebnis sieht).
     private var sprachVorschlag: KiNachricht? {
         nachrichten.last { $0.role == "assistant" && $0.pending != true
-            && ($0.bookingProposal != nil || $0.dienstVorschlag != nil || !($0.karten ?? []).isEmpty) }
+            && ($0.bookingProposal != nil || $0.dienstVorschlag != nil || !($0.karten ?? []).isEmpty
+                || $0.ortWahlStatus == "offen") }
     }
 
     /// „ja“ bestaetigt alles, was in der Antwort noch wartet: Dienst, Fahrt und jede offene Karte.
@@ -803,6 +857,9 @@ struct KiNachricht: Codable, Equatable, Identifiable {
     var dienstFehler: String?
     /// Weitere Vorschlagskarten (Fahrten und Standbys) unter der ersten Buchung.
     var karten: [KiKarte]?
+    /// Ortsauswahl (18.11.): offen, bis eine neuere Antwort kommt, dann erledigt.
+    var ortWahl: KiOrtWahl?
+    var ortWahlStatus: String?
 
     static func uhrzeit(_ d: Date = Date()) -> String {
         let f = DateFormatter()
@@ -971,7 +1028,7 @@ private struct KiBuchungsKarte: View {
             .padding(18)
             VStack(alignment: .trailing, spacing: 0) {
                 Text(datum).font(.grotesk(16, .bold)).frame(height: 20)
-                Text(vorschlag.startZeit.isEmpty ? "--:--" : vorschlag.startZeit).font(.grotesk(16)).frame(height: 20)
+                Text(vorschlag.startZeit.isEmpty ? "--:--" : ((vorschlag.startZeitBis ?? "").isEmpty ? vorschlag.startZeit : "\(vorschlag.startZeit)–\(vorschlag.startZeitBis ?? "")")).font(.grotesk(16)).frame(height: 20)
             }
             .foregroundStyle(.black)
             .padding(.top, 18).padding(.trailing, 16)

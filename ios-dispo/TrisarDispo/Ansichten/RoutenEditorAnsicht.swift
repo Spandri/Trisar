@@ -19,6 +19,9 @@ struct RoutenVorschau {
     var dauerVerkehrMinuten: Double?
     /// Geocodet: Start, Stopps, Ziel (nil, wenn eine Adresse nicht gefunden wurde).
     var orte: [CLLocationCoordinate2D?]
+    /// Freigabe-Paket des Servers (nur mit Punkten). Fuer die App undurchsichtig: nicht auswerten,
+    /// nicht umbauen, beim Speichern 1:1 als jobs.route_fest weiterreichen.
+    var fest: AnyJSON?
 
     /// Minuten mit Verkehr, sonst ohne.
     var minuten: Double? { dauerVerkehrMinuten ?? dauerMinuten }
@@ -50,8 +53,10 @@ struct RoutenVorschau {
                 return CLLocationCoordinate2D(latitude: lat, longitude: lng)
             }
         }
+        var fest: AnyJSON?
+        if case .object? = o["fest"] { fest = o["fest"] }
         return RoutenVorschau(linie: linie, distanzMeter: zahl(o["distanz_m"]), dauerMinuten: zahl(o["dauer_min"]),
-                              dauerVerkehrMinuten: zahl(o["dauer_verkehr_min"]), orte: orte)
+                              dauerVerkehrMinuten: zahl(o["dauer_verkehr_min"]), orte: orte, fest: fest)
     }
 }
 
@@ -118,11 +123,14 @@ struct RoutenEditorAnsicht: View {
     /// Start, Zwischenstopps, Ziel (Adressen wie gespeichert).
     let adressen: [String]
     let abbrechen: () -> Void
-    let uebernehmen: ([RoutenPunkt]) -> Void
+    /// Punkte und das „fest“ der Vorschau, die beim Tipp auf „Übernehmen“ zu sehen war (ohne Punkte nil).
+    let uebernehmen: ([RoutenPunkt], AnyJSON?) -> Void
 
     @State private var punkte: [RoutenPunkt]
     @State private var schnellste: RoutenVorschau?
     @State private var aktuell: RoutenVorschau?
+    /// Punktliste, zu der „aktuell“ gerechnet wurde. Nur wenn sie den Punkten gleicht, gilt die Vorschau.
+    @State private var aktuellFuer: [RoutenPunkt]?
     @State private var laedt = true
     @State private var fehler = false
     @State private var meldung: String?
@@ -131,7 +139,7 @@ struct RoutenEditorAnsicht: View {
     @State private var aktuellEingepasst = false
 
     init(adressen: [String], punkte: [RoutenPunkt], abbrechen: @escaping () -> Void,
-         uebernehmen: @escaping ([RoutenPunkt]) -> Void) {
+         uebernehmen: @escaping ([RoutenPunkt], AnyJSON?) -> Void) {
         self.adressen = adressen
         self.abbrechen = abbrechen
         self.uebernehmen = uebernehmen
@@ -143,6 +151,8 @@ struct RoutenEditorAnsicht: View {
     /// Angezeigte Route: ohne Punkte die schnellste.
     private var angezeigt: RoutenVorschau? { punkte.isEmpty ? schnellste : aktuell }
     private var orte: [CLLocationCoordinate2D?] { angezeigt?.orte ?? schnellste?.orte ?? [] }
+    /// „Übernehmen“ erst, wenn die Vorschau zu genau den aktuellen Punkten da ist. Ohne Punkte sofort.
+    private var bereit: Bool { punkte.isEmpty || (aktuell != nil && aktuellFuer == punkte) }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -181,6 +191,7 @@ struct RoutenEditorAnsicht: View {
         .task(id: punkte) {
             guard !punkte.isEmpty else {
                 aktuell = nil
+                aktuellFuer = nil
                 laedt = schnellste == nil
                 fehler = false
                 return
@@ -189,9 +200,11 @@ struct RoutenEditorAnsicht: View {
             // Kurz entprellen, mehrere Tipps hintereinander rechnen einmal.
             try? await Task.sleep(for: .milliseconds(300))
             if Task.isCancelled { return }
-            let r = await RoutenVorschau.laden(adressen, punkte)
+            let gerechnet = punkte
+            let r = await RoutenVorschau.laden(adressen, gerechnet)
             if Task.isCancelled { return }
             aktuell = r
+            aktuellFuer = r == nil ? nil : gerechnet
             laedt = false
             fehler = r == nil
             if r != nil && !aktuellEingepasst {
@@ -261,7 +274,7 @@ struct RoutenEditorAnsicht: View {
         let n = punkte.count
         let frei = max(0, maximum - n)
         let anzahl = n == 0 ? "Keine Routenpunkte" : (n == 1 ? "1 Routenpunkt" : "\(n) Routenpunkte")
-        return "\(anzahl) · noch \(frei) frei. Google Maps zeigt Routenpunkte beim Fahrer als Zwischenziele an."
+        return "\(anzahl) · noch \(frei) frei. Der Fahrer wird in der TRISAR-App entlang dieser Route geführt."
     }
 
     private var fuss: some View {
@@ -289,13 +302,19 @@ struct RoutenEditorAnsicht: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.web)
-                Button { uebernehmen(punkte) } label: {
+                Button {
+                    guard bereit else { return }
+                    // Genau das Paket der Vorschau, die gerade zu sehen ist. Ohne Punkte gibt es keins.
+                    uebernehmen(punkte, punkte.isEmpty ? nil : aktuell?.fest)
+                } label: {
                     Text("Übernehmen").font(.grotesk(16, .bold)).foregroundStyle(.black)
                         .frame(maxWidth: .infinity).frame(height: 52)
                         .background(formularLime)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.web)
+                .disabled(!bereit)
+                .opacity(bereit ? 1 : 0.4)
             }
             .padding(.top, 18)
         }
@@ -345,6 +364,7 @@ final class RoutenMarker: MLNPointAnnotation {
 /// A/B Lime-Kreis 32 mit schwarzem Buchstaben, Stopp weisser Kreis 26 mit schwarzer Nummer,
 /// Routenpunkt schwarzer Kreis 22 mit Lime-Rand 4.
 final class RoutenMarkerAnsicht: MLNAnnotationView {
+    override func layoutSubviews() { super.layoutSubviews(); KartenStil.rand(self) }
     init(art: RoutenMarker.Art) {
         super.init(reuseIdentifier: nil)
         let groesse: CGFloat
@@ -400,7 +420,7 @@ struct RoutenKarte: UIViewRepresentable {
     func makeCoordinator() -> Koordinator { Koordinator() }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let karte = MLNMapView(frame: .zero, styleURL: DispoKarte.stil)
+        let karte = MLNMapView(frame: .zero, styleURL: KartenStil.geteilt.url)
         karte.delegate = context.coordinator
         karte.backgroundColor = UIColor(hex: 0x0E0E0E)
         karte.setCenter(CLLocationCoordinate2D(latitude: 48.137154, longitude: 11.576124), zoomLevel: 11, animated: false)
@@ -417,6 +437,8 @@ struct RoutenKarte: UIViewRepresentable {
         }
         karte.addGestureRecognizer(tipp)
         context.coordinator.karte = karte
+        // Kartenstil aus dem Karten Filter (Dunkel/Hell/Farbig/Satellit), wechselt live.
+        KartenStil.geteilt.anbinden(karte)
         return karte
     }
 

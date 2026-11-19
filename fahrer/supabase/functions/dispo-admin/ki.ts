@@ -9,6 +9,8 @@ import { ausnahmen, ausnahmenSetzen, ausnahmenText, ohneAusnahmen } from './ausn
 import { lohnVorschlag } from './lohn.ts';
 import { anlegenVorschlag, ohnePasswort } from './anlegen.ts';
 import { vorschlagOrteAufloesen } from './ortSuche.ts';
+import { ortWahlAntwort, ortWahlStarten } from './ortWahl.ts';
+import { alternativenMerken, ortKorrektur } from './ortKorrektur.ts';
 import { flugHinweis, flugPruefen } from './flugKi.ts';
 import { fahrzeugwahlAntwort, zuordnenVorschlag } from './zuordnenKi.ts';
 import { buchungGlaetten, istFahrtAuftrag, streckeVereinfachen } from './absicht.ts';
@@ -19,7 +21,11 @@ import { namenListe } from './namenKi.ts';
 import { gastFrage, nochNichtAnlegen, standbyAendern } from './weitereKi.ts';
 import { fahrtenSteuern } from './fahrtenKi.ts';
 import { steuern } from './steuernKi.ts';
-import { type Absicht, absichtMitAusnahmen, AUSNAHME_RE, befehlAusFeldern, darf, GRUPPE_RE, modellGesperrt, modellSperren, nachrichtLesen } from './verstehen.ts';
+import { type Absicht, absichtLesen, absichtMitAusnahmen, AUSNAHME_RE, befehlAusFeldern, darf, GRUPPE_RE, modellGesperrt, modellSperren, nachrichtLesen } from './verstehen.ts';
+// Umbau 18.11. (reports/KI Assistent Umbau Plan.md): neuer Ablauf nur mit integration_settings ki_ablauf = 'neu'.
+import { neuNachpruefen, neuVorbereiten, type NeuVorbereitet, ohneModellNurFragen } from './kiNeuAblauf.ts';
+import type { Erwartung as NeuErwartung } from './kiNeuPruefen.ts';
+type NeuHalter = { aktiv?: boolean; erwartung?: NeuErwartung | null; modellFehlt?: boolean; markiert?: any[]; formular?: any; ms?: number };
 import { loeschenVorschlag } from './loeschenKi.ts';
 import { freieAntwort } from './freiKi.ts';
 import { dienstFrage, gespraechsFahrer, stundenFrage } from './fragenKi.ts';
@@ -103,6 +109,43 @@ const erreichbar = async (url: string) => {
   ERREICHBAR.set(url, { ok, bis: Date.now() + (ok ? 20000 : 60000) });
   return ok;
 };
+// Feste Antworten ohne Modell (16.11., aus dem ki_protokoll):
+// - Dienstreise: Der Assistent kennt sie noch nicht. "Kannst du eine Dienstreise einrichten?" wurde als Dienst-Frage
+//   zum zuletzt genannten Fahrer gelesen, "Dienstreise für Tim morgen um 8" ergab einen Dienststart-Vorschlag.
+// - "Von wem wurdest du gebaut": das Modell nannte nach 25 s seinen Hersteller, einmal einen falschen.
+// - Fragen nach Dateien, Schlüsseln, Passwörtern: klare Auskunft, dass er darauf keinen Zugriff hat.
+const DIENSTREISE_ANTWORT = 'Dienstreisen kann ich noch nicht anlegen, ändern oder auswerten. Das geht in der Dispo bei „Fahrt hinzufügen“, dort oben auf „Dienstreise“ umschalten. Ich habe nichts geändert.';
+const WER_BIN_ICH = 'Ich bin der TRISAR-Assistent für die Dispo. Ich laufe auf eurem eigenen Rechner und sehe nur die Dispo-Daten, keine Dateien und keine Schlüssel.';
+// Rechte, Rollen, Ortung, Abmelden (16.11.): dafuer gibt es keine Regel. Vorher machte die Fahrt-Aenderung daraus
+// Unsinn: "Gib Marvin Admin-Rechte" schlug Marvin als Fahrer einer Fahrt vor, "Schalte die Ortung für Tim ab"
+// trug Tim als Gast ein.
+const RECHTE_ANTWORT = 'Rechte, Rollen, Ortung und Anmeldung kann ich nicht ändern. Das geht nur in der Dispo beim jeweiligen Fahrer. Ich habe nichts geändert.';
+// "Tausch die Fahrer der Fahrten von Engel und Tim" trug Tim als zweiten Fahrer ein, statt zu tauschen.
+const TAUSCH_ANTWORT = 'Fahrer zwischen Fahrten tauschen kann ich nicht in einem Schritt. Sag mir je Fahrt, wer sie übernimmt, zum Beispiel „Gib die Fahrt von Herrn Engel Tim“. Ich habe nichts geändert.';
+const ZUGRIFF_ANTWORT = 'Ich sehe nur die Dispo-Daten, also Fahrer, Fahrzeuge, Fahrten, Dienste, Gäste und Orte. Auf Dateien, Schlüssel und Passwörter habe ich keinen Zugriff.';
+const festeAntwort = (frage: string): { answer: string; regel: string } | null => {
+  const t = normal(frage).trim();
+  // "Schreib Tim, dass seine Dienstreise um 8 startet" bleibt eine Nachricht, eine Notiz bleibt eine Notiz.
+  const nachricht = /^(bitte\s+)?(schreib\w*|sag\w*|richte\w*|erinner\w*|informier\w*|benachrichtig\w*|teil\w*)\b/.test(t) || /\bnotiz\b/.test(t);
+  if (/\b(dienstreise\w*|geschaeftsreise\w*)\b/.test(t) && !nachricht) return { answer: DIENSTREISE_ANTWORT, regel: 'dienstreise' };
+  if (/\b(wer|was) bist du\b|\bvon wem (wurdest|bist) du\b|\bwer hat dich\b|\bwelches (sprach)?modell (bist|nutzt|verwendest) du\b|\bbist du (chatgpt|gpt|claude|gemini|qwen|llama|eine ki|ein bot|ein mensch|ein roboter)\b|\bwie heisst du\b/.test(t)) {
+    return { answer: WER_BIN_ICH, regel: 'werBinIch' };
+  }
+  if (!nachricht && !/^(wer|welche\w*|wie|wo|wann|hat|haben|ist|sind|darf|duerfen)\b/.test(t) && !/\?\s*$/.test(frage)) {
+    if (/\b(admin\w*|(dispo|zugriffs|schreib|lese|benutzer|nutzer|sonder)\w*[- ]?rechten?|rechte\s+(geben|entziehen|vergeben|wegnehmen)|berechtigung\w*|zum disponent\w*|zur disponent\w*|als disponent\w*|zum dispo|als dispo)\b/.test(t)
+      || (/\b(ortung|standortfreigabe|gps)\b/.test(t) && /\b(schalt\w*|stell\w*|mach\w*|deaktivier\w*|aktivier\w*|sperr\w*|aus|ab|an|ein)\b/.test(t))
+      || /\b(meld\w*|logg\w*)\b.*\b(ab|aus)\b/.test(t) && /\b(app|fahrer|alle)\b/.test(t) && !/\b(dienst|krank|urlaub)\b/.test(t)) {
+      return { answer: RECHTE_ANTWORT, regel: 'rechte' };
+    }
+    if (/\b(tausch\w*|vertausch\w*)\b/.test(t) && /\bfahrer\b/.test(t) && /\b(fahrten|untereinander|miteinander)\b/.test(t)) return { answer: TAUSCH_ANTWORT, regel: 'tauschen' };
+  }
+  const sucht = /^(siehst|hast|kannst|kennst|auf welche|welche|wo|zeig|gib|nenn|ich suche|ich brauche|was ist|wie lautet|und|den|die|das)\b/.test(t) || /\?\s*$/.test(frage);
+  const geheim = /\b(env|datei|dateien|api.?key|api.?schluessel|token|passwort|passwoerter|zugangsdaten|quellcode|datenbank\w*|datenbaenke)\b/.test(t)
+    || (/\bschluessel\w*\b/.test(t) && /\b(api|tomtom|tom tom|google|supabase|geheim\w*|lizenz|zugriff|server)\b/.test(t))
+    || (/\bzugriff\b/.test(t) && /\bdu\b/.test(t));
+  if (sucht && geheim && !/\b(leg\w*|anleg\w*|setz\w*|aender\w*|erstell\w*|neue[nrs]?)\b/.test(t)) return { answer: ZUGRIFF_ANTWORT, regel: 'zugriff' };
+  return null;
+};
 // Frage mit "er", "sie", "der" ohne jeden Bezug (16.11.): Das freie Modell nannte dann einfach einen Fahrer
 // ("Was macht der gerade" ergab Stefano, "Hat sie schon Feierabend" ergab Anna). Dann nachfragen.
 const WEN_MEINST_DU = 'Wen meinst du? Nenne bitte den Namen oder markiere den Fahrer auf der Karte.';
@@ -113,6 +156,8 @@ const HAENGT = 'Das Sprachmodell antwortet gerade nicht. Dienste, Fahrten, Nachr
 const vorschlagVereinheitlichen = (v: any) => ({
   datum: String(v?.datum || '').trim(),
   startZeit: String(v?.startZeit || '').trim(),
+  // Start Zeitraum ("zwischen 15 und 16 Uhr", 16.11.): Ende des Zeitraums, die Apps speichern es als etd_bis.
+  startZeitBis: /^\d{2}:\d{2}$/.test(String(v?.startZeitBis || '').trim()) ? String(v.startZeitBis).trim() : '',
   start: String(v?.start || '').trim(),
   ziel: String(v?.ziel || '').trim(),
   // Eigener Ort (orte): ID und Adresse, die Apps speichern sie wie bei Auswahl im Formular (ortSuche.ts).
@@ -209,9 +254,44 @@ export const kiFrage = async (admin: any, body: any, dispoId: string | null = nu
     delete k0.offeneFahrzeugwahl;
     body = { ...body, kontext: k0 };
   }
+  // Offene Ortsauswahl (ortWahl.ts): Antwort darauf fuehrt die wartende Buchung weiter, sonst faellt sie weg.
+  if (k0.offeneOrtwahl) {
+    const w0 = await ortWahlAntwort(admin, k0, text, dispoId, body?.standort);
+    const w = w0 ? alternativenMerken(w0) : w0;
+    if (w) {
+      await protokollieren(admin, { dispo_id: dispoId, frage: ohnePasswort(frage), art: antwortArt(w, w.kontext), antwort: String(w.answer || '').slice(0, 4000), aktion: w.action ?? null, dauer_ms: Date.now() - beginn, modell: null, fehler: null });
+      return { status: 200, daten: w };
+    }
+    k0 = { ...k0 };
+    delete k0.offeneOrtwahl;
+    body = { ...body, kontext: k0 };
+  }
+  // Ort im Chat korrigieren (ortKorrektur.ts, 19.11.): "nein, ich meinte die Frühlingstraße in Augsburg".
+  const korrektur = frage ? await ortKorrektur(admin, body, text, dispoId) : null;
+  if (korrektur) {
+    await protokollieren(admin, { dispo_id: dispoId, frage: ohnePasswort(frage), art: antwortArt(korrektur, korrektur.kontext), antwort: String(korrektur.answer || '').slice(0, 4000), aktion: (korrektur as any).action ?? null, dauer_ms: Date.now() - beginn, modell: null, fehler: null });
+    return { status: 200, daten: korrektur };
+  }
   const rueckfrageOffen = Object.keys(k0).some((x) => /^offene|^offener|^offenes/.test(x) && k0[x]);
   const teile = frage && !rueckfrageOffen ? await dienstTeile(admin, text) : null;
-  const ergebnis = await kiFrageIntern(admin, body, teile ? teile[0] : text, dispoId);
+  // Neuer Ablauf (ki_ablauf = 'neu'): kiFrageIntern fuellt den Halter, die Pruefung am fertigen Ergebnis laeuft
+  // hier an einer Stelle fuer alle Wege (Regeln, Buchung, freies Modell).
+  const neuHalter: NeuHalter = {};
+  const ergebnisRoh = await kiFrageIntern(admin, body, teile ? teile[0] : text, dispoId, neuHalter);
+  const ergebnisGeprueft = !neuHalter.aktiv ? ergebnisRoh
+    : neuHalter.modellFehlt ? ohneModellNurFragen(ergebnisRoh, body?.kontext ?? null)
+    : neuHalter.erwartung ? await neuNachpruefen(admin, ergebnisRoh, neuHalter.erwartung, teile ? teile[0] : text, {
+      verlauf: [], kontext: body?.kontext ?? null, markiert: neuHalter.markiert || [], letzteFahrtId: null, offenerVorschlag: null,
+      gespraech: () => gespraechsFahrer(admin, body?.kontext ?? null, teile ? teile[0] : text),
+    }, body?.kontext ?? null)
+    : ergebnisRoh;
+  // Unsicherer Ort in einer einzelnen Buchung: erst die Auswahl (ortWahl.ts), die Buchung wartet im Kontext.
+  const ergebnis0 = teile ? ergebnisGeprueft : ortWahlStarten(ergebnisGeprueft);
+  // Uebrige Treffer der Ortssuche fuer eine Korrektur im Chat merken (ortKorrektur.ts).
+  const ergebnis = ergebnis0?.daten ? { ...ergebnis0, daten: alternativenMerken(ergebnis0.daten) } : ergebnis0;
+  if (neuHalter.aktiv && ergebnis?.daten) {
+    (ergebnis.daten as any).meta = { ...((ergebnis.daten as any).meta || {}), neu: { ...(((ergebnis.daten as any).meta || {}).neu || {}), formular: neuHalter.formular ?? null, ms: neuHalter.ms ?? null } };
+  }
   if (verworfen && ergebnis?.daten) {
     (ergebnis.daten as any).answer = `${String((ergebnis.daten as any).answer || '').trim()}\n\nDie vorige Rückfrage habe ich verworfen, dafür wurde nichts geändert.`;
     (ergebnis.daten as any).meta = { ...((ergebnis.daten as any).meta || {}), rueckfrageVerworfen: true };
@@ -241,7 +321,7 @@ export const kiFrage = async (admin: any, body: any, dispoId: string | null = nu
   return ergebnis;
 };
 
-const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: string | null = null) => {
+const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: string | null = null, neuHalter: NeuHalter = {}) => {
   if (!frage) return { status: 400, daten: { error: 'frage_fehlt' } };
   const anfang = Date.now();
 
@@ -259,13 +339,18 @@ const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: stri
     .map((m: any) => ({ role: m?.role === 'assistant' ? 'assistant' : 'user', text: String(m?.text || '').slice(0, 500) }));
   const gruss = offeneRueckfrage ? null : smalltalk(frage);
   if (gruss) return { status: 200, daten: { answer: gruss, kontext: body?.kontext ?? null, meta: { regel: 'smalltalk' } } };
+  const fest = offeneRueckfrage ? null : festeAntwort(frage);
+  if (fest) return { status: 200, daten: { answer: fest.answer, kontext: body?.kontext ?? null, meta: { regel: fest.regel } } };
   let absicht: Absicht | null = null;
   const verstehenModell = await einstellung(admin, 'ollama_model_verstehen', '');
   const verstehenUrl = String(await einstellung(admin, 'ollama_url', '')).split(',')[0].trim();
   const vm: { url: string; modell: string; aus?: boolean } | null = verstehenModell && verstehenUrl ? { url: verstehenUrl, modell: verstehenModell } : null;
   // Erst kurz pruefen, ob der Mac mini da ist, sonst wartet jede Frage auf die Zeitgrenze.
   let ausser: string[] = [];
-  if (vm && !kurzeAntwort && await erreichbar(vm.url)) ({ absicht, ausser } = await absichtMitAusnahmen(vm, frage, verlaufKurz));
+  // Neuer Ablauf: nur die Absicht vom Modell, Ausnahmen kommen aus dem Formular (kiNeuFormular.ts).
+  const neuAn = String(await einstellung(admin, 'ki_ablauf', 'alt')).trim() === 'neu';
+  if (vm && !kurzeAntwort && await erreichbar(vm.url)) ({ absicht, ausser } = neuAn ? { absicht: await absichtLesen(vm, frage, verlaufKurz), ausser: [] } : await absichtMitAusnahmen(vm, frage, verlaufKurz));
+  if (neuAn && !kurzeAntwort) Object.assign(neuHalter, { aktiv: true, modellFehlt: !absicht, markiert: markierteFahrer(body) });
   // Dienst loeschen nur, wenn der Satz es auch sagt. Sonst ist es ein Dienst setzen oder aendern
   // ("Feierabend für alle außer Tim", "Verschieb das Dienstende auf 17", ki_protokoll 14.11. 01:13).
   if (absicht === 'dienst_loeschen' && !/l(ö|oe)sch|entfern|streich|absag|\bweg\b|raus|\bfrei\b|\bkein\w*|storn|aufheb|zur(ü|ue)ck|nicht mehr/i.test(frage)) absicht = 'dienst';
@@ -274,6 +359,11 @@ const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: stri
   if (absicht && absicht !== 'nachricht'
     && /^\s*(bitte\s+)?(schreib\w*|sag\w*|richte\w*|erinner\w*|informier\w*|benachrichtig\w*|teil\w*)\b[^.?!]{0,40}(\bdass\b|\bdas\b|:)/i.test(frage)
     && !/\b(fahrt|notiz)\b/i.test(frage.split(/\bdass\b|:/i)[0])) absicht = 'nachricht';
+  // "Notiz zur Fahrt von Müller: Gast will, dass wir die Rückfahrt stornieren" (16.11.): Was hinter dem
+  // Doppelpunkt steht, ist der Text der Notiz und nie ein Auftrag. Vorher wurde daraus eine Storno-Rückfrage,
+  // und das folgende „ja“ stornierte die Fahrt.
+  const notizSatz = /^\s*(bitte\s+)?(neue\s+)?(notiz|vermerk|hinweis|anmerkung)\b[^:]*\b(fahrt|buchung|abholung)\b[^:]*(?<!\d):(?!\d)/i.test(frage);
+  if (notizSatz && absicht && absicht !== 'fahrt_notiz') absicht = 'fahrt_notiz';
   // Eine W-Frage ist eine Frage, auch wenn das Modell im Gespraech einen Auftrag daraus liest
   // (15.11.: "welche fahrten sind noch offen" nach einer anderen Frage wurde als Auftrag abgewiesen).
   if (absicht && /^(fahrt_|dienst|loeschen|bearbeiten|nachricht)/.test(absicht)
@@ -318,9 +408,28 @@ const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: stri
   if (absicht === 'standby_aendern' && !/l(ö|oe)sch|verschieb|verleg|(ä|ae)nder|zeig|welche|gibt\s+es|absag|streich|\bweg\b|raus|storn|aufheb|k(ü|ue)rz|verl(ä|ae)nger|\?/i.test(frage)) absicht = 'standby';
   // Standby nur, wenn der Satz auch davon spricht ("Pause von Anna löschen" ist kein Standby).
   if ((absicht === 'standby' || absicht === 'standby_aendern') && !/stand.?by|bereitschaft|bereit\s*(stehen|halten)|warten/i.test(frage)) absicht = null;
-  const nachrichtFelder = absicht === 'nachricht' ? await nachrichtLesen(vm, frage, ausser) : null;
+  // Neuer Ablauf: Formular lesen, aufloesen, vor dem Befehl pruefen (kiNeuAblauf.ts).
+  let neu: NeuVorbereitet | null = null;
+  // Mehrere Fahrten in einer Nachricht teilt die Buchung selbst auf, der neue Befehl gilt nur fuer eine.
+  if (neuHalter.aktiv && absicht && !(absicht === 'fahrt_neu' && body?.karten === true && auftraegeTeilen(frage).length > 1)) {
+    neu = await neuVorbereiten(admin, vm, absicht, frage, {
+      verlauf: verlaufKurz, kontext: body?.kontext ?? null, markiert,
+      letzteFahrtId: /^[0-9a-f-]{36}$/i.test(String(body?.letzteFahrtId || '')) ? String(body.letzteFahrtId).toLowerCase() : null,
+      offenerVorschlag: body?.offenerVorschlag ?? null, gespraech: () => gespraechsFahrer(admin, body?.kontext ?? null, frage),
+    });
+    Object.assign(neuHalter, { erwartung: neu.erwartung, formular: neu.formular, ms: neu.ms });
+    if (neu.antwort) {
+      neuHalter.erwartung = null;
+      return { status: 200, daten: { answer: neu.antwort.answer, kontext: body?.kontext ?? null, meta: { absicht, regel: neu.antwort.regel } } };
+    }
+    if (neu.markiert) markiert = neu.markiert;
+    if (neu.letzteFahrtId) body = { ...body, letzteFahrtId: neu.letzteFahrtId };
+  }
+  const neuGefuehrt = !!neu?.formular;
+  const nachrichtFelder = neu && 'nachricht' in neu ? neu.nachricht ?? null : absicht === 'nachricht' ? await nachrichtLesen(vm, frage, ausser) : null;
   // Felder per Modell (Tag, Fahrer, Zeiten, welche Fahrt) als fester Befehl fuer die Regeln. Null: Originalsatz.
-  const befehl = await befehlAusFeldern(vm, absicht, frage, verlaufKurz, ausser, admin);
+  // Notiz-Satz: der Originalsatz geht an die Regel, damit der Text der Notiz wörtlich bleibt.
+  const befehl = neuGefuehrt ? (neu?.befehl ?? null) : notizSatz ? null : await befehlAusFeldern(vm, absicht, frage, verlaufKurz, ausser, admin);
   // Absicherung: Ist ein Ausgenommener laut den Feldern selbst gemeint ("Lösch Stefanos Dienst") und keine
   // Gruppe ("alle") genannt, war die Ausnahme falsch gelesen. Dann gilt sie nicht.
   const feldText = befehl || (nachrichtFelder ? nachrichtFelder.empfaenger.join(' und ') : '');
@@ -409,13 +518,34 @@ const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: stri
     if (sbAllein) return { status: 200, daten: { answer: sbAllein.answer, kontext: sbAllein.kontext, ...(sbAllein.aktionen ? { aktionen: sbAllein.aktionen } : {}) } };
     // Dienst senden: markierte Fahrer, sonst der Fahrer, um den es gerade ging ("Dann schick Dienststart fuer 9").
     const fuerDienst = fahrt ? [] : markiert.length ? markiert : await gespraechsFahrer(admin, body?.kontext ?? null, frage);
-    const dienst = fahrt || !darf('dienst', absicht) ? null : await dienstVorschlag(admin, frage, fuerDienst, body?.kontext ?? null);
+    const dienst = fahrt || !darf('dienst', absicht) ? null : await dienstVorschlag(admin, frage, fuerDienst, body?.kontext ?? null, !markiert.length);
     if (dienst) return { status: 200, daten: { ...dienst, kontext: (dienst as any).kontext ?? body?.kontext ?? null } };
     return null;
   };
+  // Unbekannter Fahrername (16.11.): Nennt der Satz einen Namen, den es nicht gibt, darf die Dienst-Regel nicht
+  // still den Fahrer nehmen, um den es zuletzt ging. "Wo ist Anna" und dann "Feierabend für Klaus" traf sonst Anna
+  // und hiess auch noch "markierter Fahrer". Fürwörter ("ihm", "die beiden") bleiben beim Fahrer aus dem Gespräch.
+  if (befehl && absicht === 'dienst' && !markiert.length && !ausser.length) {
+    const wer = (befehl.match(/^(.*?)\s*\bam \d{2}\.\d{2}\.\d{4}\b/)?.[1] || '').replace(/^für\s+/i, '').trim();
+    const KEIN_NAME_WORT = /^(er|ihn|ihm|sie|ihr|ihnen|der|die|den|dem|denen|dieser|diese|diesen|beide|beiden|die beiden|alle|allen|alle fahrer|jeder|jeden|derselbe|dieselben|fahrer|den fahrer|der fahrer|die fahrer)$/;
+    const unbekannt: string[] = [];
+    for (const name of wer.split(/\s*(?:,|\bund\b|&)\s*/).map((x) => x.trim()).filter(Boolean)) {
+      const n = normal(name).trim();
+      if (!n || KEIN_NAME_WORT.test(n) || !normal(frage).includes(n)) continue;
+      // Nur eine Nummer ("113", "#113"): als Fahrernummer suchen.
+      const suche = /^#?\d{1,4}$/.test(n) ? ` fahrer ${n.replace('#', '')} ` : ` ${n} `;
+      if (!(await genannteFahrer(admin, suche)).length) unbekannt.push(name);
+    }
+    if (unbekannt.length) {
+      return { status: 200, daten: {
+        answer: `Den Fahrer „${unbekannt.join('“, „')}“ finde ich nicht. Nenne bitte den Namen wie in der Fahrerliste oder die Fahrernummer. Ich habe nichts geändert.`,
+        kontext: body?.kontext ?? null, meta: { absicht, regel: 'fahrerUnbekannt', befehl } } };
+    }
+  }
   const originalFrage = frage;
   const treffer = await regeln(absicht, befehl || frage)
-    || (absicht && !['fahrt_neu', 'fahrt_aendern', 'sonstiges'].includes(absicht) ? await regeln(null, originalFrage) : null);
+    // Neuer Ablauf: kein zweiter Lauf ohne Absicht mit dem Originalsatz, das waere ein stiller Rueckfall.
+    || (absicht && !neuGefuehrt && !['fahrt_neu', 'fahrt_aendern', 'sonstiges'].includes(absicht) ? await regeln(null, originalFrage) : null);
   if (treffer && befehl) treffer.daten = { ...treffer.daten, meta: { ...(treffer.daten?.meta || {}), absicht, befehl } };
   if (treffer) return treffer;
 
@@ -451,7 +581,9 @@ const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: stri
   // Apps mit Karten-Liste (karten: true) bekommen alle Vorschlaege als aktionen, auch Standby als eigene
   // Karte, und mehrere Auftraege in einer Nachricht werden einzeln vorgeschlagen.
   const karten = body?.karten === true;
-  const teile = karten ? auftraegeTeilen(frage) : [frage];
+  // Neuer Ablauf: eine neue Fahrt bekommt den festen Befehl mit ausgerechnetem Tag und Uhrzeit.
+  // Mehrere Auftraege in einer Nachricht bleiben beim Teilen der Buchung, der Befehl gilt nur fuer einen.
+  const teile = neuGefuehrt && absicht === 'fahrt_neu' && befehl && (!karten || auftraegeTeilen(frage).length === 1) ? [befehl] : karten ? auftraegeTeilen(frage) : [frage];
   const offener = body?.offenerVorschlag && typeof body.offenerVorschlag === 'object' ? vorschlagVereinheitlichen(body.offenerVorschlag) : null;
   const letzteFahrtId = /^[0-9a-f-]{36}$/i.test(String(body?.letzteFahrtId || '')) ? String(body.letzteFahrtId).toLowerCase() : null;
 
@@ -461,7 +593,7 @@ const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: stri
   let ersteDaten: any = null;
   for (const teilFrage of teile) {
     const runde = (ohneModell: boolean) => buchungsRunde({
-      admin, dispoId, ollamaUrl, ollamaModell, verlauf, markiert, karten, ohneModell, beginn: anfang,
+      admin, dispoId, ollamaUrl, ollamaModell, verlauf, markiert, karten, zeitraum: body?.zeitraum === true, ohneModell, beginn: anfang,
       prompt: teilFrage,
       absicht: teile.length > 1 ? null : absicht,
       kontextVorher: body?.kontext ?? null,
@@ -526,7 +658,7 @@ const kiFrageIntern = async (admin: any, body: any, frage: string, dispoId: stri
 // Eine Buchungsfrage durch kiKern, Orte aufloesen, Standby dazu. Liefert Antwort, Aktionen und Kontext.
 const buchungsRunde = async (o: {
   admin: any; dispoId: string | null; ollamaUrl: string; ollamaModell: string; verlauf: any[]; markiert: any[];
-  karten: boolean; prompt: string; kontextVorher: any; offenerVorschlag: any; letzteFahrtId: string | null;
+  karten: boolean; zeitraum?: boolean; prompt: string; kontextVorher: any; offenerVorschlag: any; letzteFahrtId: string | null; standort?: unknown;
   absicht?: string | null; ohneModell?: boolean; beginn?: number;
 }) => {
   const { admin, dispoId } = o;
@@ -565,11 +697,29 @@ const buchungsRunde = async (o: {
     const aktionen: any[] = [];
     if (daten?.action?.type === 'booking_proposal') {
       // Start und Ziel: eigener Ort oder echte Adresse statt nur des getippten Texts.
-      daten.action.proposal = vorschlagVereinheitlichen(
-        await vorschlagOrteAufloesen(admin, vorschlagVereinheitlichen(daten.action.proposal), dispoId),
-      );
+      const vorher = vorschlagVereinheitlichen(daten.action.proposal);
+      const aufgeloest = await vorschlagOrteAufloesen(admin, vorher, dispoId, o.standort);
+      daten.action.proposal = vorschlagVereinheitlichen(aufgeloest);
+      // Unsicherer Ort (18.11.): kiFrage fragt nach (ortWahl.ts), statt still den ersten Treffer zu nehmen.
+      const unsicher = (aufgeloest as any).ortUnsicher;
+      if (unsicher?.length) daten.meta = { ...(daten.meta || {}), ortWahl: unsicher };
+      const alternativen = (aufgeloest as any).ortAlternativen;
+      if (alternativen) daten.meta = { ...(daten.meta || {}), ortAlternativen: alternativen };
+      // Text und Karte zeigen denselben Ort (14:32: Text "Franz Josef Straße 48", Karte "Terminal 2").
+      for (const f of ['start', 'ziel'] as const) {
+        const alt = vorher[f];
+        const jetzt = daten.action.proposal[f];
+        if (alt && jetzt && alt !== jetzt && typeof daten.answer === 'string') daten.answer = daten.answer.split(alt).join(jetzt);
+      }
       // Flugnummer gleich pruefen: nicht bestaetigt heisst Hinweis statt Fehler beim Buchen.
       const p0 = daten.action.proposal;
+      // Start Zeitraum (16.11.): Apps, die startZeitBis schon speichern (zeitraum: true), tragen ihn an der Fahrt
+      // ein. Aeltere Apps kennen das Feld nicht, dort steht der Zeitraum in der Notiz, damit er nicht verloren geht.
+      if (!p0.fahrtId && p0.startZeitBis && !o.zeitraum) {
+        const satz = `Abfahrt zwischen ${p0.startZeit} und ${p0.startZeitBis}`;
+        if (!p0.notes.includes(satz)) p0.notes = [p0.notes, satz].filter(Boolean).join('\n');
+        daten.answer = String(daten.answer || '').replace(/\nSoll ich die Fahrt so buchen\?/, `\nDen Zeitraum schreibe ich in die Notiz, als Start Zeit steht ${p0.startZeit}.\nSoll ich die Fahrt so buchen?`);
+      }
       // "Fahrt mit allen Fahrern": alle Fahrer eintragen (das Modell laesst sie sonst leer, ki_protokoll 12.11.).
       if (!p0.fahrtId && /\b(mit\s+)?(alle[nm]?|saemtliche[n]?|sämtliche[n]?)\s+(unseren?\s+)?fahrer(n|innen)?\b/i.test(o.prompt)) {
         const alle = (await alleFahrer(admin)).map((f) => f.name).filter(Boolean);

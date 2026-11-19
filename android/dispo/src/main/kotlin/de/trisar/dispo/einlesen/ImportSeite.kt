@@ -116,7 +116,7 @@ private const val ERKENNUNG_MS = 900L
 private const val MAX_BYTES = 8 * 1024 * 1024
 
 /** Hinweise, die eine Zeile nicht ausschliessen, aber angeschaut werden sollten. */
-private val WARNUNGEN = setOf("doppelt", "vergangen", "adresseUnbekannt", "mehrNamenAlsPersonen", "gleicheAdresse", "emailUngueltig", "fahrerUnbekannt")
+private val WARNUNGEN = setOf("doppelt", "vergangen", "adresseUnbekannt", "mehrNamenAlsPersonen", "gleicheAdresse", "emailUngueltig", "fahrerUnbekannt", "konvoiUnbekannt", "storniert", "zuVieleStopps")
 
 /** Felder, die andere mit belegen (felderFuer in importKern.js). */
 private val BELEGT = mapOf("datumUhrzeit" to listOf("datum", "uhrzeit"), "vollname" to listOf("vorname", "nachname"))
@@ -776,6 +776,9 @@ private fun ImportKarte(
     val firma = teile.firstOrNull { it.startsWith("Firma: ") }?.removePrefix("Firma: ") ?: ""
     val notiz = teile.filter { !it.startsWith("Firma: ") }.joinToString(" · ")
     val extra = if (!fahrten) "" else listOf(
+        wert(d, "konvoi").let { if (it.isNotEmpty()) "${feldText("konvoi")} $it" else "" },
+        (d["anzahl_fahrzeuge"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.toDoubleOrNull()?.takeIf { it > 1 }
+            ?.let { "${it.toLong()} ${feldText("anzahlFahrzeuge")}" } ?: "",
         wert(d, "flight_number").ifEmpty { wert(d, "train_number") },
         (d["anzahl"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.toDoubleOrNull()?.takeIf { it != 0.0 }
             ?.let { t("imp.personen", mapOf("n" to if (it % 1.0 == 0.0) "${it.toLong()}" else "$it")) } ?: "",
@@ -807,7 +810,11 @@ private fun ImportKarte(
                             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 36.dp))
                     }
                 }
-                if (fahrten) Text(wert(d, "etd").ifEmpty { "--:--" }.take(5), style = stil(22f, 700, 24f, farbe = text))
+                if (fahrten) Column(horizontalAlignment = Alignment.End) {
+                    Text(wert(d, "etd").ifEmpty { "--:--" }.take(5), style = stil(22f, 700, 24f, farbe = text))
+                    val bis = wert(d, "etd_bis").take(5)
+                    if (bis.isNotEmpty()) Text(t("imp.bis", mapOf("zeit" to bis)), style = stil(11f, 500, 14f, farbe = hex(0x71717B)))
+                }
             }
             if (istOffen) {
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Color.Black.copy(alpha = 0.1f)))
@@ -848,8 +855,24 @@ private fun FahrtEditor(d: JsonObject, adressen: Map<String, ImportDienst.Adress
             }, jetzt.hour, jetzt.minute, true).show()
         }
     }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val bis = wert(d, "etd_bis").take(5)
+        WaehlFeld(feldText("uhrzeitBis"), bis, Modifier.weight(1f)) {
+            val jetzt = runCatching { LocalTime.parse(bis) }.getOrElse { runCatching { LocalTime.parse(wert(d, "etd").take(5)) }.getOrElse { LocalTime.of(12, 0) } }
+            TimePickerDialog(ctx, android.R.style.Theme_Material_Dialog_Alert, { _, h, mi ->
+                aendern(mapOf("etd_bis" to JsonPrimitive("%02d:%02d:00".format(h, mi))))
+            }, jetzt.hour, jetzt.minute, true).show()
+        }
+        EditFeld(feldText("konvoi"), wert(d, "konvoi"), Modifier.weight(1f)) {
+            aendern(mapOf("konvoi" to if (it.isEmpty()) JsonNull else JsonPrimitive(it)))
+        }
+    }
     EditFeld(feldText("abholort"), wert(d, "pickup_address")) {
         aendern(mapOf("pickup_address" to JsonPrimitive(it), "pickup_name" to JsonPrimitive(ImportDienst.kurzname(it))))
+    }
+    val stopps = (d["zwischenstopps"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content } ?: emptyList()
+    EditFeld(feldText("zwischenstopp"), stopps.joinToString("; ")) { v ->
+        aendern(mapOf("zwischenstopps" to JsonArray(v.split(Regex("\\s*;\\s*")).filter { it.isNotEmpty() }.map { JsonPrimitive(it) })))
     }
     EditFeld(feldText("zielort"), wert(d, "dropoff_address")) {
         aendern(mapOf("dropoff_address" to JsonPrimitive(it), "dropoff_name" to JsonPrimitive(ImportDienst.kurzname(it))))
@@ -1035,6 +1058,15 @@ private val texte = mapOf(
     "imp.fahrtenImportiert" to "{n} Fahrten importiert.",
     "imp.feld.fahrer" to "Fahrer",
     "imp.feld.ankunft" to "Ankunft am Ziel",
+    "imp.feld.uhrzeitBis" to "Abholzeit bis",
+    "imp.feld.zwischenstopp" to "Zwischenstopps",
+    "imp.feld.konvoi" to "Konvoi",
+    "imp.feld.anzahlFahrzeuge" to "Fahrzeuge",
+    "imp.feld.status" to "Status",
+    "imp.bis" to "bis {zeit}",
+    "imp.h.konvoiUnbekannt" to "Konvoi nicht gefunden, Fahrt ohne Konvoi",
+    "imp.h.storniert" to "wird storniert angelegt",
+    "imp.h.zuVieleStopps" to "mehr als 8 Zwischenstopps, nur die ersten 8 kommen mit",
     "imp.h.zwischenstopp" to "Sammelfahrt: Zeilen mit gleichem Fahrer und gleicher Ankunft zusammengefasst",
     "imp.h.fahrerUnbekannt" to "Fahrer aus der Liste nicht gefunden, bitte nach dem Import zuteilen",
     "imp.h.ausWeiteremBlatt" to "aus einem weiteren Blatt der Datei",

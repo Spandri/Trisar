@@ -1,5 +1,7 @@
 package de.trisar.dispo.fahrten
 
+import de.trisar.dispo.karte.KartenStil
+import de.trisar.dispo.karte.StilFolgen
 import android.view.Gravity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -60,6 +62,7 @@ import de.trisar.kern.platz
 import de.trisar.kern.tippen
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -91,6 +94,8 @@ internal object RoutenVorschau {
         val verkehrMinuten: Int,
         /** Geocodet: Start, Stopps, Ziel (null = nicht gefunden). */
         val orte: List<GeoPunkt?>,
+        /** Freigabe-Paket des Servers (nur mit Punkten): nicht auswerten, 1:1 als jobs.route_fest speichern. */
+        val fest: JsonElement? = null,
     ) {
         val wirksameMinuten get() = if (verkehrMinuten > 0) verkehrMinuten else minuten
     }
@@ -117,6 +122,7 @@ internal object RoutenVorschau {
             minuten = (zahl(o, "dauer_min") ?: 0.0).roundToInt(),
             verkehrMinuten = (zahl(o, "dauer_verkehr_min") ?: 0.0).roundToInt(),
             orte = orte,
+            fest = o["fest"] as? JsonObject,
         )
     }
 }
@@ -138,7 +144,8 @@ internal fun RoutenZeilenWert(anzahl: Int, aktion: () -> Unit) {
 /**
  * Routen-Editor (15.11.): Vollbild-Karte ueber dem Fahrt-Formular. Tipp auf die Karte setzt einen
  * Routenpunkt an die guenstigste Stelle der Fahrt, Tipp auf einen Punkt nimmt ihn wieder weg.
- * adressen = Start, Stopps, Ziel. Uebernehmen gibt die Punkte ans Formular, gespeichert wird dort.
+ * adressen = Start, Stopps, Ziel. Uebernehmen gibt die Punkte und die Freigabe (fest) der gezeigten
+ * Vorschau ans Formular, gespeichert wird dort.
  */
 @Composable
 internal fun RoutenEditorSeite(
@@ -146,7 +153,7 @@ internal fun RoutenEditorSeite(
     stoppAnzahl: Int,
     anfang: List<RoutenPunkt>,
     abbrechen: () -> Unit,
-    uebernehmen: (List<RoutenPunkt>) -> Unit,
+    uebernehmen: (List<RoutenPunkt>, JsonElement?) -> Unit,
 ) {
     val hoechstens = RoutenPunkte.hoechstens(stoppAnzahl)
     // Nach Abschnitt sortiert (stabil), damit Einfuegen per Index stimmt.
@@ -155,6 +162,8 @@ internal fun RoutenEditorSeite(
     var schnellFertig by remember { mutableStateOf(false) }
     var angepasst by remember { mutableStateOf<RoutenVorschau.Ergebnis?>(null) }
     var angepasstLaedt by remember { mutableStateOf(false) }
+    // Punktliste, zu der die Vorschau in angepasst gehoert (waehrend neu gerechnet wird, steht dort noch die alte).
+    var angepasstFuer by remember { mutableStateOf<List<RoutenPunkt>?>(null) }
     var meldung by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
@@ -163,11 +172,13 @@ internal fun RoutenEditorSeite(
     }
     // Nach jeder Aenderung neu rechnen, kurz entprellt (ein neuer Tipp bricht den alten Lauf ab).
     LaunchedEffect(punkte) {
-        if (punkte.isEmpty()) { angepasst = null; angepasstLaedt = false; return@LaunchedEffect }
+        if (punkte.isEmpty()) { angepasst = null; angepasstFuer = null; angepasstLaedt = false; return@LaunchedEffect }
+        val fuer = punkte
         angepasstLaedt = true
         delay(300)
-        val r = RoutenVorschau.holen(adressen, punkte)
+        val r = RoutenVorschau.holen(adressen, fuer)
         angepasst = r
+        angepasstFuer = if (r != null) fuer else null
         angepasstLaedt = false
     }
     LaunchedEffect(meldung) {
@@ -176,6 +187,9 @@ internal fun RoutenEditorSeite(
 
     val anzeige = if (punkte.isEmpty()) schnell else angepasst
     val orte = (schnell?.orte ?: angepasst?.orte).orEmpty()
+    // Freigabe (16.11.): uebernommen wird genau die Route, die zu sehen ist. Solange die Vorschau zu den
+    // aktuellen Punkten fehlt, ist der Knopf gesperrt. Ohne Punkte gibt es nichts festzuschreiben.
+    val freigabeBereit = punkte.isEmpty() || (angepasst != null && angepasstFuer == punkte)
 
     fun einfuegen(x: GeoPunkt) {
         if (punkte.size >= hoechstens) { meldung = "Höchstens $hoechstens Routenpunkte"; return }
@@ -269,14 +283,20 @@ internal fun RoutenEditorSeite(
             Spacer(Modifier.height(6.dp))
             val frei = hoechstens - punkte.size
             val anzahlText = when (punkte.size) { 0 -> "Keine Routenpunkte"; 1 -> "1 Routenpunkt"; else -> "${punkte.size} Routenpunkte" }
-            Text("$anzahlText · noch $frei frei. Google Maps zeigt Routenpunkte beim Fahrer als Zwischenziele an.",
+            Text("$anzahlText · noch $frei frei. Der Fahrer wird in der TRISAR-App entlang dieser Route geführt.",
                 style = grotesk(12.5f, 500, farbe = hex(0x9A9A9A)))
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.weight(1f).height(52.dp).border(2.dp, LIME).tippen { punkte = emptyList() }, contentAlignment = Alignment.Center) {
                     Text("Zurücksetzen", style = grotesk(16f, 700, farbe = LIME), maxLines = 1)
                 }
-                Box(Modifier.weight(1f).height(52.dp).background(LIME).tippen { uebernehmen(punkte) }, contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.weight(1f).height(52.dp).background(if (freigabeBereit) LIME else LIME.copy(alpha = 0.35f)).tippen {
+                        if (!freigabeBereit) return@tippen
+                        uebernehmen(punkte, if (punkte.isEmpty()) null else angepasst?.fest)
+                    },
+                    contentAlignment = Alignment.Center,
+                ) {
                     Text("Übernehmen", style = grotesk(16f, 700, farbe = Color.Black), maxLines = 1)
                 }
             }
@@ -315,7 +335,9 @@ private fun RoutenKarte(
     }
     var karte by remember { mutableStateOf<MapLibreMap?>(null) }
     var stil by remember { mutableStateOf<Style?>(null) }
+    // Kartenstil aus dem Karten Filter, wechselt live.
     val takt = remember { mutableIntStateOf(0) }
+    StilFolgen(karte) { s -> stil = s; takt.intValue++ }
     val antippenAktuell by rememberUpdatedState(antippen)
     var eingepasst by remember { mutableStateOf(false) }
 
@@ -356,7 +378,7 @@ private fun RoutenKarte(
             m.addOnCameraMoveListener { takt.intValue++ }
             m.addOnCameraIdleListener { takt.intValue++ }
             m.addOnMapClickListener { ll -> antippenAktuell(GeoPunkt(ll.latitude, ll.longitude)); true }
-            m.setStyle(Style.Builder().fromUri(Konfig.KARTEN_STIL)) { s -> stil = s; takt.intValue++ }
+            KartenStil.stilSetzen(m) { s -> stil = s; takt.intValue++ }
             karte = m
         }
     }

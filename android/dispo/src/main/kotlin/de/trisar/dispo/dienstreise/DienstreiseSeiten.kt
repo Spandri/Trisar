@@ -203,14 +203,39 @@ fun DienstreiseNeuSeite(
         }
     }
 
-    /** Ort aufloesen: eigener Ort, sonst Adresse suchen. */
-    suspend fun ortAufloesen(text: String, ortID: String?): DispoDienstreiseSpeicher.OrtWahl? {
+    /**
+     * Ort aufloesen: eigener Ort, sonst Adresse suchen. bahnhof (19.11.): Halt vom Ticket oder Start eines Zug-/Bus-
+     * Abschnitts. Dann erst der Bahnhof bei der Bahn ("München-Trudering" ist der Bahnhof, nicht der Stadtteil),
+     * sonst "Bahnhof …" in der Adresssuche.
+     */
+    suspend fun ortAufloesen(text: String, ortID: String?, bahnhof: Boolean = false): DispoDienstreiseSpeicher.OrtWahl? {
         if (ortID != null) EigeneOrte.einmalLaden()
         EigeneOrte.zuID(ortID)?.let { return DispoDienstreiseSpeicher.OrtWahl(it.id, it.name, it.adresse, it.lat, it.lng) }
         if (text.isBlank()) return null
+        if (bahnhof) {
+            val r = FahrtPruefung.aufrufen("train-validate", kotlinx.serialization.json.buildJsonObject {
+                put("halt_orten", kotlinx.serialization.json.JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive(text.trim()))))
+            })
+            val h = ((r as? FahrtPruefung.Aufruf.Ok)?.daten as? kotlinx.serialization.json.JsonObject)
+                ?.get("halte")?.let { it as? kotlinx.serialization.json.JsonArray }?.firstOrNull() as? kotlinx.serialization.json.JsonObject
+            val lat = (h?.get("lat") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull()
+            val lng = (h?.get("lng") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull()
+            if (lat != null && lng != null) {
+                val name = (h["name"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim()?.ifBlank { null } ?: text.trim()
+                return DispoDienstreiseSpeicher.OrtWahl(null, name, name, lat, lng)
+            }
+            if (!Regex("""(?i)bahnhof|hbf|\bbf\b""").containsMatchIn(text)) {
+                Routen.punkt(ctx, "Bahnhof $text")?.let { return DispoDienstreiseSpeicher.OrtWahl(null, kurzOrt(text), text, it.lat, it.lng) }
+            }
+        }
         val p = Routen.punkt(ctx, text) ?: return null
         return DispoDienstreiseSpeicher.OrtWahl(null, kurzOrt(text), text, p.lat, p.lng)
     }
+
+    /** Halt eines Zug-, S-Bahn-, U-Bahn-, Tram- oder Busabschnitts ist ein Bahnhof bzw. eine Haltestelle (19.11.). */
+    fun istHalt(art: String) = art in setOf("zug", "sbahn", "ubahn", "tram", "bus")
+    /** Ziel kommt vom Ticket (Ausstieg des letzten Abschnitts): dann ist es ein Bahnhof. */
+    fun zielIstHalt(): Boolean = abschnitte.lastOrNull()?.ticket?.nach?.trim()?.takeIf { it.isNotEmpty() }?.let { it == zielText.trim() } == true
 
     // Verbindung eines Abschnitts pruefen. Ausstieg: Start des naechsten Abschnitts (Umstieg), sonst Ticket, sonst Ziel.
     fun pruefen(a: AbschnittFeld, index: Int) {
@@ -223,8 +248,8 @@ fun DienstreiseNeuSeite(
         pruefungen[a.key] = Pruefung.Laeuft
         val naechster = abschnitte.getOrNull(index + 1)
         scope.launch {
-            val s = if (a.startOrtID != null) runCatching { ortAufloesen(a.startText, a.startOrtID) }.getOrNull() else null
-            val z = if (naechster == null && zielText.isNotBlank()) runCatching { ortAufloesen(zielText, zielOrtID) }.getOrNull() else null
+            val s = if (a.startOrtID != null) runCatching { ortAufloesen(a.startText, a.startOrtID, istHalt(art)) }.getOrNull() else null
+            val z = if (naechster == null && zielText.isNotBlank()) runCatching { ortAufloesen(zielText, zielOrtID, zielIstHalt()) }.getOrNull() else null
             val bahnhof = if (naechster != null) kurzOrt(naechster.startText) else a.ticket?.nach?.takeIf { it.isNotBlank() }?.let(::kurzOrt).orEmpty()
             val v = runCatching {
                 ReiseVerbindung.holen(DienstreiseZeile(
@@ -338,11 +363,11 @@ fun DienstreiseNeuSeite(
             try {
                 val starts = mutableListOf<DispoDienstreiseSpeicher.OrtWahl>()
                 for (a in liste) {
-                    val o = ortAufloesen(a.startText, a.startOrtID)
+                    val o = ortAufloesen(a.startText, a.startOrtID, istHalt(DienstreiseAbschnitt.artAus(a.nummer.trim())))
                     if (o == null) { fehler = "„${a.startText}“ nicht gefunden. Bitte genauer eingeben oder einen eigenen Ort wählen."; return@launch }
                     starts += o
                 }
-                val z = ortAufloesen(zielText, zielOrtID)
+                val z = ortAufloesen(zielText, zielOrtID, zielIstHalt())
                 if (z == null) { fehler = "Ziel nicht gefunden. Bitte genauer eingeben oder einen eigenen Ort wählen."; return@launch }
                 val alle = if (fahrerAlle.isEmpty()) FahrtSpeichern.fahrerLaden().also { fahrerAlle = it } else fahrerAlle
                 val ids = mutableListOf<String>()

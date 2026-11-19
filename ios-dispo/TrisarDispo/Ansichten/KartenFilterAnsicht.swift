@@ -10,6 +10,7 @@ struct KartenFilterAnsicht: View {
     @StateObject private var dienststart = DienststartVorlaufModell()
     @ObservedObject private var orte = OrteSpeicher.geteilt
     @ObservedObject private var ohneSignal = OhneSignalEinstellung.geteilt
+    @ObservedObject private var kartenStil = KartenStil.geteilt
     /// Gerade lange ohne Signal (fuer die Zeile unter dem Schalter), von der Karte mitgegeben.
     var langeOhneSignal: [KartenFahrer] = []
     @State private var ortEditor: OrtEditorZiel?
@@ -21,7 +22,9 @@ struct KartenFilterAnsicht: View {
     /// Abschnitt "Dienststart automatisch" direkt unter Feierabend (Web 462 + 20), feste Hoehe 132.
     private var dienststartTop: CGFloat { 482 }
     private var ohneSignalTop: CGFloat { dienststart.verfuegbar ? dienststartTop + 132 : dienststartTop }
-    private var stufeTop: CGFloat { ohneSignalTop + 136 }
+    /// Abschnitt "Karte" (Dunkel/Hell/Farbig/Satellit) unter "Ohne Signal", Hoehe 96 wie im Web.
+    private var kartenStilTop: CGFloat { ohneSignalTop + 136 }
+    private var stufeTop: CGFloat { kartenStilTop + 96 }
     private var stufeZeilenTop: CGFloat { stufeTop + 32 + 40 + 12 }
     /// Bereich "Orte" unter "Punkte bei Fahrt" (ohne Tracker gleich unter Feierabend).
     private var orteTop: CGFloat {
@@ -81,6 +84,18 @@ struct KartenFilterAnsicht: View {
                             .platz(20, ohneSignalTop + 96, 362, 24)
                     }
 
+                    Text("Karte").grotesk(16, .medium, abstand: 0.5)
+                        .foregroundStyle(Self.lime.opacity(0.6))
+                        .platz(20, kartenStilTop, 362, 24)
+                    let stile = KartenStil.Art.allCases.filter { $0 != .satellit || kartenStil.satellitMoeglich }
+                    let stilBreite = (362 - 8 * CGFloat(stile.count - 1)) / CGFloat(stile.count)
+                    ForEach(Array(stile.enumerated()), id: \.offset) { i, art in
+                        KartenStilKnopf(text: KartenStilKnopf.namen[art] ?? "", an: kartenStil.wirksam == art, breite: stilBreite) {
+                            kartenStil.art = art
+                        }
+                        .platz(20 + CGFloat(i) * (stilBreite + 8), kartenStilTop + 32, stilBreite, 40)
+                    }
+
                     if !stufen.tracker.isEmpty {
                         Text("Punkte bei Fahrt").grotesk(16, .medium, abstand: 0.5)
                             .foregroundStyle(Self.lime.opacity(0.6))
@@ -92,7 +107,10 @@ struct KartenFilterAnsicht: View {
                             .platz(20 + CGFloat(i) * 124, stufeTop + 32, 114, 40)
                         }
                         ForEach(Array(stufen.tracker.enumerated()), id: \.element.imei) { i, t in
-                            StufenStatusZeile(tracker: t).platz(20, stufeZeilenTop + CGFloat(i) * 24, 362, 24)
+                            StufenStatusZeile(tracker: t) {
+                                Task { await stufen.anschlussWechseln(t) }
+                            }
+                            .platz(20, stufeZeilenTop + CGFloat(i) * 24, 362, 24)
                         }
                         if let fehler = stufen.fehler {
                             Text("Speichern fehlgeschlagen: \(fehler)").grotesk(14, .medium)
@@ -158,6 +176,10 @@ final class TrackerStufenModell: ObservableObject {
         var stufe_status: String?
         let stufe_quittung_am: String?
         var stufe_antwort: String?
+        /// 'obd' oder 'usbc', vom Server erkannt oder von Hand (18.11.), fehlt ohne Migration.
+        var anschluss: String?
+        var anschluss_status: String?
+        var anschluss_quelle: String?
     }
 
     @Published var tracker: [Tracker] = []
@@ -177,6 +199,14 @@ final class TrackerStufenModell: ObservableObject {
     }
 
     func laden() async {
+        if let zeilen: [Tracker] = try? await Backend.client.from("obd_tracker")
+            .select("imei, nummer, stufe, stufe_status, stufe_quittung_am, stufe_antwort, anschluss, anschluss_status, anschluss_quelle")
+            .order("nummer", ascending: true)
+            .execute().value {
+            tracker = zeilen
+            return
+        }
+        // Ohne Spalte anschluss (Migration 20261118160000 noch nicht da) wie bisher.
         // Tabelle oder Spalte fehlt (Migration noch nicht da): Abschnitt bleibt weg.
         guard let zeilen: [Tracker] = try? await Backend.client.from("obd_tracker")
             .select("imei, nummer, stufe, stufe_status, stufe_quittung_am, stufe_antwort")
@@ -199,6 +229,24 @@ final class TrackerStufenModell: ObservableObject {
         }
         do {
             try await Backend.client.from("obd_tracker").update(["stufe": stufe]).in("imei", values: imeis).execute()
+        } catch {
+            fehler = error.localizedDescription
+        }
+        await laden()
+    }
+
+    /// Anschluss von Hand umstellen (USB-C <-> OBD), sonst erkennt ihn der Server selbst (18.11.).
+    func anschlussWechseln(_ t: Tracker) async {
+        let neu = t.anschluss == "obd" ? "usbc" : "obd"
+        fehler = nil
+        if let i = tracker.firstIndex(where: { $0.imei == t.imei }) {
+            tracker[i].anschluss = neu
+            tracker[i].anschluss_status = "wartet"
+            tracker[i].anschluss_quelle = "hand"
+        }
+        struct Parameter: Encodable { let p_imei: String; let p_anschluss: String }
+        do {
+            try await Backend.client.rpc("tracker_anschluss_waehlen", params: Parameter(p_imei: t.imei, p_anschluss: neu)).execute()
         } catch {
             fehler = error.localizedDescription
         }
@@ -372,6 +420,27 @@ private struct AusblendenKnopf: View {
 }
 
 /// Dreier-Knopf wie TwoColButton, nur 114 breit.
+/// Knopf im Abschnitt "Karte", wie StufenKnopf, Breite je nach Anzahl (3 ohne, 4 mit Satellit).
+private struct KartenStilKnopf: View {
+    static let namen: [KartenStil.Art: String] = [.dunkel: "Dunkel", .hell: "Hell", .farbig: "Farbig", .satellit: "Satellit"]
+    let text: String
+    let an: Bool
+    let breite: CGFloat
+    let aktion: () -> Void
+    private static let lime = Color(hex: 0xE3F654)
+
+    var body: some View {
+        Button(action: aktion) {
+            Text(text).grotesk(16, .medium, abstand: 0.4)
+                .foregroundStyle(an ? Color(hex: 0x1D1C1D) : Self.lime)
+                .frame(width: breite, height: 40)
+                .background(an ? Self.lime : Color.clear)
+                .overlay(Rectangle().strokeBorder(Self.lime, lineWidth: 2))
+        }
+        .buttonStyle(.web)
+    }
+}
+
 private struct StufenKnopf: View {
     let text: String
     let an: Bool
@@ -393,6 +462,7 @@ private struct StufenKnopf: View {
 /// "Nr. 2 · fein · übernommen 14:02" (TrackerStufeStatus im Web).
 private struct StufenStatusZeile: View {
     let tracker: TrackerStufenModell.Tracker
+    var anschlussAktion: () -> Void = {}
     private static let lime = Color(hex: 0xE3F654)
 
     private var status: (String, Color) {
@@ -407,12 +477,36 @@ private struct StufenStatusZeile: View {
 
     var body: some View {
         let (text, farbe) = status
-        (Text("Nr. \(tracker.nummer)").foregroundStyle(Self.lime).bold()
-            + Text(" · \(tracker.stufe) · ").foregroundStyle(Self.lime.opacity(0.6))
-            + Text(text).foregroundStyle(farbe))
-            .font(.grotesk(14, .medium)).tracking(0.5)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        HStack(spacing: 8) {
+            (Text("Nr. \(tracker.nummer)").foregroundStyle(Self.lime).bold()
+                + Text(" · \(tracker.stufe) · ").foregroundStyle(Self.lime.opacity(0.6))
+                + Text(text).foregroundStyle(farbe))
+                .font(.grotesk(14, .medium)).tracking(0.5)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let anschluss = tracker.anschluss {
+                // Anschluss (vom Server erkannt), Antippen stellt von Hand um. Lime = uebernommen, blass = wartet.
+                let (rahmen, schrift) = anschlussFarben
+                Button(action: anschlussAktion) {
+                    Text(anschluss == "obd" ? "OBD" : "USB-C").font(.grotesk(12, .bold))
+                        .foregroundStyle(schrift)
+                        .padding(.horizontal, 8)
+                        .frame(height: 20)
+                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(rahmen, lineWidth: 1))
+                }
+                .buttonStyle(.web)
+                .fixedSize()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var anschlussFarben: (Color, Color) {
+        switch tracker.anschluss_status {
+        case "fehler": return (Color(hex: 0xFF6B6B), Color(hex: 0xFF6B6B))
+        case "uebernommen": return (Self.lime, Self.lime)
+        default: return (Self.lime.opacity(0.4), Self.lime.opacity(0.6))
+        }
     }
 
     /// Heute nur Uhrzeit, sonst "07.11. 14:02".

@@ -5902,6 +5902,10 @@
    ],
    "farben": [
     [
+     "bmwindividualmalachitgrueniimetallic",
+     "bmw-individual-malachitgruen-ii-metallic"
+    ],
+    [
      "bmwindividualfrozenpuregreymetallic",
      "bmw-individual-frozen-pure-grey-metallic"
     ],
@@ -5948,6 +5952,10 @@
     [
      "blueridgemountain",
      "blue-ridge-mountain-metallic"
+    ],
+    [
+     "malachitgruenii",
+     "bmw-individual-malachitgruen-ii-metallic"
     ],
     [
      "skyscrapergrau",
@@ -6010,6 +6018,14 @@
      "mineralweiss-metallic"
     ],
     [
+     "gruen",
+     "bmw-individual-malachitgruen-ii-metallic"
+    ],
+    [
+     "green",
+     "bmw-individual-malachitgruen-ii-metallic"
+    ],
+    [
      "grau",
      "skyscraper-grau-metallic"
     ],
@@ -6049,7 +6065,8 @@
     "aventurinrot-metallic",
     "bmw-individual-dravitgrau-metallic",
     "bmw-individual-tansanitblau-metallic",
-    "bmw-individual-frozen-pure-grey-metallic"
+    "bmw-individual-frozen-pure-grey-metallic",
+    "bmw-individual-malachitgruen-ii-metallic"
    ],
    "lackliste": [
     {
@@ -6106,6 +6123,11 @@
      "code": "bmw-individual-frozen-pure-grey-metallic",
      "name": "BMW Individual Frozen Pure Grey metallic",
      "hex": "#6C6D66"
+    },
+    {
+     "code": "bmw-individual-malachitgruen-ii-metallic",
+     "name": "BMW Individual Malachitgrün II metallic",
+     "hex": "#1B231B"
     }
    ],
    "breite": 800,
@@ -9079,6 +9101,176 @@
      2.350000000000006
     ],
     "laeufe": 14301
+   }
+  },
+  {
+   "id": "duster",
+   "marke": "Dacia",
+   "name": "Dacia Duster",
+   "modell": [
+    "duster"
+   ],
+   "farben": [
+    [
+     "terracottabraun",
+     "terracotta-braun"
+    ],
+    [
+     "safarigruengrau",
+     "safari-gruengrau"
+    ],
+    [
+     "perlmuttschwarz",
+     "perlmutt-schwarz"
+    ],
+    [
+     "arktisweiss",
+     "arktis-weiss"
+    ],
+    [
+     "dolomitgrau",
+     "dolomit-grau"
+    ],
+    [
+     "zedergruen",
+     "zeder-gruen"
+    ],
+    [
+     "sandstone",
+     "sandstone"
+    ],
+    [
+     "anthrazit",
+     "dolomit-grau"
+    ],
+    [
+     "schwarz",
+     "perlmutt-schwarz"
+    ],
+    [
+     "black",
+     "perlmutt-schwarz"
+    ],
+    [
+     "weiss",
+     "arktis-weiss"
+    ],
+    [
+     "white",
+     "arktis-weiss"
+    ],
+    [
+     "gruen",
+     "zeder-gruen"
+    ],
+    [
+     "green",
+     "zeder-gruen"
+    ],
+    [
+     "braun",
+     "terracotta-braun"
+    ],
+    [
+     "brown",
+     "terracotta-braun"
+    ],
+    [
+     "grau",
+     "dolomit-grau"
+    ],
+    [
+     "grey",
+     "dolomit-grau"
+    ],
+    [
+     "gray",
+     "dolomit-grau"
+    ]
+   ],
+   "lacke": [
+    "arktis-weiss",
+    "dolomit-grau",
+    "sandstone",
+    "zeder-gruen",
+    "terracotta-braun",
+    "safari-gruengrau",
+    "perlmutt-schwarz"
+   ],
+   "lackliste": [
+    {
+     "code": "arktis-weiss",
+     "name": "Arktis-Weiß",
+     "hex": "#CFCFCF"
+    },
+    {
+     "code": "dolomit-grau",
+     "name": "Dolomit-Grau",
+     "hex": "#6B6B6B"
+    },
+    {
+     "code": "sandstone",
+     "name": "Sandstone",
+     "hex": "#B7B6B2"
+    },
+    {
+     "code": "zeder-gruen",
+     "name": "Zeder-Grün",
+     "hex": "#313E3E"
+    },
+    {
+     "code": "terracotta-braun",
+     "name": "Terracotta-Braun",
+     "hex": "#792902"
+    },
+    {
+     "code": "safari-gruengrau",
+     "name": "Safari-Grüngrau",
+     "hex": "#525D52"
+    },
+    {
+     "code": "perlmutt-schwarz",
+     "name": "Perlmutt-Schwarz",
+     "hex": "#252525"
+    }
+   ],
+   "breite": 800,
+   "hoehe": 408,
+   "endbox": [
+    21,
+    62,
+    699,
+    402
+   ],
+   "form": {
+    "kamera": {
+     "s": 154.6938775510204,
+     "D": 9.278604547543715,
+     "phi": 5.797737683489784,
+     "cx": 397.1129510753775,
+     "cy": 268.63006808050545,
+     "h0": 0.8587239284917987
+    },
+    "o": [
+     -1.1900000000000013,
+     0.34000000000000047,
+     -2.2699999999999925
+    ],
+    "schritt": 0.015,
+    "n": [
+     158,
+     119,
+     311
+    ],
+    "grenzen": [
+     -1.1900000000000013,
+     1.1799999999999988,
+     0.34000000000000047,
+     2.1250000000000004,
+     -2.2699999999999925,
+     2.3950000000000076
+    ],
+    "laeufe": 17881
    }
   }
  ],

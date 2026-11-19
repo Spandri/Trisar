@@ -330,8 +330,8 @@ struct EnergieKachel: View {
 
     var body: some View {
         let fill = fuellstand.map { Int(max(0, min(100, $0.rounded()))) }
-        let maxReichweite = (reichweite ?? 0) > 0 ? reichweite! : (elektrisch ? 500 : 650)
-        let km = fill.map { Int((Double($0) / 100 * maxReichweite).rounded()) }
+        // Ohne Reichweite bei vollem Tank (Tracker, Modellvariante) keine Kilometer: Strich statt Annahme.
+        let km = fill.flatMap { f in reichweite.flatMap { $0 > 0 ? Int((Double(f) / 100 * $0).rounded()) : nil } }
         KachelRahmen {
             VStack(spacing: 3) {
                 if elektrisch {

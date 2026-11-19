@@ -27,6 +27,9 @@
 # - Heutiger Wochentag beim Löschen, Ändern und Fragen meint heute, nicht den in 7 Tagen (verstehen.ts).
 # - „Kein Fahrer hat am Mo 23.11. einen Dienst“ statt doppelter Verneinung (dienstAendernKi.ts).
 # - „Bekommt Tim den BMW“, „Wer fährt den X5“: Antwort aus den Daten statt vom freien Modell (kiKern.js).
+# - „Kannst du eine Dienstreise einrichten?“: feste ehrliche Antwort, keine Dienst-Frage mehr (ki.ts, fragenKi.ts).
+# - „Den Tom Tom Schlüssel“ ist keine Namensliste für neue Fahrer (namenKi.ts).
+# - „Von wem wurdest du gebaut“, Fragen nach Dateien und Schlüsseln: feste Antwort ohne Modell (ki.ts).
 # Vorher prüfen: deno run -A werkzeuge/ki-test/sicherheit-test.ts
 # Kein App-Build. Mehrfach ausführen schadet nicht.
 set -euo pipefail
@@ -35,7 +38,7 @@ DOCKER=/usr/local/bin/docker
 R=Documents/Projekte/Trisar/__TRI-26-001_flottenmanagement_webapp_ss/Programm
 HIER="$(cd "$(dirname "$0")/.." && pwd)"
 FN=supabase/functions/dispo-admin
-for d in ki.ts kiKern.js verstehen.ts dienst.ts absicht.ts freiKi.ts glaetten.ts weitereKi.ts zuordnenKi.ts dienstAendernKi.ts; do
+for d in ki.ts kiKern.js verstehen.ts dienst.ts absicht.ts freiKi.ts glaetten.ts weitereKi.ts zuordnenKi.ts dienstAendernKi.ts fragenKi.ts namenKi.ts; do
   scp -q "$HIER/fahrer/$FN/$d" "$SERVER:$R/fahrer-app-lokal/$FN/$d"
   scp -q "$HIER/fahrer/$FN/$d" "$SERVER:$R/trisar/fahrer/$FN/$d"
   echo "   $d"

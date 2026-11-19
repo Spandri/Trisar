@@ -38,6 +38,9 @@ struct TrisarFahrerApp: App {
                 switch anmeldung.zustand {
                 #if DEBUG
                 // Nur Debug: Seiten mit Eingabefeld ohne Anmeldung pruefen (keine Ortung, kein Senden).
+                // Nur Debug: Navigation mit Route aus NAVI_TEST_JSON (Bilder im Simulator, Standort per simctl).
+                case _ where args.contains("-naviTest"):
+                    NavigationAnsicht(fahrtID: UUID(), start: nil, schliessen: {})
                 case _ where args.contains("-schadenTest"):
                     SchadenMeldenAnsicht(schliessen: {}, melden: { _, _, _, _ in false })
                 case _ where args.contains("-notizTest"):

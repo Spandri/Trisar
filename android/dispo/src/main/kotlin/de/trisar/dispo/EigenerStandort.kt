@@ -22,6 +22,11 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.math.asin
 import kotlin.math.cos
 import kotlin.math.pow
@@ -106,7 +111,34 @@ internal object EigenerStandort {
     private fun neu(l: Location) {
         stand = l
         for (h in hoerer.toList()) h.fn(l)
+        speichern(l)
     }
+
+    /**
+     * In dispo_standort merken (19.11.): Der KI-Assistent sucht Adressen zuerst in der Naehe der Dispo.
+     * Hoechstens einmal je Minute oder nach 100 m, Fehler stoeren nie.
+     */
+    private var gespeichert: Location? = null
+    private fun speichern(l: Location) {
+        val g = gespeichert
+        if (g != null && l.time - g.time < 60_000 && l.distanceTo(g) < 100f) return
+        gespeichert = l
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val id = de.trisar.kern.Backend.client.auth.currentUserOrNull()?.id ?: return@launch
+                de.trisar.kern.Backend.client.from("dispo_standort").upsert(buildJsonObject {
+                    put("user_id", id)
+                    put("lat", l.latitude)
+                    put("lng", l.longitude)
+                    if (l.hasAccuracy()) put("genau_m", l.accuracy.toDouble())
+                    put("aktualisiert", java.time.Instant.now().toString())
+                })
+            } catch (e: Exception) {
+                // Standort merken ist Nebensache.
+            }
+        }
+    }
+
 }
 
 /** Luftlinie in Metern (abstandM in eigenerStandort.js). */

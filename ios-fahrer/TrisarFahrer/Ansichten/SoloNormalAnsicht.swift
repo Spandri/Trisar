@@ -27,6 +27,8 @@ struct SoloNormalAnsicht: View {
     @State private var gewaehlterKollege: FahrtDetails.KolonnenFahrer?
     @State private var chatOffen = false
     @State private var supportOffen = false
+    /// Eigene Navigation (nur bei Route von Dispo).
+    @State private var naviOffen = false
 
     private enum Blatt: String, Identifiable {
         case beenden, stornieren, notiz, schild
@@ -105,6 +107,19 @@ struct SoloNormalAnsicht: View {
         }
         .background(Color(hex: 0x0A0A0A))
         .task { await details.laden() }
+        // Aenderung an der Fahrt (Route fertig, Zeit, Ziel, Gaeste): Details sofort neu (18.11.). Vorher blieb
+        // die Linie gerade, wenn die Fahrt geoeffnet wurde, bevor der Server die Route hatte.
+        .onChange(of: speicher.fahrtenStand) { _, _ in Task { await details.laden() } }
+        // Fehlt die Route noch: eine Minute lang alle 3 s nachfragen.
+        .task(id: details.tomtomFahrt.isEmpty) {
+            guard details.tomtomFahrt.isEmpty else { return }
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { return }
+                await details.laden()
+                if !details.tomtomFahrt.isEmpty { return }
+            }
+        }
         .task(id: routenSchluessel) { await routenBerechnen() }
         .onChange(of: ortung.letztePosition?.coordinate.latitude) { _, _ in anfahrtKuerzen() }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { zeit in
@@ -132,6 +147,10 @@ struct SoloNormalAnsicht: View {
         }
         .webVollbild(item: $offenesBlatt) { blatt in
             blattAnsicht(blatt)
+        }
+        .webVollbild(isPresented: $naviOffen) {
+            NavigationAnsicht(fahrtID: fahrtID, start: ortung.letztePosition) { naviOffen = false }
+                .environmentObject(speicher)
         }
     }
 
@@ -181,7 +200,10 @@ struct SoloNormalAnsicht: View {
         // Gemeinsame Regel: Namen je Zeile, anonyme Gaeste als eigene Zeile, sonst "Keine Gäste".
         let gaeste = GaesteAnzeige.zeilen(details.gaeste, anonym: details.anonym)
         // Flughafen: Gaeste immer bei 482 (Platz fuer Flugnummer), sonst je nach Merkmalen.
-        let gaesteOben: CGFloat = y(istFlug || !merkmale.isEmpty ? 563 - 81 : 289 + 64 + 42)
+        // Knopf "Navigation starten" unter der Chip-Zeile: alles darunter rueckt um Knopf (56) + Luft nach unten.
+        let mitNavi = naviMoeglich(fahrt)
+        let naviVersatz: CGFloat = mitNavi ? 74 : 0
+        let gaesteOben: CGFloat = y(istFlug || !merkmale.isEmpty ? 563 - 81 : 289 + 64 + 42) + naviVersatz
         let ersteGastZeile = gaesteOben + 50
         let gaesteUnten = ersteGastZeile + CGFloat(gaeste.count - 1) * 57 + 51
         let nav = Self.navigationsURL(fahrt)
@@ -252,23 +274,28 @@ struct SoloNormalAnsicht: View {
                 .platz(20, y(352), innen, nil)
             }
 
+            if mitNavi {
+                AktionsKnopf(text: "Navigation starten", farbe: Color(hex: 0xE2F754)) { naviOffen = true }
+                    .platz(20, y(388), innen, 56)
+            }
+
             if !merkmale.isEmpty {
                 HStack(spacing: 8) {
                     ForEach(merkmale, id: \.self) { m in
                         Image(Self.merkmalIcon(m)).resizable().scaledToFit().frame(width: 58, height: 58)
                     }
                 }
-                .platz(20, y(386), istFlug ? innen : nil, nil, istFlug ? .trailing : .leading)
+                .platz(20, y(386) + naviVersatz, istFlug ? innen : nil, nil, istFlug ? .trailing : .leading)
             }
 
             if istFlug {
                 WebText(text: fahrt.flug.trimmingCharacters(in: .whitespaces), groesse: 42, gewicht: .bold,
                         zeilenHoehe: 42 * 0.88, abstand: -1, farbe: UIColor(hex: 0xF4F5F4))
-                    .fixedSize().platz(20, y(386))
+                    .fixedSize().platz(20, y(386) + naviVersatz)
                 if !details.flugHerkunft.isEmpty {
                     WebText(text: "Aus: \(details.flugHerkunft)", groesse: 16, gewicht: .bold, zeilenHoehe: 16, abstand: -0.5,
                             farbe: UIColor(hex: 0xF4F5F4).withAlphaComponent(0.5))
-                        .fixedSize().platz(20, y(424))
+                        .fixedSize().platz(20, y(424) + naviVersatz)
                 }
             }
 
@@ -436,6 +463,12 @@ struct SoloNormalAnsicht: View {
     private var unterwegs: Bool {
         ["at_pickup", "beim_pickup", "beim pickup", "in_progress", "started", "unterwegs", "active", "ongoing",
          "on_trip", "done", "completed", "arrived"].contains((fahrt?.status ?? "").lowercased())
+    }
+
+    /// Eigene Navigation nur bei Route von Dispo, und nur solange die Fahrt angenommen und nicht beendet ist.
+    private func naviMoeglich(_ fahrt: Fahrt) -> Bool {
+        let ende: Set<String> = ["done", "completed", "arrived", "beendet", "cancelled", "canceled", "refused", "storniert", "stoniert"]
+        return !fahrt.routenPunkte.isEmpty && !fahrt.wartetAufAntwort && !ende.contains(fahrt.status.lowercased())
     }
 
     /// Neu rechnen, wenn sich Fahrt, Status oder (grob) der Standort aendert.

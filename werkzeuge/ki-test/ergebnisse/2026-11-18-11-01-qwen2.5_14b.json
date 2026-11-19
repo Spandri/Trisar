@@ -1,0 +1,535 @@
+[
+  {
+    "fall": "Ohne Uhrzeit keine 00:00 und Start bleibt",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 1,
+    "frage": "Buche eine neue Fahrt von Franz Josef Straße 48 zu Avalon Emil Frey Frankfurter Ring mit Fahrer Tim anonymer Fahrgast",
+    "ok": true,
+    "fehler": [],
+    "art": "booking_needs_clarification",
+    "antwort": "Fahrt heute ab Franz Josef Straße 48 nach Avalon Emil Frey Frankfurter Ring: Um wie viel Uhr?",
+    "felder": {},
+    "ms": 16008
+  },
+  {
+    "fall": "Fahrer nach Ziel landet nicht im Ziel",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 1,
+    "frage": "Buche heute eine Fahrt um 14:45 Uhr von der Franz-Josef Straße 48 zum Avalon Emil Frey Frankfurter Ring Tim ist der Fahrer anonymer Fahrgast",
+    "ok": false,
+    "fehler": [
+      "Antwort mit \"ist der\"",
+      "Antwort mit \"noch ohne Fahrer\"",
+      "Antwort mit \"der Franz\"",
+      "fahrerNamen \"\", erwartet \"Tim\""
+    ],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: heute, Mi 18.11. um 14:45, der Franz-Josef Straße 48 → Avalon Emil Frey Frankfurter Ring Tim ist der, noch ohne Fahrer.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-18",
+      "startZeit": "14:45",
+      "startZeitBis": "",
+      "start": "der Franz-Josef Straße 48",
+      "ziel": "Avalon Emil Frey Frankfurter Ring Tim ist der",
+      "fahrgaeste": "",
+      "fahrerNamen": "",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 1743
+  },
+  {
+    "fall": "Zeitraum bleibt erhalten, Ziel nicht gekuerzt",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 1,
+    "frage": "Fahrt morgen im Zeitraum von 7:00 bis 8:00 vom Hauptbahnhof zu Frühlingstr. 24, 82152 Krailling  Fahrer Tim, Gast anonym",
+    "ok": false,
+    "fehler": [
+      "startZeitBis \"\", erwartet \"08:00\"",
+      "ziel \"Frühlingstr\", erwartet \"Krailling\""
+    ],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Do 19.11. um 07:00, Hauptbahnhof München → Frühlingstr, Gast anonym, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-19",
+      "startZeit": "07:00",
+      "startZeitBis": "",
+      "start": "Hauptbahnhof München",
+      "ziel": "Frühlingstr",
+      "fahrgaeste": "anonym",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "o2",
+      "zielOrtId": ""
+    },
+    "ms": 1772
+  },
+  {
+    "fall": "Uhrzeit nicht im Start",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 1,
+    "frage": "Fahrt von Frühlingstr. 24 in Krailling morgen um 7:00 zum Flughafen München t1 mit Fahrer Tim, Gast heißt Max Mustermann",
+    "ok": false,
+    "fehler": [
+      "Antwort mit \"um 7:00 →\"",
+      "Antwort mit \"morgen um 7:00 →\""
+    ],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Do 19.11. um 07:00, Frühlingstr. 24 in Krailling morgen um 7:00 → Flughafen München Terminal 1, Gast Max Mustermann, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-19",
+      "startZeit": "07:00",
+      "startZeitBis": "",
+      "start": "Frühlingstr. 24 in Krailling morgen um 7:00",
+      "ziel": "Flughafen München Terminal 1",
+      "fahrgaeste": "Max Mustermann",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": "o3"
+    },
+    "ms": 1873
+  },
+  {
+    "fall": "Statusfrage ist keine Aktion",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 1,
+    "frage": "Ist die Fahrt von Stefano Spandri beendet oder wie ist der aktuelle Status",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Mehrere Fahrten passen:\n- heute 10:30 Hotel Bayerischer Hof → Flughafen München Terminal 2, Horst Engel, Stefano Spandri\n- heute 14:00 Flughafen München Terminal 1 → Messe München, Markus Müller, Stefano Spandri\nNenne noch Tag oder Uhrzeit.",
+    "felder": {},
+    "ms": 1162
+  },
+  {
+    "fall": "Ziel mit zu und jetzt erkannt",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 1,
+    "frage": "Starte eine Fahrt für Tim zu VOHR global mobility in münchen jetzt",
+    "ok": false,
+    "fehler": [
+      "Art booking_needs_clarification, erwartet fahrt_buchen",
+      "Antwort mit \"Wohin\"",
+      "ziel \"\", erwartet \"VOHR\"",
+      "fahrerNamen \"\", erwartet \"Tim\""
+    ],
+    "art": "booking_needs_clarification",
+    "antwort": "Fahrt heute um 11:05 ab Tim: Wohin soll die Fahrt gehen (Ziel)?",
+    "felder": {},
+    "ms": 9399
+  },
+  {
+    "fall": "Uhrzeit nachreichen mit Satzfehler",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 1,
+    "frage": "Buche eine Fahrt vom Hauptbahnhof zur Messe mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "booking_needs_clarification",
+    "antwort": "Fahrt heute ab Hauptbahnhof München nach Messe München: Um wie viel Uhr?",
+    "felder": {},
+    "ms": 13763
+  },
+  {
+    "fall": "Uhrzeit nachreichen mit Satzfehler",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 2,
+    "frage": "Die Fahrt um 14:45 Uhr sein",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: heute, Mi 18.11. um 14:45, Hauptbahnhof München → Messe München, Gast Tim, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-18",
+      "startZeit": "14:45",
+      "startZeitBis": "",
+      "start": "Hauptbahnhof München",
+      "ziel": "Messe München",
+      "fahrgaeste": "Tim",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "o2",
+      "zielOrtId": "o5"
+    },
+    "ms": 114
+  },
+  {
+    "fall": "Ziel im offenen Vorschlag korrigieren",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 1,
+    "frage": "Buche heute um 14:45 eine Fahrt vom Hauptbahnhof zur Messe mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: heute, Mi 18.11. um 14:45, Hauptbahnhof München → Messe München, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-18",
+      "startZeit": "14:45",
+      "startZeitBis": "",
+      "start": "Hauptbahnhof München",
+      "ziel": "Messe München",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "o2",
+      "zielOrtId": "o5"
+    },
+    "ms": 1361
+  },
+  {
+    "fall": "Ziel im offenen Vorschlag korrigieren",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 2,
+    "frage": "18. November 14:45 Uhr aber zum Bayerischen Hof",
+    "ok": false,
+    "fehler": [
+      "start \"aber\", erwartet \"Hauptbahnhof\"",
+      "fahrerNamen \"\", erwartet \"Tim\""
+    ],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: heute, Mi 18.11. um 14:45, aber → Hotel Bayerischer Hof, noch ohne Fahrer.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-18",
+      "startZeit": "14:45",
+      "startZeitBis": "",
+      "start": "aber",
+      "ziel": "Hotel Bayerischer Hof",
+      "fahrgaeste": "",
+      "fahrerNamen": "",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": "o1"
+    },
+    "ms": 2049
+  },
+  {
+    "fall": "Start im offenen Vorschlag korrigieren",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 1,
+    "frage": "Fahrt morgen um 9 vom Hauptbahnhof zur Messe mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Do 19.11. um 09:00, Hauptbahnhof München → Messe München, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-19",
+      "startZeit": "09:00",
+      "startZeitBis": "",
+      "start": "Hauptbahnhof München",
+      "ziel": "Messe München",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "o2",
+      "zielOrtId": "o5"
+    },
+    "ms": 1482
+  },
+  {
+    "fall": "Start im offenen Vorschlag korrigieren",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 2,
+    "frage": "Vom Hotel Vier Jahreszeiten",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag angepasst (Start: Hauptbahnhof München → Hotel Vier Jahreszeiten). Soll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-19",
+      "startZeit": "09:00",
+      "startZeitBis": "",
+      "start": "Hotel Vier Jahreszeiten",
+      "ziel": "Messe München",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "o6",
+      "zielOrtId": "o5"
+    },
+    "ms": 1921
+  },
+  {
+    "fall": "Von vorne verwirft Vorschlag",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 1,
+    "frage": "Buche heute um 14:45 eine Fahrt vom Hauptbahnhof zur Messe mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: heute, Mi 18.11. um 14:45, Hauptbahnhof München → Messe München, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-18",
+      "startZeit": "14:45",
+      "startZeitBis": "",
+      "start": "Hauptbahnhof München",
+      "ziel": "Messe München",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "o2",
+      "zielOrtId": "o5"
+    },
+    "ms": 1328
+  },
+  {
+    "fall": "Von vorne verwirft Vorschlag",
+    "gruppe": "Protokoll 18.11.",
+    "schritt": 2,
+    "frage": "Kann ich noch mal von vorne machen",
+    "ok": false,
+    "fehler": [
+      "Antwort mit \"Formuliere es bitte anders\"",
+      "Antwort ohne eines von verworfen/von vorne/neu"
+    ],
+    "art": "antwort",
+    "antwort": "Das kann ich so nicht ausführen, deshalb habe ich nichts geändert. Formuliere es bitte anders. Mit „Was kannst du alles?“ zeige ich dir, was geht.",
+    "felder": {},
+    "ms": 1928
+  },
+  {
+    "fall": "Start mit zwei Treffern, Auswahl antippen",
+    "gruppe": "Ortwahl",
+    "schritt": 1,
+    "frage": "Fahrt morgen um 9 von Franz Josef Straße 48 zum Hauptbahnhof mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "ort_auswahl",
+    "antwort": "Welchen Start meinst du?\n1. Franz-Joseph-Straße 48, 80801 München\n2. Franz-Josef-Straße 48, 85540 Haar",
+    "felder": {},
+    "ms": 1493
+  },
+  {
+    "fall": "Start mit zwei Treffern, Auswahl antippen",
+    "gruppe": "Ortwahl",
+    "schritt": 2,
+    "frage": "Franz-Joseph-Straße 48, 80801 München, Deutschland",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Do 19.11. um 09:00, Franz-Joseph-Straße 48, 80801 München, Deutschland → Hauptbahnhof München, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-19",
+      "startZeit": "09:00",
+      "startZeitBis": "",
+      "start": "Franz-Joseph-Straße 48, 80801 München, Deutschland",
+      "ziel": "Hauptbahnhof München",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": "o2"
+    },
+    "ms": 0
+  },
+  {
+    "fall": "Start und Ziel unsicher, Nummer und Ordnungszahl",
+    "gruppe": "Ortwahl",
+    "schritt": 1,
+    "frage": "Fahrt morgen um 9 von Franz Josef Straße 48 zu Avalon Emil Frey Frankfurter Ring mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "ort_auswahl",
+    "antwort": "Welchen Start meinst du?\n1. Franz-Joseph-Straße 48, 80801 München\n2. Franz-Josef-Straße 48, 85540 Haar",
+    "felder": {},
+    "ms": 1537
+  },
+  {
+    "fall": "Start und Ziel unsicher, Nummer und Ordnungszahl",
+    "gruppe": "Ortwahl",
+    "schritt": 2,
+    "frage": "2",
+    "ok": true,
+    "fehler": [],
+    "art": "ort_auswahl",
+    "antwort": "Welches Ziel meinst du?\n1. Emil Frey Avalon BMW, Frankfurter Ring 227, 80807 München\n2. Emil Frey Avalon Volvo, Moosacher Straße 52, 80809 München",
+    "felder": {},
+    "ms": 0
+  },
+  {
+    "fall": "Start und Ziel unsicher, Nummer und Ordnungszahl",
+    "gruppe": "Ortwahl",
+    "schritt": 3,
+    "frage": "die erste",
+    "ok": false,
+    "fehler": [
+      "start \"2\", erwartet \"Haar\"",
+      "ziel \"die erste\", erwartet \"Frankfurter Ring 227\""
+    ],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Do 19.11. um 09:00, 2 → die erste, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-19",
+      "startZeit": "09:00",
+      "startZeitBis": "",
+      "start": "2",
+      "ziel": "die erste",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": ""
+    },
+    "ms": 1
+  },
+  {
+    "fall": "Ziel nicht gefunden, Adresse nachreichen",
+    "gruppe": "Ortwahl",
+    "schritt": 1,
+    "frage": "Fahrt morgen um 9 vom Hauptbahnhof zu Gibtsnicht Weg 7 mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "ort_auswahl",
+    "antwort": "„Gibtsnicht Weg 7“ finde ich nicht. Nenne bitte Straße und Ort für das Ziel.",
+    "felder": {},
+    "ms": 1573
+  },
+  {
+    "fall": "Ziel nicht gefunden, Adresse nachreichen",
+    "gruppe": "Ortwahl",
+    "schritt": 2,
+    "frage": "Frühlingstraße 24, 82152 Krailling",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Do 19.11. um 09:00, Hauptbahnhof München → Frühlingstraße 24, 82152 Krailling, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-19",
+      "startZeit": "09:00",
+      "startZeitBis": "",
+      "start": "Hauptbahnhof München",
+      "ziel": "Frühlingstraße 24, 82152 Krailling",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "o2",
+      "zielOrtId": ""
+    },
+    "ms": 0
+  },
+  {
+    "fall": "Keiner davon fragt nach Adresse",
+    "gruppe": "Ortwahl",
+    "schritt": 1,
+    "frage": "Fahrt morgen um 9 von Franz Josef Straße 48 zum Hauptbahnhof mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "ort_auswahl",
+    "antwort": "Welchen Start meinst du?\n1. Franz-Joseph-Straße 48, 80801 München\n2. Franz-Josef-Straße 48, 85540 Haar",
+    "felder": {},
+    "ms": 1570
+  },
+  {
+    "fall": "Keiner davon fragt nach Adresse",
+    "gruppe": "Ortwahl",
+    "schritt": 2,
+    "frage": "keiner davon",
+    "ok": false,
+    "fehler": [
+      "Art fahrt_buchen, erwartet ort_auswahl",
+      "Antwort ohne \"Straße und Ort\""
+    ],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Do 19.11. um 09:00, keiner davon → Hauptbahnhof München, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-19",
+      "startZeit": "09:00",
+      "startZeitBis": "",
+      "start": "keiner davon",
+      "ziel": "Hauptbahnhof München",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": "o2"
+    },
+    "ms": 1
+  },
+  {
+    "fall": "Keiner davon fragt nach Adresse",
+    "gruppe": "Ortwahl",
+    "schritt": 3,
+    "frage": "Leopoldstraße 10",
+    "ok": false,
+    "fehler": [
+      "Art antwort, erwartet fahrt_buchen",
+      "start \"\", erwartet \"Leopoldstraße 10\"",
+      "ziel \"\", erwartet \"Hauptbahnhof\""
+    ],
+    "art": "antwort",
+    "antwort": "Das kann ich so nicht ausführen, deshalb habe ich nichts geändert. Formuliere es bitte anders. Mit „Was kannst du alles?“ zeige ich dir, was geht.",
+    "felder": {},
+    "ms": 2511
+  },
+  {
+    "fall": "Neuer Auftrag beendet Auswahl",
+    "gruppe": "Ortwahl",
+    "schritt": 1,
+    "frage": "Fahrt morgen um 9 von Franz Josef Straße 48 zum Hauptbahnhof mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "ort_auswahl",
+    "antwort": "Welchen Start meinst du?\n1. Franz-Joseph-Straße 48, 80801 München\n2. Franz-Josef-Straße 48, 85540 Haar",
+    "felder": {},
+    "ms": 1443
+  },
+  {
+    "fall": "Neuer Auftrag beendet Auswahl",
+    "gruppe": "Ortwahl",
+    "schritt": 2,
+    "frage": "Wo ist Tim gerade",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Tim Schedler ist am Hauptbahnhof München, Bayerstraße 10a, 80335 München (Signal gerade eben). Aktuelle Fahrt: 09:00 Hauptbahnhof München → Hotel Vier Jahreszeiten (noch nicht gestartet).",
+    "felder": {},
+    "ms": 1341
+  },
+  {
+    "fall": "Ein Treffer ist sicher",
+    "gruppe": "Ortwahl",
+    "schritt": 1,
+    "frage": "Fahrt morgen um 9 von Leopoldstraße 10 zum Hauptbahnhof mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Do 19.11. um 09:00, Leopoldstraße 10, 80802 München, Deutschland → Hauptbahnhof München, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-19",
+      "startZeit": "09:00",
+      "startZeitBis": "",
+      "start": "Leopoldstraße 10, 80802 München, Deutschland",
+      "ziel": "Hauptbahnhof München",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": "o2"
+    },
+    "ms": 1521
+  },
+  {
+    "fall": "Franz Josef Strauss bleibt Flughafen",
+    "gruppe": "Ortwahl",
+    "schritt": 1,
+    "frage": "Fahrt morgen um 9 vom Franz Josef Strauß Flughafen zum Hauptbahnhof mit Tim",
+    "ok": true,
+    "fehler": [],
+    "art": "fahrt_buchen",
+    "antwort": "Vorschlag: morgen, Do 19.11. um 09:00, Flughafen München Terminal 2 → Hauptbahnhof München, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
+    "felder": {
+      "datum": "2026-11-19",
+      "startZeit": "09:00",
+      "startZeitBis": "",
+      "start": "Flughafen München Terminal 2",
+      "ziel": "Hauptbahnhof München",
+      "fahrgaeste": "",
+      "fahrerNamen": "Tim Schedler",
+      "fahrtId": "",
+      "startOrtId": "",
+      "zielOrtId": "o2"
+    },
+    "ms": 1575
+  }
+]

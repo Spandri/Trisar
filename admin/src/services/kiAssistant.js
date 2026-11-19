@@ -273,6 +273,8 @@ export const askDatabaseAssistant = async ({ prompt, chatHistory = [], offenerVo
         markierteFahrer,
         // Diese App zeigt alle Vorschlaege als Karten (Standby eigene Karte, mehrere Auftraege einzeln).
         karten: true,
+        // Diese App speichert den Start Zeitraum eines Vorschlags (startZeitBis) an der Fahrt.
+        zeitraum: true,
         // Umschalter Regeln/Frei: bei "frei" beantwortet das Modell reine Fragen selbst.
         modus: kiModusLesen(),
       },

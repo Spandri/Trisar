@@ -125,7 +125,7 @@ private data class ZeilenDaten(val id: String, val beschriftung: String, val art
 private data class FlugAnfrage(val nummer: String, val datum: String, val start: String, val flughafen: String, val ankunft: String, val uebernommen: String)
 private data class ZugAnfrage(val nummer: String, val datum: String, val start: String, val uebernommen: String)
 
-private val statusWerte = listOf("offen", "beendet", "stoniert", "unterwegs")
+private val statusWerte = listOf("offen", "beimGast", "unterwegs", "beendet", "stoniert")
 
 @Composable
 private fun FormularInhalt(
@@ -142,6 +142,11 @@ private fun FormularInhalt(
     var werte by remember { mutableStateOf(vorlage?.werte ?: geladen?.werte ?: FahrtFormularWerte()) }
     // Start Zeitraum (13.11.): Tipp auf "Start Zeit" macht daraus von - bis.
     var zeitraum by remember { mutableStateOf(werte.startZeitBis.isNotEmpty()) }
+    // Flug- oder Zugnummer (19.11.): eine Zeile, Tipp auf die Beschriftung schaltet um.
+    // Hat die Fahrt nur eine Zugnummer, startet die Zeile als Zug.
+    var nummerArtZug by remember {
+        mutableStateOf(FahrtText.getrimmt(werte.zugnummer).isNotEmpty() && FahrtText.getrimmt(werte.flugnummer).isEmpty())
+    }
     var notiz by remember { mutableStateOf(vorlage?.notiz ?: geladen?.notiz ?: "") }
     // Ohne Vorlage: auf der Karte markierte Fahrer sind schon eingetragen (fahrerMarkierung im Web).
     var fahrerNamen by remember {
@@ -155,6 +160,8 @@ private fun FormularInhalt(
     var speichert by remember { mutableStateOf(false) }
     // Route bearbeiten (15.11.): Routenpunkte der Dispo, Editor als Vollbild ueber dem Formular.
     var routenPunkte by remember { mutableStateOf(geladen?.routenPunkte ?: emptyList()) }
+    // Freigabe zu genau diesen Punkten (16.11.): geladen oder aus dem Editor, geht beim Speichern unveraendert mit.
+    var routeFest by remember { mutableStateOf(geladen?.routeFest) }
     var routeOffen by remember { mutableStateOf(false) }
 
     var vorschlaege by remember { mutableStateOf<Map<String, List<String>>>(mapOf("start" to emptyList(), "ziel" to emptyList())) }
@@ -181,6 +188,7 @@ private fun FormularInhalt(
     var meldung by remember { mutableStateOf<String?>(null) }
     var stornoFrage by remember { mutableStateOf(false) }
     var statusOffen by remember { mutableStateOf(false) }
+    var danachOffen by remember { mutableStateOf(false) }
     /** Sammel-Import (setView('importFahrten')), als Vollbild ueber dem Formular. */
     var importOffen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var fokus by remember { mutableStateOf<String?>(null) }
@@ -217,13 +225,16 @@ private fun FormularInhalt(
         add(ZeilenDaten("ziel", t("fahrt.ziel"), ZeilenArt.ADRESSE))
         // Route nur mit Start und Ziel (leerer Start = Fahrerstandort, dann gibt es nichts zu planen).
         if (stoppsSichtbar && FahrtText.getrimmt(werte.ziel).isNotEmpty()) add(ZeilenDaten("route", "Route", ZeilenArt.ROUTE))
-        add(ZeilenDaten("flugnummer", t("fahrt.flugnummer"), ZeilenArt.TEXT))
-        add(ZeilenDaten("zugnummer", t("fahrt.zugnummer"), ZeilenArt.TEXT))
+        // Flug- und Zugnummer in einer Zeile (19.11.): Tipp auf die Beschriftung schaltet um.
+        if (nummerArtZug) add(ZeilenDaten("zugnummer", t("fahrt.zugnummer"), ZeilenArt.TEXT))
+        else add(ZeilenDaten("flugnummer", t("fahrt.flugnummer"), ZeilenArt.TEXT))
         add(ZeilenDaten("konvoi", t("fahrt.konvoi"), ZeilenArt.TEXT))
         if (mitFahrzeugen) add(ZeilenDaten("anzahlFahrzeuge", t("fahrt.anzahlFahrzeuge"), ZeilenArt.ZAHL))
         for (i in fahrerNamen.indices) {
             add(ZeilenDaten("fahrer-$i", if (mitFahrzeugen || fahrerNamen.size > 1) t("fahrt.fahrerNumbered", mapOf("n" to "${i + 1}")) else t("fahrt.fahrer"), ZeilenArt.FAHRER, i))
         }
+        // Danach (19.11.): direkt unter dem letzten Fahrer, leer oder Dienstende.
+        add(ZeilenDaten("danach", t("fahrt.danach"), ZeilenArt.AUSWAHL))
         gaesteNamen.forEachIndexed { i, name ->
             val titel = if (i == 0) (if (FahrtText.getrimmt(name).isEmpty()) t("fahrt.fahrgaeste") else t("fahrt.gastNumbered", mapOf("n" to "1")))
             else t("fahrt.gastNumbered", mapOf("n" to "${i + 1}"))
@@ -467,6 +478,7 @@ private fun FormularInhalt(
         if (routenSchluessel != letzterRoutenSchluessel) {
             letzterRoutenSchluessel = routenSchluessel
             routenPunkte = emptyList()
+            routeFest = null
         }
     }
     /** Adressen fuer die Route: Start, Stopps, Ziel (eigener Ort mit seiner Adresse). */
@@ -497,7 +509,7 @@ private fun FormularInhalt(
             val w = werte.copy(anonymeGaeste = werte.anonymeGaeste.ifEmpty { "0" })
             scope.launch {
                 val e = FahrtSpeichern.anlegen(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), fahrerNamen, flughafenWahl, ankunftWahl, notiz, gefuellteStopps, aiBooked = vorlage != null,
-                    routenPunkte = routenPunkte.ifEmpty { null }))
+                    routenPunkte = routenPunkte.ifEmpty { null }, routeFest = routeFest))
                 speichert = false
                 if (!e.ok) { meldung = t("fahrt.saveError", mapOf("error" to (e.fehler ?: t("fahrt.unknownError")))); return@launch }
                 if (nachAnlegen != null) { nachAnlegen(e.id); return@launch }
@@ -517,7 +529,8 @@ private fun FormularInhalt(
             scope.launch {
                 val e = FahrtSpeichern.aendern(FahrtEingabe(w, gefuellteGaeste.joinToString("; "), namen, flughafenWahl, ankunftWahl, notiz, gefuellteStopps,
                     // Nur mitschicken, wenn Punkte gesetzt sind oder vorher welche da waren (Spalte kann live fehlen).
-                    routenPunkte = if (routenPunkte.isNotEmpty() || g.routenPunkte.isNotEmpty()) routenPunkte else null), g)
+                    routenPunkte = if (routenPunkte.isNotEmpty() || g.routenPunkte.isNotEmpty()) routenPunkte else null,
+                    routeFest = routeFest), g)
                 speichert = false
                 if (!e.ok) { meldung = t("fahrt.saveError", mapOf("error" to (e.fehler ?: t("fahrt.unknownError")))); return@launch }
                 if (nachAnlegen != null) { nachAnlegen(g.id); return@launch }
@@ -642,6 +655,18 @@ private fun FormularInhalt(
                             FormularZeile(z.beschriftung, "", m, rechts = RechtsArt.PFEIL, rechtsAktion = { fokusManager.clearFocus(); routeOffen = true }, zuruecksetzen = {}) {
                                 RoutenZeilenWert(routenPunkte.size) { fokusManager.clearFocus(); routeOffen = true }
                             }
+                        } else if (z.art == ZeilenArt.AUSWAHL && z.id == "danach") {
+                            FormularZeile(z.beschriftung, if (werte.danachDienstende) "dienstende" else "", m, zuruecksetzen = { werte = werte.copy(danachDienstende = false) }) {
+                                Box {
+                                    ZeilenWert(if (werte.danachDienstende) t("fahrt.danachDienstende") else "") { fokusManager.clearFocus(); danachOffen = true }
+                                    DunklesThema {
+                                        DropdownMenu(danachOffen, { danachOffen = false }) {
+                                            DropdownMenuItem({ Text("–") }, { werte = werte.copy(danachDienstende = false); danachOffen = false })
+                                            DropdownMenuItem({ Text(t("fahrt.danachDienstende")) }, { werte = werte.copy(danachDienstende = true); danachOffen = false })
+                                        }
+                                    }
+                                }
+                            }
                         } else if (z.art == ZeilenArt.AUSWAHL) {
                             FormularZeile(z.beschriftung, werte.aktuellerStatus, m, zuruecksetzen = { werte = werte.copy(aktuellerStatus = "") }) {
                                 Box {
@@ -670,7 +695,21 @@ private fun FormularInhalt(
                                 else -> null
                             }
                             val laedtListe = listenLaden && (z.art == ZeilenArt.FAHRER || z.art == ZeilenArt.GAST)
-                            FormularZeile(z.beschriftung, lesen(z), m, eta, etaAktion, rechts, rechtsAktion, { zuruecksetzen(z) }) {
+                            // Umschalten Flug/Zug leert die bisherige Nummer: Flug oder Zug, nie beides.
+                            val nummerWechseln: (() -> Unit)? = if (z.id == "flugnummer" || z.id == "zugnummer") ({
+                                fokusManager.clearFocus()
+                                if (nummerArtZug) {
+                                    zugUebernommen = ""
+                                    werte = werte.copy(zugnummer = "")
+                                } else {
+                                    flugUebernommen = ""
+                                    kandidatenOffen = false
+                                    werte = werte.copy(flugnummer = "")
+                                }
+                                nummerArtZug = !nummerArtZug
+                            }) else null
+                            FormularZeile(z.beschriftung, lesen(z), m, eta, etaAktion, rechts, rechtsAktion, { zuruecksetzen(z) },
+                                beschriftungAktion = nummerWechseln) {
                                 ZeilenEingabe(
                                     lesen(z), { aendern(z, it) }, fokusModifier(z.id),
                                     zahl = z.art == ZeilenArt.ZAHL,
@@ -781,8 +820,9 @@ private fun FormularInhalt(
         if (stornoFrage) Rueckfrage(t("fahrt.confirmCancelRide"), { stornoFrage = false; stornieren() }, { stornoFrage = false })
         if (routeOffen) {
             BackHandler { routeOffen = false }
-            RoutenEditorSeite(routenAdressen(), gefuellteStopps.size, routenPunkte, abbrechen = { routeOffen = false }) {
-                routenPunkte = it
+            RoutenEditorSeite(routenAdressen(), gefuellteStopps.size, routenPunkte, abbrechen = { routeOffen = false }) { punkte, fest ->
+                routenPunkte = punkte
+                routeFest = fest
                 routeOffen = false
             }
         }
@@ -801,6 +841,7 @@ private fun statusText(w: String): String = when (w) {
     "beendet" -> FahrtText.tr("fahrt.statusBeendet")
     "stoniert" -> FahrtText.tr("fahrt.statusStoniert")
     "unterwegs" -> FahrtText.tr("fahrt.statusUnterwegs")
+    "beimGast" -> FahrtText.tr("fahrt.statusBeimGast")
     else -> w
 }
 

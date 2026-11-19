@@ -1,0 +1,142 @@
+--- a/fahrer/src/features/fahrer/FahrerApp.jsx
++++ b/fahrer/src/features/fahrer/FahrerApp.jsx
+@@ -2565,6 +2565,9 @@
+             etd: dbJob.etd ? dbJob.etd.substring(0, 5) : '12:00',
+             // Start Zeitraum (13.11.): Ende des Zeitraums, null = feste Zeit.
+             etdBis: dbJob.etd_bis ? dbJob.etd_bis.substring(0, 5) : null,
++            // Danach Dienstende (19.11.): rote Zeile direkt unter der Fahrt, nach Erledigt mit echter Ankunft.
++            danachDienstende: Boolean(dbJob.danach_dienstende),
++            ankunftEcht: dbJob.ankunft_echt || null,
+             originalEtd: dbJob.original_etd ? dbJob.original_etd.substring(0, 5) : null,
+             flight: dbJob.flight_number || dbJob.train_number || 'STADTFAHRT',
+             flightOrigin: dbJob.flight_origin || flightSummary?.departureAirport || null,
+--- a/fahrer/src/features/fahrer/views/FahrtenScreen01View.jsx
++++ b/fahrer/src/features/fahrer/views/FahrtenScreen01View.jsx
+@@ -195,6 +195,13 @@
+   const start = zuZeitpunkt(tag, String(request.startTime || '').slice(0, 5));
+   const ende = zuZeitpunkt(tag, String(request.endTime || '').slice(0, 5), start); // Nachtdienst: Folgetag
+   return { start: start ? new Date(start).getTime() : null, ende: ende ? new Date(ende).getTime() : null };
++};
++
++// Uhrzeit eines Zeitpunkts in Deutschland (HH:MM).
++const uhrBerlin = (iso) => {
++  const d = new Date(iso);
++  if (Number.isNaN(d.getTime())) return '';
++  return new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
+ };
+ 
+ const PENDING_JOB_STATUSES = new Set(['pending', 'new', 'offered', 'requested', 'assigned_pending']);
+@@ -283,6 +290,8 @@
+   let cursorTop = VEHICLE_CARD_TOP + fahrzeugKarteHoehe + DAY_DIVIDER_GAP_BOTTOM;
+   let pausenWarte = [];
+   let reisenWarte = [];
++  // Tage, an denen eine Fahrt "Danach Dienstende" hat: dort steht das Dienstende unter der Fahrt.
++  const endeUnterFahrt = new Set((jobs || []).filter((job) => job?.danachDienstende).map((job) => tagSchluessel(job)));
+ 
+   const tagBeginnen = (tag) => {
+     if (zeilen.length) cursorTop += DAY_DIVIDER_GAP_TOP;
+@@ -338,7 +347,7 @@
+   };
+   const tagBeenden = (tag, mitFahrten) => {
+     pausenBis(Number.POSITIVE_INFINITY);
+-    (anfragenProTag.get(tag) || []).filter((r) => r.angenommen && r.zeigeEnde).forEach((request) => {
++    (anfragenProTag.get(tag) || []).filter((r) => r.angenommen && r.zeigeEnde && !endeUnterFahrt.has(tag)).forEach((request) => {
+       dienste.push({ request, top: cursorTop, art: 'ende' });
+       cursorTop += DIENST_ZEILE_HOEHE + CARD_GAP;
+     });
+@@ -376,6 +385,11 @@
+       ? actionTop + ACTION_HEIGHT + AFTER_ACTION_GAP
+       : cardTop + cardHeight + CARD_GAP;
+     fahrten.push({ cardTop, actionTop, cardHeight });
++    if (job?.danachDienstende) {
++      const request = (anfragenProTag.get(tag) || []).find((r) => r.angenommen) || null;
++      dienste.push({ request, job, top: cursorTop, art: 'fahrtende' });
++      cursorTop += DIENST_ZEILE_HOEHE + CARD_GAP;
++    }
+   });
+   if (letzterTag) tagBeenden(letzterTag, true);
+ 
+@@ -897,7 +911,22 @@
+                   </div>
+                 ))}
+ 
+-                {listenLayout.dienste.map(({ request, top, art, zeile }, index) => {
++                {listenLayout.dienste.map(({ request, job, top, art, zeile }, index) => {
++                  if (art === 'fahrtende') {
++                    // Danach Dienstende (19.11.): vor dem Ende ohne Zeit, danach mit der echten Ankunft.
++                    const zeit = job?.ankunftEcht ? uhrBerlin(job.ankunftEcht) : '';
++                    return (
++                      <div
++                        key={`${job?.id}-fahrtende`}
++                        className="absolute left-5 w-[362px] outline outline-1 outline-offset-[-1px] flex items-center px-4"
++                        style={{ top: `${top}px`, height: `${DIENST_ZEILE_HOEHE}px`, outlineColor: '#FF6F63' }}
++                      >
++                        <span className="text-2xl font-bold leading-6 tracking-wide" style={{ color: '#FF6F63', fontFamily: 'Space Grotesk' }}>
++                          {zeit ? t('misc.shiftEnd', { time: zeit }) : t('misc.afterShiftEnd')}
++                        </span>
++                      </div>
++                    );
++                  }
+                   if (art !== 'karte') {
+                     const farbe = art === 'start' ? '#E3F654' : art === 'ende' ? '#FF6F63' : GRAU;
+                     const zeit = (art === 'start' ? request.startTime : request.endTime).slice(0, 5);
+--- a/fahrer/src/i18n/de.js
++++ b/fahrer/src/i18n/de.js
+@@ -233,6 +233,7 @@
+   "misc.sendDamage": "Schaden melden",
+   "misc.sendNote": "Notiz abschicken",
+   "misc.settings": "Einstellungen",
++  "misc.afterShiftEnd": "Danach Dienstende",
+   "misc.shiftEnd": "Dienstende {time}",
+   "misc.shiftRunning": "Dienst läuft noch",
+   "misc.shiftStart": "Dienststart {time}",
+--- a/fahrer/src/i18n/en.js
++++ b/fahrer/src/i18n/en.js
+@@ -233,6 +233,7 @@
+   "misc.sendDamage": "Report damage",
+   "misc.sendNote": "Send note",
+   "misc.settings": "Settings",
++  "misc.afterShiftEnd": "Shift ends after",
+   "misc.shiftEnd": "Shift end {time}",
+   "misc.shiftRunning": "Shift still running",
+   "misc.shiftStart": "Shift start {time}",
+--- a/fahrer/src/i18n/es.js
++++ b/fahrer/src/i18n/es.js
+@@ -225,6 +225,7 @@
+   "misc.sendDamage": "Notificar daño",
+   "misc.sendNote": "Enviar nota",
+   "misc.settings": "Ajustes",
++  "misc.afterShiftEnd": "Después fin de turno",
+   "misc.shiftEnd": "Fin de turno {time}",
+   "misc.shiftStart": "Inicio de turno {time}",
+   "misc.sourceCamera": "Hacer foto",
+--- a/fahrer/src/i18n/fr.js
++++ b/fahrer/src/i18n/fr.js
+@@ -225,6 +225,7 @@
+   "misc.sendDamage": "Signaler le dommage",
+   "misc.sendNote": "Envoyer la note",
+   "misc.settings": "Paramètres",
++  "misc.afterShiftEnd": "Ensuite fin de service",
+   "misc.shiftEnd": "Fin de service {time}",
+   "misc.shiftStart": "Prise de service {time}",
+   "misc.sourceCamera": "Prendre une photo",
+--- a/fahrer/src/i18n/it.js
++++ b/fahrer/src/i18n/it.js
+@@ -225,6 +225,7 @@
+   "misc.sendDamage": "Segnala danno",
+   "misc.sendNote": "Invia nota",
+   "misc.settings": "Impostazioni",
++  "misc.afterShiftEnd": "Dopo fine turno",
+   "misc.shiftEnd": "Fine turno {time}",
+   "misc.shiftStart": "Inizio turno {time}",
+   "misc.sourceCamera": "Scatta foto",
+--- a/fahrer/src/i18n/tr.js
++++ b/fahrer/src/i18n/tr.js
+@@ -225,6 +225,7 @@
+   "misc.sendDamage": "Hasar bildir",
+   "misc.sendNote": "Notu gönder",
+   "misc.settings": "Ayarlar",
++  "misc.afterShiftEnd": "Sonra vardiya sonu",
+   "misc.shiftEnd": "Vardiya sonu {time}",
+   "misc.shiftStart": "Vardiya başı {time}",
+   "misc.sourceCamera": "Fotoğraf çek",

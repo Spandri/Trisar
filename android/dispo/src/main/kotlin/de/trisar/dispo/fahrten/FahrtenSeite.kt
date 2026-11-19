@@ -333,6 +333,7 @@ private fun minutenEtikett(f: DispoFahrt, mitStandort: Boolean): String {
         "beendet" -> return "Beendet"
         "stoniert" -> return "Storniert"
         "unterwegs" -> return "Unterwegs"
+        "beimGast" -> return "Beim Gast"
     }
     if (f.verzugMinuten > 0) return "+${f.verzugMinuten} min"
     val ziel = W.minuten(zielZeit(f, false, mitStandort), praefix = false) ?: return ""

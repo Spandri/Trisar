@@ -273,6 +273,20 @@ export const abschnittArt = (nummer) => {
   return 'zug';
 };
 export const mitLiveAbfrage = (art) => art === 'zug' || art === 'sbahn' || art === 'flug';
+// Halt eines Zug-, S-Bahn-, U-Bahn-, Tram- oder Busabschnitts ist ein Bahnhof bzw. eine Haltestelle (19.11.).
+export const istHaltArt = (art) => art === 'zug' || art === 'sbahn' || art === 'ubahn' || art === 'tram' || art === 'bus';
+
+/**
+ * Halt als Bahnhof orten (19.11.): "München-Trudering" ist der Bahnhof, nicht der Stadtteil. Fragt die Bahn ueber
+ * train-validate (halt_orten). Liefert { name, lat, lng } mit offiziellem Namen oder null, wenn die Bahn nichts findet.
+ */
+export const bahnhofOrten = async (name) => {
+  const text = String(name || '').trim();
+  if (!text) return null;
+  const { data, error } = await supabase.functions.invoke('train-validate', { body: { halt_orten: [text] } });
+  const h = !error && Array.isArray(data?.halte) ? data.halte[0] : null;
+  return h && h.lat != null && h.lng != null ? { name: h.name || text, lat: Number(h.lat), lng: Number(h.lng) } : null;
+};
 
 // Ticket in die Ablage legen (Ordner = ID der Dienstreise) und vom Server lesen lassen.
 export const ticketHochladenUndLesen = async (reiseId, datei) => {

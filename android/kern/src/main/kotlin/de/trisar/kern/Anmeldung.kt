@@ -220,7 +220,7 @@ class Anmeldung(
             runCatching {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     val url = java.net.URL(Konfig.SUPABASE_URL + "/auth/v1/recover?redirect_to=" +
-                        java.net.URLEncoder.encode("https://fahrer.trisar.de", "UTF-8"))
+                        java.net.URLEncoder.encode("https://fahrer.trisar.de/passwort", "UTF-8"))
                     val verbindung = url.openConnection() as java.net.HttpURLConnection
                     verbindung.requestMethod = "POST"
                     verbindung.doOutput = true

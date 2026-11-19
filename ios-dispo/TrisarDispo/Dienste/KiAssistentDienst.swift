@@ -11,6 +11,8 @@ enum KiAssistentDienst {
         var dienstVorschlag: DienstVorschlag?
         /// Weitere Karten (nur mit karten: true): zusaetzliche Fahrten und Standbys, jede einzeln bestaetigen.
         var karten: [KiKarte] = []
+        /// Ort unsicher (18.11.): Auswahl zum Antippen statt Fahrtkarte (dispo-admin/ortWahl.ts).
+        var ortWahl: KiOrtWahl?
     }
 
     /// Letzte Fahrer und Fahrten des Gespraechs, fuer Rueckfragen.
@@ -36,6 +38,8 @@ enum KiAssistentDienst {
         let markierteFahrer: [MarkierterFahrer]
         /// Diese Ansicht zeigt alle Vorschlaege als Karten (Standby eigene Karte, mehrere Auftraege einzeln).
         let karten: Bool?
+        /// Diese App speichert den Start Zeitraum eines Vorschlags (startZeitBis) an der Fahrt.
+        var zeitraum = true
         /// Umschalter Regeln/Frei (13.11.): "frei" laesst reine Fragen vom Modell beantworten.
         let modus: String
     }
@@ -45,7 +49,8 @@ enum KiAssistentDienst {
         struct Aktion: Decodable {
             let type: String?; let proposal: KiBuchungsVorschlag?; let vorschlag: DienstVorschlag?; let standby: KiStandbyVorschlag?
             let fahrer: KiAnlegenDaten?; let fahrzeug: KiAnlegenDaten?
-            private enum CodingKeys: String, CodingKey { case type, proposal, vorschlag, standby, fahrer, fahrzeug }
+            let feld: String?; let frage: String?; let optionen: [KiOrtOption]?
+            private enum CodingKeys: String, CodingKey { case type, proposal, vorschlag, standby, fahrer, fahrzeug, feld, frage, optionen }
             init(from decoder: Decoder) throws {
                 let c = try decoder.container(keyedBy: CodingKeys.self)
                 type = try? c.decodeIfPresent(String.self, forKey: .type)
@@ -54,6 +59,9 @@ enum KiAssistentDienst {
                 standby = try? c.decodeIfPresent(KiStandbyVorschlag.self, forKey: .standby)
                 fahrer = try? c.decodeIfPresent(KiAnlegenDaten.self, forKey: .fahrer)
                 fahrzeug = try? c.decodeIfPresent(KiAnlegenDaten.self, forKey: .fahrzeug)
+                feld = try? c.decodeIfPresent(String.self, forKey: .feld)
+                frage = try? c.decodeIfPresent(String.self, forKey: .frage)
+                optionen = try? c.decodeIfPresent([KiOrtOption].self, forKey: .optionen)
             }
         }
         let answer: String?
@@ -174,8 +182,26 @@ enum KiAssistentDienst {
             }
             return nil
         }
-        return Antwort(text: antwort.answer ?? "", buchungsVorschlag: vorschlag, dienstVorschlag: dienst, karten: weitere)
+        let ortWahl = aktionen.first { $0.type == "ort_auswahl" }.map {
+            KiOrtWahl(feld: $0.feld ?? "", frage: $0.frage ?? "", optionen: $0.optionen ?? [])
+        }
+        return Antwort(text: antwort.answer ?? "", buchungsVorschlag: vorschlag, dienstVorschlag: dienst, karten: weitere,
+                       ortWahl: ortWahl)
     }
+}
+
+/// Ein Ort zur Auswahl: wert wird als Nachricht geschickt, titel und zeile stehen auf der Kachel.
+struct KiOrtOption: Codable, Equatable, Hashable {
+    var wert: String
+    var titel: String
+    var zeile: String
+}
+
+/// Ortsauswahl: "Welchen Start meinst du?" mit bis zu 3 Orten, ohne Orte heisst nicht gefunden.
+struct KiOrtWahl: Codable, Equatable {
+    var feld: String
+    var frage: String
+    var optionen: [KiOrtOption]
 }
 
 /// Weitere Vorschlagskarte einer Antwort (Fahrt oder Standby), Status pending, saving, booked, cancelled.
@@ -291,6 +317,8 @@ struct KiBuchungsVorschlag: Codable, Equatable {
     var konvoi = ""
     var flugnummer = ""
     var notes = ""
+    /// Start Zeitraum ("zwischen 15 und 16 Uhr"): Ende des Zeitraums, wird als etd_bis gespeichert.
+    var startZeitBis: String?
     /// Nur bei Aenderung einer bestehenden Fahrt: welche Fahrt und welche Felder.
     var fahrtId: String?
     var geaendert: [String]?
@@ -333,6 +361,7 @@ struct KiBuchungsVorschlag: Codable, Equatable {
         var w = FahrtFormularWerte()
         w.datum = datum
         w.startZeit = startZeit
+        w.startZeitBis = startZeitBis ?? ""
         ortSetzen(&w)
         w.flugnummer = flugnummer
         w.konvoi = konvoi

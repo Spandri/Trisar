@@ -1,0 +1,170 @@
+--- a/admin/src/App.jsx
++++ b/admin/src/App.jsx
+@@ -1328,6 +1328,8 @@
+         const fallbackReadClient = hasSupabaseAdminConfig ? supabase : supabaseAdmin;
+         const jobSelectBase = 'id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins';
+         const jobSelectCandidates = [
++          // Danach Dienstende (19.11.), ohne die Spalte weiter mit den naechsten.
++          `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis, routen_punkte, route_fest, abfahrt_echt, ankunft_echt, ankunft_erwartet, danach_dienstende`,
+           // Echte Abfahrt/Ankunft (18.11.), ohne die Spalten weiter mit den naechsten.
+           `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis, routen_punkte, route_fest, abfahrt_echt, ankunft_echt, ankunft_erwartet`,
+           // Routenpunkte der Dispo (15.11.), ohne die Spalte weiter mit den naechsten.
+@@ -1858,6 +1860,7 @@
+             zwischenstopps: Array.isArray(job.zwischenstopps) ? job.zwischenstopps : [],
+             routenPunkte: Array.isArray(job.routen_punkte) ? job.routen_punkte : [],
+             routeFest: job.route_fest || null,
++            danach: job.danach_dienstende ? 'dienstende' : '',
+             fahrerNamen,
+             // Fuer die Mehrfachauswahl der Karte (Fahrten nur der markierten Fahrer).
+             fahrerIds: mergedDriverEntries.map((entry) => String(entry?.id || '').trim()).filter(Boolean),
+@@ -2416,6 +2419,7 @@
+         zwischenstopps: Array.isArray(ride.zwischenstopps) ? ride.zwischenstopps : [],
+         routenPunkte: Array.isArray(ride.routenPunkte) ? ride.routenPunkte : [],
+         routeFest: ride.routeFest || null,
++        danach: ride.danach || '',
+         konvoi: ride.konvoi || '',
+         anzahlFahrzeuge: String(ride.anzahlFahrzeuge || ''),
+         fahrerNamen: Array.isArray(ride.fahrerNamen) && ride.fahrerNamen.length > 0 ? ride.fahrerNamen : [''],
+@@ -2884,6 +2888,8 @@
+         ext_flight_last_sync_at: hasValidatedTrain ? new Date().toISOString() : null,
+         anonymous_guests: anonymousCount,
+         ai_booked: Boolean(payload?.aiBooked ?? editor?.aiBooked),
++        // Danach Dienstende (19.11.): nur wenn das Formular das Feld kennt.
++        ...(payload && 'danach' in payload ? { danach_dienstende: payload.danach === 'dienstende' } : {}),
+       };
+       if (zeitUnberuehrt) {
+         delete updatePayload.etd;
+@@ -3275,6 +3281,7 @@
+         ext_flight_last_sync_at: hasValidatedTrain ? new Date().toISOString() : null,
+         anonymous_guests: anonymousCount,
+         ai_booked: Boolean(options?.aiBooked),
++        ...(payload?.danach === 'dienstende' ? { danach_dienstende: true } : {}),
+       };
+ 
+       let createResult = await supabase.from('jobs').insert(insertPayload).select('id').single();
+--- a/admin/src/components/views/FahrtAdd.jsx
++++ b/admin/src/components/views/FahrtAdd.jsx
+@@ -341,6 +341,7 @@
+     fahrgaeste: '',
+     aktuellerStatus: '',
+     anzahlFahrzeuge: '',
++    danach: vorlage?.danach || '',
+   });
+ 
+   const updateField = (key, value) => {
+@@ -660,6 +661,15 @@
+           return next;
+         }),
+     })),
++    // Danach Dienstende (19.11.): direkt unter dem letzten Fahrer.
++    {
++      key: 'danach',
++      label: t('fahrt.danach'),
++      mode: 'dropdown',
++      marker: 'anlegen-danach',
++      options: ['dienstende'],
++      optionLabels: { dienstende: t('fahrt.danachDienstende') },
++    },
+     ...fahrgaesteNamen.map((name, index) => ({
+       key: `fahrgast-${index}`,
+       label: index === 0 ? (String(fahrgaesteNamen[0] || '').trim().length > 0 ? t('fahrt.gastNumbered', { n: 1 }) : t('fahrt.fahrgaeste')) : t('fahrt.gastNumbered', { n: index + 1 }),
+--- a/admin/src/components/views/FahrtBearbeitenView.jsx
++++ b/admin/src/components/views/FahrtBearbeitenView.jsx
+@@ -65,6 +65,7 @@
+   fahrgaeste: '',
+   aktuellerStatus: '',
+   anzahlFahrzeuge: '',
++  danach: '',
+ };
+ 
+ const normalizeFieldValue = (value) => (value == null ? '' : String(value));
+@@ -90,6 +91,7 @@
+     fahrgaeste: normalizeFieldValue(initialData.fahrgaeste),
+     aktuellerStatus: normalizeFieldValue(initialData.aktuellerStatus),
+     anzahlFahrzeuge: normalizeFieldValue(initialData.anzahlFahrzeuge),
++    danach: normalizeFieldValue(initialData.danach),
+   };
+ }
+ 
+@@ -753,6 +755,15 @@
+           return next;
+         }),
+     })),
++    // Danach Dienstende (19.11.): direkt unter dem letzten Fahrer.
++    {
++      key: 'danach',
++      label: t('fahrt.danach'),
++      mode: 'dropdown',
++      marker: 'feld-danach',
++      options: ['dienstende'],
++      optionLabels: { dienstende: t('fahrt.danachDienstende') },
++    },
+     ...fahrgaesteNamen.map((name, index) => ({
+       key: `fahrgast-${index}`,
+       label: index === 0 ? (String(fahrgaesteNamen[0] || '').trim().length > 0 ? t('fahrt.gastNumbered', { n: 1 }) : t('fahrt.fahrgaeste')) : t('fahrt.gastNumbered', { n: index + 1 }),
+--- a/admin/src/i18n/de.js
++++ b/admin/src/i18n/de.js
+@@ -362,6 +362,8 @@
+   "fahrt.flugnummer": "Flugnummer",
+   "fahrt.gastNumbered": "Gast #{n}",
+   "fahrt.importRides": "Fahrten importieren",
++  "fahrt.danach": "Danach",
++  "fahrt.danachDienstende": "Dienstende",
+   "fahrt.konvoi": "Konvoi",
+   "fahrt.multipleFlightsFound": "Mehrere Flüge gefunden – bitte auswählen",
+   "fahrt.noFlightDataForDate": "Keine Flugdaten zum {date} – letzte bekannte Flüge:",
+--- a/admin/src/i18n/en.js
++++ b/admin/src/i18n/en.js
+@@ -361,6 +361,8 @@
+   "fahrt.flugnummer": "Flight number",
+   "fahrt.gastNumbered": "Guest #{n}",
+   "fahrt.importRides": "Import rides",
++  "fahrt.danach": "After",
++  "fahrt.danachDienstende": "End of shift",
+   "fahrt.konvoi": "Convoy",
+   "fahrt.multipleFlightsFound": "Multiple flights found – please select",
+   "fahrt.noFlightDataForDate": "No flight data for {date} – last known flights:",
+--- a/admin/src/i18n/es.js
++++ b/admin/src/i18n/es.js
+@@ -330,6 +330,8 @@
+   "fahrt.flugnummer": "N.º de vuelo",
+   "fahrt.gastNumbered": "Pasajero #{n}",
+   "fahrt.importRides": "Importar viajes",
++  "fahrt.danach": "Después",
++  "fahrt.danachDienstende": "Fin de servicio",
+   "fahrt.konvoi": "Convoy",
+   "fahrt.multipleFlightsFound": "Varios vuelos encontrados – seleccione uno",
+   "fahrt.noFlightDataForDate": "Sin datos de vuelo el {date} – últimos vuelos conocidos:",
+--- a/admin/src/i18n/fr.js
++++ b/admin/src/i18n/fr.js
+@@ -330,6 +330,8 @@
+   "fahrt.flugnummer": "N° de vol",
+   "fahrt.gastNumbered": "Passager #{n}",
+   "fahrt.importRides": "Importer des courses",
++  "fahrt.danach": "Ensuite",
++  "fahrt.danachDienstende": "Fin de service",
+   "fahrt.konvoi": "Convoi",
+   "fahrt.multipleFlightsFound": "Plusieurs vols trouvés – veuillez choisir",
+   "fahrt.noFlightDataForDate": "Aucune donnée de vol au {date} – derniers vols connus :",
+--- a/admin/src/i18n/it.js
++++ b/admin/src/i18n/it.js
+@@ -330,6 +330,8 @@
+   "fahrt.flugnummer": "Numero volo",
+   "fahrt.gastNumbered": "Ospite #{n}",
+   "fahrt.importRides": "Importa corse",
++  "fahrt.danach": "Dopo",
++  "fahrt.danachDienstende": "Fine servizio",
+   "fahrt.konvoi": "Convoglio",
+   "fahrt.multipleFlightsFound": "Più voli trovati – selezionare",
+   "fahrt.noFlightDataForDate": "Nessun dato volo per il {date} – ultimi voli noti:",
+--- a/admin/src/i18n/tr.js
++++ b/admin/src/i18n/tr.js
+@@ -330,6 +330,8 @@
+   "fahrt.flugnummer": "Uçuş no",
+   "fahrt.gastNumbered": "Misafir #{n}",
+   "fahrt.importRides": "Yolculukları içe aktar",
++  "fahrt.danach": "Sonra",
++  "fahrt.danachDienstende": "Mesai bitişi",
+   "fahrt.konvoi": "Konvoy",
+   "fahrt.multipleFlightsFound": "Birden fazla uçuş bulundu – lütfen seçin",
+   "fahrt.noFlightDataForDate": "{date} için uçuş verisi yok – bilinen son uçuşlar:",

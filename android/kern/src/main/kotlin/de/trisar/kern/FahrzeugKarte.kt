@@ -351,8 +351,8 @@ fun EnergieKachel(kraftstoff: String?, fuellstand: Double?, reichweite: Double?)
     val f = kraftstoff.orEmpty().lowercase()
     val elektrisch = "elektr" in f || f == "ev" || f == "bev"
     val fill = fuellstand?.let { it.roundToInt().coerceIn(0, 100) }
-    val maxReichweite = if ((reichweite ?: 0.0) > 0) reichweite!! else if (elektrisch) 500.0 else 650.0
-    val km = fill?.let { (it / 100.0 * maxReichweite).roundToInt() }
+    // Ohne Reichweite bei vollem Tank (Tracker, Modellvariante) keine Kilometer: Strich statt Annahme.
+    val km = if (fill != null && reichweite != null && reichweite > 0) (fill / 100.0 * reichweite).roundToInt() else null
     KachelRahmen {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
             if (elektrisch) {

@@ -19,11 +19,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.roundToInt
 
-internal data class TelemetrieZeile(val id: String, val titel: String, val wert: String, val warnung: Boolean)
+internal data class TelemetrieZeile(val id: String, val titel: String, val wert: String, val warnung: Boolean, val unter: String = "")
 internal data class TelemetrieEreignis(val id: String, val zeit: String, val text: String)
 
 /**
@@ -62,9 +65,21 @@ internal class DispoTelemetrie(private val fahrerID: String) {
             if (live == null) return emptyList()
             val z = mutableListOf<TelemetrieZeile>()
             fun zahl(k: String) = jZahl(live[k])
-            jBool(live["ignition"])?.let { z += TelemetrieZeile("ignition", "Zündung", if (it) "An" else "Aus", false) }
-            zahl("rpm")?.let { z += TelemetrieZeile("rpm", "Drehzahl", "${it.roundToInt()}", false) }
-            zahl("obd_speed_kph")?.let { z += TelemetrieZeile("speed", "Tempo (OBD)", "${it.roundToInt()} km/h", false) }
+            // Geparkt: Zuendung aus oder seit 2 Minuten keine Meldung (bei Zuendung an kommt alle 30 s eine,
+            // am OBD-Stecker schlaeft der Tracker nach dem Abstellen ohne letzte "Aus"-Meldung ein).
+            val standText = (live["captured_at"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content.orEmpty()
+            val stand = runCatching { java.time.OffsetDateTime.parse(standText).toInstant() }.getOrNull()
+                ?: runCatching { java.time.OffsetDateTime.parse(standText.replace(" ", "T")).toInstant() }.getOrNull()
+            val an = (live["ignition"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.booleanOrNull
+            val geparkt = an == false || (stand != null && java.time.Duration.between(stand, java.time.Instant.now()).seconds > 120)
+            if (geparkt) {
+                val uhr = stand?.let { java.time.LocalTime.ofInstant(it, java.time.ZoneId.systemDefault()) }
+                z += TelemetrieZeile("ignition", "Zündung", "Geparkt", false, uhr?.let { "seit %02d:%02d".format(it.hour, it.minute) } ?: "")
+            } else if (an == true) {
+                z += TelemetrieZeile("ignition", "Zündung", "An", false)
+            }
+            if (!geparkt) zahl("rpm")?.let { z += TelemetrieZeile("rpm", "Drehzahl", "${it.roundToInt()}", false) }
+            if (!geparkt) zahl("obd_speed_kph")?.let { z += TelemetrieZeile("speed", "Tempo (OBD)", "${it.roundToInt()} km/h", false) }
             val tank = zahl("fuel_level_pct")
             tank?.let { z += TelemetrieZeile("fuel", "Tank", "${it.roundToInt()} %", it < 15) }
             if (tank == null) zahl("oem_fuel_l")?.let { z += TelemetrieZeile("fuel", "Tank", "${dezimal(it)} l", false) }

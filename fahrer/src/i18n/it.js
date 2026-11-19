@@ -225,6 +225,7 @@ export default {
   "misc.sendDamage": "Segnala danno",
   "misc.sendNote": "Invia nota",
   "misc.settings": "Impostazioni",
+  "misc.afterShiftEnd": "Dopo fine turno",
   "misc.shiftEnd": "Fine turno {time}",
   "misc.shiftStart": "Inizio turno {time}",
   "misc.sourceCamera": "Scatta foto",
@@ -314,4 +315,5 @@ export default {
   "soloF.typeAirport": "Aeroporto",
   "soloF.typeHotel": "Hotel",
   "abholschild.schliessen": "Chiudi cartello di benvenuto",
+  "misc.damageReportedBy": "segnalato da {name}",
 };

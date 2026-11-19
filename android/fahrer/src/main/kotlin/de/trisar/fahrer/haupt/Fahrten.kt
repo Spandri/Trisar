@@ -73,6 +73,10 @@ internal data class FahrtZeile(
     val pickup_ort_id: String? = null,
     val dropoff_ort_id: String? = null,
     val zwischenstopps: List<String>? = null,
+    /** Danach Dienstende (19.11.): nach dieser Fahrt endet der Dienst. */
+    val danach_dienstende: Boolean? = null,
+    /** Echte Ankunft (GPS), ISO. */
+    val ankunft_echt: String? = null,
 ) {
     companion object {
         // Alle Spalten wie iOS (select()). Eine feste Liste bricht das ganze Laden ab, sobald eine
@@ -133,6 +137,10 @@ data class Fahrt(
     val zwischenstopps: List<String> = emptyList(),
     /** Start Zeitraum: Ende (HH:mm), null = feste Startzeit. */
     val etdBis: String? = null,
+    /** Danach Dienstende (19.11.): rote Zeile unter der Fahrt statt Dienstende am Tagesende. */
+    val danachDienstende: Boolean = false,
+    /** jobs.ankunft_echt (ISO), dann steht die Uhrzeit in der Zeile. */
+    val ankunftEcht: String? = null,
 ) {
     val abholKurz get() = Adresse.kurz(abholName, abholAdresse)
     val zielKurz get() = Adresse.kurz(zielName, zielAdresse)
@@ -411,6 +419,8 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
                         zielOrtID = z.dropoff_ort_id,
                         zwischenstopps = z.zwischenstopps.orEmpty(),
                         etdBis = z.etd_bis?.take(5)?.ifEmpty { null },
+                        danachDienstende = z.danach_dienstende == true,
+                        ankunftEcht = z.ankunft_echt?.ifEmpty { null },
                     )
                 }
                 // Pausen und gemerkte Aenderung je Dienst dazu (fuer die Zeilen der Anfrage).

@@ -1,0 +1,70 @@
+[
+ {
+  "name": "Zeitangaben umgangssprachlich",
+  "saetze": [
+   "Fahrt morgen um Viertel nach 3 nachmittags vom Hauptbahnhof zur Messe mit Tim",
+   "nein",
+   "Fahrt heute Abend um acht vom Vier Jahreszeiten zum Terminal 1",
+   "nein",
+   "Fahrt morgen früh um dreiviertel 7 vom Bayerischen Hof zum Flughafen T2 für Frau Weber",
+   "nein",
+   "In zwei Stunden muss jemand Herrn Müller an der Messe abholen und zum Hauptbahnhof bringen"
+  ]
+ },
+ {
+  "name": "Alles in einem Satz",
+  "saetze": [
+   "Herr Engel muss übermorgen um 6:45 vom Vier Jahreszeiten zum Terminal 1, Anna soll fahren",
+   "ja"
+  ]
+ },
+ {
+  "name": "Rückfahrt und Wiederholung",
+  "saetze": [
+   "Fahrt morgen um 9 vom Bayerischen Hof zur Messe für Frau Weber mit Tim",
+   "ja",
+   "Und die Rückfahrt um 17 Uhr",
+   "ja",
+   "Die gleiche Fahrt nochmal am Freitag"
+  ]
+ },
+ {
+  "name": "Mehrere Fahrzeuge",
+  "saetze": [
+   "Morgen um 19 Uhr drei Autos von der Messe zum Bayerischen Hof, Tim, Marvin und Anna fahren, insgesamt 9 Personen"
+  ]
+ },
+ {
+  "name": "Mit Zwischenstopp und Extras",
+  "saetze": [
+   "Fahrt morgen 10 Uhr vom Bayerischen Hof über den Hauptbahnhof zum Flughafen Terminal 2 für Frau Weber, mit Kindersitz",
+   "Schreib dazu: Gast spricht nur Englisch"
+  ]
+ },
+ {
+  "name": "Unvollständig, dann nachgeliefert",
+  "saetze": [
+   "Ich brauche eine Fahrt für Herrn Engel",
+   "morgen",
+   "zum Flughafen",
+   "um 5 in der Früh vom Hotel Bayerischer Hof",
+   "Stefano fährt",
+   "passt"
+  ]
+ },
+ {
+  "name": "Unbekanntes",
+  "saetze": [
+   "Fahrt morgen um 10 vom Hotel Kempinski zum Flughafen für Herrn Schmidt mit Paul",
+   "Fahrt morgen um 10 von hier nach dort"
+  ]
+ },
+ {
+  "name": "Englisch und gemischt",
+  "saetze": [
+   "Book a ride tomorrow at 9 am from the main station to the fair for Mr Engel, driver Tim",
+   "no",
+   "Domani alle 10 un viaggio dall'aeroporto terminal 2 all'hotel Bayerischer Hof"
+  ]
+ }
+]

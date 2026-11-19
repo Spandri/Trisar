@@ -55,7 +55,8 @@ export const dienstFrage = async (admin: any, frage: string, kontext: any): Prom
   const ende = /\b(feierabend|hoert|hort|dienstende|endet|schluss)\b/.test(text);
   // "Hat Anna morgen Dienst?", "Arbeitet Tim heute?": ganzer Dienst des Tages.
   // "Hat Stefano die Dienstzeit angenommen?" (ki_protokoll 13.11.) zaehlt mit.
-  const allgemein = /\b(dienst\w*|schicht\w*|arbeitet|arbeiten)\b/.test(text);
+  // "Dienstreise" ist kein Dienst (16.11.: "Kannst du eine Dienstreise einrichten?" ergab "hat heute keinen Dienst").
+  const allgemein = /\b(dienst(?!reise)\w*|schicht\w*|arbeitet|arbeiten)\b/.test(text);
   if (!pause && !anfang && !ende && !allgemein) return null;
   if (/\bfahrt\b/.test(text)) return null;
   const genannt = await genannteFahrer(admin, text);

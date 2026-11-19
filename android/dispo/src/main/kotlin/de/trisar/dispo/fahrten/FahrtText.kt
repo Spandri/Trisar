@@ -116,6 +116,17 @@ object W {
         return "%02d:%02d".format(summe / 60, summe % 60)
     }
 
+    /** Zeitstempel (timestamptz, UTC) als Uhrzeit in Berlin, "HH:mm". Leer, wenn nicht lesbar. */
+    fun uhrBerlin(wert: String): String {
+        val text = wert.trim()
+        if (text.isEmpty()) return ""
+        return try {
+            java.time.OffsetDateTime.parse(text.replace(' ', 'T'))
+                .atZoneSameInstant(java.time.ZoneId.of("Europe/Berlin"))
+                .format(DateTimeFormatter.ofPattern("HH:mm"))
+        } catch (e: Exception) { "" }
+    }
+
     fun uhrAusISO(wert: String): String {
         Regex("""T\d{2}:\d{2}""").find(wert)?.let { return it.value.drop(1) }
         return uhr(wert)
@@ -227,6 +238,7 @@ object FahrtText {
     // Alle Schreibweisen, die jobs.status erlaubt (jobs_status_check), nicht nur die englischen Grundwerte.
     fun editorStatus(jobStatus: String?): String = when (getrimmt(jobStatus).lowercase()) {
         "in_progress", "unterwegs", "started", "on_trip", "ongoing", "active" -> "unterwegs"
+        "at_pickup", "beim_pickup", "beim pickup" -> "beimGast"
         "done", "completed", "arrived", "beendet" -> "beendet"
         "cancelled", "canceled", "refused", "storniert", "stoniert", "archived" -> "stoniert"
         else -> "offen"
@@ -235,6 +247,7 @@ object FahrtText {
     /** mapEditorStatusToJobStatus */
     fun jobStatus(editorStatus: String?): String = when (getrimmt(editorStatus).lowercase()) {
         "unterwegs" -> "in_progress"
+        "beimgast" -> "at_pickup"
         "beendet" -> "done"
         "stoniert" -> "cancelled"
         else -> "pending"
@@ -378,6 +391,8 @@ object FahrtText {
         "fahrt.cancelRide" to "Fahrt stornieren",
         "fahrt.confirmCancelRide" to "Fahrt wirklich stornieren und löschen?",
         "fahrt.createTitle" to "Fahrt erstellen",
+        "fahrt.danach" to "Danach",
+        "fahrt.danachDienstende" to "Dienstende",
         "fahrt.datum" to "Datum",
         "fahrt.editTitle" to "Fahrt bearbeiten",
         "fahrt.fahrer" to "Fahrer",
@@ -397,6 +412,7 @@ object FahrtText {
         "fahrt.statusOffen" to "offen",
         "fahrt.statusStoniert" to "storniert",
         "fahrt.statusUnterwegs" to "unterwegs",
+        "fahrt.statusBeimGast" to "beim Gast",
         "fahrt.submitCreate" to "Fahrt speichern",
         "fahrt.submitEdit" to "Bearbeitung speichern",
         "fahrt.trainMissingEta" to "Für diesen Zug fehlen ETA und Ankunftsort.",

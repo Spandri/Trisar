@@ -642,6 +642,7 @@ export default function AnkuenfteView({
     if (statusValue === 'beendet') return t('board.statusFinished');
     if (statusValue === 'stoniert') return t('board.statusCancelled');
     if (statusValue === 'unterwegs') return t('board.statusUnderway');
+    if (statusValue === 'beimgast') return t('board.statusAtGuest');
     const explicitDelay = Number(ride?.delayMins);
     if (Number.isFinite(explicitDelay) && explicitDelay > 0) {
       return t('board.delayMins', { n: Math.round(explicitDelay) });

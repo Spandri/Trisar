@@ -1,0 +1,14 @@
+[
+ {"name": "A1 Uhrzeit offen, Varianten", "saetze": ["Neue Fahrt morgen für Herrn Engel vom Hauptbahnhof zum Hotel Bayerischer Hof, Uhrzeit noch offen", "9 Uhr"]},
+ {"name": "A2 Zeit steht noch nicht fest", "saetze": ["Fahrt für Frau Weber vom Flughafen München zur Messe München, die Zeit steht noch nicht fest", "morgen zwischen 10 und 11 Uhr"]},
+ {"name": "A3 Gast ist Name von nach mit Zeit", "saetze": ["Neue Fahrt Gast ist Max von Hohenberg von der Messe München zum Hauptbahnhof um 17 Uhr mit Marvin"]},
+ {"name": "A4 Gast heißt, Strecke danach", "saetze": ["Buche eine Fahrt morgen um 8 Uhr, der Gast heißt Peter Lang vom Hotel Bayerischer Hof zum Flughafen München mit Fahrer Tim"]},
+ {"name": "A5 Zeitraum mit Minuten", "saetze": ["Neue Fahrt morgen zwischen 9:30 und 10:15 Uhr vom Hauptbahnhof zum Flughafen München für Herrn Engel mit Anna"]},
+ {"name": "A6 Zeitraum bis", "saetze": ["Neue Fahrt heute zwischen 18 bis 19 Uhr von der Messe München zum Hotel Vier Jahreszeiten, Gast Julia Weber"]},
+ {"name": "A7 Gast vorn ohne Fahrer-Wort", "saetze": ["Markus Müller morgen um 10 Uhr vom Flughafen München zum Hotel Bayerischer Hof"]},
+ {"name": "A8 Fahrername vorn ist kein Gast", "saetze": ["Tim Schedler morgen um 10 Uhr vom Flughafen München zum Hotel Bayerischer Hof"]},
+ {"name": "A9 zwei Fahrten, danach", "saetze": ["Neue Fahrt morgen um 9 Uhr vom Hauptbahnhof zum Flughafen München mit Tim, danach vom Flughafen München zur Messe München"]},
+ {"name": "A10 und-Ort ist keine zweite Fahrt", "saetze": ["Neue Fahrt morgen um 9 Uhr vom Hauptbahnhof zum Hotel Vier Jahreszeiten für Herrn Engel und Frau Weber"]},
+ {"name": "A11 Zeitraum ändert nichts an normaler Zeit", "saetze": ["Neue Fahrt morgen um 14:30 vom Hauptbahnhof zum Flughafen München mit Stefano"]},
+ {"name": "A12 Frage bleibt Frage", "saetze": ["Welche Fahrten sind zwischen 15 und 16 Uhr?"]}
+]

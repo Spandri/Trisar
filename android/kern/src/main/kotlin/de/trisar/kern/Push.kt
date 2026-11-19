@@ -233,6 +233,7 @@ object PushArten {
         Gruppe("dienst", "Dienstplan bestätigt oder abgelehnt", listOf("dispo_dienst_angenommen", "dispo_dienst_abgelehnt")),
         Gruppe("chat", "Kolonnen-Chat", listOf("chat")),
         Gruppe("schaden", "Schadensmeldungen", listOf("dispo_schaden")),
+        Gruppe("fahrzeug_neu", "Neues Fahrzeug erkannt", listOf("dispo_fahrzeug_neu")),
         Gruppe("ohne_signal", "Fahrer ohne Signal", listOf("dispo_ohne_signal")),
         Gruppe("ohne_fahrer", "Fahrt ohne Fahrer (30 min vorher)", listOf("dispo_ohne_fahrer")),
         Gruppe("verspaetet", "Fahrer kommt zu spät zum Gast", listOf("dispo_verspaetet")),

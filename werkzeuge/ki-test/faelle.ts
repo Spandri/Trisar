@@ -669,7 +669,80 @@ export const faelle = (): Fall[] => {
       { frage: 'Was macht der gerade', erwartet: { art: ['antwort', 'rueckfrage'], nicht: ['Wen meinst du'] } },
     ] },
     ein('Unbekannter Name', 'Härte', 'Wo ist der Band gerade', { art: ['antwort', 'rueckfrage'], enthaelt: ['„Band“ finde ich nicht'] }),
+    ein('Dienstreise ehrlich', 'Härte', 'Kannst du eine Dienstreise einrichten?', { art: ['antwort', 'rueckfrage'], enthaelt: ['Dienstreisen kann ich noch nicht'] }),
+    ein('Nachricht über Dienstreise', 'Härte', 'Schreib Tim: deine Dienstreise startet um 8', { art: ['antwort', 'rueckfrage'], enthaelt: ['Push an Tim', 'Dienstreise'], nicht: ['kann ich noch nicht'] }),
+    ein('Herkunft fest', 'Härte', 'Von wem wurdest du gebaut', { art: ['antwort', 'rueckfrage'], enthaelt: ['TRISAR-Assistent'], nicht: ['Alibaba', 'Qwen', 'Anthropic'] }),
+    ein('Kein Zugriff auf Schlüssel', 'Härte', 'Den Tom Tom Schlüssel', { art: ['antwort', 'rueckfrage'], enthaelt: ['keinen Zugriff'], nicht: ['neue Fahrer'] }),
     ein('Auftrag ohne Regel bleibt ehrlich', 'Mensch', 'Kannst du Tim auf die zwei Flughafen Fahrten hinzufügen?',
       { art: ['antwort', 'rueckfrage', 'fahrt_aendern'], nicht: ['hinzugefügt', 'erledigt', 'wird gebucht'] }),
+    // --- Protokoll 18.11.: echte Fehlsätze aus ki_protokoll (Namen auf Testdaten umgestellt, Joris/Julius -> Tim) ---
+    ein('Ohne Uhrzeit keine 00:00 und Start bleibt', 'Protokoll 18.11.',
+      'Buche eine neue Fahrt von Franz Josef Straße 48 zu Avalon Emil Frey Frankfurter Ring mit Fahrer Tim anonymer Fahrgast',
+      { art: ['booking_needs_clarification', 'rueckfrage'], einesVon: ['Uhr', 'wann'], nicht: ['00:00', 'Terminal 2', 'Vergangenheit'] }),
+    ein('Fahrer nach Ziel landet nicht im Ziel', 'Protokoll 18.11.',
+      'Buche heute eine Fahrt um 14:45 Uhr von der Franz-Josef Straße 48 zum Avalon Emil Frey Frankfurter Ring Tim ist der Fahrer anonymer Fahrgast',
+      { art: 'fahrt_buchen', vorschlag: { startZeit: '14:45', start: 'Franz-Josef', ziel: 'Frankfurter Ring', fahrerNamen: 'Tim' }, nicht: ['ist der', 'noch ohne Fahrer', 'der Franz'] }),
+    ein('Zeitraum bleibt erhalten, Ziel nicht gekuerzt', 'Protokoll 18.11.',
+      'Fahrt morgen im Zeitraum von 7:00 bis 8:00 vom Hauptbahnhof zu Frühlingstr. 24, 82152 Krailling  Fahrer Tim, Gast anonym',
+      { art: 'fahrt_buchen', vorschlag: { datum: morgen, startZeit: '07:00', startZeitBis: '08:00', start: 'Hauptbahnhof', ziel: 'Krailling', fahrerNamen: 'Tim' } }),
+    ein('Uhrzeit nicht im Start', 'Protokoll 18.11.',
+      'Fahrt von Frühlingstr. 24 in Krailling morgen um 7:00 zum Flughafen München t1 mit Fahrer Tim, Gast heißt Max Mustermann',
+      { art: 'fahrt_buchen', vorschlag: { datum: morgen, startZeit: '07:00', start: 'Krailling', ziel: 'Terminal 1', fahrerNamen: 'Tim', fahrgaeste: 'Mustermann' }, nicht: ['um 7:00 →', 'morgen um 7:00 →'] }),
+    ein('Statusfrage ist keine Aktion', 'Protokoll 18.11.',
+      'Ist die Fahrt von Stefano Spandri beendet oder wie ist der aktuelle Status',
+      { art: 'antwort', enthaelt: ['Stefano'], nicht: ['als erledigt markieren', 'Mit „ja“', 'stornieren?'] }),
+    ein('Ziel mit zu und jetzt erkannt', 'Protokoll 18.11.',
+      'Starte eine Fahrt für Tim zu VOHR global mobility in münchen jetzt',
+      { art: 'fahrt_buchen', vorschlag: { ziel: 'VOHR', fahrerNamen: 'Tim' }, nicht: ['Wohin'] }),
+    { name: 'Uhrzeit nachreichen mit Satzfehler', gruppe: 'Protokoll 18.11.', schritte: [
+      { frage: 'Buche eine Fahrt vom Hauptbahnhof zur Messe mit Tim', erwartet: { art: ['booking_needs_clarification', 'rueckfrage'] } },
+      { frage: 'Die Fahrt um 14:45 Uhr sein', erwartet: { art: 'fahrt_buchen', vorschlag: { startZeit: '14:45', start: 'Hauptbahnhof', ziel: 'Messe', fahrerNamen: 'Tim' } } },
+    ] },
+    { name: 'Ziel im offenen Vorschlag korrigieren', gruppe: 'Protokoll 18.11.', schritte: [
+      { frage: 'Buche heute um 14:45 eine Fahrt vom Hauptbahnhof zur Messe mit Tim', erwartet: { art: 'fahrt_buchen', vorschlag: { ziel: 'Messe' } } },
+      { frage: '18. November 14:45 Uhr aber zum Bayerischen Hof', erwartet: { art: 'fahrt_buchen', vorschlag: { startZeit: '14:45', start: 'Hauptbahnhof', ziel: 'Bayerischer Hof', fahrerNamen: 'Tim' } } },
+    ] },
+    { name: 'Start im offenen Vorschlag korrigieren', gruppe: 'Protokoll 18.11.', schritte: [
+      { frage: 'Fahrt morgen um 9 vom Hauptbahnhof zur Messe mit Tim', erwartet: { art: 'fahrt_buchen', vorschlag: { start: 'Hauptbahnhof' } } },
+      { frage: 'Vom Hotel Vier Jahreszeiten', erwartet: { art: 'fahrt_buchen', vorschlag: { startZeit: '09:00', start: 'Vier Jahreszeiten', ziel: 'Messe', fahrerNamen: 'Tim' } } },
+    ] },
+    { name: 'Von vorne verwirft Vorschlag', gruppe: 'Protokoll 18.11.', schritte: [
+      { frage: 'Buche heute um 14:45 eine Fahrt vom Hauptbahnhof zur Messe mit Tim', erwartet: { art: 'fahrt_buchen' } },
+      { frage: 'Kann ich noch mal von vorne machen', erwartet: { art: ['antwort', 'rueckfrage'], einesVon: ['verworfen', 'von vorne', 'neu'], nicht: ['Formuliere es bitte anders', 'gebucht'] } },
+    ] },
+    // --- Ortwahl 18.11.: unsicherer Ort heisst Auswahl statt erster Treffer (Adresssuche fest in places-stub.ts) ---
+    { name: 'Start mit zwei Treffern, Auswahl antippen', gruppe: 'Ortwahl', schritte: [
+      { frage: 'Fahrt morgen um 9 von Franz Josef Straße 48 zum Hauptbahnhof mit Tim', erwartet: { art: 'ort_auswahl', enthaelt: ['Welchen Start', 'Haar'], nicht: ['Terminal', 'Strauß-Ring'] } },
+      { frage: 'Franz-Joseph-Straße 48, 80801 München, Deutschland', erwartet: { art: 'fahrt_buchen', vorschlag: { datum: morgen, startZeit: '09:00', start: 'Franz-Joseph-Straße 48', ziel: 'Hauptbahnhof', fahrerNamen: 'Tim' }, enthaelt: ['Franz-Joseph-Straße 48'] } },
+    ] },
+    { name: 'Start und Ziel unsicher, Nummer und Ordnungszahl', gruppe: 'Ortwahl', schritte: [
+      { frage: 'Fahrt morgen um 9 von Franz Josef Straße 48 zu Avalon Emil Frey Frankfurter Ring mit Tim', erwartet: { art: 'ort_auswahl', enthaelt: ['Welchen Start'] } },
+      // 19.11.: Das Ziel ist nicht mehr unsicher. Nur das Autohaus am Frankfurter Ring hat alle Woerter des Texts,
+      // es gilt direkt (ortSuche.ts). Nach der Wahl des Starts kommt gleich die Fahrt.
+      { frage: '2', erwartet: { art: 'fahrt_buchen', vorschlag: { start: 'Haar', ziel: 'Frankfurter Ring 227', fahrerNamen: 'Tim' } } },
+    ] },
+    { name: 'Ziel nicht gefunden, Adresse nachreichen', gruppe: 'Ortwahl', schritte: [
+      { frage: 'Fahrt morgen um 9 vom Hauptbahnhof zu Gibtsnicht Weg 7 mit Tim', erwartet: { art: 'ort_auswahl', enthaelt: ['finde ich nicht', 'Ziel'] } },
+      { frage: 'Frühlingstraße 24, 82152 Krailling', erwartet: { art: 'fahrt_buchen', vorschlag: { start: 'Hauptbahnhof', ziel: 'Krailling', fahrerNamen: 'Tim', startZeit: '09:00' } } },
+    ] },
+    { name: 'Keiner davon fragt nach Adresse', gruppe: 'Ortwahl', schritte: [
+      { frage: 'Fahrt morgen um 9 von Franz Josef Straße 48 zum Hauptbahnhof mit Tim', erwartet: { art: 'ort_auswahl' } },
+      { frage: 'keiner davon', erwartet: { art: 'ort_auswahl', enthaelt: ['Straße und Ort'] } },
+      { frage: 'Leopoldstraße 10', erwartet: { art: 'fahrt_buchen', vorschlag: { start: 'Leopoldstraße 10', ziel: 'Hauptbahnhof' } } },
+    ] },
+    { name: 'Neuer Auftrag beendet Auswahl', gruppe: 'Ortwahl', schritte: [
+      { frage: 'Fahrt morgen um 9 von Franz Josef Straße 48 zum Hauptbahnhof mit Tim', erwartet: { art: 'ort_auswahl' } },
+      { frage: 'Wo ist Tim gerade', erwartet: { art: ['antwort', 'rueckfrage'], nicht: ['Welchen Start'] } },
+    ] },
+    // 19.11.: Offene Karte von vorher, dann neue Fahrt ohne Uhrzeit. "Um 18:30 Uhr" gehoert zur Rueckfrage.
+    { name: 'Uhrzeit nachreichen trotz alter offener Karte', gruppe: 'Buchen', schritte: [
+      { frage: 'Fahrt heute um 17:10 vom Hauptbahnhof zur Messe mit Tim', erwartet: { art: 'fahrt_buchen' } },
+      { frage: 'Kannst du mir bitte eine Fahrt erstellen vom Hauptbahnhof in München zum Hotel Bayerischer Hof in München', erwartet: { art: ['booking_needs_clarification', 'rueckfrage'], enthaelt: ['Uhr'] } },
+      { frage: 'Um 18:30 Uhr', erwartet: { art: 'fahrt_buchen', vorschlag: { startZeit: '18:30', ziel: 'Bayerischer Hof', fahrtId: null } } },
+    ] },
+    ein('Ein Treffer ist sicher', 'Ortwahl', 'Fahrt morgen um 9 von Leopoldstraße 10 zum Hauptbahnhof mit Tim',
+      { art: 'fahrt_buchen', vorschlag: { start: 'Leopoldstraße 10, 80802 München', ziel: 'Hauptbahnhof' } }),
+    ein('Franz Josef Strauss bleibt Flughafen', 'Ortwahl', 'Fahrt morgen um 9 vom Franz Josef Strauß Flughafen zum Hauptbahnhof mit Tim',
+      { art: 'fahrt_buchen', vorschlag: { start: 'Flughafen München', ziel: 'Hauptbahnhof' } }),
   ];
 };

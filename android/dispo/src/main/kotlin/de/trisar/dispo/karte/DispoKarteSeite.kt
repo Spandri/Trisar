@@ -147,6 +147,8 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
     var einpassen by remember { mutableIntStateOf(0) }
     var filterOffen by remember { mutableStateOf(false) }
     var profilOffen by remember { mutableStateOf(false) }
+    /** Fahrzeugseite fuer den Fahrer im Blatt (Fahrer-ID und sein Fahrzeug). */
+    var fahrzeugSeite by remember { mutableStateOf<Pair<String, de.trisar.kern.FahrzeugZeile?>?>(null) }
     var abseitsZaehler by remember { mutableIntStateOf(0) }
     var ortGewaehlt by remember { mutableStateOf<String?>(null) }
     DisposableEffect(Unit) {
@@ -451,18 +453,6 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                 )
             }
 
-            // Hinweis unter der Statusleiste: so viele lange ohne Signal ausgeblendet, Tippen oeffnet den Filter.
-            if (!kartenAuswahl && ohneSignalAusblenden) {
-                Box(
-                    Modifier.platz(20f, 196f, null, 30f).zIndex(31f).background(Color.Black)
-                        .border(1.dp, LIME.copy(alpha = 0.5f)).tippen { filterOffen = true }
-                        .padding(horizontal = 10.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("${langeOhneSignal.size} ohne Signal ausgeblendet ›", style = grotesk(12f, 500, abstand = 0.3f, farbe = LIME), maxLines = 1)
-                }
-            }
-
             // Flaggen (Figma 2832:12528): unter den Knoepfen, nur im Auswahlmodus.
             if (kartenAuswahl) {
                 FlaggenKnoepfe(
@@ -513,6 +503,7 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
                     hoehe = { blattHoehe }, setzen = { blatt = it }, ziehen = { ziehtBlatt = it },
                     minimum = BLATT_MIN, maximum = blattMax,
                     profilOeffnen = { profilOffen = true },
+                    fahrzeugOeffnen = { fahrzeugSeite = blattFahrer.id to it },
                 )
             }
         }
@@ -534,6 +525,11 @@ fun DispoKarteSeite(zeigen: (DispoZiel) -> Unit) {
         }
 
         if (filterOffen) KartenFilterSeite(zurueck = { filterOffen = false }, langeOhneSignal = langeOhneSignal)
+
+        fahrzeugSeite?.let { (fahrerID, fz) ->
+            androidx.activity.compose.BackHandler { fahrzeugSeite = null }
+            de.trisar.dispo.fahrzeug.DispoFahrzeugSeite(fahrerID, fz) { fahrzeugSeite = null }
+        }
     }
 }
 
@@ -626,8 +622,12 @@ private fun FahrerBlatt(
     minimum: Float,
     maximum: Float,
     profilOeffnen: () -> Unit,
+    fahrzeugOeffnen: (de.trisar.kern.FahrzeugZeile?) -> Unit,
 ) {
     val ctx = LocalContext.current
+    // Fahrzeug des Fahrers fuer das kleine Bild (wie die Startseite der Fahrer-App) und die Fahrzeugseite.
+    var fahrzeugZeile by remember(fahrer.id) { mutableStateOf<de.trisar.kern.FahrzeugZeile?>(null) }
+    LaunchedEffect(fahrer.id, fahrer.kennzeichen) { fahrzeugZeile = de.trisar.dispo.fahrzeug.fahrzeugVonFahrer(fahrer.id) }
     val hoeheAktuell by rememberUpdatedState(hoehe)
     val maxAktuell by rememberUpdatedState(maximum)
     /** Rast, an der der Name (oberster Block) ganz zu sehen ist. */
@@ -683,13 +683,17 @@ private fun FahrerBlatt(
                 TextZeile(fahrer.telefon, grotesk(16f, 700, abstand = 0.4f, farbe = hex(0x1D1C1D)), Modifier.tippen { anrufen(ctx, fahrer.telefon) }, hoehe = 24f)
             }
 
-            Column(
-                Modifier.padding(top = 12.dp).width(362.dp).background(Color.White).padding(vertical = 10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+            // Kennzeichen und Modell links, rechts klein das Auto wie auf der Startseite der Fahrer-App.
+            Row(
+                Modifier.padding(top = 12.dp).width(362.dp).background(Color.White).tippen { fahrzeugOeffnen(fahrzeugZeile) }
+                    .padding(start = 18.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextZeile(fahrer.kennzeichen, grotesk(30f, 700, abstand = -0.8f, farbe = hex(0x1D1C1D)), hoehe = 30f, ausrichtung = Alignment.Center)
-                TextZeile(fahrer.fahrzeug, grotesk(16f, 700, abstand = -0.5f, farbe = hex(0x1D1C1D, 0.35f)), hoehe = 16f, ausrichtung = Alignment.Center)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextZeile(fahrer.kennzeichen, grotesk(30f, 700, abstand = -0.8f, farbe = hex(0x1D1C1D)), hoehe = 30f)
+                    TextZeile(fahrer.fahrzeug, grotesk(16f, 700, abstand = -0.5f, farbe = hex(0x1D1C1D, 0.35f)), hoehe = 16f)
+                }
+                FahrzeugKleinBild(fahrzeugZeile, Modifier.size(130.dp, 60.dp))
             }
 
             // Uhrzeit des letzten Signals, rot sobald seit 5 Minuten nichts mehr kam.
@@ -771,6 +775,19 @@ private fun FahrerBlatt(
 
             ZeitPaar("Dienststart" to info.dienststart, "Dienstende" to info.dienstende, null, Modifier.padding(top = 24.dp, bottom = 30.dp))
         }
+    }
+}
+
+/** Kleines Auto wie in FahrzeugKarte (kern): 360-Grad-Satz stehend, sonst das Foto. */
+@Composable
+private fun FahrzeugKleinBild(fahrzeug: de.trisar.kern.FahrzeugZeile?, modifier: Modifier) {
+    val ctx = LocalContext.current
+    val a = de.trisar.kern.FahrzeugAngaben.aus(fahrzeug)
+    val katalog = de.trisar.kern.DrehInfo.laden(ctx)
+    val dreh = remember(katalog, a.modell, a.farbe) { de.trisar.kern.DrehSatz.finden(katalog, a.modell, a.farbe) }
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (dreh != null) de.trisar.kern.FahrzeugDrehung(dreh, Modifier.fillMaxSize(), stehend = true)
+        else a.bild?.let { de.trisar.kern.FahrzeugFoto(it, Modifier.fillMaxSize()) }
     }
 }
 
@@ -889,6 +906,7 @@ private fun TelemetrieBlock(fahrerID: String) {
                                 if (z != null) {
                                     Text(z.titel, style = grotesk(11f, farbe = hex(0x8D8D8D)), maxLines = 1)
                                     Text(z.wert, style = grotesk(18f, 700, farbe = hex(if (z.warnung) 0xFF6B57 else 0xD6D6D6)), maxLines = 1)
+                                    if (z.unter.isNotEmpty()) Text(z.unter, style = grotesk(11f, farbe = hex(0x8D8D8D)), maxLines = 1)
                                 }
                             }
                         }

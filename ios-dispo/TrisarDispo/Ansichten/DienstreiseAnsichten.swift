@@ -379,14 +379,36 @@ struct DienstreiseFormularAnsicht: View {
         fahrerNamen = gefuellt.last.map { FahrtText.getrimmt($0).isEmpty } == true ? gefuellt : gefuellt + [""]
     }
 
-    /// Ort aufloesen: eigener Ort, sonst Adresse suchen.
-    private func ortAufloesen(_ text: String, _ id: UUID?) async -> DispoDienstreiseSpeicher.OrtDaten? {
+    /// Ort aufloesen: eigener Ort, sonst Adresse suchen. bahnhof (19.11.): Halt vom Ticket oder Start eines Zug-/Bus-
+    /// Abschnitts. Dann erst der Bahnhof bei der Bahn ("München-Trudering" ist der Bahnhof, nicht der Stadtteil),
+    /// sonst "Bahnhof …" in der Adresssuche.
+    private func ortAufloesen(_ text: String, _ id: UUID?, bahnhof: Bool = false) async -> DispoDienstreiseSpeicher.OrtDaten? {
         if let id, let o = orte.orte.first(where: { $0.id == id }) {
             return .init(id: o.id, name: o.name, adresse: o.adresse, lat: o.lat, lng: o.lng)
         }
         if FahrtText.getrimmt(text).isEmpty { return nil }
+        if bahnhof {
+            if case let .success(daten) = await FahrtPruefung.aufrufen("train-validate", ["halt_orten": .array([.string(FahrtText.getrimmt(text))])]),
+               let h = daten.objectValue?["halte"]?.arrayValue?.first?.objectValue,
+               let lat = h["lat"]?.doubleValue, let lng = h["lng"]?.doubleValue {
+                let name = FahrtText.getrimmt(h["name"]?.stringValue ?? text)
+                return .init(id: nil, name: name, adresse: name, lat: lat, lng: lng)
+            }
+            if text.range(of: #"bahnhof|hbf|\bbf\b"#, options: [.regularExpression, .caseInsensitive]) == nil,
+               let p = await Routen.punkt(fuer: "Bahnhof \(text)") {
+                return .init(id: nil, name: kurzOrt(text), adresse: text, lat: p.latitude, lng: p.longitude)
+            }
+        }
         guard let p = await Routen.punkt(fuer: text) else { return nil }
         return .init(id: nil, name: kurzOrt(text), adresse: text, lat: p.latitude, lng: p.longitude)
+    }
+
+    /// Halt eines Zug-, S-Bahn-, U-Bahn-, Tram- oder Busabschnitts ist ein Bahnhof bzw. eine Haltestelle (19.11.).
+    private func istHalt(_ art: String) -> Bool { ["zug", "sbahn", "ubahn", "tram", "bus"].contains(art) }
+    /// Ziel kommt vom Ticket (Ausstieg des letzten Abschnitts): dann ist es ein Bahnhof.
+    private var zielIstHalt: Bool {
+        guard let nach = abschnitte.last?.ticket?.nach, !nach.isEmpty else { return false }
+        return FahrtText.getrimmt(nach) == FahrtText.getrimmt(zielText)
     }
 
     /// Verbindung eines Abschnitts pruefen. Ausstieg: Start des naechsten Abschnitts (Umstieg), sonst Ticket, sonst Ziel.
@@ -401,8 +423,8 @@ struct DienstreiseFormularAnsicht: View {
         pruefNr[key] = nr
         pruefungen[key] = PruefStand(laeuft: true)
         let naechster = index + 1 < abschnitte.count ? abschnitte[index + 1] : nil
-        let startDaten = a.startID != nil ? await ortAufloesen(a.startText, a.startID) : nil
-        let zielDaten = naechster == nil && !FahrtText.getrimmt(zielText).isEmpty ? await ortAufloesen(zielText, zielID) : nil
+        let startDaten = a.startID != nil ? await ortAufloesen(a.startText, a.startID, bahnhof: istHalt(art)) : nil
+        let zielDaten = naechster == nil && !FahrtText.getrimmt(zielText).isEmpty ? await ortAufloesen(zielText, zielID, bahnhof: zielIstHalt) : nil
         let bahnhof = naechster.map { kurzOrt($0.startText) } ?? (a.ticket?.nach).map(kurzOrt) ?? ""
         let v = await DienstreiseVerbindung.holen(
             datum: datum, startZeit: a.zeit, startName: startDaten?.name ?? kurzOrt(a.startText),
@@ -487,12 +509,12 @@ struct DienstreiseFormularAnsicht: View {
         defer { sendet = false }
         var starts: [DispoDienstreiseSpeicher.OrtDaten] = []
         for a in liste {
-            guard let o = await ortAufloesen(a.startText, a.startID) else {
+            guard let o = await ortAufloesen(a.startText, a.startID, bahnhof: istHalt(DienstreiseAbschnitt.art(FahrtText.getrimmt(a.nummer)))) else {
                 fehler = "„\(a.startText)“ nicht gefunden. Bitte genauer eingeben oder einen eigenen Ort wählen."; return
             }
             starts.append(o)
         }
-        guard let ziel = await ortAufloesen(zielText, zielID) else {
+        guard let ziel = await ortAufloesen(zielText, zielID, bahnhof: zielIstHalt) else {
             fehler = "Ziel nicht gefunden. Bitte genauer eingeben oder einen eigenen Ort wählen."; return
         }
         if fahrer.isEmpty { fahrer = await FahrtSpeichern.fahrerLaden() }

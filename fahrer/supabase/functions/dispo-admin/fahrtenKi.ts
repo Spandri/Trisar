@@ -248,7 +248,14 @@ export const fahrtenSteuern = async (admin: any, frage: string, kontext: any, le
 
   // Auftraege an einer Fahrt
   if (!/\bfahrt\b|\bbuchung\b|\babholung\b/.test(text)) return null;
-  const art = /\b(endgueltig|komplett|ganz)\b.*\bloesch\w*|\bloesch\w*\b.*\b(endgueltig|komplett|ganz)\b/.test(text) ? 'loeschen'
+  // Notiz-Satz mit Doppelpunkt (16.11.): alles dahinter ist der Text der Notiz und wird weder als Auftrag
+  // gelesen noch zur Suche der Fahrt benutzt. "Notiz zur Fahrt von Müller: Gast will, dass wir die Rückfahrt
+  // stornieren" ergab sonst eine Storno-Rückfrage. Der Doppelpunkt einer Uhrzeit (10:30) trennt nicht.
+  const trennStelle = (t: string) => t.search(/(?<!\d):|:(?!\d)/);
+  const kopf = trennStelle(text) >= 0 ? text.slice(0, trennStelle(text)) : '';
+  const notizSatz = /\b(notiz|vermerk|hinweis|anmerkung)\b/.test(kopf) && !/\b(storn\w*|loesch\w*|kopier\w*)\b/.test(kopf);
+  const art = notizSatz ? 'notiz'
+    : /\b(endgueltig|komplett|ganz)\b.*\bloesch\w*|\bloesch\w*\b.*\b(endgueltig|komplett|ganz)\b/.test(text) ? 'loeschen'
     : /\b(storn\w*|absag\w*|loesch\w*|streich\w*|cancel\w*)\b/.test(text) ? 'storno'
     : /\b(erledigt|abgeschlossen|beendet|fertig)\b/.test(text) && /\b(markier\w*|setz\w*|mach\w*|als|ist)\b/.test(text) ? 'erledigt'
     : /\b(kopier\w*|duplizier\w*|wiederhol\w*|nochmal)\b/.test(text) ? 'kopieren'
@@ -258,7 +265,7 @@ export const fahrtenSteuern = async (admin: any, frage: string, kontext: any, le
   if (/\?\s*$/.test(roh)) return null;
   // Beim Kopieren ist der genannte Tag das Ziel ("auf übermorgen"), nicht der Tag der Fahrt.
   const suchText = art === 'kopieren' ? text.replace(/\b(auf|fuer|nach|zum|am)\s+(den\s+)?(heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|[0-3]?\d\.[01]?\d\.(\d{4})?)/g, ' ') : text;
-  const r = await fahrtFinden(admin, suchText, letzteFahrtId, art !== 'loeschen');
+  const r = await fahrtFinden(admin, notizSatz ? kopf : suchText, letzteFahrtId, art !== 'loeschen');
   if (r.antwort) return { answer: r.antwort, kontext };
   const f = r.fahrt!;
   const titel = fahrtText(f, heute);
@@ -274,7 +281,9 @@ export const fahrtenSteuern = async (admin: any, frage: string, kontext: any, le
     if (!ziel) return { answer: 'Auf welchen Tag soll ich die Fahrt kopieren? Zum Beispiel „Kopiere die Fahrt von Herrn Engel auf Freitag“.', kontext };
     return neu({ art, datum: ziel }, `Fahrt ${titel} auf ${tagLesbar(ziel, heute)} kopieren, gleiche Uhrzeit, noch ohne Fahrer? Mit „ja“ lege ich die Kopie an.`);
   }
-  const nachDoppelpunkt = roh.includes(':') ? roh.slice(roh.lastIndexOf(':') + 1).trim().replace(/^["„]|["“”]$/g, '') : '';
+  // Text der Notiz: beim Notiz-Satz alles nach dem ersten Doppelpunkt, der keine Uhrzeit ist (auch mit Uhrzeit darin).
+  const nachDoppelpunkt = notizSatz && trennStelle(roh) >= 0 ? roh.slice(trennStelle(roh) + 1).trim().replace(/^["„]|["“”]$/g, '')
+    : roh.includes(':') ? roh.slice(roh.lastIndexOf(':') + 1).trim().replace(/^["„]|["“”]$/g, '') : '';
   const notiz = nachDoppelpunkt || roh.match(/(?:notiz|vermerk|hinweis)\s*(?:[:„"]\s*)?(.+?)["“”]?\s*$/i)?.[1]?.replace(/^(geben|setzen|hinzufügen|schreiben)\s+/i, '').trim();
   if (!notiz || notiz.length < 2) return { answer: 'Was soll in der Notiz stehen? Zum Beispiel „Notiz zur Fahrt von Herrn Engel: Kindersitz“.', kontext };
   return neu({ art, notiz }, `Notiz „${notiz}“ zur Fahrt ${titel}? Mit „ja“ speichere ich sie, der Fahrer sieht sie in der App.`);

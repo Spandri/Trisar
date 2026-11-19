@@ -6,7 +6,7 @@ import { useI18n } from '../../i18n';
 import { drehInfoLaden, drehModell, drehLack, modellVorschlaege, farbVorschlaege, seitenBild, schadenAnsicht } from '../../shared/fahrzeugDreh';
 
 const BASE_WIDTH = 402;
-const BASE_HEIGHT = 913;
+const BASE_HEIGHT = 981;
 
 const screenBg = {
   backgroundImage: "url('/icon/_Icon_Schwarz/screen-bg-radial.svg')",
@@ -175,7 +175,14 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
 
   const [brandModel, setBrandModel] = useState('');
   const [trim, setTrim] = useState('');
+  // Gewaehlte Zeile aus fahrzeug_varianten (Tank und Verbrauch), Liste dazu vom Server.
+  const [varianteId, setVarianteId] = useState('');
+  const [varianten, setVarianten] = useState([]);
   const [vin, setVin] = useState('');
+  // Fahrzeugschein 2.1 / 2.2. Sind beide vollstaendig, fuellt die KBA-Typliste (kba_typen) Modell, Variante, Kraftstoff und Sitze.
+  const [hsn, setHsn] = useState('');
+  const [tsn, setTsn] = useState('');
+  const kbaGeladen = useRef('');
   const [licensePlate, setLicensePlate] = useState('');
   const [color, setColor] = useState('');
   const [seatCount, setSeatCount] = useState('');
@@ -189,6 +196,15 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   // Vorschlaege fuer Marke/Modell und Farbe: Modelle und Lacke mit 360-Grad-Ansicht in der Fahrer-App.
   const [drehInfo, setDrehInfo] = useState(null);
   const [vorschlagFeld, setVorschlagFeld] = useState(null);
+  useEffect(() => {
+    let aktiv = true;
+    supabase.from('fahrzeug_varianten').select('id, modell, variante, generation, kraftstoff')
+      .order('modell').order('generation').order('variante')
+      .then(({ data }) => { if (aktiv && Array.isArray(data)) setVarianten(data); });
+    return () => { aktiv = false; };
+  }, []);
+  const variantePasst = (v, modell) => String(v?.modell || '').toLowerCase() === String(modell || '').trim().toLowerCase();
+  const passendeVarianten = varianten.filter((v) => variantePasst(v, brandModel));
   useEffect(() => { let aktiv = true; drehInfoLaden().then((i) => { if (aktiv) setDrehInfo(i); }); return () => { aktiv = false; }; }, []);
   const modellListe = vorschlagFeld === 'modell' ? modellVorschlaege(drehInfo, brandModel) : [];
   const farbListe = vorschlagFeld === 'farbe' ? farbVorschlaege(drehInfo, brandModel, color) : [];
@@ -200,6 +216,8 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   const brandModelRef = useRef(null);
   const trimRef = useRef(null);
   const vinRef = useRef(null);
+  const hsnRef = useRef(null);
+  const tsnRef = useRef(null);
   const licensePlateRef = useRef(null);
   const colorRef = useRef(null);
   const seatCountRef = useRef(null);
@@ -279,8 +297,8 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   }, [isEditMode, schaeden]);
   // Seite waechst mit dem Schadensbericht (beginnt bei 20 + 882, darueber „Fahrzeug löschen“).
   // Tracker-Zeile (falls Tracker da) und Fahrer-Zeile (Bearbeiten) schieben alles darunter.
-  const trackerVersatz = (isEditMode && tracker.length > 0 ? 68 : 0) + 68;
-  const fahrerZeileOben = 662 + (isEditMode && tracker.length > 0 ? 68 : 0);
+  const trackerVersatz = (isEditMode && tracker.length > 0 ? 68 : 0) + 136;
+  const fahrerZeileOben = 730 + (isEditMode && tracker.length > 0 ? 68 : 0);
   const seitenHoehe = isEditMode ? Math.max(BASE_HEIGHT, 20 + 882 + trackerVersatz + schadenHoehe + 70) : BASE_HEIGHT;
 
   useEffect(() => {
@@ -293,7 +311,11 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
   useEffect(() => {
     setBrandModel(String(initialVehicle?.brand_model || '').trim());
     setTrim(String(initialVehicle?.trim || '').trim());
+    setVarianteId(String(initialVehicle?.variante_id || ''));
     setVin(String(initialVehicle?.vin || '').trim());
+    setHsn(String(initialVehicle?.hsn || '').trim());
+    setTsn(String(initialVehicle?.tsn || '').trim());
+    kbaGeladen.current = `${String(initialVehicle?.hsn || '').trim()}/${String(initialVehicle?.tsn || '').trim()}`.toUpperCase();
     setLicensePlate(String(initialVehicle?.license_plate || '').trim());
     setColor(String(initialVehicle?.color || '').trim());
     setSeatCount(
@@ -306,13 +328,37 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
     setFeedback('');
   }, [initialVehicle]);
 
+  useEffect(() => {
+    const h = hsn.trim().toUpperCase();
+    const t3 = tsn.trim().toUpperCase();
+    const schluessel = `${h}/${t3}`;
+    if (!/^\d{4}$/.test(h) || !/^[A-Z0-9]{3}$/.test(t3) || kbaGeladen.current === schluessel) return undefined;
+    let aktiv = true;
+    supabase.from('kba_typen').select('brand_model, trim, fuel_type, sitze').eq('hsn', h).eq('tsn', t3).maybeSingle()
+      .then(({ data }) => {
+        if (!aktiv || !data) return;
+        kbaGeladen.current = schluessel;
+        if (data.brand_model) setBrandModel(data.brand_model);
+        setTrim(data.trim || '');
+        setVarianteId('');
+        if (data.fuel_type) setFuelType(data.fuel_type);
+        // KBA zaehlt den Fahrersitz mit, das Feld ist die Beifahreranzahl.
+        if (data.sitze > 1) setSeatCount(String(data.sitze - 1));
+      });
+    return () => { aktiv = false; };
+  }, [hsn, tsn]);
+
   const inputClass =
     'absolute left-4 right-12 top-1/2 -translate-y-1/2 bg-transparent border-none outline-none text-[#8a9728] text-[16px] leading-6 tracking-[0.5px] font-medium placeholder:text-[#8a9728] placeholder:opacity-90';
 
   const resetForm = () => {
     setBrandModel('');
     setTrim('');
+    setVarianteId('');
     setVin('');
+    setHsn('');
+    setTsn('');
+    kbaGeladen.current = '';
     setLicensePlate('');
     setColor('');
     setSeatCount('');
@@ -359,7 +405,11 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
     const payload = {
       brand_model: brandModel.trim(),
       trim: trim.trim() || null,
+      // Variante nur, wenn sie noch zu Marke & Modell und zur Variante passt.
+      variante_id: varianten.find((v) => v.id === varianteId && variantePasst(v, brandModel) && v.variante === trim.trim())?.id || null,
       vin: vin.trim() || null,
+      hsn: hsn.trim().toUpperCase() || null,
+      tsn: tsn.trim().toUpperCase() || null,
       license_plate: licensePlate.trim() || null,
       color: color.trim() || null,
       seat_count: parsedSeatCount,
@@ -465,19 +515,77 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
             </Box>
 
             <Box x={204} y={186} w={178}>
+              {passendeVarianten.length === 0 ? (
+                <>
+                  <input
+                    ref={trimRef}
+                    value={trim}
+                    onChange={(event) => setTrim(event.target.value)}
+                    placeholder={t('erstellen.trim')}
+                    className={inputClass}
+                  />
+                  <button type="button" onClick={() => trimRef.current?.focus()} className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="w-[10px] h-[13px]" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Auswahl wie beim Kraftstoff, sobald es zu Marke & Modell Varianten gibt. */}
+                  <select
+                    ref={trimRef}
+                    value={passendeVarianten.some((v) => v.id === varianteId) ? varianteId : ''}
+                    onChange={(event) => {
+                      const v = passendeVarianten.find((x) => x.id === event.target.value);
+                      if (!v) return;
+                      setVarianteId(v.id);
+                      setTrim(v.variante);
+                      if (!fuelType && v.kraftstoff) setFuelType(v.kraftstoff);
+                    }}
+                    className={`${inputClass} appearance-none cursor-pointer ${trim ? '' : 'opacity-90'}`}
+                  >
+                    <option value="" disabled hidden>{trim || t('erstellen.trim')}</option>
+                    {passendeVarianten.map((v) => (
+                      <option key={v.id} value={v.id} className="bg-[#101010] text-[#e3f654]">
+                        {`${v.variante}  ${v.generation}`}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={() => trimRef.current?.focus()} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="w-[10px] h-[13px] rotate-90" />
+                  </button>
+                </>
+              )}
+            </Box>
+
+            <Box x={20} y={254} w={178}>
               <input
-                ref={trimRef}
-                value={trim}
-                onChange={(event) => setTrim(event.target.value)}
-                placeholder={t('erstellen.trim')}
+                ref={hsnRef}
+                value={hsn}
+                onChange={(event) => setHsn(event.target.value.replace(/[^\d]/g, '').slice(0, 4))}
+                inputMode="numeric"
+                placeholder="HSN"
                 className={inputClass}
               />
-              <button type="button" onClick={() => trimRef.current?.focus()} className="absolute right-3 top-1/2 -translate-y-1/2">
+              <button type="button" onClick={() => hsnRef.current?.focus()} className="absolute right-3 top-1/2 -translate-y-1/2">
                 <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="w-[10px] h-[13px]" />
               </button>
             </Box>
 
-            <Box x={20} y={254} w={362}>
+            <Box x={204} y={254} w={178}>
+              <input
+                ref={tsnRef}
+                value={tsn}
+                onChange={(event) => setTsn(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3))}
+                autoCapitalize="characters"
+                placeholder="TSN"
+                className={inputClass}
+              />
+              <button type="button" onClick={() => tsnRef.current?.focus()} className="absolute right-3 top-1/2 -translate-y-1/2">
+                <img src="/icon/_Icon_Lime/Arrow-kurz_Trisar_Icons_01_Lime.svg" alt="" className="w-[10px] h-[13px]" />
+              </button>
+            </Box>
+
+            <Box x={20} y={322} w={362}>
               <input
                 ref={vinRef}
                 value={vin}
@@ -490,7 +598,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
               </button>
             </Box>
 
-            <Box x={20} y={322} w={362}>
+            <Box x={20} y={390} w={362}>
               <input
                 ref={licensePlateRef}
                 value={licensePlate}
@@ -503,7 +611,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
               </button>
             </Box>
 
-            <Box x={20} y={390} w={362}>
+            <Box x={20} y={458} w={362}>
               <input
                 ref={colorRef}
                 value={color}
@@ -522,7 +630,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
               </button>
             </Box>
 
-            <Box x={20} y={458} w={362}>
+            <Box x={20} y={526} w={362}>
               <input
                 ref={seatCountRef}
                 value={seatCount}
@@ -535,7 +643,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
               </button>
             </Box>
 
-            <Box x={20} y={526} w={362}>
+            <Box x={20} y={594} w={362}>
               <select
                 ref={fuelTypeRef}
                 value={fuelType}
@@ -557,7 +665,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
               </button>
             </Box>
 
-            <Box x={20} y={594} w={362}>
+            <Box x={20} y={662} w={362}>
               <button
                 type="button"
                 onClick={() => imageFileRef.current?.click()}
@@ -634,7 +742,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
             )}
 
             {isEditMode && tracker.length > 0 && (
-              <Box x={20} y={662} w={362}>
+              <Box x={20} y={730} w={362}>
                 <select
                   value={trackerWahl}
                   onChange={(event) => setTrackerWahl(event.target.value)}
@@ -688,7 +796,7 @@ export default function FahrzeugErstellenView({ setView, initialVehicle = null, 
             {modellListe.length > 0 || farbListe.length > 0 ? (
               <div
                 className="absolute left-[20px] w-[362px] max-h-[240px] overflow-y-auto rounded-2xl border border-[#4a4f22] bg-[#151607] z-[120]"
-                style={{ top: `${(vorschlagFeld === 'modell' ? 186 : 390) + 60}px` }}
+                style={{ top: `${(vorschlagFeld === 'modell' ? 186 : 458) + 60}px` }}
               >
                 {modellListe.map((name) => (
                   <button

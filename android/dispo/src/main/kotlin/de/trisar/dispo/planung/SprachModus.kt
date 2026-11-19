@@ -53,6 +53,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -108,7 +110,11 @@ import kotlin.random.Random
  * Was nach einer Antwort auf ein „ja“ wartet. lokal = Vorschlaege im Chat, die die App selbst bestaetigt,
  * id = die Chat-Nachricht mit den Vorschlaegen (ihre Karten stehen im Voice-Modus wie im Chat).
  */
-internal data class SprachOffen(val lokal: Boolean, val titel: String, val zeile: String? = null, val art: String? = null, val id: String? = null)
+internal data class SprachOffen(
+    val lokal: Boolean, val titel: String, val zeile: String? = null, val art: String? = null, val id: String? = null,
+    /** Ja/Nein-Knoepfe nur bei einer Ja/Nein-Frage (19.11.), nicht bei „Um wie viel Uhr?“. */
+    val jaNein: Boolean = true,
+)
 
 internal data class SprachAntwort(val text: String, val offen: SprachOffen? = null)
 
@@ -586,6 +592,18 @@ private class SprachAblauf(private val ctx: Context, private val scope: Coroutin
         zuhoeren(if (offen != null) "frage" else "hoeren")
     }
 
+    /** Ja/Nein-Knopf an der Rueckfrage (18.11.): wie gesprochenes "ja" bzw. "nein", auch mitten im Vorlesen. */
+    fun knopf(ja: Boolean) {
+        if (offen == null) return
+        val j = vorlesenJob
+        if (j != null) {
+            vorlesenJob = null
+            j.cancel()
+            vorleser.stoppen()
+        } else if (modus == "denken") return
+        satzVerarbeiten(if (ja) "ja" else "nein")
+    }
+
     /** Ein Vorschlag wurde per Knopf erledigt: Rueckfrage beenden, normal weiter zuhoeren. */
     fun offenLoesen() {
         if (offen?.lokal != true) return
@@ -706,12 +724,34 @@ internal fun SprachModusAnsicht(
                     vorschlag()
                 }
             } else if (offen != null && (modus == "frage" || modus == "sprechen" || modus == "denken")) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).widthIn(max = 362.dp).background(Color.White).padding(16.dp)) {
+                // Bis knapp ueber Mikro und X, langer Text scrollt (18.11.).
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).widthIn(max = 362.dp).weight(1f, fill = false)
+                        .background(Color.White).verticalScroll(rememberScrollState()).padding(16.dp)
+                ) {
                     PAbsatz(offen.titel, 20f, 700, 24f, Color.Black)
                     offen.zeile?.takeIf { it.isNotEmpty() }?.let {
                         PAbsatz(it, 12f, 500, 16f, Color.Black.copy(alpha = 0.8f), modifier = Modifier.padding(top = 4.dp))
                     }
-                    PAbsatz("Sag „ja“ oder „nein“", 11f, 700, 16f, Color.Black, modifier = Modifier.padding(top = 8.dp))
+                }
+                // Ja/Nein wie Annehmen/Ablehnen (EinsatzTag): Nein rot umrandet, Ja lime. Nur bei Ja/Nein-Fragen (19.11.).
+                if (offen.jaNein) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp).widthIn(max = 362.dp).alpha(if (modus == "denken") 0.4f else 1f),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    RahmenText(
+                        "Nein", 24f, 700, EinsatzFarbe.rot,
+                        Modifier.weight(1f).height(51.dp).border(2.dp, EinsatzFarbe.rot, RectangleShape).tippen { ablauf.knopf(false) },
+                        abstand = -0.5f,
+                    )
+                    RahmenText(
+                        "Ja", 24f, 700, Color.Black,
+                        Modifier.weight(1f).height(51.dp).background(EinsatzFarbe.lime).tippen { ablauf.knopf(true) },
+                        abstand = -0.5f,
+                    )
+                }
                 }
                 // Was gerade gehoert wird, wie beim normalen Zuhoeren.
                 Spacer(Modifier.height(16.dp))
@@ -721,13 +761,20 @@ internal fun SprachModusAnsicht(
                         textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                Spacer(Modifier.height(116.dp))
             } else {
-                Box(Modifier.fillMaxWidth().padding(horizontal = 24.dp).widthIn(max = 340.dp).heightIn(min = 72.dp, max = 140.dp), contentAlignment = Alignment.TopCenter) {
+                // Lange Antworten scrollen statt abgeschnitten zu werden (18.11.).
+                Box(
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp).widthIn(max = 340.dp).heightIn(min = 72.dp)
+                        .weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
                     Text(
                         ablauf.zeile, style = grotesk(17f, 500, zeilenHoehe = 24f, farbe = if (ablauf.zeileHell) Color.White else hex(0xA0A0A0)),
-                        textAlign = TextAlign.Center, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                Spacer(Modifier.height(116.dp))
             }
         }
         Row(

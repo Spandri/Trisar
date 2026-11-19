@@ -98,6 +98,13 @@ struct FahrtenListeAnsicht: View {
                     }
                 }
 
+                // Danach Dienstende (19.11.): vor dem Ende ohne Zeit, danach mit der echten Ankunft.
+                ForEach(raster.fahrtEnden, id: \.fahrt.id) { e in
+                    VerlaufRahmenZeile(text: Stunden.datum(e.fahrt.ankunftEcht).map { "Dienstende \(Stunden.uhr($0))" } ?? "Danach Dienstende",
+                                       farbe: Color(hex: 0xFF6F63))
+                        .platz(20, versatz + e.oben, 362, dienstZeile)
+                }
+
                 ForEach(raster.standbys, id: \.standby.id) { e in
                     StandbyKarte(standby: e.standby,
                                  antworten: { a in Task { await standby.antworten(e.standby, annehmen: a) } },
@@ -163,6 +170,8 @@ struct FahrtenListeAnsicht: View {
     private struct Raster {
         var zeilen: [(datum: String, oben: CGFloat)] = []
         var dienste: [(anfrage: DienstAnfrage, oben: CGFloat, art: String, schluessel: String, zeile: AnfrageZeile?)] = []
+        /// Danach Dienstende (19.11.): rote Zeile direkt unter der Fahrt.
+        var fahrtEnden: [(fahrt: Fahrt, oben: CGFloat)] = []
         var fahrten: [(fahrt: Fahrt, oben: CGFloat, mitKnoepfen: Bool)] = []
         var stunden: [(eintrag: Stunden.Eintrag, oben: CGFloat)] = []
         var standbys: [(standby: StandbySpeicher.Standby, oben: CGFloat)] = []
@@ -256,9 +265,15 @@ struct FahrtenListeAnsicht: View {
                 r.fahrten.append((fahrt, cursor, mitKnoepfen))
                 let h = AuftragsKarte.hoehe(fahrt)
                 cursor += mitKnoepfen ? h + knopfAbstand + knopfHoehe + nachKnopf : h + kartenAbstand
+                if fahrt.danachDienstende {
+                    r.fahrtEnden.append((fahrt, cursor))
+                    cursor += dienstZeile + kartenAbstand
+                }
             }
             pausenBis(.infinity)
-            for anfrage in alle where anfrage.angenommen && zeigeEnde(anfrage) {
+            // Tag mit "Danach Dienstende": das Dienstende steht schon unter der Fahrt.
+            let endeUnterFahrt = (fahrtenProTag[tag] ?? []).contains(where: \.danachDienstende)
+            for anfrage in alle where anfrage.angenommen && zeigeEnde(anfrage) && !endeUnterFahrt {
                 r.dienste.append((anfrage, cursor, "ende", anfrage.id.uuidString + "-ende", nil))
                 cursor += dienstZeile + kartenAbstand
             }

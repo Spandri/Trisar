@@ -1,63 +1,147 @@
 [
   {
-    "fall": "Pause setzt kein Dienstende",
-    "gruppe": "Mensch",
+    "fall": "Dienst Start und Ende morgen",
+    "gruppe": "Dienst",
     "schritt": 1,
-    "frage": "Pause für Anna morgen von 12 bis 12:30",
+    "frage": "Schick Tim morgen 7 bis 15 Uhr",
     "ok": true,
     "fehler": [],
     "art": "dienst_vorschlag",
-    "antwort": "Pause 12:00–12:30 morgen für Anna Berger. Soll ich das senden?",
+    "antwort": "Dienststart 07:00, Dienstende 15:00 morgen für Tim Schedler. Soll ich das senden?",
     "felder": {
       "datum": "2026-11-17",
+      "start": "07:00",
+      "ende": "15:00",
+      "pausen": "",
+      "fahrer": "Tim Schedler"
+    },
+    "ms": 7230
+  },
+  {
+    "fall": "Dienst ab Uhrzeit heute",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Dienst für Marvin heute ab 14 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 14:00 heute für Marvin Keller. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-16",
+      "start": "14:00",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Marvin Keller"
+    },
+    "ms": 5794
+  },
+  {
+    "fall": "Vorhandener Dienst, Uhrzeit nachts",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Schick Stefano heute 00:30",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "00:30 als Dienstende heute für Stefano Spandri?",
+    "felder": {
+      "datum": "2026-11-16",
+      "start": "",
+      "ende": "00:30",
+      "pausen": "",
+      "fahrer": "Stefano Spandri"
+    },
+    "ms": 6087
+  },
+  {
+    "fall": "Pause im vorhandenen Dienst",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Stefano Pause von 12 bis 12:30",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Pause 12:00–12:30 heute für Stefano Spandri. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-16",
       "start": "",
       "ende": "",
       "pausen": "12:00-12:30",
+      "fahrer": "Stefano Spandri"
+    },
+    "ms": 7803
+  },
+  {
+    "fall": "Feierabend mit Uhrzeit",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Anna Feierabend um 18 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienstende 18:00 heute für Anna Berger. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-16",
+      "start": "",
+      "ende": "18:00",
+      "pausen": "",
       "fahrer": "Anna Berger"
     },
-    "ms": 1784
+    "ms": 6141
   },
   {
-    "fall": "Pause mit Dauer",
-    "gruppe": "Mensch",
+    "fall": "Fahrer per Nummer",
+    "gruppe": "Dienst",
     "schritt": 1,
-    "frage": "stefano 30 min pause um 13 uhr",
+    "frage": "Schick Fahrer 113 heute 16:00",
     "ok": true,
     "fehler": [],
     "art": "dienst_vorschlag",
-    "antwort": "Pause 13:00–13:30 heute für Stefano Spandri. Soll ich das senden?",
+    "antwort": "Dienststart 16:00 heute für Tim Schedler. Soll ich das senden?",
     "felder": {
       "datum": "2026-11-16",
-      "start": "",
+      "start": "16:00",
       "ende": "",
-      "pausen": "13:00-13:30",
-      "fahrer": "Stefano Spandri"
-    },
-    "ms": 7711
-  },
-  {
-    "fall": "Pause jetzt",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "tim macht jetzt pause",
-    "ok": true,
-    "fehler": [],
-    "art": "dienst_vorschlag",
-    "antwort": "Pause 11:00–11:30 heute für Tim Schedler. Soll ich das senden?",
-    "felder": {
-      "datum": "2026-11-16",
-      "start": "",
-      "ende": "",
-      "pausen": "11:00-11:30",
+      "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 5781
+    "ms": 6540
   },
   {
-    "fall": "Tippfehler morgn",
-    "gruppe": "Mensch",
+    "fall": "Zwei Fahrer gleicher Dienst",
+    "gruppe": "Dienst",
     "schritt": 1,
-    "frage": "tim morgn ab 7",
+    "frage": "Tim und Marvin morgen 6 bis 14",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 06:00, Dienstende 14:00 morgen für Tim Schedler, Marvin Keller. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-17",
+      "start": "06:00",
+      "ende": "14:00",
+      "pausen": "",
+      "fahrer": "Tim Schedler, Marvin Keller"
+    },
+    "ms": 7383
+  },
+  {
+    "fall": "Gleicher Start schon eingetragen",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Schick Stefano heute 8 Uhr",
+    "ok": true,
+    "fehler": [],
+    "art": "antwort",
+    "antwort": "Stefano Spandri hat heute schon Dienst (ab 08:00, angenommen). Der Dienststart 08:00 ist schon eingetragen, ich ändere nichts.",
+    "felder": {},
+    "ms": 6238
+  },
+  {
+    "fall": "Umgangssprache: morgen früh",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "schick tim morgen früh 7",
     "ok": true,
     "fehler": [],
     "art": "dienst_vorschlag",
@@ -69,428 +153,78 @@
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 5683
+    "ms": 5919
   },
   {
-    "fall": "Verhoert Dienst statt",
-    "gruppe": "Mensch",
+    "fall": "Umgangssprache: Schluss machen",
+    "gruppe": "Dienst",
     "schritt": 1,
-    "frage": "Schick Stefano Spandri den Dienst statt für 23:30 Uhr heute",
+    "frage": "Tim soll heute um 17 Uhr Schluss machen",
     "ok": true,
     "fehler": [],
     "art": "dienst_vorschlag",
-    "antwort": "Dienststart 23:30 heute für Stefano Spandri. Geändert wird bei Stefano Spandri Dienststart 08:00 → 23:30. Soll ich das senden?",
+    "antwort": "Dienstende 17:00 heute für Tim Schedler. Soll ich das senden?",
     "felder": {
       "datum": "2026-11-16",
-      "start": "23:30",
-      "ende": "",
-      "pausen": "",
-      "fahrer": "Stefano Spandri"
-    },
-    "ms": 6650
-  },
-  {
-    "fall": "Wochentag von morgen ist morgen",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Habe ausversehen den Dienststart für alle am Dienstag eingetragen um 10:30, bitte den löschen",
-    "ok": true,
-    "fehler": [],
-    "art": "antwort",
-    "antwort": "Bei Anna Berger, morgen (07:00–15:00, angenommen) den Dienststart entfernen? Stefano Spandri, Tim Schedler, Marvin Keller haben morgen keinen Dienst. Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
-    "felder": {},
-    "ms": 6152
-  },
-  {
-    "fall": "Wochentag von heute meint beim Löschen heute",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Habe ausversehen den Dienststart für alle am Montag eingetragen, bitte den löschen",
-    "ok": true,
-    "fehler": [],
-    "art": "antwort",
-    "antwort": "Bei Stefano Spandri, heute (ab 08:00, angenommen) den Dienststart entfernen? Ohne Start und Ende bleibt kein Dienst übrig, dann lösche ich ihn ganz. Tim Schedler, Marvin Keller, Anna Berger haben heute keinen Dienst. Mit „ja“ ändere ich es, mit „nein“ breche ich ab.",
-    "felder": {},
-    "ms": 5358
-  },
-  {
-    "fall": "Kein Dienst am Tag, klarer Satz",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Lösch den Dienst von Marvin morgen",
-    "ok": true,
-    "fehler": [],
-    "art": "antwort",
-    "antwort": "Marvin Keller hat morgen keinen Dienst. Es gibt nichts zu löschen.",
-    "felder": {},
-    "ms": 5639
-  },
-  {
-    "fall": "Fahrzeug-Frage nein",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Bekommt Tim den BMW",
-    "ok": true,
-    "fehler": [],
-    "art": "antwort",
-    "antwort": "Nein, Tim Schedler fährt Mercedes V-Klasse (M-TR 102). BMW 7er (M-TR 101) fährt Stefano Spandri. BMW X5 (M-TR 103) fährt Anna Berger.",
-    "felder": {},
-    "ms": 4382
-  },
-  {
-    "fall": "Fahrzeug-Frage ja",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Fährt Tim den Mercedes?",
-    "ok": true,
-    "fehler": [],
-    "art": "antwort",
-    "antwort": "Ja, Tim Schedler fährt Mercedes V-Klasse (M-TR 102).",
-    "felder": {},
-    "ms": 1087
-  },
-  {
-    "fall": "Wer fährt das Modell",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Wer fährt den X5",
-    "ok": true,
-    "fehler": [],
-    "art": "antwort",
-    "antwort": "BMW X5 (M-TR 103) fährt Anna Berger.",
-    "felder": {},
-    "ms": 1069
-  },
-  {
-    "fall": "Fahrt am zum",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Stefano soll Heute um 20:30 Uhr am Flughafen München zum Flughafen in Salzburg fahren ohne Gast",
-    "ok": true,
-    "fehler": [],
-    "art": "fahrt_buchen",
-    "antwort": "Vorschlag: heute, Mo 16.11. um 20:30, Flughafen München → Flughafen in Salzburg, Fahrer Stefano Spandri.\nSoll ich die Fahrt so buchen?",
-    "felder": {
-      "datum": "2026-11-16",
-      "startZeit": "20:30",
-      "start": "Flughafen München Terminal 2",
-      "ziel": "Flughafen in Salzburg",
-      "fahrgaeste": "",
-      "fahrerNamen": "Stefano Spandri",
-      "fahrtId": "",
-      "startOrtId": "",
-      "zielOrtId": ""
-    },
-    "ms": 1612
-  },
-  {
-    "fall": "Fahrt mit allen ausser einem, frei gesagt",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Heute am Sonntag den 15. November alle Fahrer außer außer Marvin von der Messe München zum Flughafen München um 14:30",
-    "ok": true,
-    "fehler": [],
-    "art": "fahrt_buchen",
-    "antwort": "Vorschlag: So 22.11. um 14:30, Messe München → Flughafen München, 3 Fahrer (ohne Marvin Keller).\nSoll ich die Fahrt so buchen?",
-    "felder": {
-      "datum": "2026-11-22",
-      "startZeit": "14:30",
-      "start": "Messe München",
-      "ziel": "Flughafen München Terminal 2",
-      "fahrgaeste": "",
-      "fahrerNamen": "Stefano Spandri, Tim Schedler, Anna Berger",
-      "fahrtId": "",
-      "startOrtId": "o5",
-      "zielOrtId": ""
-    },
-    "ms": 3074
-  },
-  {
-    "fall": "Fahrt halb 4 klein getippt",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "brauch ne fahrt um halb 4 vom bayerischen hof zum flughafen für herrn engel, tim fährt",
-    "ok": true,
-    "fehler": [],
-    "art": "fahrt_buchen",
-    "antwort": "Vorschlag: heute, Mo 16.11. um 15:30, Hotel Bayerischer Hof → flughafen, Gast Herrn Engel, Fahrer Tim Schedler.\nSoll ich die Fahrt so buchen?",
-    "felder": {
-      "datum": "2026-11-16",
-      "startZeit": "15:30",
-      "start": "Hotel Bayerischer Hof",
-      "ziel": "flughafen",
-      "fahrgaeste": "Herrn Engel",
-      "fahrerNamen": "Tim Schedler",
-      "fahrtId": "",
-      "startOrtId": "o1",
-      "zielOrtId": ""
-    },
-    "ms": 1940
-  },
-  {
-    "fall": "Zweite Fahrt ist eine neue",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Erstelle eine Fahrt heute am Sonntag um 15:00 vom Hotel Bayerischer Hof zur Messe mit 3 Personen",
-    "ok": true,
-    "fehler": [],
-    "art": "fahrt_buchen",
-    "antwort": "Vorschlag: So 22.11. um 15:00, Hotel Bayerischer Hof → Messe München, 3 Gäste ohne Namen, noch ohne Fahrer.\nSoll ich die Fahrt so buchen?",
-    "felder": {
-      "datum": "2026-11-22",
-      "startZeit": "15:00",
-      "start": "Hotel Bayerischer Hof",
-      "ziel": "Messe München",
-      "fahrgaeste": "",
-      "fahrerNamen": "",
-      "fahrtId": "",
-      "startOrtId": "o1",
-      "zielOrtId": "o5"
-    },
-    "ms": 1825
-  },
-  {
-    "fall": "Zweite Fahrt ist eine neue",
-    "gruppe": "Mensch",
-    "schritt": 2,
-    "frage": "Dann 17:00 Messe zu Flughafen München t2 1 Person mit Marvin als Fahrer  Der Gast ist sekura Jun",
-    "ok": true,
-    "fehler": [],
-    "art": "fahrt_buchen",
-    "antwort": "Vorschlag: heute, Mo 16.11. um 17:00, Messe München → Flughafen München t2 1 Person, Gast sekura Jun, Fahrer Marvin Keller.\nSoll ich die Fahrt so buchen?",
-    "felder": {
-      "datum": "2026-11-16",
-      "startZeit": "17:00",
-      "start": "Messe München",
-      "ziel": "Flughafen München Terminal 2",
-      "fahrgaeste": "sekura Jun",
-      "fahrerNamen": "Marvin Keller",
-      "fahrtId": "",
-      "startOrtId": "o5",
-      "zielOrtId": ""
-    },
-    "ms": 1884
-  },
-  {
-    "fall": "Korrektur bleibt Korrektur",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Erstelle eine Fahrt heute um 15:00 vom Hotel Bayerischer Hof zur Messe mit 3 Personen",
-    "ok": true,
-    "fehler": [],
-    "art": "fahrt_buchen",
-    "antwort": "Vorschlag: heute, Mo 16.11. um 15:00, Hotel Bayerischer Hof → Messe München, 3 Gäste ohne Namen, noch ohne Fahrer.\nSoll ich die Fahrt so buchen?",
-    "felder": {
-      "datum": "2026-11-16",
-      "startZeit": "15:00",
-      "start": "Hotel Bayerischer Hof",
-      "ziel": "Messe München",
-      "fahrgaeste": "",
-      "fahrerNamen": "",
-      "fahrtId": "",
-      "startOrtId": "o1",
-      "zielOrtId": "o5"
-    },
-    "ms": 1447
-  },
-  {
-    "fall": "Korrektur bleibt Korrektur",
-    "gruppe": "Mensch",
-    "schritt": 2,
-    "frage": "doch lieber 16 uhr",
-    "ok": true,
-    "fehler": [],
-    "art": "fahrt_buchen",
-    "antwort": "Vorschlag angepasst (Abfahrt: 15:00 → 16:00). Soll ich die Fahrt so buchen?",
-    "felder": {
-      "datum": "2026-11-16",
-      "startZeit": "16:00",
-      "start": "Hotel Bayerischer Hof",
-      "ziel": "Messe München",
-      "fahrgaeste": "",
-      "fahrerNamen": "",
-      "fahrtId": "",
-      "startOrtId": "o1",
-      "zielOrtId": "o5"
-    },
-    "ms": 1928
-  },
-  {
-    "fall": "Buchen Schritt fuer Schritt, Heute ist kein Ziel",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Buche",
-    "ok": true,
-    "fehler": [],
-    "art": "booking_needs_clarification",
-    "antwort": "Fahrt heute: Wo soll der Gast abgeholt werden? Wohin soll die Fahrt gehen (Ziel)? Um wie viel Uhr?",
-    "felder": {},
-    "ms": 11475
-  },
-  {
-    "fall": "Buchen Schritt fuer Schritt, Heute ist kein Ziel",
-    "gruppe": "Mensch",
-    "schritt": 2,
-    "frage": "Heute",
-    "ok": true,
-    "fehler": [],
-    "art": "booking_needs_clarification",
-    "antwort": "Fahrt heute: Wo soll der Gast abgeholt werden? Wohin soll die Fahrt gehen (Ziel)? Um wie viel Uhr?",
-    "felder": {},
-    "ms": 3
-  },
-  {
-    "fall": "Buchen Schritt fuer Schritt, Heute ist kein Ziel",
-    "gruppe": "Mensch",
-    "schritt": 3,
-    "frage": "Heute 20:30 Uhr",
-    "ok": true,
-    "fehler": [],
-    "art": "booking_needs_clarification",
-    "antwort": "Fahrt heute um 20:30: Wo soll der Gast abgeholt werden? Wohin soll die Fahrt gehen (Ziel)?",
-    "felder": {},
-    "ms": 1
-  },
-  {
-    "fall": "Buchen Schritt fuer Schritt, Heute ist kein Ziel",
-    "gruppe": "Mensch",
-    "schritt": 4,
-    "frage": "vom Hauptbahnhof",
-    "ok": true,
-    "fehler": [],
-    "art": "booking_needs_clarification",
-    "antwort": "Fahrt heute um 20:30 ab Hauptbahnhof München: Wohin soll die Fahrt gehen (Ziel)?",
-    "felder": {},
-    "ms": 1
-  },
-  {
-    "fall": "Buchen Schritt fuer Schritt, Heute ist kein Ziel",
-    "gruppe": "Mensch",
-    "schritt": 5,
-    "frage": "zur Messe",
-    "ok": true,
-    "fehler": [],
-    "art": "fahrt_buchen",
-    "antwort": "Vorschlag: heute, Mo 16.11. um 20:30, Hauptbahnhof München → Messe München, noch ohne Fahrer.\nSoll ich die Fahrt so buchen?",
-    "felder": {
-      "datum": "2026-11-16",
-      "startZeit": "20:30",
-      "start": "Hauptbahnhof München",
-      "ziel": "Messe München",
-      "fahrgaeste": "",
-      "fahrerNamen": "",
-      "fahrtId": "",
-      "startOrtId": "o2",
-      "zielOrtId": "o5"
-    },
-    "ms": 0
-  },
-  {
-    "fall": "Getipptes Ja nach Karte erfindet nichts",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Dienststart für Tim morgen um 7",
-    "ok": true,
-    "fehler": [],
-    "art": "dienst_vorschlag",
-    "antwort": "Dienststart 07:00 morgen für Tim Schedler. Soll ich das senden?",
-    "felder": {
-      "datum": "2026-11-17",
-      "start": "07:00",
-      "ende": "",
+      "start": "",
+      "ende": "17:00",
       "pausen": "",
       "fahrer": "Tim Schedler"
     },
-    "ms": 5998
+    "ms": 5968
   },
   {
-    "fall": "Getipptes Ja nach Karte erfindet nichts",
-    "gruppe": "Mensch",
-    "schritt": 2,
-    "frage": "Ja",
-    "ok": true,
-    "fehler": [],
-    "art": "antwort",
-    "antwort": "Dazu ist bei mir gerade nichts offen. Einen Vorschlag bestätigst du über den Knopf an der Karte.",
-    "felder": {},
-    "ms": 2
-  },
-  {
-    "fall": "Getipptes Ja nach Karte erfindet nichts",
-    "gruppe": "Mensch",
-    "schritt": 3,
-    "frage": "Ok dann schick Tim heim",
+    "fall": "Pause mit Bindestrich",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Pause für Anna morgen 12-13",
     "ok": true,
     "fehler": [],
     "art": "dienst_vorschlag",
-    "antwort": "Dienstende 11:05 heute für Tim Schedler. Soll ich das senden?",
+    "antwort": "Pause 12:00–13:00 morgen für Anna Berger. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-17",
+      "start": "",
+      "ende": "",
+      "pausen": "12:00-13:00",
+      "fahrer": "Anna Berger"
+    },
+    "ms": 7274
+  },
+  {
+    "fall": "Umgangssprache: fängt an",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "Marvin fängt morgen um 6 an",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienststart 06:00 morgen für Marvin Keller. Soll ich das senden?",
+    "felder": {
+      "datum": "2026-11-17",
+      "start": "06:00",
+      "ende": "",
+      "pausen": "",
+      "fahrer": "Marvin Keller"
+    },
+    "ms": 6080
+  },
+  {
+    "fall": "Markierte Fahrer in Feierabend",
+    "gruppe": "Dienst",
+    "schritt": 1,
+    "frage": "schick die alle in Feierabend",
+    "ok": true,
+    "fehler": [],
+    "art": "dienst_vorschlag",
+    "antwort": "Dienstende 11:05 heute für die 2 markierten Fahrer (Tim Schedler, Marvin Keller). Soll ich das senden?",
     "felder": {
       "datum": "2026-11-16",
       "start": "",
       "ende": "11:05",
       "pausen": "",
-      "fahrer": "Tim Schedler"
+      "fahrer": "Tim Schedler, Marvin Keller"
     },
-    "ms": 7331
-  },
-  {
-    "fall": "Zwei Dienste in einem Satz",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "tim morgen 8 bis 16 und anna morgen 9 bis 17",
-    "ok": true,
-    "fehler": [],
-    "art": "dienst_vorschlag",
-    "antwort": "Dienststart 08:00, Dienstende 16:00 morgen für Tim Schedler. Soll ich das senden?\n\nDas waren 2 Aufträge, ich mache einen nach dem anderen. Noch nicht bearbeitet: „anna morgen 9 bis 17“. Schick mir das danach einzeln.",
-    "felder": {
-      "datum": "2026-11-17",
-      "start": "08:00",
-      "ende": "16:00",
-      "pausen": "",
-      "fahrer": "Tim Schedler"
-    },
-    "ms": 7008
-  },
-  {
-    "fall": "Zwei Fahrer ein Dienst bleibt einer",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Tim und Anna morgen 8 bis 16",
-    "ok": true,
-    "fehler": [],
-    "art": "dienst_vorschlag",
-    "antwort": "Dienststart 08:00, Dienstende 16:00 morgen für Tim Schedler, Anna Berger. Geändert wird bei Anna Berger Dienststart 07:00 → 08:00, Dienstende 15:00 → 16:00. Soll ich das senden?",
-    "felder": {
-      "datum": "2026-11-17",
-      "start": "08:00",
-      "ende": "16:00",
-      "pausen": "",
-      "fahrer": "Tim Schedler, Anna Berger"
-    },
-    "ms": 6961
-  },
-  {
-    "fall": "Gruss ohne Modell",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Hallo",
-    "ok": true,
-    "fehler": [],
-    "art": "rueckfrage",
-    "antwort": "Hallo! Was kann ich für dich tun?",
-    "felder": {},
-    "ms": 1
-  },
-  {
-    "fall": "Auftrag ohne Regel bleibt ehrlich",
-    "gruppe": "Mensch",
-    "schritt": 1,
-    "frage": "Kannst du Tim auf die zwei Flughafen Fahrten hinzufügen?",
-    "ok": true,
-    "fehler": [],
-    "art": "antwort",
-    "antwort": "Mehrere Fahrten auf einmal ändere ich nicht. Nenne mir eine Fahrt, zum Beispiel „Gib die 18-Uhr-Fahrt Tim“. Ich habe nichts geändert.",
-    "felder": {},
-    "ms": 1839
+    "ms": 15498
   }
 ]

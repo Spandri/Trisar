@@ -21,6 +21,17 @@
       * { scrollbar-width: none; -ms-overflow-style: none; }
       *::-webkit-scrollbar { display: none; width: 0; height: 0; }
     </style>
+    <script>
+      // Einladungs-/Reset-Links auf der Haupt-URL (aeltere Mails und Apps) sofort auf /passwort umlenken,
+      // bevor Supabase den Link liest. Passwort setzen gibt es nur dort (19.11.2026).
+      (function () {
+        var l = window.location;
+        if (l.pathname.replace(/\/+$/, '') === '/passwort') return;
+        if (/(^|[#&?])type=(recovery|invite)(&|$)|[#&?]token_hash=/.test(l.hash + l.search)) {
+          history.replaceState(null, '', '/passwort' + l.search + l.hash);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

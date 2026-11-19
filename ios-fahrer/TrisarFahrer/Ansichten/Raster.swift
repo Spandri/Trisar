@@ -168,7 +168,34 @@ struct WebMassstab: ViewModifier {
                 .offset(x: -r.leading, y: -r.top)
         }
         .background(TastaturSchliesser())
+        .obenOhneRandeffekt()
     }
+}
+
+extension View {
+    /// Ab iOS 26 legt das System beim Scrollen eine unscharfe Flaeche unter die Statusleiste
+    /// (Scroll Edge Effect). Im 402er Raster sitzt sie als harter Streifen ueber der Seite, darum oben aus.
+    /// Nur auf iPhones aelter als iPhone 14, neuere behalten den Effekt.
+    @ViewBuilder func obenOhneRandeffekt() -> some View {
+        if #available(iOS 26.0, *), Geraet.vorIPhone14 { scrollEdgeEffectHidden(true, for: .top) } else { self }
+    }
+}
+
+enum Geraet {
+    /// Modellkennung wie "iPhone14,5". iPhone 14 ist iPhone14,7 und iPhone14,8, alles darunter ist aelter
+    /// (iPhone 13 = iPhone14,2 bis 14,5, SE 3 = iPhone14,6). Im Simulator steht die Kennung in der Umgebung.
+    static let vorIPhone14: Bool = {
+        var kennung = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? ""
+        if kennung.isEmpty {
+            var u = utsname()
+            uname(&u)
+            kennung = withUnsafeBytes(of: &u.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        }
+        guard kennung.hasPrefix("iPhone") else { return false }
+        let teile = kennung.dropFirst(6).split(separator: ",").compactMap { Int($0) }
+        guard teile.count == 2 else { return false }
+        return teile[0] < 14 || (teile[0] == 14 && teile[1] < 7)
+    }()
 }
 
 /// Wie im Browser: ein Tipp ausserhalb eines Eingabefelds schliesst die Tastatur.

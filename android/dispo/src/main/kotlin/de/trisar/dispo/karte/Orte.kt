@@ -508,7 +508,9 @@ private fun OrtKarte(
     }
     var karte by remember { mutableStateOf<MapLibreMap?>(null) }
     var stil by remember { mutableStateOf<Style?>(null) }
+    // Kartenstil aus dem Karten Filter, wechselt live.
     val takt = remember { mutableIntStateOf(0) }
+    StilFolgen(karte) { s -> stil = s; takt.intValue++ }
     val setzenAktuell by rememberUpdatedState(setzen)
     val punktAktuell by rememberUpdatedState(punkt)
 
@@ -548,7 +550,7 @@ private fun OrtKarte(
             m.addOnCameraMoveListener { takt.intValue++ }
             m.addOnCameraIdleListener { takt.intValue++ }
             m.addOnMapClickListener { ll -> setzenAktuell(KartenPunkt(ll.latitude, ll.longitude)); true }
-            m.setStyle(Style.Builder().fromUri(Konfig.KARTEN_STIL)) { s -> stil = s; takt.intValue++ }
+            KartenStil.stilSetzen(m) { s -> stil = s; takt.intValue++ }
             karte = m
         }
     }

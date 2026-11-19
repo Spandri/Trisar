@@ -174,7 +174,7 @@ struct LoginAnsicht<Hintergrund: View>: View {
         // Bewusst ohne supabase-swift: das schickt einen PKCE-Link, dessen Schluessel nur in
         // dieser App liegt. Der Browser koennte ihn nicht einloesen und landet auf dem Login.
         var teile = URLComponents(url: Konfig.supabaseURL.appendingPathComponent("auth/v1/recover"), resolvingAgainstBaseURL: false)!
-        teile.queryItems = [URLQueryItem(name: "redirect_to", value: "https://fahrer.trisar.de")]
+        teile.queryItems = [URLQueryItem(name: "redirect_to", value: "https://fahrer.trisar.de/passwort")]
         var anfrage = URLRequest(url: teile.url!)
         anfrage.httpMethod = "POST"
         anfrage.setValue("application/json", forHTTPHeaderField: "Content-Type")

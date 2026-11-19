@@ -71,12 +71,21 @@ const dezimal = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 1, max
 export const telemetrieZeilen = (live, t) => {
   if (!live) return [];
   const zeilen = [];
-  if (typeof live.ignition === 'boolean') {
-    zeilen.push({ key: 'ignition', label: t('telemetrie.ignition'), value: t(live.ignition ? 'telemetrie.on' : 'telemetrie.off') });
+  // Geparkt: Zuendung aus oder seit 2 Minuten keine Meldung (bei Zuendung an kommt alle 30 s eine,
+  // am OBD-Stecker schlaeft der Tracker nach dem Abstellen ohne letzte "Aus"-Meldung ein).
+  const standMs = Date.parse(live.captured_at || '');
+  const geparkt = live.ignition === false || (Number.isFinite(standMs) && Date.now() - standMs > 2 * 60_000);
+  if (typeof live.ignition === 'boolean' || geparkt) {
+    zeilen.push(geparkt
+      ? {
+        key: 'ignition', label: t('telemetrie.ignition'), value: 'Geparkt',
+        unter: Number.isFinite(standMs) ? `seit ${new Date(standMs).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : '',
+      }
+      : { key: 'ignition', label: t('telemetrie.ignition'), value: t('telemetrie.on') });
   }
-  const rpm = num(live.rpm);
+  const rpm = geparkt ? null : num(live.rpm);
   if (rpm !== null) zeilen.push({ key: 'rpm', label: t('telemetrie.rpm'), value: `${Math.round(rpm)}` });
-  const speed = num(live.obd_speed_kph);
+  const speed = geparkt ? null : num(live.obd_speed_kph);
   if (speed !== null) zeilen.push({ key: 'speed', label: t('telemetrie.speed'), value: `${Math.round(speed)} km/h` });
   const fuel = num(live.fuel_level_pct);
   if (fuel !== null) zeilen.push({ key: 'fuel', label: t('telemetrie.fuel'), value: `${Math.round(fuel)} %`, warn: fuel < 15 });

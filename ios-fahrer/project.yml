@@ -21,7 +21,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.1"
-    CURRENT_PROJECT_VERSION: "56"
+    CURRENT_PROJECT_VERSION: "69"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     # App-ID, die Widget-Erweiterung haengt .widget an. aufs-iphone.sh setzt sie auf de.trisar.fahrer.dev.
@@ -54,7 +54,9 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: TRISAR
         GENERATE_INFOPLIST_FILE: YES
-        # CarPlay: Apple-Freigabe carplay-driving-task seit 12.11.2026 am Account, gilt jetzt auch auf dem Geraet.
+        # CarPlay: seit 17.11.2026 Kategorie Navigation (carplay-maps) statt Driving Task. Eine App darf nur
+        # eine CarPlay-Kategorie haben. Die Freigabe carplay-maps muss Apple am Account erteilen, sonst
+        # laesst sich die App fuers Geraet nicht signieren (Simulator geht ohne). Die Dispo bleibt Driving Task.
     entitlements:
       path: TrisarFahrer/TrisarFahrer.entitlements
       properties:
@@ -63,20 +65,26 @@ targets:
           - applinks:fahrer.trisar.de
         com.apple.developer.nfc.readersession.formats:
           - TAG
-        com.apple.developer.carplay-driving-task: true
+        com.apple.developer.carplay-maps: true
     info:
       path: TrisarFahrer/Info.plist
       properties:
         NFCReaderUsageDescription: NFC-Tag am Tracker lesen, um dich mit dem Fahrzeug zu verbinden.
+        # CarPlay „Navigation starten“: nur anbieten, was installiert ist.
+        LSApplicationQueriesSchemes:
+          - comgooglemaps
+          - maps
         CFBundleDisplayName: TRISAR
         # Erstes Bild des Startvideos, damit es ohne Schwarz in die Animation geht.
         UILaunchStoryboardName: LaunchScreen
         UIUserInterfaceStyle: Dark
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # audio: Sprachansagen der eigenen Navigation auch bei gesperrtem iPhone (CarPlay, 17.11.).
         UIBackgroundModes:
           - location
           - remote-notification
+          - audio
         NSLocationWhenInUseUsageDescription: "TRISAR nutzt deinen Standort, damit die Disposition sieht, wo du bist, und Fahrten automatisch starten und beenden kann."
         NSLocationAlwaysAndWhenInUseUsageDescription: "Damit dein Standort auch weiter gesendet wird, während Google Maps navigiert oder der Bildschirm aus ist, wähle bitte „Immer“."
         ITSAppUsesNonExemptEncryption: false

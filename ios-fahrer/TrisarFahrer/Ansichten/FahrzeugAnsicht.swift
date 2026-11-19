@@ -117,7 +117,8 @@ private struct FahrzeugInhalt: View {
         let blass = Color(red: 28 / 255, green: 28 / 255, blue: 29 / 255, opacity: 0.15)
         return ZStack(alignment: .topLeading) {
             Color.white
-            Text(a.kennzeichen.isEmpty ? "Kein Fahrzeug" : a.kennzeichen)
+            // Vom Tracker neu erkannt, noch ohne Kennzeichen: Marke statt "Kein Fahrzeug".
+            Text(!a.kennzeichen.isEmpty ? a.kennzeichen : (a.modell.isEmpty ? "Kein Fahrzeug" : a.modell))
                 .grotesk(30, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1C1C1D))
                 .lineLimit(1).minimumScaleFactor(0.5)
                 .platz(0, 15.29, 353, 36.68, .top)
@@ -161,6 +162,10 @@ private struct FahrzeugInhalt: View {
                             .lineLimit(1)
                         Text(z.wert).font(.grotesk(18, .bold))
                             .foregroundStyle(z.warnung ? Color(hex: 0xD9381E) : Color(hex: 0x1C1C1D)).lineLimit(1)
+                        if !z.unter.isEmpty {
+                            Text(z.unter).font(.grotesk(11)).foregroundStyle(Color(red: 28 / 255, green: 28 / 255, blue: 29 / 255, opacity: 0.5))
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
@@ -219,6 +224,11 @@ private struct FahrzeugInhalt: View {
                             }
                         }
                         .padding(.bottom, 10)
+                    }
+                    if !s.gemeldetVon.isEmpty {
+                        Text("gemeldet von \(s.gemeldetVon)").font(.grotesk(11))
+                            .foregroundStyle(Color(red: 28 / 255, green: 28 / 255, blue: 29 / 255, opacity: 0.5))
+                            .lineLimit(1).padding(.bottom, 10)
                     }
                     if i < schaeden.count - 1 {
                         Rectangle().fill(Color(hex: 0xDDDCDC)).frame(height: 1).padding(.bottom, 10)

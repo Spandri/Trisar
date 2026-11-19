@@ -109,12 +109,36 @@ export const uhrzeitLesen = (wert) => {
 };
 
 
+// Zeitraum statt fester Startzeit (wie "Start Zeitraum" beim manuellen Anlegen, jobs.etd_bis):
+// "14:00-14:30", "14.00 – 14.30 Uhr", "14-15 Uhr", "zwischen 14 und 14:30", "ab 14:00 bis 14:30",
+// "2pm-3pm". Ohne Doppelpunkt/Uhr/Vorwort keine Erkennung, damit "13-15" (Tage) kein Zeitraum wird.
+// Liefert { von, bis } als "HH:MM" oder null. bis muss nach von liegen (gleicher Tag).
+const ZEIT_TEIL = String.raw`(\d{1,2})(?:[:.h](\d{2}))?\s*(am|pm)?`;
+const ZEITRAUM = new RegExp(String.raw`^\s*(zwischen|between|von|from|ab)?\s*${ZEIT_TEIL}\s*(?:uhr|h)?\s*(-|–|—|bis|to|until|und|and)\s*${ZEIT_TEIL}\s*(uhr|h)?\s*$`, 'i');
+const uhrAus = (std, min, halb) => {
+  let s = Number(std); const m = Number(min || 0); const h = (halb || '').toLowerCase();
+  if (h === 'pm' && s < 12) s += 12;
+  if (h === 'am' && s === 12) s = 0;
+  return s > 23 || m > 59 ? '' : `${p2(s)}:${p2(m)}`;
+};
+export const zeitraumLesen = (wert) => {
+  const m = ohneDatum(wert).trim().match(ZEITRAUM);
+  if (!m) return null;
+  const [, vorwort, s1, m1, h1, trenner, s2, m2, h2, uhr] = m;
+  // "und"/"and" nur nach "zwischen"/"between".
+  if (/^(und|and)$/i.test(trenner) && !/^(zwischen|between)$/i.test(vorwort || '')) return null;
+  if (!m1 && !m2 && !h1 && !h2 && !uhr && !vorwort) return null;
+  // "2-3pm": am/pm gilt fuer beide Seiten.
+  const von = uhrAus(s1, m1, h1 || h2);
+  const bis = uhrAus(s2, m2, h2);
+  return von && bis && bis > von ? { von, bis } : null;
+};
 
 const MUSTER_UHR = (t) => /^\s*\d{1,2}[:.h]\d{2}(\s*(uhr|am|pm|h))?\s*$/i.test(t);
 
 export const MUSTER = {
   datum: (t) => Boolean(datumLesen(t)) && !uhrzeitLesen(ohneDatum(t)),
-  uhrzeit: (t) => /^\s*\d{1,2}[:.h]\d{2}(\s*(uhr|am|pm|h))?\s*$/i.test(t) || /^0?\.\d+$/.test(text(t)),
+  uhrzeit: (t) => /^\s*\d{1,2}[:.h]\d{2}(\s*(uhr|am|pm|h))?\s*$/i.test(t) || /^0?\.\d+$/.test(text(t)) || Boolean(zeitraumLesen(t)),
   datumUhrzeit: (t) => Boolean(datumLesen(t)) && Boolean(uhrzeitLesen(ohneDatum(t))),
   flug: (t) => /^[A-Z][A-Z0-9]\s?\d{2,4}[A-Z]?$/.test(t.toUpperCase().trim()) && !/^(ICE|IC|EC|RJ|TGV|RE|RB)\s?\d/i.test(t),
   zug: (t) => /^(ICE|IC|EC|RJ|RJX|TGV|RE|RB|NJ|FLX)\s?\d{1,5}$/i.test(t.trim()),
@@ -142,7 +166,9 @@ const anteil = (werte, pruefung) => (werte.length ? werte.filter((w) => pruefung
 const FAHRT_FELDER = [
   { key: 'datumUhrzeit', kopf: ['datum uhrzeit', 'datum zeit', 'termin', 'date time', 'datetime', 'zeitpunkt', 'pickup datetime', 'pick up date time', 'abholung am', 'service datetime'], werte: ['datumUhrzeit'], belegt: ['datum', 'uhrzeit'] },
   { key: 'datum', kopf: ['datum', 'date', 'tag', 'day', 'service date', 'fahrtdatum', 'transferdatum', 'ankunftstag', 'arrival date', 'anreise', 'reisedatum', 'travel date'], werte: ['datum'] },
-  { key: 'uhrzeit', kopf: ['uhrzeit', 'zeit', 'time', 'abholzeit', 'pick up time', 'pickup time', 'p u time', 'pu time', 'etd', 'abfahrt', 'abfahrtszeit', 'um', 'start time', 'departure time', 'ankunftszeit', 'arrival time', 'eta', 'landung', 'landing'], werte: ['uhrzeit'] },
+  { key: 'uhrzeit', kopf: ['uhrzeit', 'zeit', 'time', 'abholzeit', 'pick up time', 'pickup time', 'p u time', 'pu time', 'etd', 'abfahrt', 'abfahrtszeit', 'um', 'start time', 'departure time', 'ankunftszeit', 'arrival time', 'eta', 'landung', 'landing', 'zeitraum', 'zeitfenster', 'abholfenster', 'time window', 'pickup window', 'pick up window', 'abholzeitraum'], werte: ['uhrzeit'] },
+  // Ende des Zeitraums als eigene Spalte ("Abholung bis", "spaetestens").
+  { key: 'uhrzeitBis', kopf: ['uhrzeit bis', 'zeit bis', 'abholung bis', 'abholzeit bis', 'start bis', 'spätestens', 'spaetestens', 'latest', 'latest pickup', 'pickup until', 'pick up until', 'time to', 'zeitfenster bis', 'zeitraum bis', 'ende zeitfenster'], werte: ['uhrzeit'] },
   { key: 'abholort', kopf: ['abholort', 'abholung', 'abholadresse', 'von', 'start', 'startadresse', 'startort', 'pick up location', 'pickup location', 'pick up address', 'pickup address', 'pick up', 'pickup', 'p u', 'pu', 'from', 'from address', 'origin address', 'treffpunkt', 'abfahrtsort'], werte: ['ort'] },
   { key: 'zielort', kopf: ['zielort', 'ziel', 'zieladresse', 'nach', 'bis', 'drop off', 'dropoff', 'drop off location', 'drop off address', 'd o', 'do', 'destination', 'to', 'to address', 'hotel', 'unterkunft', 'ankunftsort'], werte: ['ort'] },
   { key: 'flugnummer', kopf: ['flug', 'flugnummer', 'flight', 'flight no', 'flight nr', 'flight number', 'flightnumber', 'arrival flight', 'zug flug', 'flug zug', 'flugnr', 'fl'], werte: ['flug', 'zug'] },
@@ -157,6 +183,14 @@ const FAHRT_FELDER = [
   { key: 'notiz', kopf: ['notiz', 'notizen', 'bemerkung', 'bemerkungen', 'hinweis', 'hinweise', 'kommentar', 'note', 'notes', 'remarks', 'comment', 'comments', 'info', 'details', 'special requests', 'besonderheiten'], werte: ['freitext'] },
   // Fahrer laut Liste: wird beim Einlesen einem Fahrer der Dispo zugeordnet (driver_id).
   { key: 'fahrer', kopf: ['fahrer', 'fahrerin', 'chauffeur', 'chauffeurin', 'chauffeure', 'driver', 'fahrer name', 'driver name', 'chauffeur name'], werte: ['name'] },
+  // Zwischenstopps wie im Formular (bis 8). Mehrere Spalten erlaubt ("Stopp 1", "Stopp 2"),
+  // mehrere Stopps in einer Zelle mit ; oder → oder Zeilenumbruch getrennt.
+  { key: 'zwischenstopp', kopf: ['zwischenstopp', 'zwischenstopps', 'zwischenhalt', 'stopp', 'stop', 'stopps', 'stops', 'via', 'über', 'ueber', 'halt', 'stopover', 'waypoint', 'weitere abholung', 'zusteigen'], werte: ['ort'], mehrfach: true },
+  // Konvoi (Name eines bestehenden Konvois) und Anzahl Fahrzeuge (= Fahrer-Plaetze) wie im Formular.
+  { key: 'konvoi', kopf: ['konvoi', 'convoy', 'kolonne', 'fahrzeuggruppe', 'fahrzeugkolonne', 'motorcade'], werte: [] },
+  { key: 'anzahlFahrzeuge', kopf: ['anzahl fahrzeuge', 'fahrzeuge', 'anzahl autos', 'autos', 'fahrzeuganzahl', 'vehicles', 'number of vehicles', 'no of cars', 'cars'], werte: ['anzahl'] },
+  // Storniert/abgesagt: Fahrt wird gleich storniert angelegt.
+  { key: 'status', kopf: ['status', 'state', 'storniert', 'storno', 'abgesagt', 'cancelled', 'canceled'], werte: [] },
   // Ankunft am Ziel: trennt Sammelfahrten (gleicher Fahrer, gleiche Ankunft = eine Fahrt mit Zwischenstopps).
   { key: 'ankunft', kopf: ['ankunft', 'ankunft ziel', 'ankunft kongress', 'arrival at destination', 'eta ziel'], werte: ['uhrzeit'] },
   // Kein eigenes Feld in jobs: beides kommt in die Notiz der Fahrt.
@@ -308,7 +342,8 @@ export const tabelleZerlegen = (rohzeilen) => {
   return { kopfzeile: kopf, ...gruppenAufteilen(titel, datenzeilen) };
 };
 
-const NIE_ZUORDNEN = new Set(['nr', 'no', 'nummer', 'lfd nr', 'lfd', 'pos', 'position', 'id', 'zeile', 'row', 'fahrt nr', 'status']);
+const NIE_ZUORDNEN = new Set(['nr', 'no', 'nummer', 'lfd nr', 'lfd', 'pos', 'position', 'id', 'zeile', 'row', 'fahrt nr']);
+// "Status" wird zugeordnet, wirkt aber nur bei storniert/abgesagt (sonst bleibt die Fahrt offen).
 
 // Liefert die Spalten mit Beispielwerten, Vorschlag, Sicherheit und Begruendung.
 // vorlage: { "<Ueberschrift normalisiert>": "<Feld>" } aus einem frueheren Import.
@@ -362,7 +397,8 @@ export const spaltenErkennen = (rohzeilen, modus = 'rides', { vorlage = null } =
   kandidaten.forEach((c) => {
     if (vergebenSpalte.has(c.spalte.index)) return;
     const blockiert = [c.feld.key, ...(c.feld.belegt || [])];
-    if (blockiert.some((f) => vergebenFeld.has(f))) return;
+    // Zwischenstopps duerfen mehrere Spalten haben.
+    if (!c.feld.mehrfach && blockiert.some((f) => vergebenFeld.has(f))) return;
     // Datum+Uhrzeit in einer Spalte schliesst die Einzelfelder aus und umgekehrt.
     if (felder.some((f) => (f.belegt || []).includes(c.feld.key) && vergebenFeld.has(f.key))) return;
     vergebenSpalte.set(c.spalte.index, c);
@@ -550,7 +586,11 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
     const i = spalteVon(feld);
     return i == null ? '' : text(zeile[i]);
   };
+  // Alle Spalten eines Feldes (Zwischenstopps koennen mehrere haben), in Spaltenreihenfolge.
+  const alleWerte = (zeile, feld) => Object.entries(zuordnung || {}).filter(([, f]) => f === feld)
+    .map(([i]) => Number(i)).sort((a, b) => a - b).map((i) => text(zeile[i])).filter(Boolean);
   const genutzteSpalten = Object.keys(zuordnung || {}).map(Number);
+  const ergaenztOrt = (ort) => (ort && !ort.includes(',') && kontext?.orte?.[schluessel(ort)]) || ort;
 
   const datensaetze = [];
   let tagDerGruppe = '';
@@ -574,8 +614,20 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
     let datum = datumLesen(kombi) || datumLesen(wert(zeile, 'datum'));
     const ankunft = uhrzeitLesen(wert(zeile, 'ankunft'));
     // Nur eine Ankunftsspalte (z. B. Flugankunft): die gilt als Abholzeit.
-    const uhrzeit = (kombi ? uhrzeitLesen(ohneDatum(kombi)) : '') || uhrzeitLesen(wert(zeile, 'uhrzeit')) || (spalteVon('uhrzeit') == null ? ankunft : '');
+    // Zeitraum in der Zeitzelle ("14:00-14:30", "zwischen 14 und 15 Uhr") oder eigene Spalte "bis".
+    // Zuerst, weil uhrzeitLesen aus "zwischen 14 und 15 Uhr" sonst 15:00 macht.
+    const raum = (kombi ? zeitraumLesen(ohneDatum(kombi)) : null) || zeitraumLesen(wert(zeile, 'uhrzeit'));
+    const uhrzeit = raum?.von || (kombi ? uhrzeitLesen(ohneDatum(kombi)) : '') || uhrzeitLesen(wert(zeile, 'uhrzeit')) || (spalteVon('uhrzeit') == null ? ankunft : '');
+    const bisSpalte = uhrzeitLesen(wert(zeile, 'uhrzeitBis'));
+    const uhrzeitBis = raum ? raum.bis : (bisSpalte && uhrzeit && bisSpalte > uhrzeit ? bisSpalte : '');
     const fahrerName = wert(zeile, 'fahrer');
+    // Mehrere Fahrer in einer Zelle ("Max, Tim", "Max / Tim", "Max + Tim") wie Fahrer 1..n im Formular.
+    const fahrerNamen = fahrerName ? fahrerName.split(/\s*[,;/+&]\s*|\s+und\s+|\n/i).map((n) => n.trim()).filter(Boolean) : [];
+    const stopps = alleWerte(zeile, 'zwischenstopp')
+      .flatMap((z) => z.split(/\s*(?:;|→|->|\n|\s\|\s)\s*/)).map((z) => z.trim()).filter(Boolean)
+      .map((z) => ergaenztOrt(z));
+    const anzahlFahrzeuge = Number.parseInt(wert(zeile, 'anzahlFahrzeuge'), 10);
+    const storniert = /storn|abgesagt|cancel|annul|entf[aä]llt|gestrichen/i.test(wert(zeile, 'status'));
     // Kurzname, der woanders in der Datei mit Anschrift steht, bekommt die Anschrift.
     const ergaenzt = (ort) => (ort && !ort.includes(',') && kontext?.orte?.[schluessel(ort)]) || ort;
     const abholort = ergaenzt(wert(zeile, 'abholort'));
@@ -601,7 +653,7 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
     const hinweise = [];
 
     // Folgezeile: nur weitere Gaeste (oder Notiz) ohne eigene Fahrtangaben. Gehoert zur Fahrt darueber.
-    const eigeneAngaben = datum || uhrzeit || abholort || (!zielAusDatei && zielort) || flug || zug;
+    const eigeneAngaben = datum || uhrzeit || abholort || (!zielAusDatei && zielort) || flug || zug || stopps.length;
     if (!eigeneAngaben && letzte && (gaeste.length || wert(zeile, 'notiz'))) {
       letzte.daten.passengers.push(...gaeste.filter((g) => !letzte.daten.passengers.includes(g)));
       if (wert(zeile, 'notiz')) letzte.daten.note = [letzte.daten.note, wert(zeile, 'notiz')].filter(Boolean).join(' · ');
@@ -633,6 +685,7 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
       ride_date: datum || null,
       etd: uhrzeit ? `${uhrzeit}:00` : null,
       original_etd: uhrzeit ? `${uhrzeit}:00` : null,
+      etd_bis: uhrzeitBis ? `${uhrzeitBis}:00` : null,
       pickup_name: kurzname(abholort) || null,
       pickup_address: abholort || null,
       dropoff_name: kurzname(zielort) || null,
@@ -648,8 +701,12 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
       needs_luggage: flag('gepaeck'),
       note: notiz || null,
       fahrer_name: fahrerName || null,
+      fahrer_namen: fahrerNamen.length > 1 ? fahrerNamen : null,
+      konvoi: wert(zeile, 'konvoi') || null,
+      anzahl_fahrzeuge: Number.isFinite(anzahlFahrzeuge) && anzahlFahrzeuge > 1 ? Math.min(anzahlFahrzeuge, 20) : null,
+      storniert,
       ankunft: ankunft && ankunft !== uhrzeit ? ankunft : null,
-      zwischenstopps: [],
+      zwischenstopps: stopps,
     };
 
     // Gleiche Fahrt in mehreren Zeilen (ein Gast je Zeile): zusammenfassen.
@@ -727,7 +784,9 @@ export const fahrtPruefen = (satz) => {
   if (!d.etd) satz.fehlt.push('uhrzeit');
   if (!text(d.pickup_address)) satz.fehlt.push('abholort');
   if (!text(d.dropoff_address)) satz.fehlt.push('zielort');
-  const behalten = (satz.hinweise || []).filter((h) => ['mehrereZeilen', 'datumUebernommen', 'datumAusDatei', 'zielAusDatei', 'llama', 'doppelt', 'adresseUnbekannt', 'zwischenstopp', 'fahrerUnbekannt', 'ausWeiteremBlatt'].includes(h));
+  const behalten = (satz.hinweise || []).filter((h) => ['mehrereZeilen', 'datumUebernommen', 'datumAusDatei', 'zielAusDatei', 'llama', 'doppelt', 'adresseUnbekannt', 'zwischenstopp', 'fahrerUnbekannt', 'konvoiUnbekannt', 'ausWeiteremBlatt'].includes(h));
+  if (d.storniert) behalten.push('storniert');
+  if ((d.zwischenstopps || []).length > 8) behalten.push('zuVieleStopps');
   if (d.ride_date && d.ride_date < heuteIso()) behalten.push('vergangen');
   if (d.anzahl && d.passengers.length > d.anzahl) behalten.push('mehrNamenAlsPersonen');
   if (d.pickup_address && d.dropoff_address && adresseVergleich(d.pickup_address) === adresseVergleich(d.dropoff_address)) behalten.push('gleicheAdresse');
@@ -744,6 +803,8 @@ export const fahrtZeile = (daten) => {
     ride_date: d.ride_date,
     etd: d.etd,
     original_etd: d.original_etd || d.etd,
+    // Zeitraum nur, wenn das Ende nach dem Start liegt.
+    etd_bis: d.etd_bis && d.etd && String(d.etd_bis).slice(0, 5) > String(d.etd).slice(0, 5) ? d.etd_bis : null,
     pickup_name: text(d.pickup_name) || kurzname(d.pickup_address) || null,
     pickup_address: text(d.pickup_address) || null,
     dropoff_name: text(d.dropoff_name) || kurzname(d.dropoff_address) || null,
@@ -752,17 +813,18 @@ export const fahrtZeile = (daten) => {
     flight_origin: text(d.flight_origin) || null,
     train_number: text(d.train_number) || null,
     passengers: gaeste,
-    zwischenstopps: (d.zwischenstopps || []).map(text).filter(Boolean),
+    // Wie im Formular: hoechstens 8, ohne Doppelte.
+    zwischenstopps: [...new Set((d.zwischenstopps || []).map(text).filter(Boolean))].slice(0, 8),
     // Fahrer aus der Liste (beim Einlesen zugeordnet). Die Fahrt bleibt offen, bis er annimmt.
     driver_id: /^[0-9a-f-]{36}$/i.test(String(d.driver_id || '')) ? String(d.driver_id).toLowerCase() : null,
     // jobs kennt keine Gesamtzahl: wer ueber die Namen hinaus mitfaehrt, zaehlt als anonymer Gast.
     anonymous_guests: Math.max(0, anzahl - gaeste.length),
-    trip_type: d.flight_number || FLUGHAFEN.test(d.pickup_address || '') || FLUGHAFEN.test(d.dropoff_address || '') ? 'airport' : 'normal',
+    trip_type: d.flight_number || FLUGHAFEN.test(d.pickup_address || '') || FLUGHAFEN.test(d.dropoff_address || '') ? 'airport' : (text(d.train_number) ? 'train' : 'normal'),
     is_vip: Boolean(d.is_vip),
     needs_child_seat: Boolean(d.needs_child_seat),
     needs_accessibility: Boolean(d.needs_accessibility),
     needs_luggage: Boolean(d.needs_luggage),
-    status: 'pending',
+    status: d.storniert ? 'cancelled' : 'pending',
     driver_response_status: 'pending',
   };
   return zeile;

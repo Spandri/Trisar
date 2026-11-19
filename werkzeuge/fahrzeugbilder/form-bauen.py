@@ -11,7 +11,7 @@ Die Apps rechnen damit:
   Punkt am Auto  ->  Bildpunkt in jeder Ansicht, sichtbar wenn der Strahl dorthin nicht vorher auf das Auto trifft
 
 Kamera (Bildpunkte im 800 px breiten Drehbild), Autokoordinaten in Metern: x quer (+ = links), y hoch, z (+ = vorne).
-  th = k * 10 Grad,  x' = x cos th + z sin th,  z' = -x sin th + z cos th,  y' = y - h0
+  th = k * 10 Grad (Dacia: echter Winkel aus <modell>-winkel.json),  x' = x cos th + z sin th,  z' = -x sin th + z cos th,  y' = y - h0
   y2 = y' cos phi - z' sin phi,  z2 = y' sin phi + z' cos phi,  d = D - z2
   u = cx + s*D * x'/d,  v = cy - s*D * y2/d
 Der Massstab ist geschaetzt (Laenge ~4,9 m, V-Klasse 5,14 m). Die Apps benennen die Stelle deshalb nur relativ
@@ -33,6 +33,7 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 AUSGABE = os.path.join(HIER, "ausgabe")
 N = 36
 SCHRITT = 0.015
+WINKEL = [k * 10.0 for k in range(N)]  # je Ansicht; Dacia hat nur 15-Grad-Bilder (dacia-verarbeiten.py)
 
 
 def masken_laden(mid, lack):
@@ -46,7 +47,7 @@ def masken_laden(mid, lack):
 
 def projizieren(P, k, p):
     s, D, phi, cx, cy, h0 = p
-    th = np.deg2rad(k * 10.0)
+    th = np.deg2rad(WINKEL[k])
     x = P[:, 0] * np.cos(th) + P[:, 2] * np.sin(th)
     z = -P[:, 0] * np.sin(th) + P[:, 2] * np.cos(th)
     y = P[:, 1] - h0
@@ -142,7 +143,10 @@ def kamera_schaetzen(M):
 
 
 def form_bauen(mid, lack, neu):
+    global WINKEL
     pj = os.path.join(AUSGABE, f"{mid}-form.json")
+    pw = os.path.join(AUSGABE, f"{mid}-winkel.json")
+    WINKEL = [float(w) for w in json.load(open(pw))] if os.path.exists(pw) else [k * 10.0 for k in range(N)]
     M = masken_laden(mid, lack)
     h, w = M[0].shape
     if os.path.exists(pj) and not neu:

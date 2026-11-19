@@ -169,6 +169,7 @@ internal object KartenFilter {
         sucheSetzen(""); feierabendMinuten = ""
         limousine = false; suv = false; van = false; coupe = false
         OhneSignal.zuruecksetzen()
+        KartenStil.setzen(KartenStil.STANDARD)
     }
 }
 

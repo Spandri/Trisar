@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.toArgb
@@ -157,26 +158,30 @@ internal fun DispoKarte(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(hex(0x0E0E0E))) {
+    // Kartenstil aus dem Karten Filter (Dunkel/Hell/Farbig/Satellit), wechselt live.
+    StilFolgen(s.karte) { s.nachStil() }
+    Box(Modifier.fillMaxSize().background(hex(if (KartenStil.istHell) 0xF2F2F2 else 0x0E0E0E))) {
         AndroidView(factory = { ctx -> s.erzeugen(ctx) { leer() } }, modifier = Modifier.fillMaxSize())
         KartenEbene(s, stand, waehlen, ortTippen)
     }
 
     SideEffect { s.setzen(stand); steuerung(s) }
-}
-
-/** Pins, Gruppen, Abholort, Ziel und Dauer-Schilder ueber der Karte. */
     // Eigener Standort als blauer Punkt (17.11.), ohne Erlaubnis kein Punkt.
     DisposableEffect(Unit) {
         val ab = de.trisar.dispo.EigenerStandort.abonnieren { s.eigenerPunkt.setzen(s.karte, s.ansicht?.context, it) }
         onDispose { ab() }
     }
+}
+
+/** Pins, Gruppen, Abholort, Ziel und Dauer-Schilder ueber der Karte. */
 @Composable
 private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String) -> Unit, ortTippen: (String) -> Unit) {
     @Suppress("UNUSED_VARIABLE") val takt = s.takt.intValue
     val karte = s.karte ?: return
     val dichte = s.dichte
     val proj = karte.projection
+    // Helle Karte: weisser Rand um Pins und Gruppen (leicht groessere weisse Kopie dahinter).
+    val hell = KartenStil.istHell
     fun bild(p: KartenPunkt): Pair<Float, Float> {
         val pt = proj.toScreenLocation(LatLng(p.lat, p.lng))
         return pt.x / dichte to pt.y / dichte
@@ -220,6 +225,42 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
     }
     val inGruppe = vergeben.map { kandidaten[it].first.id }.toSet()
 
+    // Fahrer am gleichen Ort (2 bis 4, oder die immer einzelnen) nicht uebereinander, sondern nebeneinander:
+    // Pins naeher als NEBENEINANDER bilden ueber Nachbarn eine Reihe, mittig, nach Fahrernummer. Nur Anzeige.
+    val nebeneinander = 26f
+    val sichtbar = stand.fahrer.filter { it.id !in inGruppe && it.id !in aufReise }.map { it to bild(it.ort) }
+    val versatz = HashMap<String, Pair<Float, Float>>()
+    val zugeteilt = HashSet<Int>()
+    for (i in sichtbar.indices) {
+        if (i in zugeteilt) continue
+        val reihe = mutableListOf(i)
+        zugeteilt += i
+        var k = 0
+        while (k < reihe.size) {
+            val a = sichtbar[reihe[k]].second
+            for (j in sichtbar.indices) {
+                if (j in zugeteilt) continue
+                val b = sichtbar[j].second
+                if (hypot(a.first - b.first, a.second - b.second) >= nebeneinander) continue
+                zugeteilt += j
+                reihe += j
+            }
+            k++
+        }
+        if (reihe.size < 2) continue
+        val glieder = reihe.map { sichtbar[it] }.sortedWith { a, b ->
+            val na = a.first.nummer?.toDoubleOrNull(); val nb = b.first.nummer?.toDoubleOrNull()
+            if (na != null && nb != null && na != nb) return@sortedWith na.compareTo(nb)
+            val c = (a.first.nummer ?: a.first.id).compareTo(b.first.nummer ?: b.first.id)
+            if (c != 0) c else a.first.id.compareTo(b.first.id)
+        }
+        val mx = glieder.sumOf { it.second.first.toDouble() }.toFloat() / glieder.size
+        val my = glieder.sumOf { it.second.second.toDouble() }.toFloat() / glieder.size
+        glieder.forEachIndexed { n, (f, p) ->
+            versatz[f.id] = (mx + (n - (glieder.size - 1) / 2f) * nebeneinander - p.first) to (my - p.second)
+        }
+    }
+
     for (g in gruppen) {
         val mitte = KartenPunkt(g.sumOf { it.lat } / g.size, g.sumOf { it.lng } / g.size)
         val (x, y) = bild(mitte)
@@ -228,6 +269,7 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
             Modifier.ankern(x, y, 0.5f, 0.5f).zIndex(if (fokus) 210f else 1450f).size(35.dp)
                 .tippen { s.gruppeOeffnen(g.map { it.ort }) },
         ) {
+            if (hell) Icon("Gruppe_Kreis_Trisar_01", Modifier.fillMaxSize().scale(RAND), farbe = ColorFilter.tint(Color.White))
             if (fokus) Icon("Gruppe_Kreis_Trisar_01", Modifier.fillMaxSize(), farbe = ColorFilter.tint(hex(0x0E0E0E)))
             Box(Modifier.fillMaxSize().alpha(if (fokus) 0.3f else 1f), contentAlignment = Alignment.Center) {
                 Icon("Gruppe_Kreis_Trisar_01", Modifier.fillMaxSize())
@@ -243,12 +285,16 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
         // Fokus: ist ein Fahrer gewaehlt, treten alle anderen zurueck (ausser seiner Kolonne).
         val blass = if (markiert != null) f.id !in markiert else gewaehltID != null && !istGewaehlt && !inKolonne
         val hoehe = if (istGewaehlt) 2000f else if (blass) 200f else if (inKolonne || markiert != null) 1500f else 1000f
-        val (x, y) = bild(f.ort)
+        val (bx, by) = bild(f.ort)
+        val (dx, dy) = versatz[f.id] ?: (0f to 0f)
+        val x = bx + dx
+        val y = by + dy
         val name = f.zustand.pinBild(f.zuendungAus)
         if (f.offline) {
             // Kein Signal seit 5 Minuten (Figma 2823-12621): dunkler Grund, grauer Kreis 50 %, roter Punkt
             // unten rechts, Nummer weiss, Signalbalken im Punkt. Mitte auf dem letzten Ort.
             Box(Modifier.ankern(x, y, 0.5f, 0.5f).zIndex(hoehe).size(36.dp, 35.dp).tippen { waehlen(f.id) }) {
+                if (hell) Icon("Fahrer_Offline_Grund_Trisar_01", Modifier.size(35.dp).scale(RAND), farbe = ColorFilter.tint(Color.White))
                 if (blass) Icon("Fahrer_Offline_Grund_Trisar_01", Modifier.size(35.dp), farbe = ColorFilter.tint(hex(0x0E0E0E)))
                 Box(Modifier.fillMaxSize().alpha(if (blass) 0.3f else 1f)) {
                     Icon("Fahrer_Offline_Grund_Trisar_01", Modifier.size(35.dp))
@@ -265,6 +311,7 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
         }
         // Fahrer-Pin 35 x 41,14, Spitze auf dem Ort, Nummer (15 fett, #1A1A1A) mittig im Kopf.
         Box(Modifier.ankern(x, y, 0.5f, 1f).zIndex(hoehe).size(35.dp, 41.1367.dp).tippen { waehlen(f.id) }) {
+            if (hell) Icon(name, Modifier.fillMaxSize().scale(RAND), farbe = ColorFilter.tint(Color.White))
             if (blass) Icon(name, Modifier.fillMaxSize(), farbe = ColorFilter.tint(hex(0x0E0E0E)))
             Box(Modifier.fillMaxSize().alpha(if (blass) 0.3f else 1f)) {
                 Icon(name, Modifier.fillMaxSize())
@@ -338,6 +385,8 @@ private fun KartenEbene(s: KartenSteuerung, stand: KartenStand, waehlen: (String
 }
 
 /** Element so legen, dass der Anteil (ax, ay) seiner Groesse auf (x, y) im Raster liegt. */
+private const val RAND = 1.12f
+
 private fun Modifier.ankern(x: Float, y: Float, ax: Float, ay: Float): Modifier = this.then(
     Modifier.wrapContentSize(unbounded = true, align = Alignment.TopStart).layout { messbar, grenzen ->
         val p = messbar.measure(grenzen.copy(minWidth = 0, minHeight = 0))
@@ -362,6 +411,7 @@ internal class KartenSteuerung {
     val takt = mutableIntStateOf(0)
     val marken = mutableStateListOf<RoutenMarke>()
     var abseits: (KartenPunkt) -> Unit = {}
+    val eigenerPunkt = EigenerPunkt()
 
     private var stand = KartenStand()
     private var stilGeladen = false
@@ -372,7 +422,6 @@ internal class KartenSteuerung {
     private class Teil(val art: String, val pfad: List<KartenPunkt>, val schild: RoutenMarke?)
     private var teile = listOf<Teil>()
     private var fpTeil = 0
-    val eigenerPunkt = EigenerPunkt()
     private var fpIndex = 0
     private var fpGefunden = false
     private var routenSchluessel = ""
@@ -388,6 +437,7 @@ internal class KartenSteuerung {
 
     fun erzeugen(ctx: Context, leerTippen: () -> Unit): MapView {
         MapLibre.getInstance(ctx)
+        KartenStil.laden(ctx)
         ablage = ctx.getSharedPreferences("trisar-dispo-karte", Context.MODE_PRIVATE)
         val v = MapView(ctx)
         v.onCreate(null)
@@ -414,16 +464,20 @@ internal class KartenSteuerung {
             }
             m.addOnMapClickListener { leerTippen(); true }
             karte = m
-            m.setStyle(Style.Builder().fromUri(Konfig.KARTEN_STIL)) {
-                stilGeladen = true
-                ortKreisSchluessel = ""
-                bereichSchluessel = null
-                routenSchluessel = ""
-                letzterFortschritt = ""
-                setzen(stand)
-            }
+            KartenStil.stilSetzen(m) { nachStil() }
         }
         return v
+    }
+
+    /** Neuer Stil geladen (auch nach Umschalten im Filter): Linien und Kreise neu zeichnen. */
+    fun nachStil() {
+        stilGeladen = true
+        ortKreisSchluessel = ""
+        bereichSchluessel = null
+        routenSchluessel = ""
+        letzterFortschritt = ""
+        setzen(stand)
+        eigenerPunkt.zeigen(karte, ansicht?.context)
     }
 
     fun setzen(neu: KartenStand) {

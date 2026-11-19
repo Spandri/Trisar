@@ -197,6 +197,13 @@ const dienstZeitpunkte = (request) => {
   return { start: start ? new Date(start).getTime() : null, ende: ende ? new Date(ende).getTime() : null };
 };
 
+// Uhrzeit eines Zeitpunkts in Deutschland (HH:MM).
+const uhrBerlin = (iso) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
+};
+
 const PENDING_JOB_STATUSES = new Set(['pending', 'new', 'offered', 'requested', 'assigned_pending']);
 const PENDING_CONVOY_RESPONSES = new Set(['pending', 'new', 'offered', 'requested']);
 
@@ -283,6 +290,8 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
   let cursorTop = VEHICLE_CARD_TOP + fahrzeugKarteHoehe + DAY_DIVIDER_GAP_BOTTOM;
   let pausenWarte = [];
   let reisenWarte = [];
+  // Tage, an denen eine Fahrt "Danach Dienstende" hat: dort steht das Dienstende unter der Fahrt.
+  const endeUnterFahrt = new Set((jobs || []).filter((job) => job?.danachDienstende).map((job) => tagSchluessel(job)));
 
   const tagBeginnen = (tag) => {
     if (zeilen.length) cursorTop += DAY_DIVIDER_GAP_TOP;
@@ -338,7 +347,7 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
   };
   const tagBeenden = (tag, mitFahrten) => {
     pausenBis(Number.POSITIVE_INFINITY);
-    (anfragenProTag.get(tag) || []).filter((r) => r.angenommen && r.zeigeEnde).forEach((request) => {
+    (anfragenProTag.get(tag) || []).filter((r) => r.angenommen && r.zeigeEnde && !endeUnterFahrt.has(tag)).forEach((request) => {
       dienste.push({ request, top: cursorTop, art: 'ende' });
       cursorTop += DIENST_ZEILE_HOEHE + CARD_GAP;
     });
@@ -376,6 +385,11 @@ const buildListenLayout = (jobs, anfragen, fahrzeugKarteHoehe = VEHICLE_CARD_HEI
       ? actionTop + ACTION_HEIGHT + AFTER_ACTION_GAP
       : cardTop + cardHeight + CARD_GAP;
     fahrten.push({ cardTop, actionTop, cardHeight });
+    if (job?.danachDienstende) {
+      const request = (anfragenProTag.get(tag) || []).find((r) => r.angenommen) || null;
+      dienste.push({ request, job, top: cursorTop, art: 'fahrtende' });
+      cursorTop += DIENST_ZEILE_HOEHE + CARD_GAP;
+    }
   });
   if (letzterTag) tagBeenden(letzterTag, true);
 
@@ -897,7 +911,22 @@ const FahrtenScreen01View = ({
                   </div>
                 ))}
 
-                {listenLayout.dienste.map(({ request, top, art, zeile }, index) => {
+                {listenLayout.dienste.map(({ request, job, top, art, zeile }, index) => {
+                  if (art === 'fahrtende') {
+                    // Danach Dienstende (19.11.): vor dem Ende ohne Zeit, danach mit der echten Ankunft.
+                    const zeit = job?.ankunftEcht ? uhrBerlin(job.ankunftEcht) : '';
+                    return (
+                      <div
+                        key={`${job?.id}-fahrtende`}
+                        className="absolute left-5 w-[362px] outline outline-1 outline-offset-[-1px] flex items-center px-4"
+                        style={{ top: `${top}px`, height: `${DIENST_ZEILE_HOEHE}px`, outlineColor: '#FF6F63' }}
+                      >
+                        <span className="text-2xl font-bold leading-6 tracking-wide" style={{ color: '#FF6F63', fontFamily: 'Space Grotesk' }}>
+                          {zeit ? t('misc.shiftEnd', { time: zeit }) : t('misc.afterShiftEnd')}
+                        </span>
+                      </div>
+                    );
+                  }
                   if (art !== 'karte') {
                     const farbe = art === 'start' ? '#E3F654' : art === 'ende' ? '#FF6F63' : GRAU;
                     const zeit = (art === 'start' ? request.startTime : request.endTime).slice(0, 5);

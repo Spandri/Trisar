@@ -21,7 +21,7 @@ export default class FehlerGrenze extends Component {
     if (!fehler) return this.props.children;
     const knopf = { height: 48, padding: '0 16px', fontWeight: 700, fontSize: 15, fontFamily: 'Space Grotesk', cursor: 'pointer' };
     return (
-      <div style={{ minHeight: '100dvh', background: '#000', color: '#fff', fontFamily: 'Space Grotesk', padding: '60px 20px' }}>
+      <div style={{ minHeight: 'var(--app-h, 100dvh)', background: '#000', color: '#fff', fontFamily: 'Space Grotesk', padding: '60px 20px' }}>
         <div style={{ maxWidth: 362, margin: '0 auto' }}>
           <div style={{ color: '#E3F654', fontSize: 32, fontWeight: 700 }}>Da ist etwas schiefgelaufen</div>
           <div style={{ marginTop: 16, color: '#ff6f63', fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>

@@ -136,6 +136,7 @@ final class KartenFilter: ObservableObject {
         fahrerSuche = ""; gewaehlteFahrerIDs = []; feierabendMinuten = ""
         limousine = false; suv = false; van = false; coupe = false
         OhneSignalEinstellung.geteilt.zuruecksetzen()
+        KartenStil.geteilt.art = KartenStil.standard
     }
 }
 

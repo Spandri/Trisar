@@ -130,7 +130,7 @@ private fun FahrzeugListeSeite(
         markierteFahrzeuge = if (markierungWirkt) FahrerMarkierung.fahrzeugIDsLaden() else emptySet()
     }
     val liste = filter.anwenden(dienst.fahrzeuge).let { l ->
-        if (markierungWirkt) l.sortedBy { it.id !in markierteFahrzeuge } else l
+        if (markierungWirkt) l.sortedBy { it.id !in markierteFahrzeuge } else l.sortedBy { !it.neuErkannt }
     }
     val listeOben = if (markierungWirkt) 354f + 56f else 354f
     androidx.compose.runtime.LaunchedEffect(dienst.fahrzeuge) {
@@ -212,12 +212,18 @@ private fun FahrzeugListenKarte(fahrzeug: StammFahrzeug, modifier: Modifier) {
             }, style = grotesk(12f, farbe = hex(0x1D1C1D, 0.2f)), maxLines = 1)
         }
         TextZeile(fahrzeug.plate, grotesk(30f, 700, 32f, -0.5f, hex(0x1D1C1D)), Modifier.platz(170f, 38f), hoehe = 32f)
-        Row(Modifier.platz(170f, 76f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            // Die Kacheln sind fuer 52 gebaut, die Admin-Liste zeigt sie in 36.
-            DispoKraftstoffKachel(fahrzeug.fuelType, 36f)
-            DispoFarbKachel(fahrzeug.color, 36f)
-            DispoEnergieKachel(fahrzeug.fuelType, fahrzeug.fill, fahrzeug.range, 36f)
-            DispoSitzKachel(fahrzeug.seatCount, 36f)
+        if (fahrzeug.neuErkannt) {
+            Box(Modifier.platz(170f, 76f).height(36.dp).background(LIME).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+                Text("Neu", style = grotesk(14f, 700, farbe = hex(0x1D1C1D)), maxLines = 1)
+            }
+        } else {
+            Row(Modifier.platz(170f, 76f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Die Kacheln sind fuer 52 gebaut, die Admin-Liste zeigt sie in 36.
+                DispoKraftstoffKachel(fahrzeug.fuelType, 36f)
+                DispoFarbKachel(fahrzeug.color, 36f)
+                DispoEnergieKachel(fahrzeug.fuelType, fahrzeug.fill, fahrzeug.range, 36f)
+                DispoSitzKachel(fahrzeug.seatCount, 36f)
+            }
         }
     }
 }
@@ -304,8 +310,8 @@ internal fun DispoEnergieKachel(kraftstoff: String?, fuellstand: Double?, reichw
     val f = (kraftstoff ?: "").lowercase()
     val elektrisch = f.contains("elektr") || f == "ev" || f == "bev"
     val fill = fuellstand?.let { max(0.0, min(100.0, Math.rint(it))).toInt() }
-    val maxReichweite = if ((reichweite ?: 0.0) > 0) reichweite!! else if (elektrisch) 500.0 else 650.0
-    val km = fill?.let { (it / 100.0 * maxReichweite).roundToInt() }
+    // Ohne Reichweite bei vollem Tank (Tracker, Modellvariante) keine Kilometer: Strich statt Annahme.
+    val km = if (fill != null && reichweite != null && reichweite > 0) (fill / 100.0 * reichweite).roundToInt() else null
     DispoKachelRahmen(groesse) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
             if (elektrisch) {
@@ -392,7 +398,16 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
 
     var markeModell by remember { mutableStateOf(fahrzeug?.brandModel ?: "") }
     var variante by remember { mutableStateOf(fahrzeug?.trim ?: "") }
+    // Gewaehlte Zeile aus fahrzeug_varianten, Liste dazu vom Server.
+    var varianteID by remember { mutableStateOf(fahrzeug?.varianteID ?: "") }
+    var varianten by remember { mutableStateOf(emptyList<FahrzeugVariante>()) }
+    var varianteOffen by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { varianten = FahrzeugeDienst.variantenLaden() }
     var vin by remember { mutableStateOf(fahrzeug?.vin ?: "") }
+    // Fahrzeugschein 2.1 / 2.2. Sind beide vollstaendig, fuellt die KBA-Typliste (kba_typen) Modell, Variante, Kraftstoff und Sitze.
+    var hsn by remember { mutableStateOf((fahrzeug?.hsn ?: "").trim()) }
+    var tsn by remember { mutableStateOf((fahrzeug?.tsn ?: "").trim()) }
+    var kbaGeladen by remember { mutableStateOf("${(fahrzeug?.hsn ?: "").trim()}/${(fahrzeug?.tsn ?: "").trim()}".uppercase()) }
     var kennzeichen by remember { mutableStateOf(fahrzeug?.licensePlate ?: "") }
     var farbe by remember { mutableStateOf(fahrzeug?.color ?: "") }
     // Vorschlaege fuer Marke & Modell und Farbe: Modelle und Lacke mit 360-Grad-Ansicht in der Fahrer-App.
@@ -401,6 +416,20 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
     val fokusDreh = LocalFocusManager.current
     var sitze by remember { mutableStateOf(fahrzeug?.seatCount?.toString() ?: "") }
     var kraftstoff by remember { mutableStateOf(fahrzeug?.fuelType ?: "") }
+    androidx.compose.runtime.LaunchedEffect(hsn, tsn) {
+        val h = hsn.trim().uppercase()
+        val t3 = tsn.trim().uppercase()
+        val schluessel = "$h/$t3"
+        if (!Regex("^\\d{4}$").matches(h) || !Regex("^[A-Z0-9]{3}$").matches(t3) || kbaGeladen == schluessel) return@LaunchedEffect
+        val typ = FahrzeugeDienst.kbaLaden(h, t3) ?: return@LaunchedEffect
+        kbaGeladen = schluessel
+        typ.brand_model?.let { markeModell = it }
+        variante = typ.trim ?: ""
+        varianteID = ""
+        typ.fuel_type?.let { kraftstoff = it }
+        // KBA zaehlt den Fahrersitz mit, das Feld ist die Beifahreranzahl.
+        typ.sitze?.takeIf { it > 1 }?.let { sitze = (it - 1).toString() }
+    }
     var bildURL by remember { mutableStateOf(fahrzeug?.imageUrl ?: "") }
     var speichert by remember { mutableStateOf(false) }
     var loeschFrage by remember { mutableStateOf(false) }
@@ -457,7 +486,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
     fun bildWaehlen() = bildWahl.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
 
     fun leeren() {
-        markeModell = ""; variante = ""; vin = ""; kennzeichen = ""; farbe = ""; sitze = ""; kraftstoff = ""; bildURL = ""; neuFahrer = ""
+        markeModell = ""; variante = ""; varianteID = ""; vin = ""; hsn = ""; tsn = ""; kbaGeladen = ""; kennzeichen = ""; farbe = ""; sitze = ""; kraftstoff = ""; bildURL = ""; neuFahrer = ""
     }
 
     /** saveVehicle: Pflicht ist Marke & Modell, Sitze nur als ganze Zahl, leere Felder als null. */
@@ -473,7 +502,12 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
         val inhalt = JsonObject(linkedMapOf<String, JsonElement>(
             "brand_model" to JsonPrimitive(marke),
             "trim" to jsonText(variante),
+            // Variante nur, wenn sie noch zu Marke & Modell und zur Variante passt.
+            "variante_id" to (varianten.firstOrNull { it.id == varianteID && it.passt(marke) && it.variante == variante }
+                ?.let { JsonPrimitive(it.id) } ?: JsonNull),
             "vin" to jsonText(vin),
+            "hsn" to jsonText(hsn.trim().uppercase()),
+            "tsn" to jsonText(tsn.trim().uppercase()),
             "license_plate" to jsonText(kennzeichen),
             "color" to jsonText(farbe),
             "seat_count" to (sitzZahl?.let { JsonPrimitive(it) } ?: JsonNull),
@@ -515,7 +549,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
     val trackerVersatz = if (bearbeiten && tracker.isNotEmpty()) 136f else 0f
     // Fahrer-Zeile (auch beim Neuanlegen) unter Bild bzw. Tracker, alles darunter 68 tiefer.
     val fahrerVersatz = 68f
-    val fahrerY = 682f + trackerVersatz
+    val fahrerY = 750f + trackerVersatz
     val aktivitaet = NfcTagDienst.activity(ctx)
     DisposableEffect(Unit) { onDispose { aktivitaet?.let { NfcTagDienst.stoppen(it) } } }
 
@@ -541,7 +575,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
             )
         } ?: "Tag jetzt ans Handy halten zum Auslesen."
     }
-    val inhalt = if (bearbeiten) max(913f + trackerVersatz + fahrerVersatz, 898f + trackerVersatz + fahrerVersatz + schadenHoehe + 70f) else 913f
+    val inhalt = if (bearbeiten) max(981f + trackerVersatz + fahrerVersatz, 966f + trackerVersatz + fahrerVersatz + schadenHoehe + 70f) else 981f
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         Leinwand(874f, inhalt) { rahmen ->
             DispoHintergrund(Modifier.platz(0f, 0f, 402f, max(rahmen, inhalt)))
@@ -551,19 +585,41 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
 
             BoxFeld("Marke & Modell", markeModell, { markeModell = it }, Modifier.platz(20f, 206f, 178f, 56f), gross = KeyboardCapitalization.Words,
                 fokusGeaendert = { if (it) vorschlagFeld = "modell" else if (vorschlagFeld == "modell") vorschlagFeld = null })
-            BoxFeld("Modell Variante", variante, { variante = it }, Modifier.platz(204f, 206f, 178f, 56f), gross = KeyboardCapitalization.Words)
-            BoxFeld("VIN", vin, { vin = it }, Modifier.platz(20f, 274f, 362f, 56f), gross = KeyboardCapitalization.Characters)
-            BoxFeld("Kennzeichen", kennzeichen, { kennzeichen = it }, Modifier.platz(20f, 342f, 362f, 56f), gross = KeyboardCapitalization.Characters)
-            BoxFeld("Farbe", farbe, { farbe = it }, Modifier.platz(20f, 410f, 362f, 56f),
+            val passendeVarianten = varianten.filter { it.passt(markeModell) }
+            if (passendeVarianten.isEmpty()) {
+                BoxFeld("Modell Variante", variante, { variante = it }, Modifier.platz(204f, 206f, 178f, 56f), gross = KeyboardCapitalization.Words)
+            } else {
+                // Auswahl wie beim Kraftstoff, sobald es zu Marke & Modell Varianten gibt.
+                Box(Modifier.platz(204f, 206f, 178f, 56f).border(2.dp, LIME).tippen { varianteOffen = true }, contentAlignment = Alignment.CenterStart) {
+                    Text(variante.ifEmpty { "Modell Variante" }, style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x8A9728)), maxLines = 1,
+                        modifier = Modifier.padding(start = 16.dp, end = 30.dp).alpha(if (variante.isEmpty()) 0.9f else 1f))
+                    Icon("Arrow-kurz_Trisar_Icons_01_Lime", Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(10.dp, 13.dp).rotate(90f))
+                    DropdownMenu(varianteOffen, { varianteOffen = false }, Modifier.background(hex(0x1E1E1E))) {
+                        for (v in passendeVarianten) {
+                            DropdownMenuItem(text = { Text("${v.variante}  ${v.generation}", style = grotesk(16f, farbe = Color.White)) }, onClick = {
+                                variante = v.variante; varianteID = v.id
+                                if (kraftstoff.isEmpty()) v.kraftstoff?.let { kraftstoff = it }
+                                varianteOffen = false
+                            })
+                        }
+                    }
+                }
+            }
+            BoxFeld("HSN", hsn, { hsn = it.filter { c -> c.isDigit() }.take(4) }, Modifier.platz(20f, 274f, 178f, 56f), tastatur = KeyboardType.Number)
+            BoxFeld("TSN", tsn, { tsn = it.uppercase().filter { c -> c in 'A'..'Z' || c.isDigit() }.take(3) }, Modifier.platz(204f, 274f, 178f, 56f),
+                gross = KeyboardCapitalization.Characters)
+            BoxFeld("VIN", vin, { vin = it }, Modifier.platz(20f, 342f, 362f, 56f), gross = KeyboardCapitalization.Characters)
+            BoxFeld("Kennzeichen", kennzeichen, { kennzeichen = it }, Modifier.platz(20f, 410f, 362f, 56f), gross = KeyboardCapitalization.Characters)
+            BoxFeld("Farbe", farbe, { farbe = it }, Modifier.platz(20f, 478f, 362f, 56f),
                 fokusGeaendert = { if (it) vorschlagFeld = "farbe" else if (vorschlagFeld == "farbe") vorschlagFeld = null })
             // Farbe passt zu einer Bilderreihe: Farbpunkt, die Fahrer-App zeigt das Auto drehbar
             FahrzeugDrehVorschlaege.lack(ctxDreh, markeModell, farbe)?.let { lack ->
-                Box(Modifier.platz(20f + 362f - 52f, 430f, 16f, 16f).background(hex(lack.hex), CircleShape).border(1.dp, LIME, CircleShape))
+                Box(Modifier.platz(20f + 362f - 52f, 498f, 16f, 16f).background(hex(lack.hex), CircleShape).border(1.dp, LIME, CircleShape))
             }
-            BoxFeld("Beifahreranzahl", sitze, { sitze = it.filter { c -> c.isDigit() } }, Modifier.platz(20f, 478f, 362f, 56f), tastatur = KeyboardType.Number)
+            BoxFeld("Beifahreranzahl", sitze, { sitze = it.filter { c -> c.isDigit() } }, Modifier.platz(20f, 546f, 362f, 56f), tastatur = KeyboardType.Number)
 
             // Select mit festen Kraftstoffen, ein abweichender gespeicherter Wert bleibt waehlbar.
-            Box(Modifier.platz(20f, 546f, 362f, 56f).border(2.dp, LIME).tippen { kraftstoffOffen = true }, contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.platz(20f, 614f, 362f, 56f).border(2.dp, LIME).tippen { kraftstoffOffen = true }, contentAlignment = Alignment.CenterStart) {
                 Text(kraftstoff.ifEmpty { "Antrieb / Kraftstoff" }, style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x8A9728)),
                     modifier = Modifier.padding(start = 16.dp).alpha(if (kraftstoff.isEmpty()) 0.9f else 1f))
                 Icon("Arrow-kurz_Trisar_Icons_01_Lime", Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(10.dp, 13.dp).rotate(90f))
@@ -575,7 +631,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
                 }
             }
 
-            Box(Modifier.platz(20f, 614f, 362f, 56f).border(2.dp, LIME), contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.platz(20f, 682f, 362f, 56f).border(2.dp, LIME), contentAlignment = Alignment.CenterStart) {
                 Box(Modifier.fillMaxSize().padding(start = 16.dp, end = 48.dp).tippen { bildWaehlen() }, contentAlignment = Alignment.CenterStart) {
                     Text(if (bildURL.isEmpty()) "Fahrzeugbild hochladen" else "Fahrzeugbild ändern",
                         style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x8A9728)), maxLines = 1)
@@ -592,7 +648,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
             }
 
             if (trackerVersatz > 0f) {
-                Box(Modifier.platz(20f, 682f, 362f, 56f).border(2.dp, LIME).tippen { trackerOffen = true }, contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.platz(20f, 750f, 362f, 56f).border(2.dp, LIME).tippen { trackerOffen = true }, contentAlignment = Alignment.CenterStart) {
                     val gewaehlt = tracker.firstOrNull { it.imei == trackerWahl }
                     Text(gewaehlt?.let { "Tracker ${it.nummer}" } ?: "Kein Tracker", style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x8A9728)),
                         modifier = Modifier.padding(start = 16.dp))
@@ -611,7 +667,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
                     Triple("Tag beschreiben", 20f, ::tagBeschreiben),
                     Triple("Tag auslesen", 207f, ::tagAuslesen),
                 )) {
-                    Box(Modifier.platz(x, 750f, 175f, 56f).border(2.dp, LIME).tippen { aktion() }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.platz(x, 818f, 175f, 56f).border(2.dp, LIME).tippen { aktion() }, contentAlignment = Alignment.Center) {
                         Text(text, style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME))
                     }
                 }
@@ -644,7 +700,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
             }
 
             Box(
-                Modifier.platz(20f, 694f + trackerVersatz + fahrerVersatz, 362f, 56f).alpha(if (speichert) 0.7f else 1f).background(hex(0xDBEE4A))
+                Modifier.platz(20f, 762f + trackerVersatz + fahrerVersatz, 362f, 56f).alpha(if (speichert) 0.7f else 1f).background(hex(0xDBEE4A))
                     .tippen { if (!speichert) speichern() },
                 contentAlignment = Alignment.Center,
             ) {
@@ -652,7 +708,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
                     style = grotesk(16f, 500, abstand = 0.5f, farbe = hex(0x0E1008)))
             }
 
-            Box(Modifier.platz(20f, 762f + trackerVersatz + fahrerVersatz, 362f).heightIn(min = 56.dp).border(1.dp, hex(0x7F8A2B)).padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Box(Modifier.platz(20f, 830f + trackerVersatz + fahrerVersatz, 362f).heightIn(min = 56.dp).border(1.dp, hex(0x7F8A2B)).padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Text(rueckmeldung.ifEmpty { if (bearbeiten) "Fahrzeugdaten ändern und speichern." else "Fahrzeugdaten eintragen und speichern." },
                     style = grotesk(12f, 400, 12f * 1.3f, farbe = hex(0xC8D85D)))
             }
@@ -660,14 +716,14 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
             val fid = fahrzeug?.id
             if (bearbeiten && fid != null) {
                 Box(
-                    Modifier.platz(20f, 830f + trackerVersatz + fahrerVersatz, 362f, 48f).border(2.dp, hex(0xFF3B30)).alpha(if (speichert) 0.6f else 1f)
+                    Modifier.platz(20f, 898f + trackerVersatz + fahrerVersatz, 362f, 48f).border(2.dp, hex(0xFF3B30)).alpha(if (speichert) 0.6f else 1f)
                         .tippen { if (!speichert) loeschFrage = true },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("Fahrzeug löschen", style = grotesk(16f, 500, farbe = hex(0xFF3B30)))
                 }
                 val dichte = androidx.compose.ui.platform.LocalDensity.current
-                SchadensBerichtDispo(fid, de.trisar.kern.DrehSatz.finden(ctx, markeModell, farbe), Modifier.platz(20f, 898f + trackerVersatz + fahrerVersatz, 362f)
+                SchadensBerichtDispo(fid, de.trisar.kern.DrehSatz.finden(ctx, markeModell, farbe), Modifier.platz(20f, 966f + trackerVersatz + fahrerVersatz, 362f)
                     .then(Modifier.onSizeChanged { schadenHoehe = with(dichte) { it.height.toDp().value } }))
             }
 
@@ -677,7 +733,7 @@ private fun FahrzeugFormularSeite(fahrzeug: StammFahrzeug?, fahrerOeffnen: ((Str
             if (modellListe.isNotEmpty() || lackListe.isNotEmpty()) {
                 val form = RoundedCornerShape(16.dp)
                 Column(
-                    Modifier.platz(20f, (if (vorschlagFeld == "modell") 206f else 410f) + 60f, 362f)
+                    Modifier.platz(20f, (if (vorschlagFeld == "modell") 206f else 478f) + 60f, 362f)
                         .background(hex(0x151607), form).border(1.dp, hex(0x4A4F22), form).clipToBounds(),
                 ) {
                     modellListe.forEach { name ->

@@ -3,8 +3,10 @@
 #   bash werkzeuge/routenpunkte-ausrollen.sh
 #
 # 1. Migration 20261115130000: jobs.routen_punkte, Route neu rechnen bei neuen Punkten, Punkte weg bei neuen Adressen
+#    Migration 20261116100000: jobs.route_fest (freigegebene Route der Dispo, genau so fuer den Fahrer)
 # 2. Edge Functions: tomtom-routing (Route ueber Routenpunkte), external-sync (Spalte + Cache-Schluessel),
-#    places-proxy (aktion route_vorschau fuer den Routen-Editor), dann Edge Runtime neu starten
+#    places-proxy (aktion route_vorschau fuer den Routen-Editor, aktion navi_route fuer die eigene
+#    Navigation der Fahrer-App seit 16.11.), dann Edge Runtime neu starten
 # Web (Dispo/Fahrer) und Apps sind NICHT dabei. Mehrfach ausfuehren schadet nicht.
 set -euo pipefail
 SERVER=100.94.169.59
@@ -28,8 +30,9 @@ migration() { # version name
   echo "   $v eingespielt"
 }
 
-echo "1/3 Migration Routenpunkte"
+echo "1/3 Migration Routenpunkte und freigegebene Route"
 migration 20261115130000 routen_punkte
+migration 20261116100000 route_fest
 ssh "$SERVER" "$DOCKER exec $DB psql -U postgres -At -c \"select 'Spalte: ' || count(*) from information_schema.columns where table_name='jobs' and column_name='routen_punkte'\""
 
 echo "2/3 Edge Functions kopieren"

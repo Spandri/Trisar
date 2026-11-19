@@ -204,7 +204,7 @@ export const darf = (regel: string, absicht: Absicht | null) => !absicht || !ERL
 // den die vorhandenen Regeln sicher lesen. Die Regel prueft gegen die Datenbank und fragt vor dem Speichern.
 // Liefert null, wenn das Modell nichts Brauchbares liefert. Dann bekommt die Regel den Originalsatz.
 
-import { datumAusText, jetztBerlin, nachts, normal, plusTage, wocheBereich, wochenTage } from './dienst.ts';
+import { datumAusText, jetztBerlin, nachts, normal, plusTage, relativDatum, wocheBereich, wochenTage } from './dienst.ts';
 
 const WT = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 // Kalender fuer das Modell (15.11.): erst heute und die kommenden 3 Wochen, die vergangene Woche getrennt
@@ -235,6 +235,9 @@ export const tagPruefen = (iso: string, frage: string, neu = false): string => {
   if (!iso) return iso;
   const t = frage.toLowerCase();
   const { datum: heute } = jetztBerlin();
+  // "in drei Wochen am Dienstag", "in 10 Tagen", "übernächsten Freitag": rechnen (16.11., siehe relativDatum).
+  const relativ = relativDatum(frage, heute);
+  if (relativ) return relativ;
   // "letzten Freitag": rechnen statt dem Modell glauben (13.11.: Dienstag 10.11. statt Freitag).
   if (/\b(letzte|vergangene|vorige)[nmrs]?\s+(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/.test(t)) return datumAusText(` ${t} `, heute);
   if (/gestern|vorgestern|letzte|vergangene|vorige|\b[0-3]?\d\.[01]?\d\./.test(t)) return iso;
@@ -349,7 +352,7 @@ const ohneAusser = (namen: unknown, ausser: string[]) => {
   return rest.length ? rest : ['alle'];
 };
 // Steht im Satz ein Tag? Sonst gilt heute, das Modell nimmt sonst gern morgen (15.11.).
-const TAG_IM_SATZ = /heute|morgen|gestern|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|woche|werktag|täglich|taeglich|\b[0-3]?\d\.[01]?\d\./i;
+const TAG_IM_SATZ = /heute|morgen|gestern|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|woche|werktag|täglich|taeglich|\bin\s+\S+\s+tagen\b|\b[0-3]?\d\.[01]?\d\./i;
 // Weitere Felder (15.11., Haertetest): Die Regeln fuer Zuordnen, Gast und Standby kennen nur bestimmte
 // Formulierungen ("Gib Marvin das Fahrzeug M-TR 103" ging, "Ordne Marvin das Auto M-TR 103 zu" nicht).
 // Das Modell liest die Angaben, der Code prueft sie gegen den Satz und baut den Befehl, den die Regel kennt.

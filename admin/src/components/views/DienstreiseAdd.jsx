@@ -17,7 +17,7 @@ import { supabase } from '../../services/supabase';
 import { useI18n } from '../../i18n';
 import { fahrerIdFinden } from '../../shared/standby';
 import {
-  abschnittArt, dienstreiseAnlegen, mitLiveAbfrage, ticketHochladenUndLesen, verbindungHolen,
+  abschnittArt, bahnhofOrten, dienstreiseAnlegen, istHaltArt, mitLiveAbfrage, ticketHochladenUndLesen, verbindungHolen,
 } from '../../shared/dienstreise';
 
 const GREEN = '#E3F654';
@@ -90,10 +90,18 @@ export default function DienstreiseAdd({ setView, onFetchPlaceSuggestions = asyn
     return [...neu.filter((n) => String(n).trim()), ''];
   });
 
-  const ortAufloesen = async (ort) => {
+  // bahnhof (19.11.): Halt vom Ticket oder Start eines Zug-/Bus-Abschnitts. Dann erst der Bahnhof bei der Bahn
+  // ("München-Trudering" ist der Bahnhof, nicht der Stadtteil), sonst "Bahnhof …" in der Adresssuche.
+  const ortAufloesen = async (ort, bahnhof = false) => {
     const eigener = ort.ortId ? orte.find((o) => o.id === ort.ortId) : null;
     if (eigener) return { id: eigener.id, name: eigener.name, adresse: eigener.adresse, lat: eigener.lat, lng: eigener.lng };
     if (!ort.text.trim()) return null;
+    if (bahnhof || ort.bahnhof) {
+      const b = await bahnhofOrten(ort.text).catch(() => null);
+      if (b) return { name: b.name, adresse: b.name, lat: b.lat, lng: b.lng };
+      const ersatz = /bahnhof|hbf|\bbf\b/i.test(ort.text) ? null : await geocodeAddress(`Bahnhof ${ort.text}`).catch(() => null);
+      if (ersatz) return { name: kurzOrt(ort.text), adresse: ort.text, lat: ersatz.lat, lng: ersatz.lon };
+    }
     const pos = await geocodeAddress(ort.text);
     if (!pos) return null;
     return { name: kurzOrt(ort.text), adresse: ort.text, lat: pos.lat, lng: pos.lon };
@@ -110,7 +118,7 @@ export default function DienstreiseAdd({ setView, onFetchPlaceSuggestions = asyn
     pruefNr.current[a.key] = nr;
     setPruefungen((p) => ({ ...p, [a.key]: { laeuft: true } }));
     const naechster = liste[index + 1];
-    const startDaten = a.start.ortId ? await ortAufloesen(a.start).catch(() => null) : null;
+    const startDaten = a.start.ortId ? await ortAufloesen(a.start, istHaltArt(art)).catch(() => null) : null;
     const zielDaten = !naechster && ziel.text.trim() ? await ortAufloesen(ziel).catch(() => null) : null;
     const v = await verbindungHolen({
       datum,
@@ -190,13 +198,13 @@ export default function DienstreiseAdd({ setView, onFetchPlaceSuggestions = asyn
       if (g.datum) setDatum(g.datum);
       const neu = (g.abschnitte || []).map((x) => neuerAbschnitt({
         zeit: x.ab,
-        start: { text: x.von, ortId: '' },
+        start: { text: x.von, ortId: '', bahnhof: true },
         nummer: x.nummer || '',
         ticket: { an: x.an, nach: x.nach, an_datum: x.an_datum, gleis_ab: x.gleis_ab, gleis_an: x.gleis_an, hinweis: x.hinweis },
       }));
       if (neu.length) setAbschnitte(neu);
       const letzter = (g.abschnitte || [])[g.abschnitte.length - 1];
-      if (letzter?.nach) setZiel({ text: letzter.nach, ortId: '' });
+      if (letzter?.nach) setZiel({ text: letzter.nach, ortId: '', bahnhof: true });
       setReisender(g.name || '');
       setAuftragsnummer(g.auftragsnummer || '');
       const reservierung = (g.abschnitte || []).map((x) => x.hinweis).filter(Boolean).join(', ');
@@ -243,7 +251,7 @@ export default function DienstreiseAdd({ setView, onFetchPlaceSuggestions = asyn
     try {
       const starts = [];
       for (const a of liste) {
-        const o = await ortAufloesen(a.start);
+        const o = await ortAufloesen(a.start, istHaltArt(abschnittArt(a.nummer)));
         if (!o) { setFehler(`„${a.start.text}“ nicht gefunden. Bitte genauer eingeben oder einen eigenen Ort wählen.`); return; }
         starts.push(o);
       }
@@ -415,7 +423,7 @@ export default function DienstreiseAdd({ setView, onFetchPlaceSuggestions = asyn
             type="button"
             onClick={() => setAbschnitte((alt) => [...alt, neuerAbschnitt({
               // Neuer Abschnitt beginnt dort, wo der letzte ankommt (Ziel, falls schon gesetzt). Aenderbar.
-              start: { text: alt[alt.length - 1]?.ticket?.nach || '', ortId: '' },
+              start: { text: alt[alt.length - 1]?.ticket?.nach || '', ortId: '', bahnhof: Boolean(alt[alt.length - 1]?.ticket?.nach) },
             })])}
             className="absolute left-[20px] w-[362px] h-14 border-2 border-dashed flex items-center justify-center text-[16px] font-bold font-['Space_Grotesk']"
             style={{ top: `${plusOben}px`, borderColor: GREEN, color: GREEN }}

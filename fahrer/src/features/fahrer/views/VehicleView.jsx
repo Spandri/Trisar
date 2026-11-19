@@ -36,7 +36,8 @@ const PfeilIcon = () => (
 const VehicleBlock = ({ vehicle, top, onHoehe }) => {
   const { t } = useI18n();
   const a = fahrzeugAngaben(vehicle);
-  const plateNumber = a.kennzeichen || t('app.noVehicle');
+  // Vom Tracker neu erkannt, noch ohne Kennzeichen: Marke statt "Kein Fahrzeug".
+  const plateNumber = a.kennzeichen || a.modell || t('app.noVehicle');
   // Adresse eines Bildes, das nicht geladen werden konnte: dann ohne Bild.
   const [kaputtesBild, setKaputtesBild] = useState('');
   // Modell und Farbe passen zu einem 360-Grad-Satz: drehbares Auto statt Standbild.
@@ -223,6 +224,15 @@ const SchadensBericht = ({ damages = [], onMelden, blockRef, oben = 771, satz = 
               >
                 {damage.description}
               </div>
+
+              {damage.gemeldet_von ? (
+                <div
+                  className="text-[#9a9a9a] text-[10px] tracking-[-0.3px] mb-[10px] -mt-[6px]"
+                  style={{ fontFamily: 'Space Grotesk' }}
+                >
+                  {t('misc.damageReportedBy', { name: damage.gemeldet_von })}
+                </div>
+              ) : null}
             </div>
             {/* Genaue Stelle auf dem Auto. Alte Meldungen kennen nur den Bereich,
                 dort steht der Punkt in dessen Mitte und "ungefaehre Stelle" darunter. */}

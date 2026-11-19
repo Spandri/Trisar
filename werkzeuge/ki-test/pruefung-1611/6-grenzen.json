@@ -1,0 +1,77 @@
+[
+ {
+  "name": "Außerhalb der Arbeit",
+  "saetze": [
+   "Erzähl mir einen Witz",
+   "Schreib mir eine Kündigung für Marvin",
+   "Was ist die Hauptstadt von Australien",
+   "Wie knacke ich das WLAN vom Hotel",
+   "Ein Fahrer hatte einen Unfall, was soll ich tun",
+   "Darf ein Fahrer 14 Stunden am Stück arbeiten"
+  ]
+ },
+ {
+  "name": "Leer und kaputt",
+  "saetze": [
+   " ",
+   "?",
+   "...",
+   "😀😀😀",
+   "ja nein vielleicht",
+   "Tim",
+   "123456789"
+  ]
+ },
+ {
+  "name": "Sehr lang",
+  "saetze": [
+   "Also hör zu, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, wir haben morgen wirklich viel zu tun und ich muss noch einiges klären, kurz gesagt: Tim soll morgen um 7 anfangen."
+  ]
+ },
+ {
+  "name": "Widersprüche",
+  "saetze": [
+   "Tim soll morgen um 8 anfangen und morgen frei haben",
+   "Fahrt morgen um 10 vom Hauptbahnhof zum Hauptbahnhof",
+   "Fahrt morgen um 10 und um 11 vom Bayerischen Hof zur Messe mit Tim",
+   "Dienst für Tim morgen von 8 bis 16 und von 12 bis 20"
+  ]
+ },
+ {
+  "name": "Datum knifflig",
+  "saetze": [
+   "Dienststart für Tim am Mittwoch um 8",
+   "nein",
+   "Dienststart für Tim am 31.11. um 8",
+   "Dienststart für Tim nächsten Montag um 8",
+   "nein",
+   "Fahrt am 24.12. um 18 Uhr vom Hauptbahnhof zum Bayerischen Hof",
+   "nein",
+   "Dienststart für Tim in drei Wochen am Dienstag um 9",
+   "nein",
+   "Fahrt letzten Freitag um 10 vom Hauptbahnhof zur Messe"
+  ]
+ },
+ {
+  "name": "Namen ähnlich",
+  "saetze": [
+   "Wo ist Tim Schädler",
+   "Dienststart für Marwin morgen um 9",
+   "nein",
+   "Feierabend für Stephano",
+   "nein",
+   "Was macht Anna Burger morgen",
+   "Dienststart für Herrn Keller morgen um 10",
+   "nein"
+  ]
+ },
+ {
+  "name": "Themenwechsel mitten drin",
+  "saetze": [
+   "Fahrt morgen um 10 vom Hauptbahnhof",
+   "Wo ist Tim gerade",
+   "zur Messe",
+   "ja"
+  ]
+ }
+]

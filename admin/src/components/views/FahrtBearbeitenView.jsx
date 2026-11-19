@@ -66,6 +66,7 @@ const EMPTY_FORM_VALUES = {
   fahrgaeste: '',
   aktuellerStatus: '',
   anzahlFahrzeuge: '',
+  danach: '',
 };
 
 const normalizeFieldValue = (value) => (value == null ? '' : String(value));
@@ -91,6 +92,7 @@ export function buildInitialFormValues(initialData = {}) {
     fahrgaeste: normalizeFieldValue(initialData.fahrgaeste),
     aktuellerStatus: normalizeFieldValue(initialData.aktuellerStatus),
     anzahlFahrzeuge: normalizeFieldValue(initialData.anzahlFahrzeuge),
+    danach: normalizeFieldValue(initialData.danach),
   };
 }
 
@@ -388,6 +390,9 @@ export default function FahrtBearbeitenView({
   const [formValues, setFormValues] = useState(() => buildInitialFormValues(initialData || {}));
   // Start Zeitraum (13.11.): Tipp auf "Start Zeit" macht daraus von - bis.
   const [zeitraum, setZeitraum] = useState(() => Boolean(initialData?.startZeitBis));
+  // Flug- oder Zugnummer (19.11.): eine Zeile. Hat die Fahrt nur eine Zugnummer, startet sie als Zug.
+  const nummerArtVon = (d) => (normalizeFieldValue(d?.zugnummer || d?.trainNumber) && !normalizeFieldValue(d?.flugnummer || d?.flightNumber) ? 'zug' : 'flug');
+  const [nummerArt, setNummerArt] = useState(() => nummerArtVon(initialData));
   // Risiko je Fahrt (nur an den Tagen, die die Engine gerechnet hat)
   const risikoDaten = useRisikoDaten();
   const [risikoHoehe, setRisikoHoehe] = useState(0);
@@ -407,6 +412,7 @@ export default function FahrtBearbeitenView({
   const routenZeile = useRoutenZeile({
     adressen: [formValues.startAdresse || formValues.start, ...stopps.gefuellt, formValues.zielAdresse || formValues.ziel],
     anfang: initialData?.routenPunkte || [],
+    anfangFest: initialData?.routeFest || null,
     marker: 'feld-route',
   });
   const [activeAddressField, setActiveAddressField] = useState(null);
@@ -442,12 +448,13 @@ export default function FahrtBearbeitenView({
     setFahrgaesteNamen(buildInitialGuestNames(initialData || {}));
     setFormValues(buildInitialFormValues(initialData || {}));
     setZeitraum(Boolean(initialData?.startZeitBis));
+    setNummerArt(nummerArtVon(initialData));
     stopps.zuruecksetzen(initialData?.zwischenstopps || []);
     {
       const neu = buildInitialFormValues(initialData || {});
       routenZeile.zuruecksetzen(initialData?.routenPunkte || [], [
         neu.startAdresse || neu.start, ...(initialData?.zwischenstopps || []), neu.zielAdresse || neu.ziel,
-      ]);
+      ], initialData?.routeFest || null);
     }
     setFlightEtaIndicator({ text: '', colorClass: 'text-[#808080]' });
     setFlightValidationState({ status: 'empty', etaLabel: '', valid: false, startLocation: '' });
@@ -716,33 +723,51 @@ export default function FahrtBearbeitenView({
     ariaLabel: isTrainApplied ? t('fahrt.trainDataReset') : canApplyTrain ? t('fahrt.trainDataApply') : t('fahrt.trainNumberCheck'),
   };
 
+  // Umschalten leert die bisherige Nummer: eine Fahrt hat Flug oder Zug, nie beides.
+  const nummerArtWechseln = () => {
+    if (nummerArt === 'flug') {
+      setAppliedFlightNumber('');
+      setShowFlightCandidates(false);
+      updateField('flugnummer', '');
+      setNummerArt('zug');
+    } else {
+      setAppliedTrainNumber('');
+      updateField('zugnummer', '');
+      setNummerArt('flug');
+    }
+  };
+
   const rows = [
     ...stopps.rows,
     { key: 'ziel', label: t('fahrt.ziel'), mode: 'select', options: placePredictions.ziel, marker: 'feld-ziel' },
     ...(routenZeile.row ? [routenZeile.row] : []),
-    {
-      key: 'flugnummer',
-      label: t('fahrt.flugnummer'),
-      mode: 'text',
-      marker: 'feld-flug',
-      etaIndicator: normalizedFlightNumber
-        ? {
-          ...flightEtaIndicator,
-          onClick: flightEtaIndicator.text === 'Multi' && flightCandidates.length > 0
-            ? () => setShowFlightCandidates((prev) => !prev)
-            : undefined,
-        }
-        : null,
-      rightAction: flightRightAction,
-    },
-    {
-      key: 'zugnummer',
-      label: t('fahrt.zugnummer'),
-      mode: 'text',
-      marker: 'feld-zug',
-      etaIndicator: normalizedTrainNumber ? trainEtaIndicator : null,
-      rightAction: trainRightAction,
-    },
+    // Flug- und Zugnummer in einer Zeile (19.11.): Tipp auf die Beschriftung schaltet um.
+    nummerArt === 'zug'
+      ? {
+        key: 'zugnummer',
+        label: t('fahrt.zugnummer'),
+        mode: 'text',
+        onLabelClick: nummerArtWechseln,
+        marker: 'feld-zug',
+        etaIndicator: normalizedTrainNumber ? trainEtaIndicator : null,
+        rightAction: trainRightAction,
+      }
+      : {
+        key: 'flugnummer',
+        label: t('fahrt.flugnummer'),
+        mode: 'text',
+        onLabelClick: nummerArtWechseln,
+        marker: 'feld-flug',
+        etaIndicator: normalizedFlightNumber
+          ? {
+            ...flightEtaIndicator,
+            onClick: flightEtaIndicator.text === 'Multi' && flightCandidates.length > 0
+              ? () => setShowFlightCandidates((prev) => !prev)
+              : undefined,
+          }
+          : null,
+        rightAction: flightRightAction,
+      },
     { key: 'konvoi', label: t('fahrt.konvoi'), mode: 'text', marker: 'feld-konvoi' },
     ...(showVehicleCount ? [{ key: 'anzahlFahrzeuge', label: t('fahrt.anzahlFahrzeuge'), mode: 'number', options: ['1', '2', '3', '4'], marker: 'feld-fahrzeuge' }] : []),
     ...fahrerNamen.map((_, index) => ({
@@ -764,6 +789,15 @@ export default function FahrtBearbeitenView({
           return next;
         }),
     })),
+    // Danach Dienstende (19.11.): direkt unter dem letzten Fahrer.
+    {
+      key: 'danach',
+      label: t('fahrt.danach'),
+      mode: 'dropdown',
+      marker: 'feld-danach',
+      options: ['dienstende'],
+      optionLabels: { dienstende: t('fahrt.danachDienstende') },
+    },
     ...fahrgaesteNamen.map((name, index) => ({
       key: `fahrgast-${index}`,
       label: index === 0 ? (String(fahrgaesteNamen[0] || '').trim().length > 0 ? t('fahrt.gastNumbered', { n: 1 }) : t('fahrt.fahrgaeste')) : t('fahrt.gastNumbered', { n: index + 1 }),
@@ -790,12 +824,13 @@ export default function FahrtBearbeitenView({
       label: t('fahrt.aktuellerStatus'),
       mode: 'dropdown',
       marker: 'feld-status',
-      options: ['offen', 'beendet', 'stoniert', 'unterwegs'],
+      options: ['offen', 'beimGast', 'unterwegs', 'beendet', 'stoniert'],
       optionLabels: {
         offen: t('fahrt.statusOffen'),
         beendet: t('fahrt.statusBeendet'),
         stoniert: t('fahrt.statusStoniert'),
         unterwegs: t('fahrt.statusUnterwegs'),
+        beimGast: t('fahrt.statusBeimGast'),
       },
     },
   ];
@@ -847,6 +882,7 @@ export default function FahrtBearbeitenView({
       fahrerNamen: fahrerNamenForSave,
       zwischenstopps,
       routenPunkte: routenZeile.fuersSpeichern,
+      routeFest: routenZeile.festFuersSpeichern,
       flugZielFlughafen: flightAirportOverride,
       flugAnkunftGeplant: flightScheduledOverride,
       notes,
@@ -1063,6 +1099,7 @@ export default function FahrtBearbeitenView({
                 marker={row.marker}
                 onClick={row.onClick}
                 chip={row.chip}
+                onLabelClick={row.onLabelClick}
               />
             );
           })}

@@ -186,6 +186,7 @@ enum PushArten {
                arten: ["dispo_dienst_angenommen", "dispo_dienst_abgelehnt"]),
         Gruppe(id: "chat", titel: "Kolonnen-Chat", arten: ["chat"]),
         Gruppe(id: "schaden", titel: "Schadensmeldungen", arten: ["dispo_schaden"]),
+        Gruppe(id: "fahrzeug_neu", titel: "Neues Fahrzeug erkannt", arten: ["dispo_fahrzeug_neu"]),
         Gruppe(id: "ohne_signal", titel: "Fahrer seit 5 Minuten ohne Signal", arten: ["dispo_ohne_signal"]),
         Gruppe(id: "ohne_fahrer", titel: "Fahrt beginnt bald und hat keinen Fahrer", arten: ["dispo_ohne_fahrer"]),
         Gruppe(id: "verspaetet", titel: "Fahrer kommt zu spät zur Abholung", arten: ["dispo_verspaetet"]),

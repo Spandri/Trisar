@@ -40,7 +40,7 @@ struct DispoKarte: UIViewRepresentable {
     func makeCoordinator() -> Koordinator { Koordinator() }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let karte = MLNMapView(frame: .zero, styleURL: Self.stil)
+        let karte = MLNMapView(frame: .zero, styleURL: KartenStil.geteilt.url)
         karte.delegate = context.coordinator
         karte.backgroundColor = UIColor(hex: 0x0E0E0E)
         // Letzter Ausschnitt (MAP_CAMERA_CACHE_KEY), sonst Muenchen bei Zoom 12.
@@ -55,7 +55,7 @@ struct DispoKarte: UIViewRepresentable {
         karte.automaticallyAdjustsContentInset = false
         karte.attributionButtonPosition = .bottomRight
         karte.attributionButton.tintColor = UIColor(white: 0.6, alpha: 0.8)
-        // Eigener Standort (17.11.): normaler blauer Punkt von MapLibre, viewFor gibt dafuer nil.
+        // Eigener Standort (17.11.): ruhiger blauer Punkt (EigenerPunktAnsicht), ohne Standort nichts.
         // Laeuft nur, solange die Karte zu sehen und die App im Vordergrund ist.
         karte.showsUserLocation = true
 
@@ -68,6 +68,8 @@ struct DispoKarte: UIViewRepresentable {
         karte.addGestureRecognizer(tipp)
         context.coordinator.karte = karte
         zugang?.karte = karte
+        // Kartenstil aus dem Karten Filter (Dunkel/Hell/Farbig/Satellit), wechselt live.
+        KartenStil.geteilt.anbinden(karte)
         return karte
     }
 
@@ -406,6 +408,7 @@ struct DispoKarte: UIViewRepresentable {
             }
             let inGruppe = Set(vergeben.map { kandidaten[$0].0.id })
             let soll = Set(letzteListe.map(\.id)).subtracting(inGruppe)
+            nebeneinanderStellen(letzteListe.filter { soll.contains($0.id) }, karte: karte, s: s)
             let weg = imBild.subtracting(soll).compactMap { fahrerPunkte[$0] }
             let dazu = soll.subtracting(imBild).compactMap { fahrerPunkte[$0] }
             if !weg.isEmpty { karte.removeAnnotations(weg) }
@@ -430,6 +433,50 @@ struct DispoKarte: UIViewRepresentable {
             if !gruppen.isEmpty { karte.removeAnnotations(gruppen) }
             gruppen = neueGruppen
             if !gruppen.isEmpty { karte.addAnnotations(gruppen) }
+        }
+
+        /// Fahrer am gleichen Ort (2 bis 4, oder die immer einzelnen) nicht uebereinander, sondern
+        /// nebeneinander: Pins naeher als 26 pt (verkettet) kommen mittig in eine Reihe, 26 pt
+        /// auseinander, sortiert nach Fahrernummer. Nur Anzeige, der Ort des Punkts bleibt echt.
+        private func nebeneinanderStellen(_ sichtbar: [KartenFahrer], karte: MLNMapView, s: CGFloat) {
+            let abstand = 26 * s
+            let punkte = sichtbar.map { karte.convert($0.ort, toPointTo: karte) }
+            var versatz = [String: CGVector]()
+            var zugeteilt = Set<Int>()
+            for i in sichtbar.indices where !zugeteilt.contains(i) {
+                // Alle, die ueber Nachbarn an diesem Pin haengen (Kette), bilden eine Reihe.
+                var reihe = [i]
+                zugeteilt.insert(i)
+                var k = 0
+                while k < reihe.count {
+                    let a = punkte[reihe[k]]
+                    for j in sichtbar.indices where !zugeteilt.contains(j) {
+                        let b = punkte[j]
+                        if hypot(a.x - b.x, a.y - b.y) < abstand { zugeteilt.insert(j); reihe.append(j) }
+                    }
+                    k += 1
+                }
+                guard reihe.count >= 2 else { continue }
+                let glieder = reihe.sorted { x, y in
+                    let fa = sichtbar[x], fb = sichtbar[y]
+                    if let na = fa.nummer.flatMap(Double.init), let nb = fb.nummer.flatMap(Double.init), na != nb { return na < nb }
+                    let sa = fa.nummer ?? fa.id, sb = fb.nummer ?? fb.id
+                    if sa != sb { return sa.localizedStandardCompare(sb) == .orderedAscending }
+                    return fa.id < fb.id
+                }
+                let mx = glieder.map { punkte[$0].x }.reduce(0, +) / CGFloat(glieder.count)
+                let my = glieder.map { punkte[$0].y }.reduce(0, +) / CGFloat(glieder.count)
+                for (n, j) in glieder.enumerated() {
+                    let x = mx + (CGFloat(n) - CGFloat(glieder.count - 1) / 2) * abstand
+                    versatz[sichtbar[j].id] = CGVector(dx: x - punkte[j].x, dy: my - punkte[j].y)
+                }
+            }
+            // Alle uebrigen wieder auf 0, auch wer gerade aus einer Reihe faellt.
+            for (id, p) in fahrerPunkte {
+                let v = versatz[id] ?? .zero
+                p.versatz = v
+                fahrerAnsichten[id]?.versatz = v
+            }
         }
 
         // MARK: Tippen
@@ -690,10 +737,13 @@ struct DispoKarte: UIViewRepresentable {
         // MARK: Ansichten
 
         func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+            // Eigener Standort: ruhiger blauer Punkt statt des pulsierenden MapLibre-Punkts (User 17.11.).
+            if annotation is MLNUserLocation { return EigenerPunktAnsicht() }
             if let p = annotation as? KartenFahrerPunkt, let f = p.fahrer {
                 let v = KartenFahrerPin()
                 let d = darstellung(f)
                 v.anwenden(f, abgeblendet: d.abgeblendet, hoehe: d.hoehe)
+                v.versatz = p.versatz
                 fahrerAnsichten[p.id] = v
                 return v
             }
@@ -788,6 +838,8 @@ final class ReiseFahrzeugPunkt: MLNPointAnnotation {
 final class KartenFahrerPunkt: MLNPointAnnotation {
     let id: String
     var fahrer: KartenFahrer?
+    /// Zusatzversatz in pt, damit Fahrer am gleichen Ort nebeneinander stehen (nur Anzeige).
+    var versatz = CGVector.zero
     init(id: String) { self.id = id; super.init() }
     required init?(coder: NSCoder) { fatalError() }
 }
@@ -818,6 +870,7 @@ private func abblenden(_ ansicht: UIView, unterlage: UIImageView, gruppe: UIView
 
 /// Fahrer-Pin 35 x 41,14, Spitze auf dem Ort, Nummer (15 fett, #1A1A1A) mittig im Kopf (17,5 / 17,5).
 final class KartenFahrerPin: MLNAnnotationView {
+    override func layoutSubviews() { super.layoutSubviews(); KartenStil.rand(self) }
     private let unterlage = UIImageView()
     private let gruppe = UIView()
     private let bild = UIImageView()
@@ -834,6 +887,12 @@ final class KartenFahrerPin: MLNAnnotationView {
     private let flaggenRand = UIImageView()
     private let flaggenFuellung = UIImageView()
     private var flaggenName = ""
+    /// Grundversatz (Spitze bzw. Kreismitte auf dem Ort) plus Zusatz fuers Nebeneinander.
+    private var grundVersatz = CGVector(dx: 0, dy: -41.1367 / 2)
+    var versatz = CGVector.zero { didSet { if versatz != oldValue { versatzSetzen() } } }
+    private func versatzSetzen() {
+        centerOffset = CGVector(dx: grundVersatz.dx + versatz.dx, dy: grundVersatz.dy + versatz.dy)
+    }
 
     init() {
         super.init(reuseIdentifier: nil)
@@ -907,7 +966,8 @@ final class KartenFahrerPin: MLNAnnotationView {
             flaggenKlammer.isHidden = true
         }
         // Pin: Spitze unten auf dem Ort. Ohne Signal: Mitte des Kreises (17,5) auf dem Ort.
-        centerOffset = CGVector(dx: 0, dy: f.offline ? 41.1367 / 2 - 17.5 : -41.1367 / 2)
+        grundVersatz = CGVector(dx: 0, dy: f.offline ? 41.1367 / 2 - 17.5 : -41.1367 / 2)
+        versatzSetzen()
         nummer.text = f.nummer ?? "?"
         // Nummer immer ganz vorn in der Gruppe, sonst verdecken Grund und grauer Kreis sie.
         if nummer.superview !== gruppe { gruppe.addSubview(nummer) }
@@ -922,6 +982,7 @@ final class KartenFahrerPin: MLNAnnotationView {
 
 /// Gruppe nach Figma 2563-12242: weisser Kreis 35 pt mit der Anzahl in Fuenferschritten.
 private final class GruppenAnsicht: MLNAnnotationView {
+    override func layoutSubviews() { super.layoutSubviews(); KartenStil.rand(self) }
     init(anzahl: Int, abgeblendet: Bool) {
         super.init(reuseIdentifier: nil)
         frame = CGRect(x: 0, y: 0, width: 35, height: 35)
@@ -945,6 +1006,7 @@ private final class GruppenAnsicht: MLNAnnotationView {
 
 /// Abholort (rot, Gast) und Ziel (Schachbrett), 35 x 41,14, Spitze auf dem Ort.
 private final class RoutenPin: MLNAnnotationView {
+    override func layoutSubviews() { super.layoutSubviews(); KartenStil.rand(self) }
     init(bild: String) {
         super.init(reuseIdentifier: nil)
         frame = CGRect(x: 0, y: 0, width: 35, height: 41.1367)
@@ -1059,4 +1121,33 @@ final class KartenBereich: ObservableObject {
         let schritt = Double(aus.count) / Double(max)
         return (0..<max).map { aus[Int(Double($0) * schritt)] }
     }
+}
+
+/// Eigener Standort der Dispo (17.11.): blauer Punkt mit weissem Rand wie im Web (eigenerPunkt.js),
+/// ohne Pulsieren, ohne Genauigkeitskreis und ohne Richtungskegel. MapLibre zeigt ihn nur, wenn ein
+/// Standort da ist.
+final class EigenerPunktAnsicht: MLNUserLocationAnnotationView {
+    private let punkt = CALayer()
+
+    override init(reuseIdentifier: String?) {
+        super.init(reuseIdentifier: reuseIdentifier)
+        frame = CGRect(x: 0, y: 0, width: 18, height: 18)
+        punkt.frame = bounds
+        punkt.cornerRadius = 9
+        punkt.backgroundColor = UIColor(hex: 0x1A73E8).cgColor
+        punkt.borderColor = UIColor.white.cgColor
+        punkt.borderWidth = 3
+        punkt.shadowColor = UIColor.black.cgColor
+        punkt.shadowOpacity = 0.35
+        punkt.shadowRadius = 2
+        punkt.shadowOffset = CGSize(width: 0, height: 1)
+        layer.addSublayer(punkt)
+    }
+
+    convenience init() { self.init(reuseIdentifier: nil) }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    /// MapLibre ruft das bei jedem neuen Standort: bewusst nichts animieren.
+    override func update() {}
 }

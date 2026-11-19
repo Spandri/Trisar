@@ -26,6 +26,15 @@ final class Ortung: NSObject, ObservableObject {
     /// Arbeitszeit (ortung_status): Dienst, Standby oder Fahrt. Ausserhalb ortet das Handy nicht
     /// (bei OBD liefert der Tracker im Auto, dort bleibt alles wie bisher).
     @Published private(set) var imDienst = false
+    /// CarPlay verbunden: GPS laeuft fuer die eigene Karte auch ausserhalb der Arbeitszeit,
+    /// gesendet wird dann aber nichts (Senden nur im Dienst, siehe neuePosition).
+    @Published private(set) var carPlay = false
+
+    func carPlayVerbunden(_ an: Bool) {
+        guard an != carPlay else { return }
+        carPlay = an
+        aktualisieren()
+    }
     /// Naechster Wechsel (Dienstende bzw. naechster Start), zur Anzeige.
     @Published private(set) var dienstWechsel: Date?
     private var dienstTimer: Timer?
@@ -146,7 +155,7 @@ final class Ortung: NSObject, ObservableObject {
         // Ausserhalb der Arbeitszeit kein GPS (bei OBD nur Vordergrund fuer die eigene Karte, wie bisher).
         let soll = eingeschaltet && fahrerID != nil
             && (berechtigung == .immer || berechtigung == .nurBeimVerwenden)
-            && (imDienst || (profilGeladen && nutztOBD))
+            && (imDienst || (profilGeladen && nutztOBD) || carPlay)
         if soll && !laeuft {
             manager.startUpdatingLocation()
             laeuft = true
@@ -161,7 +170,7 @@ final class Ortung: NSObject, ObservableObject {
         }
         // Hintergrund nur, wenn das Handy wirklich ortet. Bei OBD (oder solange das Profil noch
         // nicht da ist) nur im Vordergrund fuer die eigene Karte, sonst laeuft GPS staendig mit.
-        let hintergrund = soll && profilGeladen && !nutztOBD
+        let hintergrund = soll && profilGeladen && !nutztOBD && imDienst
         if hintergrund != hintergrundAktiv {
             manager.allowsBackgroundLocationUpdates = hintergrund
             manager.showsBackgroundLocationIndicator = hintergrund
@@ -188,7 +197,7 @@ final class Ortung: NSObject, ObservableObject {
 
     /// Im Stillstand den letzten Standort mit aktueller Zeit nochmal senden (siehe Konfig.stillstandIntervall).
     private func stillstandSenden() {
-        guard laeuft, fahrerID != nil, profilGeladen, !nutztOBD, let ort = letztePosition,
+        guard laeuft, fahrerID != nil, profilGeladen, !nutztOBD, imDienst, let ort = letztePosition,
               ort.horizontalAccuracy >= 0,
               Date().timeIntervalSince(letzteLiveSendung) >= Konfig.stillstandIntervall - 2 else { return }
         naechsteLivePosition = CLLocation(
@@ -281,7 +290,8 @@ final class Ortung: NSObject, ObservableObject {
     private func neuePosition(_ ort: CLLocation) {
         letztePosition = ort
         // Erst senden, wenn das Profil sagt, dass das Handy ortet (nicht OBD).
-        guard fahrerID != nil, profilGeladen, !nutztOBD else { return }
+        // Nur im Dienst senden (ausserhalb laeuft GPS hoechstens fuer die CarPlay-Karte).
+        guard fahrerID != nil, profilGeladen, !nutztOBD, imDienst else { return }
         // Jeden gueltigen Punkt senden, auch ungenaue (im Zug oft ueber 100 m, 14.11.). Die Genauigkeit
         // geht mit. Nur veraltete Punkte (z.B. erster Punkt aus dem Funkzellen-Cache) nicht.
         guard ort.horizontalAccuracy >= 0,

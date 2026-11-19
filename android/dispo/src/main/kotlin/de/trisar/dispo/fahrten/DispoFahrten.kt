@@ -192,6 +192,8 @@ object DispoFahrtenSpeicher {
 
     private const val SPALTEN_BASIS = "id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins"
     private val spaltenVarianten = listOf(
+        // Echte Abfahrt/Ankunft (18.11.), ohne die Spalten weiter mit den naechsten.
+        "$SPALTEN_BASIS, ai_booked, flight_number, train_number, etd_bis, abfahrt_echt, ankunft_echt, ankunft_erwartet",
         // Start Zeitraum (13.11.): etd_bis = Ende des Zeitraums.
         "$SPALTEN_BASIS, ai_booked, flight_number, train_number, etd_bis",
         "$SPALTEN_BASIS, ai_booked, flight_number, train_number",
@@ -221,6 +223,7 @@ object DispoFahrtenSpeicher {
                     letzterFehler = e
                     val text = fehlerText(e)
                     val fehlendeSpalte = passt(text, """column .*etd_bis|could not find the ['"]?etd_bis['"]? column""")
+                        || passt(text, """column .*(abfahrt_echt|ankunft_echt|ankunft_erwartet)|could not find the ['"]?(abfahrt_echt|ankunft_echt|ankunft_erwartet)['"]? column""")
                         || passt(text, """column .*flight_number|could not find the ['"]?flight_number['"]? column""")
                         || passt(text, """column .*ai_booked|could not find the ['"]?ai_booked['"]? column""")
                         || passt(text, """column .*train_planned_time|column .*train_predicted_time|could not find the ['"]?train_planned_time['"]? column|could not find the ['"]?train_predicted_time['"]? column""")
@@ -473,7 +476,26 @@ object DispoFahrtenSpeicher {
             val bezug = if (unterwegs) jetztUhr else wirksameEtd
             val ankunftNeu = W.erste(W.plus(bezug, dauer), W.plus(wirksameEtd, dauer), W.plus(originalEtd, dauer), bezug, wirksameEtd, originalEtd) ?: "--:--"
             val ankunftOriginal = W.erste(W.plus(originalEtd, dauer), W.plus(wirksameEtd, dauer), originalEtd, wirksameEtd) ?: "--:--"
-            val verspaetet = verzug > 0 || (wirksameEtd.isNotEmpty() && originalEtd.isNotEmpty() && wirksameEtd != originalEtd)
+            // Echte Zeiten (18.11.): Ab "Unterwegs" die echte Abfahrt (GPS, sonst Tipp auf Unterwegs) statt des Plans,
+            // Ankunft live (TomTom) bzw. nach dem Ende die echte. Plan nur durchgestrichen, wenn die echte Abfahrt
+            // mehr als 5 min ausserhalb des Startfensters liegt.
+            val fertig = rohStatus in setOf("done", "completed", "arrived", "beendet")
+            val abfahrtEcht = if (unterwegs || fertig) W.uhrBerlin(W.t(job["abfahrt_echt"])) else ""
+            val ankunftEcht = if (abfahrtEcht.isEmpty()) "" else
+                (W.erste(W.uhrBerlin(W.t(job["ankunft_echt"])), W.uhrBerlin(W.t(job["ankunft_erwartet"]))) ?: "")
+            val ausserhalbFenster = run {
+                val echt = W.minuten(abfahrtEcht)
+                val plan = geplantMin
+                if (echt == null || plan == null) false else {
+                    val ende = (spaetAb ?: plan) % 1440
+                    val zuFrueh = (plan - echt + 1440) % 1440
+                    val zuSpaet = (echt - ende + 1440) % 1440
+                    (zuFrueh in 6..719) || (zuSpaet in 6..719)
+                }
+            }
+            val verspaetet = if (abfahrtEcht.isEmpty())
+                verzug > 0 || (wirksameEtd.isNotEmpty() && originalEtd.isNotEmpty() && wirksameEtd != originalEtd)
+            else ausserhalbFenster
             val notiz = notizNachJob[jobID] ?: NotizMeta("", false)
             val dispoNotiz = dispoNotizNachJob[jobID] ?: NotizMeta("", false)
             val kiSpalte = W.bool(job["ai_booked"])
@@ -483,6 +505,13 @@ object DispoFahrtenSpeicher {
             else zeiten.copy(zeit = W.erste(wirksameEtd) ?: "--:--")
             zeiten = zeiten.copy(ankunftOriginal = ankunftOriginal, ankunftNeu = ankunftNeu, ankunftZeit = ankunftNeu)
             zeiten = zeiten.copy(bis = etdBis)
+            if (abfahrtEcht.isNotEmpty()) {
+                val plan = W.erste(originalEtd, etd) ?: ""
+                val ankunft = W.erste(ankunftEcht, ankunftNeu) ?: ankunftNeu
+                zeiten = if (verspaetet) FahrtZeiten(original = if (plan.isEmpty()) "--:--" else plan + (if (etdBis.isEmpty()) "" else "–$etdBis"), neu = abfahrtEcht)
+                else FahrtZeiten(zeit = abfahrtEcht)
+                zeiten = zeiten.copy(ankunftOriginal = ankunftOriginal, ankunftNeu = ankunft, ankunftZeit = ankunft)
+            }
 
             DispoFahrt(
                 id = jobID,
@@ -492,7 +521,7 @@ object DispoFahrtenSpeicher {
                 route = "$startEtikett - $zielEtikett",
                 startOrt = startWert,
                 zielOrt = zielWert,
-                startZeit = W.erste(wirksameEtd, originalEtd) ?: "--:--",
+                startZeit = W.erste(abfahrtEcht, wirksameEtd, originalEtd) ?: "--:--",
                 startZeitBis = etdBis,
                 fahrerNamen = if (hatFahrer) etiketten else listOf(""),
                 fahrerAntworten = if (hatFahrer) antworten else emptyList(),
@@ -505,7 +534,7 @@ object DispoFahrtenSpeicher {
                 notizen = (alleNotizen[jobID] ?: emptyList<String>()).reversed(),
                 kiGebucht = kiSpalte || notiz.ki || dispoNotiz.ki,
                 zeiten = zeiten,
-                verzugMinuten = verzug,
+                verzugMinuten = if (abfahrtEcht.isEmpty()) verzug else 0,
                 verspaetet = verspaetet,
                 ohneFahrerVariante = !hatFahrer,
                 datum = datum,

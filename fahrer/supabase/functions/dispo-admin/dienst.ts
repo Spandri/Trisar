@@ -92,9 +92,38 @@ const WOCHENTAGE = ['sonntag', 'montag', 'dienstag', 'mittwoch', 'donnerstag', '
 export const TAG_RE = /\b(heute|morgen|uebermorgen|gestern|vorgestern|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b|\b[0-3]?\d\.[01]?\d\./;
 // neu: es wird etwas Neues angelegt (Dienst, Standby, Kopie). Dann meint der heutige Wochentag den in 7 Tagen.
 // Ohne neu (vorhandene Fahrt, Frage, Loeschen) bleibt heute eingeschlossen.
+// Abstand in Wochen oder Tagen und "übernächsten Freitag" (16.11.): rechnen statt dem Modell glauben.
+// "in drei Wochen am Dienstag" ergab Mi 16.12. und Mi 02.12. statt Di 08.12., "übernächsten Freitag" den nächsten.
+// Mit Wochentag: der Wochentag in der Woche (Montag bis Sonntag), in der der Tag in n Wochen liegt.
+const ZAHLWORT: Record<string, number> = { ein: 1, eine: 1, einer: 1, einem: 1, zwei: 2, drei: 3, vier: 4, fuenf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10 };
+export const relativDatum = (roh: string, heute: string): string | null => {
+  const t = String(roh || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue');
+  const zahl = (w: string) => (/^\d+$/.test(w) ? Number(w) : ZAHLWORT[w] ?? 0);
+  const heuteTag = new Date(`${heute}T12:00:00Z`).getUTCDay();
+  const wt = WOCHENTAGE.findIndex((w) => new RegExp(`\\b${w}s?\\b`).test(t));
+  const wochen = t.match(/\bin\s+(\d{1,2}|ein|einer|zwei|drei|vier|fuenf|sechs|sieben|acht)\s+wochen?\b/);
+  if (wochen) {
+    const n = zahl(wochen[1]);
+    if (n < 1 || n > 52) return null;
+    const basis = plusTage(heute, 7 * n);
+    if (wt < 0) return basis;
+    const montag = plusTage(basis, -((heuteTag + 6) % 7));
+    return plusTage(montag, (wt + 6) % 7);
+  }
+  const tage = t.match(/\bin\s+(\d{1,3}|zwei|drei|vier|fuenf|sechs|sieben|acht|neun|zehn)\s+tagen\b/);
+  if (tage) {
+    const n = zahl(tage[1]);
+    return n >= 1 && n <= 365 ? plusTage(heute, n) : null;
+  }
+  if (wt >= 0 && /\buebernaechste[nmrs]?\b/.test(t) && !/\bwoche\b/.test(t)) return plusTage(heute, (((wt - heuteTag + 7) % 7) || 7) + 7);
+  return null;
+};
+
 export const datumAusText = (text: string, heute: string, neu = false) => {
   if (/\bvorgestern\b/.test(text)) return plusTage(heute, -2);
   if (/\bgestern\b/.test(text)) return plusTage(heute, -1);
+  const relativ = relativDatum(text, heute);
+  if (relativ) return relativ;
   // "letzten Montag", "vergangenen Freitag": der zuletzt gewesene Tag, nie heute.
   const letzter = text.match(/\b(letzte[nmrs]?|vergangene[nmrs]?|vorige[nmrs]?)\s+(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/);
   if (letzter) {
@@ -322,7 +351,9 @@ export const wochenTage = (text: string, w: { von: string; bis: string }, heute:
 
 // Vorschlag, wenn die Frage einen Dienst (Start, Pause, Ende) fuer Fahrer meint. Sonst null.
 // Mehrere Tage in einer Nachricht: Liste mit Rueckfrage, "ja" sendet alle (kontext.offeneDienste).
-export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahrer[], kontext: any = null) => {
+// ausGespraech (16.11.): Die Fahrer kommen nicht von der Karte, sondern aus dem Gespräch ("Dann schick ihr
+// Dienststart …"). Die Antwort nennt sie dann nur beim Namen, nicht "den markierten Fahrer".
+export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahrer[], kontext: any = null, ausGespraech = false) => {
   const text = normal(frage);
   const { datum: heute } = jetztBerlin();
   // Ganze Woche: "Plan die Dienste für nächste Woche, jeden Tag 7 bis 15 für Tim"
@@ -350,10 +381,10 @@ export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahre
     };
   }
   const tage = tageTeilen(text, heute);
-  if (tage.length < 2) return dienstEinTag(admin, text, markiert);
+  if (tage.length < 2) return dienstEinTag(admin, text, markiert, null, false, ausGespraech);
   // Art (Start/Ende/Pause) und Fahrer gelten fuer alle Teile, wenn sie nur einmal genannt sind.
   const alle = await dienstEinTag(admin, text, markiert, null, true);
-  if (!alle || !('fahrer' in alle)) return dienstEinTag(admin, text, markiert);
+  if (!alle || !('fahrer' in alle)) return dienstEinTag(admin, text, markiert, null, false, ausGespraech);
   const fahrer = alle.fahrer as Fahrer[];
   const vorschlaege: Vorschlag[] = [];
   let art = '';
@@ -366,7 +397,7 @@ export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahre
     const v = r.action.vorschlag;
     vorschlaege.push({ datum: v.datum, start: v.start, ende: v.ende, pausen: v.pausen, fahrer: v.fahrer });
   }
-  if (vorschlaege.length < 2) return dienstEinTag(admin, text, markiert);
+  if (vorschlaege.length < 2) return dienstEinTag(admin, text, markiert, null, false, ausGespraech);
   const namen = fahrer.map((f) => f.name).join(', ');
   const k = { ...(kontext || {}) };
   delete k.offeneDienstLoeschung;
@@ -377,7 +408,7 @@ export const dienstVorschlag = async (admin: any, frage: string, markiert: Fahre
 };
 
 // Ein Tag. fahrerFix: Fahrer schon bekannt (mehrere Tage). nurFahrer: nur die Fahrer bestimmen.
-const dienstEinTag = async (admin: any, text: string, markiert: Fahrer[], fahrerFix: Fahrer[] | null = null, nurFahrer = false): Promise<any> => {
+const dienstEinTag = async (admin: any, text: string, markiert: Fahrer[], fahrerFix: Fahrer[] | null = null, nurFahrer = false, ausGespraech = false): Promise<any> => {
   // Fragen ("Wann faengt Tim an?") sind keine Dienst-Auftraege.
   if (/^(wann|wer|wie|was|welche|welcher|welches|wo|ob|hat|ist|sind)\b/.test(text.trim())) return null;
   // "Ende in München", "Start am Bahnhof" ohne Dienst-Wort: Ort einer Fahrt, kein Dienst.
@@ -553,18 +584,25 @@ const dienstEinTag = async (admin: any, text: string, markiert: Fahrer[], fahrer
     : genannt.length
     ? (ausnahmen(admin).length ? `${genannt.length > 3 ? `${genannt.length} Fahrer` : namen.join(', ')}${ausnahmenText(admin)}`
       : !fahrerFix && ALLE_FAHRER_RE.test(text) && genannt.length > 3 ? `alle ${genannt.length} Fahrer` : namen.join(', '))
+    : ausGespraech ? namen.join(', ')
     : `${fahrer.length === 1 ? 'den markierten Fahrer' : `die ${fahrer.length} markierten Fahrer`} (${namen.join(', ')})`;
+  // Nachts das Ende zum Dienst von gestern (18.11. 01:23): "Dienstende 01:25 gestern, Di 17.11." klang nach
+  // einem Ende gestern frueh. Gemeint ist heute 01:25, der Dienst ist vom 17.11.
+  const endeHeute = !!ende && datum === plusTage(heute, -1) && nachts(heute);
+  const tagText = endeHeute
+    ? `(Dienst vom ${['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(`${datum}T12:00:00Z`).getUTCDay()]} ${datum.slice(8, 10)}.${datum.slice(5, 7)}.)`
+    : tag;
   const teile = [
     start ? `Dienststart ${start}` : '',
     ...pausen.map((p) => `Pause ${p.von}–${p.bis}`),
-    ende ? `Dienstende ${ende}` : '',
+    ende ? `Dienstende ${endeHeute ? 'heute ' : ''}${ende}` : '',
   ].filter(Boolean);
   // art/zeit fuer aeltere App-Versionen, die nur Start oder Ende kennen.
   const art = start && !ende && !pausen.length ? 'start' : (ende && !start && !pausen.length ? 'ende' : 'dienst');
   return {
     answer: rueckfrage
       ? `${rueckfrage.replace(/\?$/, '')} ${tag} für ${wer}? ${hinweis}`.trim()
-      : `${teile.join(', ')} ${tag} für ${wer}. ${hinweis}${nachtHinweis}Soll ich das senden?`,
+      : `${teile.join(', ')} ${tagText} für ${wer}. ${hinweis}${nachtHinweis}Soll ich das senden?`,
     action: {
       type: 'dienst_vorschlag',
       // nurKnopf (15.11.): Mit Ausnahme ("alle außer Tim") bestaetigt im Voice-Modus kein gesprochenes "ja",

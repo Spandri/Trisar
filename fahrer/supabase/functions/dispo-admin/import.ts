@@ -142,7 +142,7 @@ const ollamaFragen = async (url: string, model: string, prompt: string, ms: numb
       signal: ctrl.signal,
       headers: { 'Content-Type': 'application/json' },
       // Kontext wie verstehen.ts (4096), nur lange Importe 8192 (sonst Neuladen bzw. Abschneiden, 15.11.).
-      body: JSON.stringify({ model, prompt, stream: false, format: 'json', options: { temperature: 0, num_ctx: String(prompt).length / 3 + 800 > 4000 ? 8192 : 4096 }, keep_alive: -1 }),
+      body: JSON.stringify({ model, prompt, stream: false, think: false, format: 'json', options: { temperature: 0, num_ctx: String(prompt).length / 3 + 800 > 4000 ? 8192 : 4096 }, keep_alive: -1 }),
     });
     if (!r.ok) return null;
     const daten = await r.json();
@@ -260,12 +260,81 @@ const fahrerZuordnen = async (admin: Admin, datensaetze: any[]) => {
   datensaetze.forEach((s) => {
     const d = s.daten;
     if (!d?.fahrer_name) return;
-    const f = finden(d.fahrer_name);
-    d.driver_id = f?.id || null;
-    d.fahrer = f?.name || null;
+    // Mehrere Fahrer ("Max, Tim"): jeder einzeln, erster wird driver_id (wie Fahrer 1 im Formular).
+    // Ein voller Name mit Komma ("Mueller, Hans") bleibt ein Fahrer, wenn er so gefunden wird.
+    const ganz = finden(d.fahrer_name);
+    const namen: string[] = !ganz && Array.isArray(d.fahrer_namen) && d.fahrer_namen.length > 1 ? d.fahrer_namen : [d.fahrer_name];
+    const treffer = ganz ? [ganz] : namen.map(finden);
+    const ids = [...new Set(treffer.filter(Boolean).map((f: any) => f.id))];
+    d.driver_id = ids[0] || null;
+    d.fahrer_ids = ids.length > 1 ? ids : null;
+    d.fahrer = treffer.some(Boolean) ? treffer.map((f: any, i: number) => f?.name || `${namen[i]} ?`).join(', ') : null;
     s.hinweise = (s.hinweise || []).filter((h: string) => h !== 'fahrerUnbekannt');
-    if (!f) s.hinweise.push('fahrerUnbekannt');
+    if (treffer.some((f) => !f)) s.hinweise.push('fahrerUnbekannt');
   });
+};
+
+// Konvoi aus der Liste einem bestehenden Konvoi zuordnen (Name ohne Gross/Klein), wie im Formular.
+const normal = (t: unknown) => K.text(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, ' ').trim();
+const konvoiZuordnen = async (admin: Admin, datensaetze: any[]) => {
+  if (!datensaetze.some((s) => s.daten?.konvoi)) return;
+  const { data } = await admin.from('convoys').select('id, name');
+  const nachName = new Map((data || []).map((c: any) => [normal(c.name), c]));
+  datensaetze.forEach((s) => {
+    const d = s.daten;
+    if (!d?.konvoi) { if (d) d.convoy_id = null; return; }
+    const c: any = nachName.get(normal(d.konvoi));
+    d.convoy_id = c?.id || null;
+    if (c) d.konvoi = c.name;
+    s.hinweise = (s.hinweise || []).filter((h: string) => h !== 'konvoiUnbekannt');
+    if (!c) s.hinweise.push('konvoiUnbekannt');
+  });
+};
+
+// Eigene Orte: Start/Ziel, die Name oder Adresse eines eigenen Ortes sind, bekommen die Ort-ID,
+// den Ortsnamen und dessen Adresse (wie die Auswahl im Formular).
+const orteZuordnen = async (admin: Admin, zeilen: any[]) => {
+  const { data } = await admin.from('orte').select('id, name, adresse');
+  const orte = data || [];
+  if (!orte.length) return;
+  const finden = (name: unknown, adresse: unknown) => {
+    const n = normal(name); const a = normal(adresse);
+    return orte.find((o: any) => (n && (normal(o.name) === n || normal(o.adresse) === n)) || (a && (normal(o.name) === a || normal(o.adresse) === a)));
+  };
+  zeilen.forEach((z) => {
+    const ab: any = finden(z.pickup_name, z.pickup_address);
+    if (ab) Object.assign(z, { pickup_ort_id: ab.id, pickup_name: ab.name, pickup_address: ab.adresse || z.pickup_address });
+    const zi: any = finden(z.dropoff_name, z.dropoff_address);
+    if (zi) Object.assign(z, { dropoff_ort_id: zi.id, dropoff_name: zi.name, dropoff_address: zi.adresse || z.dropoff_address });
+    // Zwischenstopps sind Text wie im Formular: eigener Ort wird zu "Name, Adresse"-Text der Ortsadresse.
+    if (Array.isArray(z.zwischenstopps)) {
+      z.zwischenstopps = z.zwischenstopps.map((st: string) => { const o: any = finden(st, st); return o?.adresse || st; });
+    }
+  });
+};
+
+// Gaeste, die es in der Gaesteliste gibt, an die Fahrt haengen (job_guests), erster = Hauptkontakt.
+const gaesteVerknuepfen = async (admin: Admin, jobs: { id: string; passengers: string[] }[]) => {
+  if (!jobs.some((j) => j.passengers?.length)) return;
+  const { data } = await admin.from('guests').select('id, first_name, last_name');
+  const nachName = new Map<string, string>();
+  const doppelt = new Set<string>();
+  (data || []).forEach((g: any) => {
+    for (const k of [normal(`${g.first_name || ''} ${g.last_name || ''}`), normal(`${g.last_name || ''} ${g.first_name || ''}`)]) {
+      if (!k) continue;
+      if (nachName.has(k) && nachName.get(k) !== g.id) doppelt.add(k); else nachName.set(k, g.id);
+    }
+  });
+  const zeilen: any[] = [];
+  jobs.forEach((j) => {
+    const ids = [...new Set((j.passengers || []).map((p) => normal(p)).filter((k) => !doppelt.has(k)).map((k) => nachName.get(k)).filter(Boolean))];
+    ids.forEach((gid, i) => zeilen.push({ job_id: j.id, guest_id: gid, is_main_contact: i === 0 }));
+  });
+  if (zeilen.length) {
+    const { error } = await admin.from('job_guests').insert(zeilen);
+    if (error) throw error;
+  }
 };
 
 // Weitere Blaetter mit eigenen Fahrten (z. B. "Band Alphaville" neben "Gaeste und Abholzeiten") gleich
@@ -395,7 +464,7 @@ const analysieren = async (admin: Admin, body: any) => {
     datensaetze = [...datensaetze, ...dazu];
     mitBlaettern = genutzt;
   }
-  if (modus === 'rides') await fahrerZuordnen(admin, datensaetze);
+  if (modus === 'rides') { await fahrerZuordnen(admin, datensaetze); await konvoiZuordnen(admin, datensaetze); }
   await dublettenMarkieren(admin, modus, datensaetze);
   datensaetze.forEach((s: any) => K.pruefen(modus, s));
 
@@ -602,19 +671,36 @@ const ausfuehren = async (admin: Admin, body: any, userId: string) => {
 
   try {
     if (modus === 'rides') {
+      // Fahrer und Konvoi in der Vorschau evtl. geaendert: nochmal zuordnen.
+      await fahrerZuordnen(admin, gueltig);
+      await konvoiZuordnen(admin, gueltig);
+      const fahrerVon = (d: any) => (Array.isArray(d.fahrer_ids) && d.fahrer_ids.length ? d.fahrer_ids : [d.driver_id]).filter(Boolean).map(String);
       // Nur Fahrer, die es gibt und die keine Dispo-Rolle haben.
-      const ids = [...new Set(gueltig.map((s: any) => K.fahrtZeile(s.daten).driver_id).filter(Boolean))];
+      const ids = [...new Set(gueltig.flatMap((s: any) => fahrerVon(s.daten)))];
       const { data: profile } = ids.length ? await admin.from('profiles').select('id, role').in('id', ids) : { data: [] };
       const erlaubt = new Set((profile || []).filter((p: any) => !DISPO_ROLLEN.has(String(p?.role || '').toLowerCase())).map((p: any) => String(p.id)));
       const zeilen = gueltig.map((s: any) => {
         const z = K.fahrtZeile(s.daten);
-        return { ...z, driver_id: z.driver_id && erlaubt.has(z.driver_id) ? z.driver_id : null, import_id: stapel.id };
+        const fahrer = fahrerVon(s.daten).filter((id: string) => erlaubt.has(id));
+        return { ...z, driver_id: fahrer[0] || null, convoy_id: s.daten.convoy_id || null, import_id: stapel.id };
       });
+      await orteZuordnen(admin, zeilen);
       const { data, error } = await admin.from('jobs').insert(zeilen).select('id');
       if (error) throw error;
+      // Mehrere Fahrer oder Konvoi: Fahrer-Plaetze wie im Formular (convoy_assignments).
+      const plaetze = gueltig.flatMap((s: any, i: number) => {
+        const fahrer = fahrerVon(s.daten).filter((id: string) => erlaubt.has(id));
+        return data?.[i]?.id && (s.daten.convoy_id || fahrer.length > 1)
+          ? fahrer.map((driver_id: string) => ({ job_id: data[i].id, driver_id, response_status: 'pending' })) : [];
+      });
+      if (plaetze.length) {
+        const { error: pf } = await admin.from('convoy_assignments').upsert(plaetze, { onConflict: 'job_id,driver_id' });
+        if (pf) throw pf;
+      }
+      await gaesteVerknuepfen(admin, (data || []).map((j: any, i: number) => ({ id: j.id, passengers: zeilen[i]?.passengers || [] })));
       // Notizen gehoeren in job_notes, nicht in jobs.
       const notizen = gueltig
-        .map((s: any, i: number) => ({ job_id: data?.[i]?.id, note_text: K.text(s.daten.note) }))
+        .map((s: any, i: number) => ({ job_id: data?.[i]?.id, note_text: [K.text(s.daten.note), s.daten.anzahl_fahrzeuge > 1 ? `${s.daten.anzahl_fahrzeuge} Fahrzeuge` : ''].filter(Boolean).join(' · ') }))
         .filter((n: any) => n.job_id && n.note_text);
       if (notizen.length) {
         const { error: nf } = await admin.from('job_notes').insert(notizen);
@@ -671,6 +757,8 @@ const rueckgaengig = async (admin: Admin, body: any) => {
     behalten = (fahrten || []).length - weg.length;
     if (weg.length) {
       await admin.from('job_notes').delete().in('job_id', weg);
+      await admin.from('job_guests').delete().in('job_id', weg);
+      await admin.from('convoy_assignments').delete().in('job_id', weg);
       const { error } = await admin.from('jobs').delete().in('id', weg);
       if (error) return antwort(500, { error: error.message });
     }

@@ -233,6 +233,7 @@ export default {
   "misc.sendDamage": "Report damage",
   "misc.sendNote": "Send note",
   "misc.settings": "Settings",
+  "misc.afterShiftEnd": "Shift ends after",
   "misc.shiftEnd": "Shift end {time}",
   "misc.shiftRunning": "Shift still running",
   "misc.shiftStart": "Shift start {time}",
@@ -362,4 +363,5 @@ export default {
   "gaeste.anonymEins": "1 anonymous guest",
   "gaeste.anonymViele": "{n} anonymous guests",
   "gaeste.keine": "No guests",
+  "misc.damageReportedBy": "reported by {name}",
 };

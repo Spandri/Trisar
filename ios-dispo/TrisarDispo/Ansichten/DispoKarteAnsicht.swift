@@ -28,6 +28,8 @@ struct DispoKarteAnsicht: View {
     @State private var einpassen = 0
     @State private var filterOffen = false
     @State private var profilOffen = false
+    /// Fahrzeugseite des Fahrers aus dem Fahrerblatt (Tipp auf den Fahrzeugkasten).
+    @State private var fahrzeugSeite: DispoFahrzeugZiel?
     @State private var abseitsZaehler = 0
     @State private var letzteNeuberechnung = Date.distantPast
     @ObservedObject private var orte = OrteSpeicher.geteilt
@@ -303,6 +305,9 @@ struct DispoKarteAnsicht: View {
         }
         .ignoresSafeArea()
         .background(Color(hex: 0x0E0E0E).ignoresSafeArea())
+        .webVollbild(item: $fahrzeugSeite) { z in
+            DispoFahrzeugAnsicht(fahrerID: z.fahrerID, fahrzeugID: z.fahrzeugID) { fahrzeugSeite = nil }
+        }
         .task { await daten.starten() }
         .task { await orte.beobachten() }
         .task { await bereich.laden() }
@@ -406,22 +411,6 @@ struct DispoKarteAnsicht: View {
                 .mittig(201, 142, 362, 44)
             }
 
-            // Hinweis unter der Statusleiste: so viele lange ohne Signal ausgeblendet, Tippen oeffnet den Filter.
-            if !kartenAuswahl && ohneSignalAusblenden {
-                Button { filterOffen = true } label: {
-                    Text("\(langeOhneSignal.count) ohne Signal ausgeblendet ›").grotesk(12, .medium, abstand: 0.3)
-                        .foregroundStyle(Color(hex: 0xE3F654))
-                        .padding(.horizontal, 10)
-                        .frame(height: 30)
-                        .background(Color.black)
-                        .overlay(Rectangle().strokeBorder(Color(hex: 0xE3F654).opacity(0.5), lineWidth: 1))
-                        .fixedSize()
-                }
-                .buttonStyle(.web)
-                .platz(20, 196, nil, 30)
-                .zIndex(31)
-            }
-
             // Flaggen (Figma 2832:12528): unter den Knoepfen, nur im Auswahlmodus.
             if kartenAuswahl {
                 FlaggenKnoepfe(ids: markierung.ids,
@@ -458,7 +447,8 @@ struct DispoKarteAnsicht: View {
             if let f = blattFahrer {
                 let hoehe = min(max(blatt, Self.blattMin), blattMax)
                 FahrerBlatt(fahrer: f, reise: blattReise(f), liveJe: reiseLive.je, jetzt: reiseUhr,
-                            hoehe: $blatt, zieht: $ziehtBlatt, minimum: Self.blattMin, maximum: blattMax) {
+                            hoehe: $blatt, zieht: $ziehtBlatt, minimum: Self.blattMin, maximum: blattMax,
+                            fahrzeugOeffnen: { fahrzeugSeite = DispoFahrzeugZiel(fahrer: f) }) {
                     profilOffen = true
                 }
                 .frame(width: 402, height: hoehe)
@@ -801,6 +791,19 @@ private struct InaktivFenster: View {
     }
 }
 
+/// Ziel der Fahrzeugseite: Fahrer und sein Fahrzeug (profiles.vehicle_id).
+private struct DispoFahrzeugZiel: Identifiable {
+    let fahrerID: UUID
+    let fahrzeugID: UUID?
+    var id: UUID { fahrerID }
+
+    init?(fahrer: KartenFahrer) {
+        guard let id = UUID(uuidString: fahrer.id) else { return nil }
+        fahrerID = id
+        fahrzeugID = UUID(uuidString: fahrer.vehicleId)
+    }
+}
+
 // MARK: - Fahrerblatt (ActiveRideSheet)
 
 private struct FahrerBlatt: View {
@@ -813,6 +816,8 @@ private struct FahrerBlatt: View {
     @Binding var zieht: Bool
     let minimum: CGFloat
     let maximum: CGFloat
+    /// Tipp auf den weissen Fahrzeugkasten: Fahrzeugseite des Fahrers.
+    var fahrzeugOeffnen: () -> Void = {}
     let profilOeffnen: () -> Void
     @State private var startHoehe: CGFloat = 0
     @State private var bewegt = false
@@ -880,14 +885,28 @@ private struct FahrerBlatt: View {
             .background(Self.lime)
             .clipped()
 
-            VStack(spacing: 4) {
-                Text(fahrer.kennzeichen).grotesk(30, .bold, abstand: -0.8).foregroundStyle(Color(hex: 0x1D1C1D)).frame(height: 30)
-                Text(fahrer.fahrzeug).grotesk(16, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1D1C1D).opacity(0.35)).frame(height: 16)
+            // Kennzeichen und Modell links, rechts klein das Fahrzeugbild wie auf der Startseite der Fahrer-App.
+            Button(action: fahrzeugOeffnen) {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(fahrer.kennzeichen).grotesk(30, .bold, abstand: -0.8).foregroundStyle(Color(hex: 0x1D1C1D)).frame(height: 30)
+                            .minimumScaleFactor(0.5)
+                        Text(fahrer.fahrzeug).grotesk(16, .bold, abstand: -0.5).foregroundStyle(Color(hex: 0x1D1C1D).opacity(0.35)).frame(height: 16)
+                    }
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if !fahrer.vehicleId.isEmpty {
+                        DispoFahrzeugMiniBild(fahrzeugID: fahrer.vehicleId).frame(width: 110, height: 50)
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .frame(width: 362)
+                .background(Color.white)
+                .contentShape(Rectangle())
             }
-            .lineLimit(1)
-            .padding(.vertical, 10)
-            .frame(width: 362)
-            .background(Color.white)
+            .buttonStyle(.web)
+            .accessibilityLabel("Fahrzeug öffnen")
             .padding(.top, 12)
 
             // Uhrzeit des letzten Signals, rot sobald seit 5 Minuten nichts mehr kam.
@@ -1177,6 +1196,7 @@ private struct TelemetrieBlock: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(z.titel).grotesk(11).foregroundStyle(Color(hex: 0x8D8D8D))
                             Text(z.wert).grotesk(18, .bold).foregroundStyle(Color(hex: z.warnung ? 0xFF6B57 : 0xD6D6D6))
+                            if !z.unter.isEmpty { Text(z.unter).grotesk(11).foregroundStyle(Color(hex: 0x8D8D8D)) }
                         }
                         .lineLimit(1)
                     }

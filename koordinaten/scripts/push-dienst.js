@@ -292,6 +292,14 @@ const erinnern = async () => {
     if (!/push_dispo_warnungen|PGRST202/.test(String(e.message || e))) log('Fehler bei Dispo-Warnungen:', e.message || e);
   }
   try {
+    // Tracker am OBD (18.11.): im Dienst Online-Tiefschlaf, sonst Tiefschlaf (Befehl in die Warteschlange).
+    const anzahl = await rest('rpc/tracker_schlaf_abgleichen', { methode: 'POST', koerper: {} });
+    if (anzahl) log(`${anzahl} Tracker-Schlafart umgestellt`);
+  } catch (e) {
+    // Fehlt die Migration 20261118160000 noch, nicht jede Minute laut werden.
+    if (!/tracker_schlaf_abgleichen|PGRST202/.test(String(e.message || e))) log('Fehler bei Tracker-Schlafart:', e.message || e);
+  }
+  try {
     // "Ankuenfte bei mir" (17.11.): Fahrzeug in X min bei der Dispo bzw. angekommen.
     const anzahl = await rest('rpc/push_dispo_ankuenfte', { methode: 'POST', koerper: {} });
     if (anzahl) log(`${anzahl} Ankunft-Meldung(en) angelegt`);

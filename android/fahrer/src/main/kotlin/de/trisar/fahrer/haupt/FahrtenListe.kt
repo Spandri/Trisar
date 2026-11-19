@@ -101,6 +101,8 @@ private class ListenRaster {
     val stunden = mutableListOf<Pair<de.trisar.kern.Stunden.Eintrag, Float>>()
     val standbys = mutableListOf<Pair<FahrerStandby, Float>>()
     val reisen = mutableListOf<Pair<FahrerDienstreise, Float>>()
+    /** Danach Dienstende (19.11.): rote Zeile direkt unter der Fahrt. */
+    val fahrtEnden = mutableListOf<Pair<Fahrt, Float>>()
     var unterkante = 0f
 }
 
@@ -194,9 +196,15 @@ private fun rasterBerechnen(
             r.fahrten += Triple(f, cursor, mitKnoepfen)
             val h = hoehe(f)
             cursor += if (mitKnoepfen) h + KNOPF_ABSTAND + KNOPF_HOEHE + NACH_KNOPF else h + KARTEN_ABSTAND
+            if (f.danachDienstende) {
+                r.fahrtEnden += f to cursor
+                cursor += DIENST_ZEILE + KARTEN_ABSTAND
+            }
         }
         pausenBis(Double.POSITIVE_INFINITY)
-        for (a in alleDienste.filter { it.angenommen && zeigeEnde(it, jetzt, vorbei) }) {
+        // Mit "Danach Dienstende" steht das Dienstende schon unter der Fahrt.
+        val endeUnterFahrt = tagesFahrten.any { it.danachDienstende }
+        for (a in alleDienste.filter { !endeUnterFahrt && it.angenommen && zeigeEnde(it, jetzt, vorbei) }) {
             r.dienste += DienstEintrag(a, cursor, "ende")
             cursor += DIENST_ZEILE + KARTEN_ABSTAND
         }
@@ -323,6 +331,20 @@ internal fun FahrtenListeSeite(
                 }
                 DienstKarte(anfrage, dienstArbeitet == anfrage.id, Modifier.platz(20f, VERSATZ + oben, 362f), { oeffneDienst(anfrage) }) { annehmen ->
                     speicher.dienstAntworten(anfrage, annehmen)
+                }
+            }
+
+            for ((fe, oben) in raster.fahrtEnden) {
+                androidx.compose.runtime.key("fahrtende-${fe.id}") {
+                    // Vor dem Ende ohne Zeit, danach mit der echten Ankunft (Europe/Berlin).
+                    val rot = hex(0xFF6F63)
+                    val zeit = fe.ankunftEcht?.let { Datum.ausISO(it) }?.let {
+                        java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(java.time.ZoneId.of("Europe/Berlin")).format(it)
+                    }
+                    Box(Modifier.platz(20f, VERSATZ + oben, 362f, DIENST_ZEILE).border(1.dp, rot).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(if (zeit != null) "Dienstende $zeit" else "Danach Dienstende",
+                            style = grotesk(24f, 700, zeilenHoehe = 24f, abstand = 0.6f, farbe = rot), maxLines = 1)
+                    }
                 }
             }
 

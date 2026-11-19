@@ -96,7 +96,7 @@ export function StundenExportFenster({ schliessen }) {
 
   return (
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end justify-center" onClick={schliessen}>
-      <div className="w-[min(402px,100vw)] max-h-[85dvh] overflow-y-auto bg-[#0f0f0f] border-t-2 border-[#E3F654] px-5 pt-5 pb-[60px]" onClick={(e) => e.stopPropagation()}>
+      <div className="w-[min(402px,100vw)] max-h-[calc(var(--app-h,100dvh)*0.85)] overflow-y-auto bg-[#0f0f0f] border-t-2 border-[#E3F654] px-5 pt-5 pb-[60px]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <span className={`text-[26px] font-bold ${schrift}`} style={{ color: LIME }}>Stunden exportieren</span>
           <button type="button" onClick={schliessen} aria-label="Schließen" className={`text-[28px] leading-none text-white/60 ${schrift}`}>×</button>

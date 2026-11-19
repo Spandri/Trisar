@@ -225,6 +225,7 @@ export default {
   "misc.sendDamage": "Hasar bildir",
   "misc.sendNote": "Notu gönder",
   "misc.settings": "Ayarlar",
+  "misc.afterShiftEnd": "Sonra vardiya sonu",
   "misc.shiftEnd": "Vardiya sonu {time}",
   "misc.shiftStart": "Vardiya başı {time}",
   "misc.sourceCamera": "Fotoğraf çek",
@@ -314,4 +315,5 @@ export default {
   "soloF.typeAirport": "Havalimanı",
   "soloF.typeHotel": "Otel",
   "abholschild.schliessen": "Karşılama tabelasını kapat",
+  "misc.damageReportedBy": "bildiren: {name}",
 };

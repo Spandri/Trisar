@@ -274,6 +274,7 @@ internal fun PlanKarteFlaeche(halter: PlanKarteHalter, modifier: Modifier, zoom:
     halter.dichte = dichte
     val ansicht = remember {
         MapLibre.getInstance(ctx)
+        de.trisar.dispo.karte.KartenStil.laden(ctx)
         MapView(ctx).apply {
             onCreate(Bundle())
             setBackgroundColor(AColor.rgb(14, 14, 14))
@@ -294,7 +295,7 @@ internal fun PlanKarteFlaeche(halter: PlanKarteHalter, modifier: Modifier, zoom:
                         true
                     }
                 }
-                k.setStyle(Style.Builder().fromUri(Konfig.KARTEN_STIL)) { s -> halter.einrichten(k, s) }
+                de.trisar.dispo.karte.KartenStil.stilSetzen(k) { s -> halter.einrichten(k, s) }
             }
         }
     }

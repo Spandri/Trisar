@@ -339,6 +339,8 @@ export default function FahrtAdd({
   const [appliedTrainNumber, setAppliedTrainNumber] = useState('');
   // Start Zeitraum (13.11.): Tipp auf "Start Zeit" macht daraus von - bis.
   const [zeitraum, setZeitraum] = useState(Boolean(vorlage?.startZeitBis));
+  // Flug- oder Zugnummer (19.11.): eine Zeile, Tipp auf die Beschriftung schaltet um.
+  const [nummerArt, setNummerArt] = useState(vorlage?.zugnummer ? 'zug' : 'flug');
   const [formValues, setFormValues] = useState({
     datum: vorlage?.datum || '',
     startZeit: vorlage?.startZeit || '',
@@ -359,6 +361,7 @@ export default function FahrtAdd({
     fahrgaeste: '',
     aktuellerStatus: '',
     anzahlFahrzeuge: '',
+    danach: vorlage?.danach || '',
   });
 
   const updateField = (key, value) => {
@@ -618,33 +621,51 @@ export default function FahrtAdd({
     ariaLabel: isTrainApplied ? t('fahrt.trainDataReset') : canApplyTrain ? t('fahrt.trainDataApply') : t('fahrt.trainNumberCheck'),
   };
 
+  // Umschalten leert die bisherige Nummer: eine Fahrt hat Flug oder Zug, nie beides.
+  const nummerArtWechseln = () => {
+    if (nummerArt === 'flug') {
+      setAppliedFlightNumber('');
+      setShowFlightCandidates(false);
+      updateField('flugnummer', '');
+      setNummerArt('zug');
+    } else {
+      setAppliedTrainNumber('');
+      updateField('zugnummer', '');
+      setNummerArt('flug');
+    }
+  };
+
   const rows = [
     ...stopps.rows,
     { key: 'ziel', label: t('fahrt.ziel'), mode: 'select', options: placePredictions.ziel, marker: 'anlegen-ziel' },
     ...(routenZeile.row ? [routenZeile.row] : []),
-    {
-      key: 'flugnummer',
-      label: t('fahrt.flugnummer'),
-      mode: 'text',
-      marker: 'anlegen-flug',
-      etaIndicator: normalizedFlightNumber
-        ? {
-          ...flightEtaIndicator,
-          onClick: flightEtaIndicator.text === 'Multi' && flightCandidates.length > 0
-            ? () => setShowFlightCandidates((prev) => !prev)
-            : undefined,
-        }
-        : null,
-      rightAction: flightRightAction,
-    },
-    {
-      key: 'zugnummer',
-      label: t('fahrt.zugnummer'),
-      mode: 'text',
-      marker: 'anlegen-zug',
-      etaIndicator: normalizedTrainNumber ? trainEtaIndicator : null,
-      rightAction: trainRightAction,
-    },
+    // Flug- und Zugnummer in einer Zeile (19.11.): Tipp auf die Beschriftung schaltet um.
+    nummerArt === 'zug'
+      ? {
+        key: 'zugnummer',
+        label: t('fahrt.zugnummer'),
+        mode: 'text',
+        onLabelClick: nummerArtWechseln,
+        marker: 'anlegen-zug',
+        etaIndicator: normalizedTrainNumber ? trainEtaIndicator : null,
+        rightAction: trainRightAction,
+      }
+      : {
+        key: 'flugnummer',
+        label: t('fahrt.flugnummer'),
+        mode: 'text',
+        onLabelClick: nummerArtWechseln,
+        marker: 'anlegen-flug',
+        etaIndicator: normalizedFlightNumber
+          ? {
+            ...flightEtaIndicator,
+            onClick: flightEtaIndicator.text === 'Multi' && flightCandidates.length > 0
+              ? () => setShowFlightCandidates((prev) => !prev)
+              : undefined,
+          }
+          : null,
+        rightAction: flightRightAction,
+      },
     { key: 'konvoi', label: t('fahrt.konvoi'), mode: 'text', marker: 'anlegen-konvoi' },
     ...(showVehicleCount ? [{ key: 'anzahlFahrzeuge', label: t('fahrt.anzahlFahrzeuge'), mode: 'number', options: ['1', '2', '3', '4'], marker: 'anlegen-fahrzeuge' }] : []),
     ...fahrerNamen.map((_, index) => ({
@@ -666,6 +687,15 @@ export default function FahrtAdd({
           return next;
         }),
     })),
+    // Danach Dienstende (19.11.): direkt unter dem letzten Fahrer.
+    {
+      key: 'danach',
+      label: t('fahrt.danach'),
+      mode: 'dropdown',
+      marker: 'anlegen-danach',
+      options: ['dienstende'],
+      optionLabels: { dienstende: t('fahrt.danachDienstende') },
+    },
     ...fahrgaesteNamen.map((name, index) => ({
       key: `fahrgast-${index}`,
       label: index === 0 ? (String(fahrgaesteNamen[0] || '').trim().length > 0 ? t('fahrt.gastNumbered', { n: 1 }) : t('fahrt.fahrgaeste')) : t('fahrt.gastNumbered', { n: index + 1 }),
@@ -692,12 +722,13 @@ export default function FahrtAdd({
       label: t('fahrt.aktuellerStatus'),
       mode: 'dropdown',
       marker: 'anlegen-status',
-      options: ['offen', 'beendet', 'stoniert', 'unterwegs'],
+      options: ['offen', 'beimGast', 'unterwegs', 'beendet', 'stoniert'],
       optionLabels: {
         offen: t('fahrt.statusOffen'),
         beendet: t('fahrt.statusBeendet'),
         stoniert: t('fahrt.statusStoniert'),
         unterwegs: t('fahrt.statusUnterwegs'),
+        beimGast: t('fahrt.statusBeimGast'),
       },
     },
   ];
@@ -746,7 +777,7 @@ export default function FahrtAdd({
         anonymeGaeste: String(formValues.anonymeGaeste || '0'),
         fahrerNamen: fahrerFuersSpeichern(fahrerNamen, fahrerPlaetze),
         zwischenstopps,
-        ...(routenZeile.fuersSpeichern ? { routenPunkte: routenZeile.fuersSpeichern } : {}),
+        ...(routenZeile.fuersSpeichern ? { routenPunkte: routenZeile.fuersSpeichern, routeFest: routenZeile.festFuersSpeichern } : {}),
         flugZielFlughafen: flightAirportOverride,
         flugAnkunftGeplant: flightScheduledOverride,
         notes,
@@ -959,6 +990,7 @@ export default function FahrtAdd({
                 marker={row.marker}
                 onClick={row.onClick}
                 chip={row.chip}
+                onLabelClick={row.onLabelClick}
               />
             );
           })}

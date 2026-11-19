@@ -34,6 +34,8 @@ data class FahrtFormularWerte(
     /** Gewaehlter eigener Ort (orte.id) fuer Start/Ziel, leer bei frei getippter Adresse. */
     val startOrtID: String = "",
     val zielOrtID: String = "",
+    /** Danach Dienstende (19.11.): jobs.danach_dienstende, der DB-Trigger setzt das Dienstende. */
+    val danachDienstende: Boolean = false,
 )
 
 /** Stand einer Fahrt beim Oeffnen des Editors (rideEditorData aus openRideEditorById). */
@@ -52,6 +54,8 @@ data class GeladeneFahrt(
     val mitBisSpalte: Boolean = false,
     /** Routenpunkte der Dispo (jobs.routen_punkte), leer ohne Spalte oder ohne Punkte. */
     val routenPunkte: List<de.trisar.kern.RoutenPunkt> = emptyList(),
+    /** Freigegebene Route (jobs.route_fest) zu diesen Punkten, undurchsichtig: nur aufbewahren und wieder mitschicken. */
+    val routeFest: JsonElement? = null,
 )
 
 /** payload an onCreateRide / onSave. */
@@ -69,6 +73,8 @@ data class FahrtEingabe(
     val flugOhnePruefung: Boolean = false,
     /** Routenpunkte: null = Spalte nicht mitschicken (sonst bricht Speichern, solange die Spalte live fehlt). */
     val routenPunkte: List<de.trisar.kern.RoutenPunkt>? = null,
+    /** Freigabe zu routenPunkte (fest aus der Vorschau), geht nur zusammen mit routenPunkte als route_fest mit. */
+    val routeFest: JsonElement? = null,
 )
 
 /** Vorschlag des KI-Assistenten als Startwerte fuer „Fahrt erstellen“. */
@@ -189,13 +195,25 @@ object FahrtSpeichern {
         })
             ?: error("Fahrt nicht gefunden.")
 
-        // Routenpunkte in eigener Abfrage: die Spalte kann live noch fehlen, dann still leer.
-        val routenPunkte = still(emptyList()) {
-            de.trisar.kern.RoutenPunkte.lesen(c.from("jobs").select(Columns.raw("routen_punkte")) {
+        // Routenpunkte und Freigabe in eigener Abfrage: die Spalten koennen live noch fehlen.
+        // Erst beide, sonst nur die Punkte, sonst still leer.
+        suspend fun routenLesen(spaltenListe: String) = c.from("jobs").select(Columns.raw(spaltenListe)) {
+            filter { eq("id", id) }
+            limit(1)
+        }.decodeList<JsonObject>().firstOrNull()
+        val routenZeile = still<JsonObject?>(null) {
+            try { routenLesen("routen_punkte, route_fest") } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { routenLesen("routen_punkte") }
+        }
+        val routenPunkte = de.trisar.kern.RoutenPunkte.lesen(routenZeile?.get("routen_punkte"))
+        // Danach Dienstende (19.11.) in eigener Abfrage: ohne Spalte still aus.
+        val danachDienstende = still(false) {
+            W.bool(c.from("jobs").select(Columns.raw("danach_dienstende")) {
                 filter { eq("id", id) }
                 limit(1)
-            }.decodeList<JsonObject>().firstOrNull()?.get("routen_punkte"))
+            }.decodeList<JsonObject>().firstOrNull()?.get("danach_dienstende"))
         }
+        // Roh aufbewahren (nicht auswerten). Ohne Punkte gilt keine Freigabe.
+        val routeFest = (routenZeile?.get("route_fest") as? JsonObject)?.takeIf { routenPunkte.isNotEmpty() }
         val archiv = still(emptyList()) { c.from("jobs_archive").select(Columns.raw("job_id")) { filter { eq("job_id", id) } }.decodeList<JsonObject>() }
         val zuordnungen = still(emptyList()) { c.from("convoy_assignments").select(Columns.raw("driver_id, response_status")) { filter { eq("job_id", id) } }.decodeList<JsonObject>() }
         val jobFahrer = W.t(job["driver_id"])
@@ -307,10 +325,11 @@ object FahrtSpeichern {
             anonymeGaeste = anonym.toString(),
             aktuellerStatus = FahrtText.editorStatus(jobStatus),
             anzahlFahrzeuge = fahrzeuge,
+            danachDienstende = danachDienstende,
         )
         return GeladeneFahrt(W.t(job["id"]).ifEmpty { id }, werte, namen.ifEmpty { listOf("") }, wirksam.joinToString(", "), dispoText, aiBooked,
             zwischenstopps = (job["zwischenstopps"] as? JsonArray)?.map { FahrtText.getrimmt(stringWert(it)) }?.filter { it.isNotEmpty() } ?: emptyList(),
-            mitStoppSpalte = mitStoppSpalte, mitBisSpalte = mitBisSpalte, routenPunkte = routenPunkte)
+            mitStoppSpalte = mitStoppSpalte, mitBisSpalte = mitBisSpalte, routenPunkte = routenPunkte, routeFest = routeFest)
     }
 
     // MARK: Gemeinsame Vorbereitung (Pruefungen vor dem Schreiben)
@@ -453,6 +472,10 @@ object FahrtSpeichern {
         Backend.client.from("job_notes").insert(buildJsonObject { put("job_id", fahrtID.lowercase()); put("note_text", notiz) })
     }
 
+    /** Wert fuer jobs.route_fest: das Paket der Vorschau unveraendert, ohne Punkte (oder ohne Paket) JSON-null. */
+    private fun routeFestWert(punkte: List<de.trisar.kern.RoutenPunkt>, fest: JsonElement?): JsonElement =
+        if (punkte.isEmpty()) JsonNull else fest ?: JsonNull
+
     // MARK: Anlegen (handleCreateRide)
 
     suspend fun anlegen(e: FahrtEingabe): Ergebnis {
@@ -465,7 +488,11 @@ object FahrtSpeichern {
             val kolonnenSync = kolonne != null || v.fahrerNamen.size > 1 || fahrerIDs.size > 1
 
             val zeile = JsonObject(jobSpalten(v, FahrtText.jobStatus(e.werte.aktuellerStatus), kolonne, fahrerIDs.firstOrNull(), e.aiBooked).also {
-                e.routenPunkte?.let { p -> it["routen_punkte"] = de.trisar.kern.RoutenPunkte.json(p) }
+                if (e.werte.danachDienstende) it["danach_dienstende"] = JsonPrimitive(true)
+                e.routenPunkte?.let { p ->
+                    it["routen_punkte"] = de.trisar.kern.RoutenPunkte.json(p)
+                    it["route_fest"] = routeFestWert(p, e.routeFest)
+                }
             })
             val neu = Backend.client.from("jobs").insert(zeile) {
                 select(Columns.raw("id"))
@@ -514,7 +541,7 @@ object FahrtSpeichern {
             val bisherFahrer = bisher?.let { W.t(it["driver_id"]).ifEmpty { null } }
             val fahrerNeu = fahrerIDs.firstOrNull() ?: bisherFahrer
             val gewuenscht = FahrtText.jobStatus(e.werte.aktuellerStatus)
-            val endStatus = gewuenscht in setOf("done", "completed", "cancelled", "canceled", "refused", "in_progress")
+            val endStatus = gewuenscht in setOf("done", "completed", "cancelled", "canceled", "refused", "in_progress", "at_pickup")
             val gleicheUhr = { a: String?, b: String -> (a ?: "").take(5) == b.take(5) }
             // Uhrzeit im Formular nicht angefasst: die gespeicherte ETD bleibt. Bei ueberfaelligen offenen
             // Fahrten zeigt das Formular "jetzt" statt der Planzeit. Sonst schrieb jede reine Statusaenderung
@@ -539,11 +566,15 @@ object FahrtSpeichern {
             val zuordnung = if (kolonnenSync) fahrerIDs else listOfNotNull(fahrerNeu)
 
             val spalten = jobSpalten(v, naechster, kolonne, fahrerNeu, geladen.aiBooked, geladen.mitStoppSpalte, geladen.mitBisSpalte)
+            spalten["danach_dienstende"] = JsonPrimitive(e.werte.danachDienstende)
             if (neuAnfragen) {
                 spalten["driver_response_status"] = JsonPrimitive("pending")
                 spalten["driver_responded_at"] = JsonNull
             }
-            e.routenPunkte?.let { spalten["routen_punkte"] = de.trisar.kern.RoutenPunkte.json(it) }
+            e.routenPunkte?.let {
+                spalten["routen_punkte"] = de.trisar.kern.RoutenPunkte.json(it)
+                spalten["route_fest"] = routeFestWert(it, e.routeFest)
+            }
             if (zeitUnberuehrt) {
                 spalten.remove("etd")
                 spalten.remove("original_etd")

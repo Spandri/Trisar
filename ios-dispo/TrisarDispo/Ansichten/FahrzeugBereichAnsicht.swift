@@ -65,7 +65,8 @@ struct FahrzeugListeSeite: View {
         let gefiltert = filter.anwenden(dienst.fahrzeuge)
         let markiert = markierteFahrzeuge
         // Markierte Fahrzeuge zuerst und hervorgehoben, die uebrigen blass.
-        let liste = markiert.map { m in gefiltert.filter { m.contains($0.id) } + gefiltert.filter { !m.contains($0.id) } } ?? gefiltert
+        let liste = markiert.map { m in gefiltert.filter { m.contains($0.id) } + gefiltert.filter { !m.contains($0.id) } }
+            ?? (gefiltert.filter(\.neuErkannt) + gefiltert.filter { !$0.neuErkannt })
         let listeOben: CGFloat = markiert == nil ? 354 : 354 + 44
         ZStack(alignment: .topLeading) {
             Leinwand(basisHoehe: 874, inhaltHoehe: listeOben + listenHoehe(liste.count) + 157, mitHintergrund: false) { rahmen in
@@ -193,13 +194,23 @@ struct FahrzeugListenKarte: View {
             WebText(text: fahrzeug.plate, groesse: 30, gewicht: .bold, zeilenHoehe: 32, abstand: -0.5, farbe: UIColor(hex: 0x1D1C1D))
                 .fixedSize()
                 .platz(170, 38)
-            HStack(spacing: 6) {
-                kachel(KraftstoffKachel(kraftstoff: fahrzeug.fuelType))
-                kachel(FarbKachel(farbe: fahrzeug.color))
-                kachel(EnergieKachel(kraftstoff: fahrzeug.fuelType, fuellstand: fahrzeug.fill, reichweite: fahrzeug.range))
-                kachel(SitzKachel(sitze: fahrzeug.seatCount))
+            if fahrzeug.neuErkannt {
+                Text("Neu")
+                    .font(.grotesk(14, .bold))
+                    .foregroundStyle(Color(hex: 0x1D1C1D))
+                    .padding(.horizontal, 12)
+                    .frame(height: 36)
+                    .background(Color(hex: 0xE3F654))
+                    .platz(170, 76)
+            } else {
+                HStack(spacing: 6) {
+                    kachel(KraftstoffKachel(kraftstoff: fahrzeug.fuelType))
+                    kachel(FarbKachel(farbe: fahrzeug.color))
+                    kachel(EnergieKachel(kraftstoff: fahrzeug.fuelType, fuellstand: fahrzeug.fill, reichweite: fahrzeug.range))
+                    kachel(SitzKachel(sitze: fahrzeug.seatCount))
+                }
+                .platz(170, 76)
             }
-            .platz(170, 76)
         }
         .frame(width: 362, height: 128)
         .clipped()
@@ -283,7 +294,14 @@ struct FahrzeugFormularSeite: View {
 
     @State private var markeModell = ""
     @State private var variante = ""
+    /// Gewaehlte Zeile aus fahrzeug_varianten, Liste dazu vom Server.
+    @State private var varianteID = ""
+    @State private var varianten: [FahrzeugVariante] = []
     @State private var vin = ""
+    /// Fahrzeugschein 2.1 / 2.2. Sind beide vollstaendig, fuellt kba_typen Modell, Variante, Kraftstoff und Sitze.
+    @State private var hsn = ""
+    @State private var tsn = ""
+    @State private var kbaGeladen = ""
     @State private var kennzeichen = ""
     @State private var farbe = ""
     @State private var sitze = ""
@@ -323,7 +341,7 @@ struct FahrzeugFormularSeite: View {
         }
     }
 
-    private enum Feld: Hashable { case markeModell, variante, vin, kennzeichen, farbe, sitze }
+    private enum Feld: Hashable { case markeModell, variante, hsn, tsn, vin, kennzeichen, farbe, sitze }
 
     /// FUEL_TYPES: gespeichert wird genau dieser Text (steuert die EV-Erkennung der Planung).
     private static let kraftstoffe = ["E10", "Super 95", "Super Plus", "Diesel B7", "Diesel B10", "Elektro", "Plug-in-Hybrid"]
@@ -332,7 +350,9 @@ struct FahrzeugFormularSeite: View {
     private var trackerVersatz: CGFloat { bearbeiten && !tracker.isEmpty ? 136 : 0 }
     /// Zeile „Fahrer“ unter den Tracker-Zeilen (auch beim Neuanlegen), schiebt alles darunter um 68.
     private var fahrerVersatz: CGFloat { 68 }
-    private var versatz: CGFloat { trackerVersatz + fahrerVersatz }
+    /// Zeile HSN | TSN ueber der VIN, schiebt alles ab VIN um 68.
+    private var kbaVersatz: CGFloat { 68 }
+    private var versatz: CGFloat { trackerVersatz + fahrerVersatz + kbaVersatz }
 
     private var zugewiesen: FahrerWahl? {
         guard let id = fahrzeug?.id.lowercased() else { return nil }
@@ -340,9 +360,9 @@ struct FahrzeugFormularSeite: View {
     }
 
     var body: some View {
-        Leinwand(basisHoehe: 874, inhaltHoehe: bearbeiten ? max(913 + versatz, 898 + versatz + schadenHoehe + 70) : 913, mitHintergrund: false) { rahmen in
+        Leinwand(basisHoehe: 874, inhaltHoehe: bearbeiten ? max(913 + versatz, 898 + versatz + schadenHoehe + 70) : 913 + kbaVersatz, mitHintergrund: false) { rahmen in
             ZStack(alignment: .topLeading) {
-                DispoHintergrund().frame(width: 402, height: max(rahmen, 913))
+                DispoHintergrund().frame(width: 402, height: max(rahmen, 913 + kbaVersatz))
                 ZurueckKnopf(aktion: zurListe).platz(20, 60, 50, 50)
 
                 StammTitel(text: bearbeiten ? "Fahrzeug bearbeiten" : "Fahrzeug erstellen",
@@ -351,30 +371,50 @@ struct FahrzeugFormularSeite: View {
 
                 BoxFeld(platzhalter: "Marke & Modell", wert: $markeModell, fokus: $fokus, art: .markeModell, grossschreibung: .words)
                     .platz(20, 206, 178, 56)
-                BoxFeld(platzhalter: "Modell Variante", wert: $variante, fokus: $fokus, art: .variante, grossschreibung: .words)
-                    .platz(204, 206, 178, 56)
+                Group {
+                    if passendeVarianten.isEmpty {
+                        BoxFeld(platzhalter: "Modell Variante", wert: $variante, fokus: $fokus, art: .variante, grossschreibung: .words)
+                    } else {
+                        varianteWahl
+                    }
+                }
+                .platz(204, 206, 178, 56)
+                BoxFeld(platzhalter: "HSN", wert: $hsn, fokus: $fokus, art: .hsn, tastatur: .numberPad)
+                    .platz(20, 274, 178, 56)
+                    .onChange(of: hsn) { _, neu in
+                        let sauber = String(neu.filter(\.isASCII).filter(\.isNumber).prefix(4))
+                        if sauber != neu { hsn = sauber }
+                        kbaPruefen()
+                    }
+                BoxFeld(platzhalter: "TSN", wert: $tsn, fokus: $fokus, art: .tsn, grossschreibung: .characters)
+                    .platz(204, 274, 178, 56)
+                    .onChange(of: tsn) { _, neu in
+                        let sauber = String(neu.uppercased().filter { ("A"..."Z").contains($0) || ("0"..."9").contains($0) }.prefix(3))
+                        if sauber != neu { tsn = sauber }
+                        kbaPruefen()
+                    }
                 BoxFeld(platzhalter: "VIN", wert: $vin, fokus: $fokus, art: .vin, grossschreibung: .characters)
-                    .platz(20, 274, 362, 56)
-                BoxFeld(platzhalter: "Kennzeichen", wert: $kennzeichen, fokus: $fokus, art: .kennzeichen, grossschreibung: .characters)
                     .platz(20, 342, 362, 56)
-                BoxFeld(platzhalter: "Farbe", wert: $farbe, fokus: $fokus, art: .farbe)
+                BoxFeld(platzhalter: "Kennzeichen", wert: $kennzeichen, fokus: $fokus, art: .kennzeichen, grossschreibung: .characters)
                     .platz(20, 410, 362, 56)
-                BoxFeld(platzhalter: "Beifahreranzahl", wert: $sitze, fokus: $fokus, art: .sitze, tastatur: .numberPad)
+                BoxFeld(platzhalter: "Farbe", wert: $farbe, fokus: $fokus, art: .farbe)
                     .platz(20, 478, 362, 56)
+                BoxFeld(platzhalter: "Beifahreranzahl", wert: $sitze, fokus: $fokus, art: .sitze, tastatur: .numberPad)
+                    .platz(20, 546, 362, 56)
                     .onChange(of: sitze) { _, neu in
                         let nurZiffern = neu.filter(\.isNumber)
                         if nurZiffern != neu { sitze = nurZiffern }
                     }
-                kraftstoffWahl.platz(20, 546, 362, 56)
-                bildFeld.platz(20, 614, 362, 56)
+                kraftstoffWahl.platz(20, 614, 362, 56)
+                bildFeld.platz(20, 682, 362, 56)
                 if trackerVersatz > 0 {
-                    trackerAuswahl.platz(20, 682, 362, 56)
-                    nfcKnopf("Tag beschreiben", aktion: tagBeschreiben).platz(20, 750, 175, 56)
-                    nfcKnopf("Tag auslesen", aktion: tagAuslesen).platz(207, 750, 175, 56)
+                    trackerAuswahl.platz(20, 750, 362, 56)
+                    nfcKnopf("Tag beschreiben", aktion: tagBeschreiben).platz(20, 818, 175, 56)
+                    nfcKnopf("Tag auslesen", aktion: tagAuslesen).platz(207, 818, 175, 56)
                 }
                 Group {
                     let mitKnopf = bearbeiten && zugewiesen != nil && oeffneFahrer != nil
-                    fahrerAuswahl.platz(20, 682 + trackerVersatz, mitKnopf ? 271 : 362, 56)
+                    fahrerAuswahl.platz(20, 750 + trackerVersatz, mitKnopf ? 271 : 362, 56)
                     if mitKnopf, let f = zugewiesen, let oeffneFahrer {
                         Button { fokus = nil; oeffneFahrer(f.id) } label: {
                             Text("Fahrer").font(.grotesk(14, .bold)).foregroundStyle(.black)
@@ -382,7 +422,7 @@ struct FahrzeugFormularSeite: View {
                                 .background(Color(hex: 0xE3F654))
                         }
                         .buttonStyle(.web)
-                        .platz(297, 682 + trackerVersatz, 85, 56)
+                        .platz(297, 750 + trackerVersatz, 85, 56)
                     }
                 }
 
@@ -428,7 +468,7 @@ struct FahrzeugFormularSeite: View {
                 if let lack = FahrzeugDrehVorschlaege.lack(markeModell: markeModell, farbe: farbe) {
                     Circle().fill(Color(hex: UInt32(lack.hex.dropFirst(), radix: 16) ?? 0))
                         .overlay(Circle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 1))
-                        .platz(20 + 362 - 52, 410 + 20, 16, 16)
+                        .platz(20 + 362 - 52, 478 + 20, 16, 16)
                         .allowsHitTesting(false)
                 }
                 drehVorschlaege
@@ -442,6 +482,7 @@ struct FahrzeugFormularSeite: View {
             trackerWahl = trackerStart
         }
         .task(id: "\(fahrzeug?.id ?? "")-\(fahrerStand)") { await fahrerLaden() }
+        .task { varianten = await FahrzeugeDienst.variantenLaden() }
         .photosPicker(isPresented: $bildWaehlen, selection: $bildAuswahl, matching: .images)
         .onChange(of: bildAuswahl) { _, neu in Task { await bildUebernehmen(neu) } }
         .onAppear(perform: uebernehmen)
@@ -469,7 +510,7 @@ struct FahrzeugFormularSeite: View {
             .background(Color(hex: 0x151607))
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color(hex: 0x4A4F22), lineWidth: 1))
-            .platz(20, (fokus == .markeModell ? 206 : 410) + 60, 362, nil)
+            .platz(20, (fokus == .markeModell ? 206 : 478) + 60, 362, nil)
         }
     }
 
@@ -639,6 +680,36 @@ struct FahrzeugFormularSeite: View {
         .accessibilityLabel("OBD-Tracker")
     }
 
+    private var passendeVarianten: [FahrzeugVariante] { varianten.filter { $0.passt(markeModell) } }
+
+    /// Modell Variante als Auswahl wie beim Kraftstoff, sobald es zu Marke & Modell Varianten gibt.
+    private var varianteWahl: some View {
+        Menu {
+            ForEach(passendeVarianten) { v in
+                Button("\(v.variante)  \(v.generation)") {
+                    variante = v.variante
+                    varianteID = v.id
+                    if kraftstoff.isEmpty, let k = v.kraftstoff { kraftstoff = k }
+                }
+            }
+        } label: {
+            ZStack(alignment: .leading) {
+                Rectangle().strokeBorder(Color(hex: 0xE3F654), lineWidth: 2)
+                Text(variante.isEmpty ? "Modell Variante" : variante)
+                    .font(.grotesk(16, .medium)).tracking(0.5)
+                    .foregroundStyle(Color(hex: 0x8A9728))
+                    .opacity(variante.isEmpty ? 0.9 : 1)
+                    .lineLimit(1)
+                    .padding(.leading, 16).padding(.trailing, 30)
+                Image("Arrow-kurz_Trisar_Icons_01_Lime").resizable().frame(width: 10, height: 13)
+                    .rotationEffect(.degrees(90))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 12)
+            }
+            .contentShape(Rectangle())
+        }
+    }
+
     private var kraftstoffWahl: some View {
         Menu {
             ForEach(Self.kraftstoffe + (kraftstoff.isEmpty || Self.kraftstoffe.contains(kraftstoff) ? [] : [kraftstoff]), id: \.self) { k in
@@ -703,7 +774,11 @@ struct FahrzeugFormularSeite: View {
     private func uebernehmen() {
         markeModell = fahrzeug?.brandModel ?? ""
         variante = fahrzeug?.trim ?? ""
+        varianteID = fahrzeug?.varianteID ?? ""
         vin = fahrzeug?.vin ?? ""
+        hsn = fahrzeug?.hsn ?? ""
+        tsn = fahrzeug?.tsn ?? ""
+        kbaGeladen = "\(hsn)/\(tsn)".uppercased()
         kennzeichen = fahrzeug?.licensePlate ?? ""
         farbe = fahrzeug?.color ?? ""
         sitze = fahrzeug?.seatCount.map(String.init) ?? ""
@@ -713,7 +788,26 @@ struct FahrzeugFormularSeite: View {
     }
 
     private func leeren() {
-        markeModell = ""; variante = ""; vin = ""; kennzeichen = ""; farbe = ""; sitze = ""; kraftstoff = ""; bildURL = ""; neuFahrer = ""
+        markeModell = ""; variante = ""; varianteID = ""; vin = ""; hsn = ""; tsn = ""; kbaGeladen = ""; kennzeichen = ""; farbe = ""; sitze = ""; kraftstoff = ""; bildURL = ""; neuFahrer = ""
+    }
+
+    /// HSN 4 Ziffern und TSN 3 Zeichen: Typdaten aus kba_typen uebernehmen, je Paar nur einmal.
+    private func kbaPruefen() {
+        let h = hsn.trimmingCharacters(in: .whitespaces).uppercased()
+        let t = tsn.trimmingCharacters(in: .whitespaces).uppercased()
+        let schluessel = "\(h)/\(t)"
+        guard h.count == 4, t.count == 3, kbaGeladen != schluessel else { return }
+        Task {
+            guard let typ = await FahrzeugeDienst.kbaTypLaden(hsn: h, tsn: t),
+                  hsn.uppercased() == h, tsn.uppercased() == t else { return }
+            kbaGeladen = schluessel
+            if let m = typ.brand_model { markeModell = m }
+            variante = typ.trim ?? ""
+            varianteID = ""
+            if let k = typ.fuel_type { kraftstoff = k }
+            // KBA zaehlt den Fahrersitz mit, das Feld ist die Beifahreranzahl.
+            if let z = typ.sitze, z > 1 { sitze = String(z - 1) }
+        }
     }
 
     private func bildUebernehmen(_ auswahl: PhotosPickerItem?) async {
@@ -749,6 +843,11 @@ struct FahrzeugFormularSeite: View {
         let inhalt: [String: AnyJSON] = [
             "brand_model": .string(marke),
             "trim": feld(variante),
+            // Variante nur, wenn sie noch zu Marke & Modell und zur Variante passt.
+            "variante_id": varianten.first { $0.id == varianteID && $0.passt(marke) && $0.variante == variante }
+                .map { .string($0.id) } ?? .null,
+            "hsn": feld(hsn.uppercased()),
+            "tsn": feld(tsn.uppercased()),
             "vin": feld(vin),
             "license_plate": feld(kennzeichen),
             "color": feld(farbe),

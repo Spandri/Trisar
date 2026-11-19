@@ -65,6 +65,7 @@ enum FahrtText {
         // Alle Schreibweisen, die jobs.status erlaubt (jobs_status_check), nicht nur die englischen Grundwerte.
         switch getrimmt(jobStatus ?? "").lowercased() {
         case "in_progress", "unterwegs", "started", "on_trip", "ongoing", "active": return "unterwegs"
+        case "at_pickup", "beim_pickup", "beim pickup": return "beimGast"
         case "done", "completed", "arrived", "beendet": return "beendet"
         case "cancelled", "canceled", "refused", "storniert", "stoniert", "archived": return "stoniert"
         default: return "offen"
@@ -75,6 +76,7 @@ enum FahrtText {
     static func jobStatus(_ editorStatus: String?) -> String {
         switch getrimmt(editorStatus ?? "").lowercased() {
         case "unterwegs": return "in_progress"
+        case "beimgast": return "at_pickup"
         case "beendet": return "done"
         case "stoniert": return "cancelled"
         default: return "pending"
@@ -187,6 +189,8 @@ enum FahrtText {
         "fahrt.confirmCancelRide": "Fahrt wirklich stornieren und löschen?",
         "fahrt.createTitle": "Fahrt erstellen",
         "fahrt.datum": "Datum",
+        "fahrt.danach": "Danach",
+        "fahrt.danachDienstende": "Dienstende",
         "fahrt.editTitle": "Fahrt bearbeiten",
         "fahrt.fahrer": "Fahrer",
         "fahrt.fahrgaeste": "Fahrgäste",
@@ -205,6 +209,7 @@ enum FahrtText {
         "fahrt.statusOffen": "offen",
         "fahrt.statusStoniert": "storniert",
         "fahrt.statusUnterwegs": "unterwegs",
+        "fahrt.statusBeimGast": "beim Gast",
         "fahrt.submitCreate": "Fahrt speichern",
         "fahrt.submitEdit": "Bearbeitung speichern",
         "fahrt.trainMissingEta": "Für diesen Zug fehlen ETA und Ankunftsort.",

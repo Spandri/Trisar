@@ -11,12 +11,28 @@ const JA_RE = /^\s*(ja|jo|jap|japp|yes|ok|okay|klar|genau|passt|gerne|bitte|mach
 const NEIN_RE = /^\s*(nein|ne|nee|nope|nicht|abbrechen|stopp?|vergiss|doch nicht)\b/;
 const WORT = "[A-ZÄÖÜ][a-zäöüß'-]+";
 
+// Keine Namen (16.11.: "Den Tom Tom Schlüssel" wurde als zwei neue Fahrer "Den Tom" und "Tom Schlüssel" angeboten).
+// Artikel, Fürwörter, Fragewörter, Befehlswörter und häufige Sachwörter, wie sie am Satzanfang oder nach der
+// Spracherkennung gross geschrieben stehen.
+const KEIN_NAME = new Set(['der', 'die', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einen', 'einem', 'einer', 'mein', 'meine', 'meinen',
+  'dein', 'deine', 'unser', 'unsere', 'ich', 'du', 'er', 'sie', 'es', 'wir', 'ihr', 'wer', 'was', 'wo', 'wann', 'wie', 'warum', 'welche',
+  'welcher', 'welches', 'welchen', 'und', 'oder', 'aber', 'auch', 'noch', 'nur', 'nicht', 'kein', 'keine', 'bitte', 'danke', 'hallo', 'ja', 'nein',
+  'mit', 'ohne', 'fuer', 'von', 'vom', 'zum', 'zur', 'nach', 'bei', 'auf', 'aus', 'in', 'im', 'an', 'am', 'um', 'bis',
+  'zeig', 'zeige', 'gib', 'such', 'suche', 'mach', 'mache', 'schick', 'schicke', 'loesch', 'loesche', 'leg', 'lege', 'sag', 'sage', 'schreib', 'ruf',
+  'heute', 'morgen', 'gestern', 'jetzt', 'gerade', 'alle', 'allen', 'jeder', 'jemand', 'niemand',
+  'schluessel', 'datei', 'dateien', 'daten', 'datenbank', 'passwort', 'server', 'auto', 'autos', 'fahrzeug', 'fahrzeuge', 'wagen', 'fahrt', 'fahrten',
+  'fahrer', 'dienst', 'dienste', 'dienstreise', 'tracker', 'karte', 'liste', 'kunde', 'kunden', 'gast', 'gaeste', 'hotel', 'flughafen', 'bahnhof',
+  'messe', 'terminal', 'uhr', 'standort', 'adresse', 'nummer', 'telefon', 'nachricht', 'pause', 'feierabend', 'standby', 'route', 'ticket', 'zug']);
+
 const namenAus = (roh: string): string[] | null => {
   const t = roh.trim();
   // Nur Namen, Leerzeichen, Kommas, Zeilen, "und": keine Verben, keine Zahlen.
   if (!new RegExp(`^(?:${WORT}(?:[\\s,]+|$))+$`).test(t.replace(/\s+und\s+/g, ' , '))) return null;
   const woerter = t.replace(/,|\bund\b/g, ' ').split(/\s+/).filter(Boolean);
   if (woerter.length < 4 || woerter.length % 2 !== 0 || woerter.length > 24) return null;
+  if (woerter.some((w) => KEIN_NAME.has(normal(w).trim()))) return null;
+  // Zweimal dasselbe Wort hintereinander ("Tom Tom") ist kein Vor- und Nachname.
+  if (woerter.some((w, i) => i + 1 < woerter.length && normal(w).trim() === normal(woerter[i + 1]).trim())) return null;
   const namen: string[] = [];
   for (let i = 0; i < woerter.length; i += 2) namen.push(`${woerter[i]} ${woerter[i + 1]}`);
   return namen;

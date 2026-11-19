@@ -28,6 +28,8 @@ import { useDemoAnflug } from '../../../demo/flugAnflug';
 import { DEMO_MODE } from '../../../datenquelle';
 import { getRouteNavigationUrl } from '../../../shared/utils/navigation';
 import ZwischenstoppZeile from './ZwischenstoppZeile';
+import NaviStart from './Navigation';
+import { naviVersatz } from '../../../shared/navigation/naviLogik';
 import { ortIconFuer } from '../../../shared/orte';
 import { gaesteTeile, gaesteZeilen } from '../../../shared/gaesteAnzeige';
 const envOrDefault = (value, fallback) => {
@@ -1388,7 +1390,11 @@ export default function SoloFlughafen({ job, setView, onCancelRide, onEndRide, o
   const NOTES_TO_FIRST_ACTION_GAP = 54;
   const ACTION_BUTTON_STEP = 80; // 56 button + 24 gap
   const guestRowCount = visibleGuestNames.length;
-  const GUESTS_TITLE_TOP = 563 + AFTER_GUESTS_SHIFT;
+  // Navigation (16.11.): bei Route von Dispo steht unter den Orten der Knopf "Navigation starten",
+  // alles darunter rueckt um seine Hoehe nach unten.
+  const NAVI_TOP = 386;
+  const naviShift = naviVersatz(job);
+  const GUESTS_TITLE_TOP = 563 + AFTER_GUESTS_SHIFT + naviShift;
   const GUEST_ROW_TOP = GUESTS_TITLE_TOP + SECTION_TITLE_TO_FIRST_ROW_GAP;
   const guestLastRowBottom = GUEST_ROW_TOP + ((guestRowCount - 1) * LIST_ROW_STEP) + LIST_ROW_HEIGHT;
 
@@ -1506,13 +1512,13 @@ export default function SoloFlughafen({ job, setView, onCancelRide, onEndRide, o
 
 
             {markerTypes.length > 0 && (
-              <div className="absolute right-[20px] top-[386px] flex items-center gap-[8px]">
+              <div className="absolute right-[20px] flex items-center gap-[8px]" style={{ top: `${386 + naviShift}px` }}>
                 {markerTypes.map((type) => (
                   <MarkerIcon key={`marker-${type}`} type={type} />
                 ))}
               </div>
             )}
-            <div className="absolute left-[20px] top-[424px] text-[#f4f5f4] text-[16px] leading-[16px] font-bold tracking-[-0.5px] opacity-50" data-tutorial="flugort">{flightOrigin ? t('soloF.fromOrigin', { origin: flightOrigin }) : ''}</div>
+            <div className="absolute left-[20px] text-[#f4f5f4] text-[16px] leading-[16px] font-bold tracking-[-0.5px] opacity-50" style={{ top: `${424 + naviShift}px` }} data-tutorial="flugort">{flightOrigin ? t('soloF.fromOrigin', { origin: flightOrigin }) : ''}</div>
 
             <div className="absolute left-[20px] top-[211px] w-[64px] h-[64px] bg-[#242525] rounded-[16px] flex items-center justify-center">
               <img src={ortIconFuer(job?.from) || pickRideIcon(`${job?.from?.name || ''} ${job?.from?.address || ''} ${getDisplayLocationName(job?.from, "")}`, true)} alt="" className="w-[30px] h-[30px] object-contain" />
@@ -1527,6 +1533,7 @@ export default function SoloFlughafen({ job, setView, onCancelRide, onEndRide, o
             </div>
 
             <ZwischenstoppZeile stopps={job?.zwischenstopps} routenPunkte={job?.routenPunkte} top={352} />
+            <NaviStart job={job} top={NAVI_TOP} />
 
             <div className="absolute left-[20px] right-[20px] top-[289px] grid grid-cols-[minmax(0,1fr)_18px_minmax(0,1fr)] items-start">
               <div className="min-w-0">
@@ -1544,7 +1551,7 @@ export default function SoloFlughafen({ job, setView, onCancelRide, onEndRide, o
               </div>
             </div>
 
-            <div className="absolute left-[20px] top-[386px] text-[#f4f5f4] text-[42px] leading-[0.88] font-bold tracking-[-1px]" data-tutorial="flugnummer">{flightNumber}</div>
+            <div className="absolute left-[20px] text-[#f4f5f4] text-[42px] leading-[0.88] font-bold tracking-[-1px]" style={{ top: `${386 + naviShift}px` }} data-tutorial="flugnummer">{flightNumber}</div>
 
             <div className="absolute left-[20px] text-[#e2f754] text-[32px] leading-[32px] font-bold tracking-[-1px]" style={{ top: `${GUESTS_TITLE_TOP}px` }} data-tutorial="gaeste">{t('soloF.guests')}</div>
             {visibleGuestNames.map((name, idx) => (

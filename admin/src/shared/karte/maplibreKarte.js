@@ -12,12 +12,14 @@
 // window.trisarKarte.
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { bildschirmZoom } from '../../bildschirm.js';
 // MapLibre laedt seinen Arbeiter zur Laufzeit ueber einen Pfad relativ zum
 // eigenen Modul. Nach dem Buendeln gibt es den nicht mehr, die Karte bliebe
 // schwarz. Also die gebaute Datei mitliefern und den Pfad selbst setzen.
 import arbeiterAdresse from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
 import orteDerDemo from '../../demo/data/orte.json';
+import { esriQuellenRichten, kartenSchluesselLaden, kartenStilAbonnieren, stilAdresse, stilIstHell } from './kartenStil';
 
 // Dauer einer Kamerafahrt. Lang genug, dass man ihr folgen kann.
 const KAMERA_FAHRT_MS = 750;
@@ -154,13 +156,20 @@ class Karte {
     Object.assign(this.feld.style, { position: 'absolute', inset: '0', isolation: 'isolate' });
     element.appendChild(this.feld);
 
+    // Satellit (Esri) braucht esriQuellenRichten, das greift nur ueber setStyle. Darum erst Dunkel laden
+    // und nach style.load auf Satellit wechseln (stilAnwenden).
+    const startStil = optionen.style || stilAdresse() || KARTEN_STIL_DUNKEL;
+    const startSatellit = !optionen.style && /arcgis\.com/.test(startStil);
     this.karte = new maplibregl.Map({
       container: this.feld,
-      style: optionen.style || KARTEN_STIL_DUNKEL,
+      // Stil aus dem Karten Filter (Dunkel/Hell/Farbig/Satellit), ausser eine Ansicht gibt einen vor.
+      style: startSatellit ? KARTEN_STIL_DUNKEL : startStil,
       center: [mitte.lng, mitte.lat],
       zoom: zahl(optionen.zoom) ?? 12,
       attributionControl: { compact: true },
       renderWorldCopies: false,
+      // Seite ist per CSS zoom vergroessert (bildschirm.js): Karte in voller Aufloesung zeichnen, sonst unscharf.
+      pixelRatio: (window.devicePixelRatio || 1) * bildschirmZoom(),
       // Die Ansichten haben Googles Bedienelemente abgeschaltet, MapLibre
       // bekommt hier von vornherein keine.
     });
@@ -179,6 +188,22 @@ class Karte {
     });
     this.panes = { overlayLayer, floatPane, mapPane: overlayLayer, markerLayer: overlayLayer, overlayMouseTarget: floatPane };
     this.karte.getContainer().appendChild(this.paneWurzel);
+
+    // Stilwechsel aus dem Karten Filter: neuer Grund, eigene Linien und Flaechen bleiben.
+    this.feld.classList.add('trisar-karte');
+    this.feld.classList.toggle('trisar-karte-hell', !optionen.style && stilIstHell());
+    this.stilJetzt = startSatellit ? KARTEN_STIL_DUNKEL : startStil;
+    this.grundKennungen = null;
+    this.karte.on('style.load', () => {
+      const stil = this.karte.getStyle();
+      this.grundKennungen = {
+        ebenen: new Set((stil?.layers || []).map((e) => e.id)),
+        quellen: new Set(Object.keys(stil?.sources || {})),
+      };
+    });
+    if (!optionen.style) this.stilAbmelden = kartenStilAbonnieren(() => this.stilAnwenden());
+    if (!optionen.style) kartenSchluesselLaden();
+    if (startSatellit) this.karte.once('style.load', () => this.stilAnwenden());
 
     this.karte.on('load', () => {
       this.geladen = true;
@@ -343,7 +368,33 @@ class Karte {
       });
   }
 
+  stilAnwenden() {
+    const adresse = stilAdresse() || KARTEN_STIL_DUNKEL;
+    // Abgebaute, nicht mehr eingehaengte Karten nicht neu laden.
+    if (!this.karte.getContainer()?.isConnected) return;
+    this.feld.classList.toggle('trisar-karte-hell', stilIstHell());
+    if (adresse === this.stilJetzt) return;
+    this.stilJetzt = adresse;
+    const grund = this.grundKennungen;
+    try {
+      this.karte.setStyle(adresse, {
+        // Alles, was nicht zum alten Grundstil gehoerte (Routen, Ortskreise, Reiselinien),
+        // kommt oben auf den neuen Stil.
+        transformStyle: (alt, roh) => {
+          const neu = esriQuellenRichten(roh);
+          if (!alt || !grund) return neu;
+          const eigeneQuellen = Object.fromEntries(Object.entries(alt.sources || {}).filter(([k]) => !grund.quellen.has(k)));
+          const eigeneEbenen = (alt.layers || []).filter((e) => !grund.ebenen.has(e.id));
+          return { ...neu, sources: { ...neu.sources, ...eigeneQuellen }, layers: [...neu.layers, ...eigeneEbenen] };
+        },
+      });
+    } catch (fehler) {
+      console.warn('[Karte] Stilwechsel', fehler?.message || fehler);
+    }
+  }
+
   abbauen() {
+    this.stilAbmelden?.();
     this.ueberlagerungen.clear();
     this.beobachter?.disconnect();
     this.karte.remove();
@@ -358,6 +409,7 @@ const markerElementBauen = (icon) => {
   huelle.style.willChange = 'transform';
 
   if (icon?.url) {
+    huelle.classList.add('trisar-zeichen');
     // ausschnitt: nur der obere Teil des Bildes wird gezeigt (etwa der Kreis
     // eines Pins ohne seine Spitze). Die Masse beziehen sich dann auf ihn.
     const bildBreite = zahl(icon.scaledSize?.width) ?? 30;
@@ -519,7 +571,17 @@ class Marker {
       else huelle.appendChild(feld);
     }
     this.abblendenAnwenden(huelle);
-    this.marker.setOffset(versatz);
+    this.grundVersatz = versatz;
+    const [zx, zy] = this.zusatzVersatz || [0, 0];
+    this.marker.setOffset([versatz[0] + zx, versatz[1] + zy]);
+  }
+
+  // Zusaetzlich in Bildschirm-Pixeln verschieben (Fahrer am gleichen Ort nebeneinander), ohne die Position zu aendern.
+  setZusatzVersatz(dx = 0, dy = 0) {
+    if (this.zusatzVersatz && this.zusatzVersatz[0] === dx && this.zusatzVersatz[1] === dy) return;
+    this.zusatzVersatz = [dx, dy];
+    const [gx, gy] = this.grundVersatz || [0, 0];
+    this.marker.setOffset([gx + dx, gy + dy]);
   }
 
   // Abgeblendete Zeichen sollen blass wirken, ohne dass die Karte durch sie

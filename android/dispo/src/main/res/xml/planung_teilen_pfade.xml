@@ -2,4 +2,6 @@
 <!-- Bilder der Einsatzplanung zum Teilen (EinsatzUebersicht.kt). -->
 <paths>
     <cache-path name="teilen" path="teilen/" />
+    <!-- Kamera-Fotos fuer „Schaden melden“ (dispo/fahrzeug/SchadenMelden.kt). -->
+    <cache-path name="schadenfotos" path="schadenfotos/" />
 </paths>

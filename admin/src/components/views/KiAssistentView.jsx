@@ -18,6 +18,7 @@ import { gaesteTeile, gaesteText } from '../../shared/gaesteAnzeige';
 import {
   neuplanungStatus, neuplanungZielSetzen, stoerungenNachAnnahme, stoerungText,
 } from '../../demo/stoerungDemo';
+import { bildschirmZoom } from '../../bildschirm.js';
 
 // Telefonnummern in Antworten des Assistenten werden zu Links: ein Tipp ruft an.
 const TELEFON_RE = /(\+?\d[\d ()/-]{6,}\d)/g;
@@ -84,6 +85,8 @@ const toDisplayDate = (isoDate) => {
 const toCreateRidePayload = (proposal) => ({
   datum: String(proposal?.datum || '').trim(),
   startZeit: String(proposal?.startZeit || '').trim(),
+  // Start Zeitraum ("zwischen 15 und 16 Uhr"): Ende des Zeitraums, wird als etd_bis gespeichert.
+  startZeitBis: String(proposal?.startZeitBis || '').trim(),
   start: String(proposal?.start || '').trim(),
   ziel: String(proposal?.ziel || '').trim(),
   // Eigener Ort, vom Server erkannt (dispo-admin/ortSuche.ts): gespeichert wie bei Auswahl im Formular.
@@ -154,7 +157,7 @@ const BookingPreviewCard = ({ proposal, onOeffnen }) => {
       ) : null}
       <div className="absolute right-4 top-[18px] text-right">
         <div className="text-base leading-5 font-bold font-['Space_Grotesk']">{dateLabel}</div>
-        <div className="text-base leading-5 font-normal font-['Space_Grotesk']">{payload.startZeit || '--:--'}</div>
+        <div className="text-base leading-5 font-normal font-['Space_Grotesk']">{payload.startZeit ? (payload.startZeitBis ? `${payload.startZeit}–${payload.startZeitBis}` : payload.startZeit) : '--:--'}</div>
       </div>
       <div className="absolute right-4 bottom-[18px]">
         <img src={sendIconSrc} alt="" className="w-[34px] h-[21px] scale-[1.2]" />
@@ -458,6 +461,8 @@ export default function KiAssistentView({
         const ersteBuchung = aktionen.findIndex((a) => a?.type === 'booking_proposal');
         const bookingProposal = ersteBuchung >= 0 ? aktionen[ersteBuchung].proposal : null;
         const dienstVorschlag = result?.action?.type === 'dienst_vorschlag' ? result?.action?.vorschlag : null;
+        // Ort unsicher (18.11.): Auswahl zum Antippen statt Fahrtkarte, die Buchung wartet auf dem Server.
+        const ortWahl = aktionen.find((a) => a?.type === 'ort_auswahl') || (result?.action?.type === 'ort_auswahl' ? result.action : null);
         // Weitere Karten: zusaetzliche Fahrten und Standbys, jede einzeln bearbeiten und bestaetigen.
         const karten = aktionen
           .map((a, i) => ({ a, i }))
@@ -477,6 +482,9 @@ export default function KiAssistentView({
             ? { ...msg, bookingStatus: 'cancelled' }
             : msg
         )).map((msg) => (
+          // Jede neue Antwort beendet eine offene Ortsauswahl, angetippt wird nur die juengste.
+          msg.id !== pendingAssistantId && msg.ortWahlStatus === 'offen' ? { ...msg, ortWahlStatus: 'erledigt' } : msg
+        )).map((msg) => (
           msg.id === pendingAssistantId
             ? {
                 ...msg,
@@ -487,6 +495,8 @@ export default function KiAssistentView({
                 karten,
                 dienstVorschlag,
                 dienstStatus: dienstVorschlag ? 'offen' : undefined,
+                ortWahl,
+                ortWahlStatus: ortWahl ? 'offen' : undefined,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               }
             : msg
@@ -500,6 +510,8 @@ export default function KiAssistentView({
           karten,
           dienstVorschlag,
           dienstStatus: dienstVorschlag ? 'offen' : undefined,
+          ortWahl,
+          ortWahlStatus: ortWahl ? 'offen' : undefined,
         };
       })
       .catch((error) => {
@@ -740,6 +752,30 @@ export default function KiAssistentView({
     const tutorialMarker = (name) => (!imSprachModus && message.id === latestProposalMessageId ? name : undefined);
     return (
     <>
+                {message.ortWahl && message.ortWahlStatus === 'offen' && message.ortWahl.optionen?.length ? (
+                  <div className="mt-3 w-full max-w-[362px] flex flex-col gap-2">
+                    {message.ortWahl.optionen.map((o) => (
+                      <button
+                        key={o.wert}
+                        type="button"
+                        disabled={isSending}
+                        onClick={() => handleSend(o.wert)}
+                        className="block w-full text-left bg-white text-black px-[18px] py-3"
+                      >
+                        <div className="text-[18px] leading-[22px] font-bold font-['Space_Grotesk'] break-words">{o.titel}</div>
+                        {o.zeile ? <div className="mt-[3px] text-xs leading-4 font-medium font-['Space_Grotesk'] opacity-80 break-words">{o.zeile}</div> : null}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={isSending}
+                      onClick={() => handleSend('Keiner davon')}
+                      className="block w-full text-left border border-white/30 px-[18px] py-3 text-white text-base font-medium font-['Space_Grotesk']"
+                    >
+                      Keiner davon
+                    </button>
+                  </div>
+                ) : null}
                 {message.dienstVorschlag ? (
                   <div className="mt-3 w-full max-w-[362px]">
                     {message.dienstStatus === 'offen' ? (
@@ -784,7 +820,7 @@ export default function KiAssistentView({
                     <div data-tutorial={tutorialMarker('ki-vorschlag')} className="w-full max-w-[362px]">
                       <BookingPreviewCard
                         proposal={message.bookingProposal}
-                        onOeffnen={!DEMO_MODE && !imSprachModus && message.bookingStatus === 'pending'
+                        onOeffnen={!DEMO_MODE && message.bookingStatus === 'pending'
                           ? () => setFormular({
                             id: message.id,
                             proposal: message.bookingProposal,
@@ -853,14 +889,14 @@ export default function KiAssistentView({
                       ) : karte.art === 'standby' ? (
                         <StandbyPreviewCard
                           standby={karte.standby}
-                          onOeffnen={!DEMO_MODE && !imSprachModus && karte.status === 'pending'
+                          onOeffnen={!DEMO_MODE && karte.status === 'pending'
                             ? () => setFormular({ id: message.id, karteId: karte.id, standby: karte.standby })
                             : undefined}
                         />
                       ) : (
                         <BookingPreviewCard
                           proposal={karte.proposal}
-                          onOeffnen={!DEMO_MODE && !imSprachModus && karte.status === 'pending'
+                          onOeffnen={!DEMO_MODE && karte.status === 'pending'
                             ? () => setFormular({ id: message.id, karteId: karte.id, proposal: karte.proposal })
                             : undefined}
                         />
@@ -914,6 +950,11 @@ export default function KiAssistentView({
   // Was wartet nach dieser Antwort auf ein „ja“? Karten bestaetigt die App selbst (lokal), die Karten
   // stehen im Voice-Modus wie im Chat mit ihren Knoepfen. Rueckfragen des Servers („Mit „ja“ sende ich sie.“)
   // gehen als Text an den Server.
+  // Letzte Frage im Text ist eine W-Frage („…: Um wie viel Uhr?“, „Welches Ziel meinst du?“).
+  const wFrage = (text) => {
+    const letzte = String(text || '').trim().split(/[.!:\n]/).pop()?.trim() || '';
+    return /\?$/.test(letzte) && /^(um\s+wie\s+viel|wie|was|wann|wo|wohin|woher|welche[rsmn]?|wer|wen|wem|wessen|warum|wieso|weshalb|an\s+wen|f(ü|ue)r\s+wen|mit\s+wem|bis\s+wann|ab\s+wann|von\s+wo)\b/i.test(letzte);
+  };
   const fuerStimme = (msg) => {
     if (!msg) return { text: 'Das hat nicht geklappt. Sag es bitte noch einmal.' };
     let text = msg.text || '';
@@ -924,8 +965,9 @@ export default function KiAssistentView({
       const frage = msg.dienstStatus === 'offen' ? 'Soll ich das senden?' : 'Soll ich das so machen?';
       if (!/\?\s*$/.test(text)) text = `${text} ${frage}`;
     } else if (/„ja“|"ja"|\bmit ja\b/i.test(text) || /\?\s*$/.test(text)) {
-      // Ganzer Text, nicht nur die ersten 80 Zeichen.
-      offen = { lokal: false, titel: String(text || '').trim() };
+      // Ganzer Text, nicht nur die ersten 80 Zeichen. Ja/Nein-Knoepfe nur bei einer Ja/Nein-Frage (19.11.):
+      // „Um wie viel Uhr?“, „Welches Ziel meinst du?“ beantwortet man nicht mit ja.
+      offen = { lokal: false, titel: String(text || '').trim(), jaNein: /„ja“|"ja"|\bmit ja\b/i.test(text) || !wFrage(text) };
     }
     return { text, offen };
   };
@@ -972,7 +1014,7 @@ export default function KiAssistentView({
 
   // Juengste Antwort mit Vorschlaegen fuer den Voice-Modus (auch nach dem Bestaetigen, damit man das Ergebnis sieht).
   const sprachVorschlag = [...messages].reverse().find((m) => m.role === 'assistant' && !m.pending
-    && (m.bookingProposal || m.dienstVorschlag || (m.karten || []).length));
+    && (m.bookingProposal || m.dienstVorschlag || (m.karten || []).length || m.ortWahlStatus === 'offen'));
   const sprachVorschlagOffen = istOffen(sprachVorschlag);
 
   useEffect(() => {
@@ -1081,7 +1123,8 @@ export default function KiAssistentView({
 
     const updateKeyboardState = () => {
       const baseLayoutHeight = stableViewportHeightRef.current;
-      const viewportBottom = viewport.height + viewport.offsetTop;
+      // Echte Pixel in App-Pixel (bildschirm.js), sonst passt es nicht zu innerHeight.
+      const viewportBottom = (viewport.height + viewport.offsetTop) / bildschirmZoom();
       const nextInset = Math.max(0, baseLayoutHeight - viewportBottom);
       setKeyboardInset(nextInset);
 
@@ -1281,7 +1324,7 @@ export default function KiAssistentView({
                     className="text-white text-base font-normal font-['Space_Grotesk'] leading-5 whitespace-pre-line"
                     style={{ userSelect: 'text', WebkitUserSelect: 'text', WebkitTouchCallout: 'default' }}
                   >
-                    {mitKlickbarenNummern(message.text)}
+                    {message.ortWahl ? message.ortWahl.frage : mitKlickbarenNummern(message.text)}
                   </div>
                   <div className="mt-3 flex items-center justify-between">
                     <div className="text-white/40 text-[10px] font-normal font-['Space_Grotesk'] leading-4">{message.time}</div>

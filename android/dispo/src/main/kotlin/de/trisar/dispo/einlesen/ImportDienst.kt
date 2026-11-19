@@ -276,7 +276,9 @@ object ImportDienst {
         val an = text(d["dropoff_address"])
         if (ab.isEmpty()) fehlt.add("abholort")
         if (an.isEmpty()) fehlt.add("zielort")
-        val behalten = satz.hinweise.filter { it in listOf("mehrereZeilen", "datumUebernommen", "llama", "doppelt", "adresseUnbekannt", "datumAusDatei", "zielAusDatei", "zwischenstopp", "fahrerUnbekannt", "ausWeiteremBlatt") }.toMutableList()
+        val behalten = satz.hinweise.filter { it in listOf("mehrereZeilen", "datumUebernommen", "llama", "doppelt", "adresseUnbekannt", "datumAusDatei", "zielAusDatei", "zwischenstopp", "fahrerUnbekannt", "konvoiUnbekannt", "ausWeiteremBlatt") }.toMutableList()
+        if (gesetzt(d["storniert"])) behalten.add("storniert")
+        if (((d["zwischenstopps"] as? JsonArray)?.size ?: 0) > 8) behalten.add("zuVieleStopps")
         val datum = str(d["ride_date"])
         if (datum.isNotEmpty() && datum < LocalDate.now(ZoneOffset.UTC).toString()) behalten.add("vergangen")
         val anzahl = (d["anzahl"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() } ?: 0.0

@@ -17,6 +17,8 @@ const FORMEN: [RegExp, string][] = [
   [/\bfeier\s+abend\b/gi, 'Feierabend'],
 ];
 
+const ZAHLWORT: Record<string, number> = { eins: 1, zwei: 2, drei: 3, vier: 4, 'fünf': 5, fuenf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10, elf: 11, 'zwölf': 12, zwoelf: 12 };
+const ZAHL_MUSTER = Object.keys(ZAHLWORT).join('|');
 const ENDE_WORT = /\b(bis|ende|dienstende|schichtende|feierabend|schluss|aufh(ö|oe)r\w*)\b/i;
 
 export const glaetten = (frage: string) => {
@@ -28,6 +30,38 @@ export const glaetten = (frage: string) => {
       return neu;
     });
   }
+  // "zu einer unbestimmten Zeit", "Uhrzeit noch offen" (16.11.): sagt nur, dass die Zeit fehlt. Stand das im Satz,
+  // wurde es Teil von Ziel und Gast ("nach einer unbestimmten Zeit zum Hotel Andaz"). Weg damit, die Regel fragt
+  // dann von selbst nach der Uhrzeit.
+  const OFFEN = '(?:noch\\s+)?(?:nicht\\s+(?:festgelegt|fest|bekannt|klar)|unbestimmt|unbekannt|offen|unklar|ungewiss)\\w*';
+  for (const muster of [
+    new RegExp(`\\s*,?\\s*\\b(?:zu|mit|bei)\\s+(?:einer\\s+)?(?:noch\\s+)?(?:nicht\\s+\\w+\\s+)?(?:unbestimmte[rn]?|unbekannte[rn]?|offene[rn]?|unklare[rn]?|ungewisse[rn]?)\\s+(?:uhr|abfahrts|start)?zeit\\b`, 'gi'),
+    new RegExp(`\\s*,?\\s*\\b(?:die\\s+)?(?:uhr|abfahrts|start)?zeit\\s+(?:ist|steht|bleibt)\\s+${OFFEN}`, 'gi'),
+    new RegExp(`\\s*,?\\s*\\b(?:uhr|abfahrts|start)?zeit\\s+(?:noch\\s+)?(?:unbestimmt|unbekannt|offen|unklar|ungewiss)\\b`, 'gi'),
+  ]) {
+    // Nicht bei Fragen ("Wie viel Zeit ist noch offen?") und nicht, wenn vom Satz sonst nichts bliebe.
+    if (/^\s*(wie|was|wann|wer|wo|welche\w*|ist|hat|gibt|haben|sind)\b/i.test(text) || /\?\s*$/.test(text)) break;
+    const ohne = text.replace(muster, ' ');
+    if (ohne === text || !/\p{L}{3,}/u.test(ohne)) continue;
+    ersetzt.push(`${text.match(muster)?.[0]?.trim() || ''} -> (Zeit offen)`);
+    text = ohne.replace(/ {2,}/g, ' ').replace(/ ,/g, ',');
+  }
+  // Süddeutsche Uhrzeit (16.11.): "dreiviertel 7" ist 06:45, "viertel 8" ist 07:15. Modell und Regeln lasen
+  // 07:45 und 08:15, also eine Stunde zu spät. Umschreiben in die Form, die alle kennen ("viertel vor 7").
+  const zahl = (w: string) => (/^\d+$/.test(w) ? Number(w) : ZAHLWORT[w.toLowerCase()] || 0);
+  text = text.replace(new RegExp(`\\bdrei\\s?viertel\\s+(\\d{1,2}|${ZAHL_MUSTER})\\b(?!\\s*[:.]\\d)`, 'gi'), (alt: string, n: string) => {
+    const h = zahl(n);
+    if (h < 1 || h > 24) return alt;
+    ersetzt.push(`${alt} -> viertel vor ${h}`);
+    return `viertel vor ${h}`;
+  });
+  text = text.replace(new RegExp(`\\bviertel\\s+(\\d{1,2}|${ZAHL_MUSTER})\\b(?!\\s*[:.]\\d)`, 'gi'), (alt: string, n: string) => {
+    const h = zahl(n);
+    if (h < 1 || h > 24) return alt;
+    const davor = h - 1 < 1 ? 12 : h - 1;
+    ersetzt.push(`${alt} -> viertel nach ${davor}`);
+    return `viertel nach ${davor}`;
+  });
   // "24 Uhr" als Ende ist Mitternacht (16.11.): "Dienstende heute 24 Uhr" fragte nach der Uhrzeit, "von 16 bis
   // 24 Uhr" verlor still das Ende. Regeln und Modell kennen nur 00:00 bis 23:59, und 00:00 als Ende heisst dort
   // schon "nach Mitternacht". Nur nach einem Ende-Wort. "24 Uhr" als Beginn faengt unmoeglich() ab.

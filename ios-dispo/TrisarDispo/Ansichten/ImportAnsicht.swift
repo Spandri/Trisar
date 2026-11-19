@@ -33,7 +33,7 @@ struct ImportAnsicht: View {
     private let limeHalb = Color(hex: 0xE3F654).opacity(0.7)
     private let orange = Color(hex: 0xFFCD8A)
     private let rot = Color(hex: 0xFF8A8A)
-    private static let warnungen: Set<String> = ["doppelt", "vergangen", "adresseUnbekannt", "mehrNamenAlsPersonen", "gleicheAdresse", "emailUngueltig", "fahrerUnbekannt"]
+    private static let warnungen: Set<String> = ["doppelt", "vergangen", "adresseUnbekannt", "mehrNamenAlsPersonen", "gleicheAdresse", "emailUngueltig", "fahrerUnbekannt", "konvoiUnbekannt", "storniert", "zuVieleStopps"]
 
     private var fahrten: Bool { modus == .fahrten }
     private var modusText: String { fahrten ? "rides" : "guests" }
@@ -413,7 +413,10 @@ struct ImportAnsicht: View {
             ? "\(wert(i, "pickup_name").isEmpty ? wert(i, "pickup_address") : wert(i, "pickup_name")) → \(wert(i, "dropoff_name").isEmpty ? wert(i, "dropoff_address") : wert(i, "dropoff_name"))"
             : ["company", "email", "phone"].map { wert(i, $0) }.filter { !$0.isEmpty }.joined(separator: " · ")
         let flug = wert(i, "flight_number").isEmpty ? wert(i, "train_number") : wert(i, "flight_number")
-        let extra = fahrten ? [flug, wert(i, "anzahl").isEmpty ? "" : t("imp.personen", ["n": wert(i, "anzahl")]),
+        let fahrzeuge = Int(wert(i, "anzahl_fahrzeuge")) ?? 0
+        let extra = fahrten ? [wert(i, "konvoi").isEmpty ? "" : "\(feldText("konvoi")) \(wert(i, "konvoi"))",
+                               fahrzeuge > 1 ? "\(fahrzeuge) \(feldText("anzahlFahrzeuge"))" : "",
+                               flug, wert(i, "anzahl").isEmpty ? "" : t("imp.personen", ["n": wert(i, "anzahl")]),
                                d["needs_child_seat"] == .bool(true) ? feldText("kindersitz") : "", d["is_vip"] == .bool(true) ? "VIP" : ""]
             .filter { !$0.isEmpty }.joined(separator: " · ") : ""
         return VStack(alignment: .leading, spacing: 0) {
@@ -451,8 +454,14 @@ struct ImportAnsicht: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 if fahrten {
-                    Text(String(wert(i, "etd").prefix(5)).isEmpty ? "--:--" : String(wert(i, "etd").prefix(5)))
-                        .font(.grotesk(22, .bold)).foregroundStyle(text)
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text(String(wert(i, "etd").prefix(5)).isEmpty ? "--:--" : String(wert(i, "etd").prefix(5)))
+                            .font(.grotesk(22, .bold)).foregroundStyle(text)
+                        if !wert(i, "etd_bis").isEmpty {
+                            Text(t("imp.bis", ["zeit": String(wert(i, "etd_bis").prefix(5))]))
+                                .font(.grotesk(11, .medium)).foregroundStyle(Color(hex: 0x71717B))
+                        }
+                    }
                 }
             }
             .padding(18)
@@ -491,8 +500,19 @@ struct ImportAnsicht: View {
                         aendern(i, ["etd": z.isEmpty ? .null : .string("\(z):00"), "original_etd": z.isEmpty ? .null : .string("\(z):00")])
                     }
                 }
+                HStack(spacing: 8) {
+                    eingabe(feldText("uhrzeitBis"), String(wert(i, "etd_bis").prefix(5)), platzhalter: "15:00") { v in
+                        let z = Self.uhrzeit(v)
+                        aendern(i, ["etd_bis": z.isEmpty ? .null : .string("\(z):00")])
+                    }
+                    eingabe(feldText("konvoi"), wert(i, "konvoi")) { v in aendern(i, ["konvoi": v.isEmpty ? .null : .string(v)]) }
+                }
                 eingabe(feldText("abholort"), wert(i, "pickup_address")) { v in
                     aendern(i, ["pickup_address": .string(v), "pickup_name": .string(ImportDienst.kurzname(v))])
+                }
+                eingabe(feldText("zwischenstopp"), ImportDienst.namen(saetze[i].daten["zwischenstopps"]).joined(separator: "; ")) { v in
+                    let stopps = v.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                    aendern(i, ["zwischenstopps": .array(stopps.map { .string($0) })])
                 }
                 eingabe(feldText("zielort"), wert(i, "dropoff_address")) { v in
                     aendern(i, ["dropoff_address": .string(v), "dropoff_name": .string(ImportDienst.kurzname(v))])
@@ -808,6 +828,15 @@ struct ImportAnsicht: View {
         "imp.fahrtenImportiert": "{n} Fahrten importiert.",
         "imp.feld.fahrer": "Fahrer",
         "imp.feld.ankunft": "Ankunft am Ziel",
+        "imp.bis": "bis {zeit}",
+        "imp.feld.uhrzeitBis": "Abholzeit bis",
+        "imp.feld.zwischenstopp": "Zwischenstopps",
+        "imp.feld.konvoi": "Konvoi",
+        "imp.feld.anzahlFahrzeuge": "Fahrzeuge",
+        "imp.feld.status": "Status",
+        "imp.h.konvoiUnbekannt": "Konvoi nicht gefunden, Fahrt ohne Konvoi",
+        "imp.h.storniert": "wird storniert angelegt",
+        "imp.h.zuVieleStopps": "mehr als 8 Zwischenstopps, nur die ersten 8 kommen mit",
         "imp.h.zwischenstopp": "Sammelfahrt: Zeilen mit gleichem Fahrer und gleicher Ankunft zusammengefasst",
         "imp.h.fahrerUnbekannt": "Fahrer aus der Liste nicht gefunden, bitte nach dem Import zuteilen",
         "imp.h.ausWeiteremBlatt": "aus einem weiteren Blatt der Datei",

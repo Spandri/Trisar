@@ -479,7 +479,7 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
 
     static let beispielStand: DispoCarPlayStand = {
         let fahrer = [
-            DispoCarPlayFahrer(id: "f1", name: "Stefano Spandri", status: "Mit Gast", farbe: .aktiv, zeile: "Mit Gast · an 17:55 · M-TR 101",
+            DispoCarPlayFahrer(id: "f1", name: "Stefano Spandri", status: "Unterwegs", farbe: .aktiv, zeile: "Unterwegs · an 17:55 · M-TR 101",
                                fahrzeug: "Mercedes V-Klasse · M-TR 101", aktuell: "17:24 Diedorf nach Kongress am Park", naechste: "19:05 Flughafen T2",
                                ankunft: "17:55", dienst: "08:00–18:00", signal: "Letztes Signal 17:31", lat: 48.36, lng: 10.89),
             DispoCarPlayFahrer(id: "f2", name: "Finn Weber", status: "Zur Abholung", farbe: .aktiv, zeile: "Zur Abholung · 18:10 · M-TR 102",
@@ -717,7 +717,7 @@ struct DispoCarPlayStand {
             let laufend = k.fahrt.map { statusText($0.status) }
             var status: String
             switch k.zustand {
-            case .aktiv: status = laufend == "Unterwegs" ? "Mit Gast" : (laufend == "Beim Gast" ? "Beim Gast" : "Zur Abholung")
+            case .aktiv: status = laufend == "Unterwegs" ? "Unterwegs" : (laufend == "Beim Gast" ? "Beim Gast" : "Zur Abholung")
             case .inaktiv: status = "Ohne Fahrt"
             case .frei: status = "Nicht im Dienst"
             }

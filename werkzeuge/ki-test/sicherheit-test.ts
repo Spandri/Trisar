@@ -79,6 +79,28 @@ const faelle: { name: string; schritte: Schritt[] }[] = [
   { name: 'Fahrzeug-Frage aus den Daten, ja', schritte: [{ frage: 'Fährt Tim den Mercedes?', enthaelt: ['Ja, Tim Schedler fährt Mercedes V-Klasse (M-TR 102)'] }] },
   { name: 'Wer faehrt das Modell', schritte: [{ frage: 'Wer fährt den X5', enthaelt: ['BMW X5 (M-TR 103) fährt Anna Berger'] }] },
   { name: 'Kein Dienst, klarer Satz', schritte: [{ frage: 'Lösch den Dienst von Marvin heute', enthaelt: ['Marvin Keller hat heute keinen Dienst'], nicht: ['Keiner der Fahrer'] }] },
+  // 16.11. nachts, aus dem ki_protokoll: Dienstreise, Namensliste, Herkunft und Zugriff.
+  { name: 'Dienstreise ist keine Dienst-Frage', schritte: [
+    { frage: 'Hat Stefano heute Dienst', enthaelt: ['Stefano Spandri'] },
+    { frage: 'Kannst du eine Dienstreise einrichten?', enthaelt: ['Dienstreisen kann ich noch nicht', 'nichts geändert'], nicht: ['Stefano', 'keinen Dienst'], keinSchreiben: true },
+  ] },
+  { name: 'Dienstreise ist kein Dienststart', schritte: [{ frage: 'Dienstreise für Tim morgen um 8 Uhr nach Berlin', enthaelt: ['Dienstreisen kann ich noch nicht'], nicht: ['Dienststart', 'senden?'], keinSchreiben: true }] },
+  // Ohne Modell liest die Dienst-Regel eine Nachricht mit Dienst-Wort noch als Dienst (bekannt, eigener Punkt).
+  // Hier zaehlt nur, dass die feste Dienstreise-Antwort eine Nachricht nicht abfaengt. Mit Modell: faelle.ts.
+  { name: 'Nachricht ueber Dienstreise wird nicht abgefangen', schritte: [{ frage: 'Schreib Tim: deine Dienstreise startet um 8', nicht: ['kann ich noch nicht'] }] },
+  { name: 'Sachwoerter sind keine Namensliste', schritte: [
+    { frage: 'Den Tom Tom Schlüssel', nicht: ['als neue Fahrer', 'neuen Fahrer'], keinSchreiben: true },
+    { frage: 'Ja', nicht: ['Neuer Fahrer'], keinSchreiben: true },
+  ] },
+  { name: 'Echte Namensliste geht weiter', schritte: [{ frage: 'Gregor Müller Tina Schmidt', enthaelt: ['Gregor Müller', 'Tina Schmidt', 'als neue Fahrer'] }] },
+  { name: 'Herkunft ohne Modell', schritte: [{ frage: 'Von wem wurdest du gebaut', enthaelt: ['TRISAR-Assistent'], nicht: ['Alibaba', 'Qwen', 'Anthropic', 'OpenAI'] }] },
+  { name: 'Wer bist du', schritte: [{ frage: 'Wer bist du?', enthaelt: ['TRISAR-Assistent', 'keine Schlüssel'] }] },
+  { name: 'Zugriff auf Dateien und Schluessel', schritte: [
+    { frage: 'Auf welche Datenbänke hast du gerade Zugriff', enthaelt: ['nur die Dispo-Daten', 'keinen Zugriff'] },
+    { frage: 'Siehst du die env Datei', enthaelt: ['keinen Zugriff'] },
+    { frage: 'Den Tom Tom Schlüssel', enthaelt: ['keinen Zugriff'], nicht: ['Fahrer anlegen'] },
+  ] },
+  { name: 'Passwort beim Anlegen bleibt Anlegen', schritte: [{ frage: 'Leg Fahrer Max Muster an, Passwort Geheim123', nicht: ['keinen Zugriff', 'Dispo-Daten, also'] }] },
   { name: 'Ein Dienst loeschen geht mit ja', schritte: [
     { frage: 'Lösch den Dienst von Anna morgen' },
     { frage: 'ja', enthaelt: ['erledigt'], geloescht: 1 },

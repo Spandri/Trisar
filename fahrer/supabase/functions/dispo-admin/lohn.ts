@@ -140,6 +140,10 @@ export const lohnVorschlag = async (admin: any, frage: string, markiert: { id: s
     meinung = 'markierte';
   }
 
+  // Negativer Betrag (16.11.): "Stundenlohn minus 5 Euro" und "-12 Euro" wurden als 5 und 12 Euro vorgeschlagen.
+  if (/\bminus\s*\d/i.test(roh) || /(^|\s)[-−]\d+(?:[.,]\d+)?\s*(€|euro|eur)\b/i.test(roh)) {
+    return { answer: `Ein negativer Stundenlohn geht nicht. Nenne bitte einen Betrag zwischen ${MIN_EURO} und ${MAX_EURO} €. Ich habe nichts geändert.`, kontext: ohneOffenen(kontext) };
+  }
   const betrag = betragAusText(roh);
 
   // Nur nachschauen: "Wie hoch ist der Stundenlohn von Tim?"

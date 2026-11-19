@@ -234,6 +234,13 @@ export default function SprachModus({
 
     ablaufRef.current = {
       jetztSenden() { erkennung?.jetztSenden(); },
+      // Ja/Nein-Knopf an der Rueckfrage (18.11.): wie gesprochenes "ja" bzw. "nein", auch mitten im Vorlesen.
+      knopf(ja) {
+        if (!offenRef.current) return;
+        if (vorleser) { vorleser.stoppen(); vorleser = null; }
+        else if (beschaeftigt) return;
+        satzVerarbeiten(ja ? 'ja' : 'nein');
+      },
       unterbrechen() {
         if (!vorleser) return;
         vorleser.stoppen();
@@ -312,11 +319,18 @@ export default function SprachModus({
         </>
       ) : offen && (modus === 'frage' || modus === 'sprechen' || modus === 'denken') ? (
         <>
-          <div className="mt-[36px] w-[calc(100%-40px)] max-w-[362px] bg-white text-black p-[16px]">
+          {/* Bis knapp ueber Mikro und X, langer Text scrollt (18.11.). */}
+          <div className="mt-[36px] w-[calc(100%-40px)] max-w-[362px] min-h-0 max-h-[calc(100%-630px)] overflow-y-auto overscroll-contain bg-white text-black p-[16px] shrink">
             <div className="text-[20px] leading-[24px] font-bold break-words">{offen.titel}</div>
             {offen.zeile ? <div className="mt-[4px] text-xs leading-4 font-medium opacity-80 break-words">{offen.zeile}</div> : null}
-            <div className="mt-[8px] text-[11px] font-bold">Sag „ja“ oder „nein“</div>
           </div>
+          {/* Ja/Nein wie Annehmen/Ablehnen (Neuplanung): Nein rot umrandet, Ja lime. Nur bei Ja/Nein-Fragen (19.11.). */}
+          {offen.jaNein === false ? null : <div className={`mt-[12px] w-[calc(100%-40px)] max-w-[362px] flex gap-[6px] shrink-0 ${modus === 'denken' ? 'opacity-40' : ''}`}>
+            <button type="button" onClick={() => ablaufRef.current?.knopf(false)}
+              className="flex-1 h-[51px] border-2 border-[#FF6F63] text-[#FF6F63] text-[24px] font-bold tracking-[-0.5px]">Nein</button>
+            <button type="button" onClick={() => ablaufRef.current?.knopf(true)}
+              className="flex-1 h-[51px] bg-[#E3F654] text-black text-[24px] font-bold tracking-[-0.5px]">Ja</button>
+          </div>}
           {/* Was gerade gehoert wird, wie beim normalen Zuhoeren */}
           <div className="mt-[16px] w-[calc(100%-48px)] max-w-[340px] min-h-[24px] text-center text-[17px] leading-[24px] font-medium text-[#a0a0a0]">
             {modus === 'frage' ? gehoert : ''}
@@ -324,7 +338,7 @@ export default function SprachModus({
         </>
       ) : (
         <div
-          className={`mt-[36px] w-[calc(100%-48px)] max-w-[340px] min-h-[72px] max-h-[140px] overflow-hidden text-center text-[17px] leading-[24px] font-medium ${zeileHell ? 'text-white' : 'text-[#a0a0a0]'}`}
+          className={`mt-[36px] w-[calc(100%-48px)] max-w-[340px] min-h-[72px] max-h-[calc(100%-560px)] overflow-y-auto overscroll-contain text-center text-[17px] leading-[24px] font-medium ${zeileHell ? 'text-white' : 'text-[#a0a0a0]'}`}
           style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
         >
           {zeile}

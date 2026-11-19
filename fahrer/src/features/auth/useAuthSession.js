@@ -10,6 +10,12 @@ export const trailerFreigabe = { wert: !TRAILER_AKTIV };
 
 const PASSWORD_SETUP_PENDING_KEY = 'trisar_password_setup_pending';
 
+// Passwort setzen gibt es nur unter fahrer.trisar.de/passwort (19.11.2026), nie auf der Haupt-URL.
+// Vorher blieb nach einem Einladungs-/Reset-Link ein Merker im Browser haengen und jeder Aufruf der
+// Haupt-URL zeigte "Passwort speichern".
+export const PASSWORT_PFAD = '/passwort';
+export const aufPasswortSeite = () => window.location.pathname.replace(/\/+$/, '') === PASSWORT_PFAD;
+
 const readAuthTypeFromLocation = () => {
   const hashParams = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
   const queryParams = new URLSearchParams(String(window.location.search || '').replace(/^\?/, ''));
@@ -95,6 +101,12 @@ export const useAuthSession = () => {
 
         if (isSetupLink) {
           window.localStorage.setItem(PASSWORD_SETUP_PENDING_KEY, '1');
+          // Aeltere Mails und Apps schicken den Link noch auf die Haupt-URL: Token mitnehmen auf /passwort.
+          if (!aufPasswortSeite()) {
+            window.history.replaceState({}, document.title, `${PASSWORT_PFAD}${window.location.search}${window.location.hash}`);
+          }
+        } else if (!aufPasswortSeite()) {
+          window.localStorage.removeItem(PASSWORD_SETUP_PENDING_KEY);
         }
 
         if (codeFromUrl) {
@@ -140,6 +152,7 @@ export const useAuthSession = () => {
       setAuthError('');
       if (event === 'PASSWORD_RECOVERY') {
         window.localStorage.setItem(PASSWORD_SETUP_PENDING_KEY, '1');
+        if (!aufPasswortSeite()) window.history.replaceState({}, document.title, PASSWORT_PFAD);
         setRequiresPasswordSetup(true);
         return;
       }

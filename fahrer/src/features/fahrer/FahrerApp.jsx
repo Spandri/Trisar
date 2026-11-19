@@ -2565,6 +2565,9 @@ const FahrerApp = () => {
             etd: dbJob.etd ? dbJob.etd.substring(0, 5) : '12:00',
             // Start Zeitraum (13.11.): Ende des Zeitraums, null = feste Zeit.
             etdBis: dbJob.etd_bis ? dbJob.etd_bis.substring(0, 5) : null,
+            // Danach Dienstende (19.11.): rote Zeile direkt unter der Fahrt, nach Erledigt mit echter Ankunft.
+            danachDienstende: Boolean(dbJob.danach_dienstende),
+            ankunftEcht: dbJob.ankunft_echt || null,
             originalEtd: dbJob.original_etd ? dbJob.original_etd.substring(0, 5) : null,
             flight: dbJob.flight_number || dbJob.train_number || 'STADTFAHRT',
             flightOrigin: dbJob.flight_origin || flightSummary?.departureAirport || null,

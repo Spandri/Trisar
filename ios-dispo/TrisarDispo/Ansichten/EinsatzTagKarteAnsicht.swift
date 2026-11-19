@@ -522,7 +522,7 @@ private struct EinsatzKarteFlaeche: UIViewRepresentable {
     func makeCoordinator() -> Koordinator { Koordinator(modell: modell) }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let karte = MLNMapView(frame: .zero, styleURL: DispoKarte.stil)
+        let karte = MLNMapView(frame: .zero, styleURL: KartenStil.geteilt.url)
         karte.setCenter(CLLocationCoordinate2D(latitude: 48.137154, longitude: 11.576124), zoomLevel: 10, animated: false)
         karte.logoView.isHidden = true
         karte.attributionButton.alpha = 0.4
@@ -533,6 +533,8 @@ private struct EinsatzKarteFlaeche: UIViewRepresentable {
         context.coordinator.karte = karte
         let tipp = UITapGestureRecognizer(target: context.coordinator, action: #selector(Koordinator.getippt(_:)))
         karte.addGestureRecognizer(tipp)
+        // Kartenstil aus dem Karten Filter (Dunkel/Hell/Farbig/Satellit), wechselt live.
+        KartenStil.geteilt.anbinden(karte)
         return karte
     }
 
@@ -669,6 +671,7 @@ final class EinsatzFahrerPunkt: MLNPointAnnotation {
 
 /// Fahrer-Pin 35 x 41,14 nach Zustand (rot aktiv, gelb inaktiv, gruen frei) mit Nummer im Kopf.
 private final class EinsatzPinAnsicht: MLNAnnotationView {
+    override func layoutSubviews() { super.layoutSubviews(); KartenStil.rand(self) }
     private let bild = UIImageView()
     private let nummer = UILabel()
     private var name = ""

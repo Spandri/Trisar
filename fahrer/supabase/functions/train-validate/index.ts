@@ -413,7 +413,7 @@ const abstandKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
   return 12742 * Math.asin(Math.sqrt(a));
 };
 
-type Halt = { name: string; eva: string | null; lat: number | null; lng: number | null };
+type Halt = { name: string; eva: string | null; lat: number | null; lng: number | null; offiziell?: string };
 
 /** Je Laufzeit der Funktion: Halte nicht bei jedem Aufruf neu nachschlagen. */
 const haltCache = new Map<string, Halt>();
@@ -455,9 +455,11 @@ const haltOrten = async (name: string, timetableApiBase: string, stationApiBase:
       const eintraege = Array.from(xml.matchAll(/<station\b[^>]*\/?>/g)).map((m) => ({
         name: readAttr(m[0], 'name'),
         eva: readAttr(m[0], 'eva'),
+        db: readAttr(m[0], 'db') === 'true',
       })).filter((e) => e.eva);
-      const treffer = eintraege.find((e) => normalizeStationLabel(e.name) === schluessel) || eintraege[0];
-      if (treffer) halt.eva = treffer.eva;
+      // Genau gleicher Name, sonst ein Bahnhof der Bahn (db="true", hat Koordinaten), sonst der erste (19.11.).
+      const treffer = eintraege.find((e) => normalizeStationLabel(e.name) === schluessel) || eintraege.find((e) => e.db) || eintraege[0];
+      if (treffer) { halt.eva = treffer.eva; halt.offiziell = treffer.name; }
     }
     if (halt.eva) {
       const s = await bahnHolen(`${stationApiBase}/stations?eva=${encodeURIComponent(halt.eva)}`, {
@@ -666,6 +668,46 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
+
+    // Halte als Bahnhof orten (19.11., Dienstreise): Halte vom Ticket ("München-Trudering", "Trudering") sind Bahnhoefe,
+    // keine Stadtteile. Name rein, Bahnhof mit offiziellem Namen und Koordinaten der Bahn raus. Ohne Treffer lat null.
+    if (body?.halt_orten) {
+      const namen = (Array.isArray(body.halt_orten) ? body.halt_orten : [body.halt_orten])
+        .map((n: unknown) => normalizeText(n)).filter(Boolean).slice(0, 8);
+      const kopf: HeadersInit = {
+        'DB-Client-Id': ensureEnv('DB_API_CLIENT_ID'), 'DB-Api-Key': ensureEnv('DB_API_KEY'),
+        Accept: 'application/json, application/xml;q=0.9, text/xml;q=0.8',
+      };
+      const stationBasis = normalizeText(Deno.env.get('DB_STATION_API_BASE_URL') || 'https://apis.deutschebahn.com/db-api-marketplace/apis/station-data/v2');
+      const fahrplanBasis = normalizeText(Deno.env.get('DB_TIMETABLE_API_BASE_URL') || 'https://apis.deutschebahn.com/db-api-marketplace/apis/timetables/v1');
+      bahnAufrufe = 0;
+      await ausSpeicherLaden(namen).catch(() => {});
+      const halte = await Promise.all(namen.map((n: string) => haltOrten(n, fahrplanBasis, stationBasis, kopf)));
+      // Rueckfall: Stationsdaten mit Platzhalter ("*Trudering*" -> München-Trudering). Nur wenn genau ein Bahnhof
+      // passt, sonst bleibt der Halt ohne Koordinaten und die App fragt nach bzw. sucht wie bisher.
+      for (const h of halte) {
+        if (h.lat != null) continue;
+        try {
+          const kern = h.name.replace(/[*?]/g, ' ').split(',')[0].trim();
+          const r = await bahnHolen(`${stationBasis}/stations?searchstring=${encodeURIComponent(`*${kern}*`)}`, { headers: { ...(kopf as Record<string, string>), Accept: 'application/json' } }, 8000);
+          if (!r.ok) continue;
+          const liste = extractCandidates(await r.json().catch(() => null));
+          if (liste.length !== 1) continue;
+          const nummern = Array.isArray(liste[0].evaNumbers) ? liste[0].evaNumbers as Record<string, unknown>[] : [];
+          const haupt = nummern.find((n) => n.isMain) || nummern[0];
+          const punkt = (haupt?.geographicCoordinates as Record<string, unknown> | undefined)?.coordinates;
+          if (Array.isArray(punkt) && punkt.length >= 2) {
+            h.lng = toNumberOrNull(punkt[0]);
+            h.lat = toNumberOrNull(punkt[1]);
+            h.eva = haupt?.number != null ? String(haupt.number) : h.eva;
+            h.offiziell = String(liste[0].name || h.name);
+          }
+        } catch { /* ohne Koordinaten weiter */ }
+      }
+      await inSpeicherMerken(halte).catch(() => {});
+      return jsonResponse(200, { halte: halte.map((h, i) => ({ gesucht: namen[i], name: h.offiziell || h.name, eva: h.eva, lat: h.lat, lng: h.lng })) });
+    }
+
     const trainNumberRaw = normalizeText(body?.train_number);
     const rideDate = normalizeRideDate(body?.ride_date);
     let targetStation = normalizeText(body?.target_station ?? body?.target_station_hint);

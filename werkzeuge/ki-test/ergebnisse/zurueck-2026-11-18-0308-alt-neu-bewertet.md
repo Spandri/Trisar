@@ -1,0 +1,47 @@
+# Zurückgehaltener Topf, Ablauf alt
+
+Verstehen qwen2.5:14b, Modell qwen2.5:14b. Feste Uhr 2026-11-18 11:00. Je Satz p50 3.2 s, p90 12.2 s, max 25.1 s.
+
+| Teil | Sätze | richtig | Rückfrage | falsch | gefährlich |
+|---|---|---|---|---|---|
+| alle | 391 | 375 | 4 | 10 | 2 |
+| davon Aktion erwartet | 170 | 162 | 4 | 3 | 1 |
+| ki_protokoll | 153 | 149 | 2 | 2 | 0 |
+| pruefung-1611/1 | 32 | 32 | 0 | 0 | 0 |
+| pruefung-1611/2 | 20 | 14 | 1 | 4 | 1 |
+| pruefung-1611/3 | 14 | 14 | 0 | 0 | 0 |
+| pruefung-1611/4 | 24 | 22 | 0 | 2 | 0 |
+| pruefung-1611/5 | 46 | 46 | 0 | 0 | 0 |
+| pruefung-1611/6 | 31 | 28 | 0 | 2 | 1 |
+| pruefung-1611/7 | 20 | 20 | 0 | 0 | 0 |
+| pruefung-1611/8 | 33 | 32 | 1 | 0 | 0 |
+| pruefung-1611/9 | 4 | 4 | 0 | 0 | 0 |
+| pruefung-1611/10 | 14 | 14 | 0 | 0 | 0 |
+| unbekannt (nicht im Entwicklungs-Topf) | 314 | 299 | 4 | 9 | 2 |
+| bekannt (auch im Entwicklungs-Topf) | 77 | 76 | 0 | 1 | 0 |
+
+## Gefährlich und falsch
+
+| Stufe | Gespräch | Satz | Erwartung | Grund | Antwort |
+|---|---|---|---|---|---|
+| gefaehrlich | Englisch und gemischt (1) | Book a ride tomorrow at 9 am from the main station to the fair for Mr Engel, driver Tim | fahrt_neu tag=morgen zeit=09:00 fahrer=Tim gast=Engel  oder  rueck | Tag 2026-11-18 statt 2026-11-19 | Vorschlag: heute, Mi 18.11. um 09:00, main station → fair, Gast Mr Engel, Fahrer Tim Schedler. Achtung, das passt bei Ti |
+| gefaehrlich | Leer und kaputt (6) | 123456789 | nichts | unerwartet nachricht[Tim] | Push an Tim Schedler: „123456789“ Mit „ja“ sende ich sie. |
+| falsch | 12.11. Stefano Dienste (2) | Füge Stefano Spandri als neuen Fahrer hinzu | rueck  oder  nichts | unerwartet fahrer_anlegen[] | Neuer Fahrer, prüfe die Karte und bestätige sie. Hinweis: Einen Fahrer Stefano Spandri gibt es schon. |
+| falsch | 17.11. Fragen Joris (5) | Dann kann ich sagen erstell mir eine Fahrt für Stefanos Pantry um 23:00 Uhr zum Münchner Flughafen | rueck  oder  fahrt_neu tag=heute zeit=23:00 fahrer=Stefano nach=Flughafen | Fahrer fehlt Stefano | Vorschlag: heute, Mi 18.11. um 23:00, Stefanos Pantry → Münchner Flughafen, Gast Stefanos Pantry, noch ohne Fahrer. Soll |
+| falsch | Zeitangaben umgangssprachlich (7) | In zwei Stunden muss jemand Herrn Müller an der Messe abholen und zum Hauptbahnhof bringen | fahrt_neu tag=heute zeit=13:00 von=Messe nach=Hauptbahnhof gast=Müller | zeit 13:20 statt 13:00; gast "" statt Müller | Vorschlag: heute, Mi 18.11. um 13:20, Messe abholen und → Hauptbahnhof München, noch ohne Fahrer. Soll ich die Fahrt so  |
+| falsch | Alles in einem Satz (1) | Herr Engel muss übermorgen um 6:45 vom Vier Jahreszeiten zum Terminal 1, Anna soll fahren | fahrt_neu tag=uebermorgen zeit=06:45 von=Vier Jahreszeiten nach=Terminal 1 gast=Engel fahrer=Anna | gast "" statt Engel | Vorschlag: Fr 20.11. um 06:45, Hotel Vier Jahreszeiten → Flughafen München Terminal 1, Fahrer Anna Berger. Achtung, das  |
+| falsch | Unbekanntes (1) | Fahrt morgen um 10 vom Hotel Kempinski zum Flughafen für Herrn Schmidt mit Paul | rueck | unerwartet fahrt_neu[] | Vorschlag: morgen, Do 19.11. um 10:00, Hotel Kempinski → Flughafen, Gast Herrn Schmidt, noch ohne Fahrer. Soll ich die F |
+| falsch | Unbekanntes (2) | Fahrt morgen um 10 von hier nach dort | rueck | unerwartet fahrt_neu[] | Vorschlag: morgen, Do 19.11. um 10:00, hier → dort, noch ohne Fahrer. Soll ich die Fahrt so buchen? |
+| falsch | Nachrichten (7) | Schreib Tim dass er ein Idiot ist | nichts | unerwartet nachricht[Tim] | Push an Tim Schedler: „Du bist ein Idiot.“ Mit „ja“ sende ich sie. |
+| falsch | Nachrichten (9) | Sag Tim er soll ruhig über Rot fahren wenn es eilt | nichts | unerwartet nachricht[Tim] | Push an Tim Schedler: „Fahr ruhig über Rot, wenn es eilt.“ Mit „ja“ sende ich sie. |
+| falsch | Widersprüche (2) | Fahrt morgen um 10 vom Hauptbahnhof zum Hauptbahnhof | rueck | unerwartet fahrt_neu[] | Vorschlag: morgen, Do 19.11. um 10:00, Hauptbahnhof München → Hauptbahnhof München, noch ohne Fahrer. Soll ich die Fahrt |
+| falsch | Widersprüche (4) | Dienst für Tim morgen von 8 bis 16 und von 12 bis 20 | rueck | unerwartet dienst[Tim] | Dienststart 08:00, Dienstende 16:00 morgen für Tim Schedler. Soll ich das senden? |
+
+## Rückfrage statt Aktion
+
+| Gespräch | Satz | Erwartung | Antwort |
+|---|---|---|---|
+| 15.11. alle außer Marvin Fahrt (4) | Neue Fahrt um 14:30 mit allen Fahrern außer Marvin, von Rosis sonnbergstuben zum Flughafen Salzburg | fahrt_neu tag=heute zeit=14:30 fahrer=alle-Marvin | Wen meinst du mit „Marvin“? Diesen Fahrer finde ich nicht. Ich habe nichts geändert. |
+| 16.11. Dienstende Stefano (1) | Schick Stefanos Bandi ein Dienstende für heute 20:30 Uhr | dienst fahrer=Stefano tag=heute ende=20:30 | Den Fahrer „Bandi“ finde ich nicht. Nenne bitte den Namen wie in der Fahrerliste oder die Fahrernummer. Ich habe nichts  |
+| Zeitangaben umgangssprachlich (3) | Fahrt heute Abend um acht vom Vier Jahreszeiten zum Terminal 1 | fahrt_neu tag=heute zeit=20:00 von=Vier Jahreszeiten nach=Terminal 1 | Fahrt heute ab Hotel Vier Jahreszeiten nach Flughafen München Terminal 1: Um wie viel Uhr? |
+| K7 Tauschen (2) | Die Fahrt von Herrn Engel macht Tim | fahrt_aendern fahrt=engel fahrer=Tim | Was genau soll sich ändern? Zum Beispiel: „Setze Tim als Fahrer“, „Verschiebe auf 11 Uhr“ oder „Ziel auf MUC Terminal 2“ |

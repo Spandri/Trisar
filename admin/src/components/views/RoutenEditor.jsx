@@ -38,7 +38,7 @@ const markerElement = (art, text) => {
 
 const kmText = (meter) => `${(Number(meter || 0) / 1000).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`;
 
-export default function RoutenEditor({ adressen: adressenAnfang, anfang = [], onUebernehmen, onAbbrechen }) {
+export default function RoutenEditor({ adressen: adressenAnfang, anfang = [], anfangFest = null, onUebernehmen, onAbbrechen }) {
   // Adressen gelten fuer die ganze Sitzung des Editors (das Formular darunter aendert sich nicht).
   const [adressen] = useState(adressenAnfang);
   const { t } = useI18n();
@@ -51,7 +51,17 @@ export default function RoutenEditor({ adressen: adressenAnfang, anfang = [], on
   const [punkte, setPunkte] = useState(() => anfang.map((p) => ({ ...p })));
   const [orte, setOrte] = useState(() => adressen.map(() => null));
   const [schnell, setSchnell] = useState(null);
-  const [aktuell, setAktuell] = useState(null);
+  // Vorschau zur aktuellen Punktliste. fuer = Punktliste, zu der sie gehoert. fest = Paket des Servers,
+  // das bei "Uebernehmen" unveraendert an der Fahrt gespeichert wird (jobs.route_fest): genau diese Linie
+  // bekommt der Fahrer. Beim Oeffnen gilt die schon freigegebene Route, solange die Punkte gleich bleiben.
+  const [aktuell, setAktuell] = useState(() => (anfangFest?.polyline && anfang.length ? {
+    ok: true,
+    polyline: anfangFest.polyline,
+    distanz_m: anfangFest.laenge_m,
+    dauer_verkehr_min: Math.ceil(Number(anfangFest.dauer_s || 0) / 60),
+    fest: anfangFest,
+    fuer: JSON.stringify(anfang.map((p) => ({ ...p }))),
+  } : null));
   const [meldung, setMeldung] = useState('');
 
   const anzahlStopps = Math.max(0, adressen.length - 2);
@@ -111,19 +121,22 @@ export default function RoutenEditor({ adressen: adressenAnfang, anfang = [], on
   }, []);
 
   // Route ueber die Punkte, kurz entprellt.
+  const punkteKey = JSON.stringify(punkte);
   useEffect(() => {
-    if (punkte.length === 0) {
-      setAktuell(null);
-      return undefined;
-    }
+    if (punkte.length === 0 || aktuell?.fuer === punkteKey) return undefined;
     laufRef.current += 1;
     const lauf = laufRef.current;
     const timer = setTimeout(async () => {
       const antwort = await routeVorschau(adressen, punkte);
-      if (laufRef.current === lauf) setAktuell(antwort);
+      // Auch ohne Antwort (Demo, Ausfall) merken, dass fuer diese Punkte gerechnet wurde.
+      if (laufRef.current === lauf) setAktuell({ ...(antwort || { ok: false }), fuer: punkteKey });
     }, 300);
     return () => clearTimeout(timer);
-  }, [punkte, adressen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [punkteKey, adressen]);
+  // Passt die Vorschau zu den Punkten auf der Karte? Erst dann darf uebernommen werden.
+  const vorschau = punkte.length > 0 && aktuell?.fuer === punkteKey ? aktuell : null;
+  const bereit = punkte.length === 0 || Boolean(vorschau);
 
   // Linien zeichnen. Ohne Punkte ist die schnellste Route die Lime-Linie.
   const folge = useMemo(() => wegpunkteFolge(orte, punkte), [orte, punkte]);
@@ -133,10 +146,11 @@ export default function RoutenEditor({ adressen: adressenAnfang, anfang = [], on
     const schnellPfad = dekodierePolyline(schnell?.polyline);
     // Ohne Server (Demo) oder solange gerechnet wird: gerade Linie durch alle Punkte.
     const gerade = folge.map((w) => w.ort).filter((o) => o && Number.isFinite(o.lat));
-    const aktuellPfad = punkte.length ? (dekodierePolyline(aktuell?.polyline).length ? dekodierePolyline(aktuell.polyline) : gerade) : (schnellPfad.length ? schnellPfad : gerade);
+    const vorschauPfad = dekodierePolyline(vorschau?.polyline);
+    const aktuellPfad = punkte.length ? (vorschauPfad.length ? vorschauPfad : gerade) : (schnellPfad.length ? schnellPfad : gerade);
     grau.setPath(punkte.length ? schnellPfad : []);
     lime.setPath(aktuellPfad);
-  }, [schnell, aktuell, folge, punkte.length]);
+  }, [schnell, vorschau, folge, punkte.length]);
 
   // Marker: A, Stopps, Routenpunkte (ziehbar, Tipp entfernt), B.
   useEffect(() => {
@@ -185,9 +199,9 @@ export default function RoutenEditor({ adressen: adressenAnfang, anfang = [], on
   }, [folge]);
 
   const angepasst = punkte.length > 0;
-  const werte = angepasst ? aktuell : schnell;
+  const werte = angepasst ? (vorschau?.ok ? vorschau : null) : schnell;
   const minuten = (w) => Number(w?.dauer_verkehr_min ?? w?.dauer_min ?? 0);
-  const mehr = angepasst && aktuell && schnell ? minuten(aktuell) - minuten(schnell) : null;
+  const mehr = angepasst && vorschau?.ok && schnell ? minuten(vorschau) - minuten(schnell) : null;
   const frei = Math.max(0, hoechstens - punkte.length);
 
   return (
@@ -259,8 +273,9 @@ export default function RoutenEditor({ adressen: adressenAnfang, anfang = [], on
           </button>
           <button
             type="button"
-            onClick={() => onUebernehmen(punkte)}
-            className="flex-1 h-[52px] text-[16px] font-bold text-black"
+            disabled={!bereit}
+            onClick={() => onUebernehmen(punkte, punkte.length ? (vorschau?.fest ?? null) : null)}
+            className={`flex-1 h-[52px] text-[16px] font-bold text-black ${bereit ? '' : 'opacity-40'}`}
             style={{ background: LIME, ...SCHRIFT }}
           >
             {t('route.uebernehmen')}

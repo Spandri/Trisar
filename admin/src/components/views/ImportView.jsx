@@ -49,7 +49,7 @@ const schrift = "font-['Space_Grotesk']";
 const ERKENNUNG_MS = 900;
 
 // Hinweise, die eine Zeile nicht ausschliessen, aber angeschaut werden sollten.
-const WARNUNGEN = new Set(['doppelt', 'vergangen', 'adresseUnbekannt', 'mehrNamenAlsPersonen', 'gleicheAdresse', 'emailUngueltig', 'fahrerUnbekannt']);
+const WARNUNGEN = new Set(['doppelt', 'vergangen', 'adresseUnbekannt', 'mehrNamenAlsPersonen', 'gleicheAdresse', 'emailUngueltig', 'fahrerUnbekannt', 'konvoiUnbekannt', 'storniert', 'zuVieleStopps']);
 
 const FunkenIcon = ({ drehen = false }) => (
   <svg viewBox="0 0 29 29.14" width="22" height="22" fill="none" className={drehen ? 'animate-pulse' : ''}>
@@ -129,7 +129,7 @@ const ImportKarte = ({ satz: s, modus, offen, oeffnen, umschalten, aendern, adre
   const firma = (teile.find((x) => x.startsWith('Firma: ')) || '').replace(/^Firma: /, '');
   const notiz = teile.filter((x) => !x.startsWith('Firma: ')).join(' · ');
   const extra = modus === 'rides'
-    ? [d.flight_number || d.train_number, d.anzahl ? t('imp.personen', { n: d.anzahl }) : '', d.needs_child_seat ? feldText('kindersitz') : '', d.is_vip ? 'VIP' : ''].filter(Boolean).join(' · ')
+    ? [d.konvoi ? `${feldText('konvoi')} ${d.konvoi}` : '', d.anzahl_fahrzeuge > 1 ? `${d.anzahl_fahrzeuge} ${feldText('anzahlFahrzeuge')}` : '', d.flight_number || d.train_number, d.anzahl ? t('imp.personen', { n: d.anzahl }) : '', d.needs_child_seat ? feldText('kindersitz') : '', d.is_vip ? 'VIP' : ''].filter(Boolean).join(' · ')
     : '';
   return (
     <div className="relative w-full" style={{ background: rot ? ROT_KARTE : '#fff', opacity: s.aus ? 0.45 : 1 }}>
@@ -150,6 +150,7 @@ const ImportKarte = ({ satz: s, modus, offen, oeffnen, umschalten, aendern, adre
           {modus === 'rides' ? (
             <div className={`shrink-0 text-right ${schrift}`}>
               <div className="text-[22px] font-bold leading-[24px]" style={{ color: text }}>{(d.etd || '--:--').slice(0, 5)}</div>
+              {d.etd_bis ? <div className="text-[11px] font-medium leading-[14px]" style={{ color: '#71717B' }}>{t('imp.bis', { zeit: String(d.etd_bis).slice(0, 5) })}</div> : null}
             </div>
           ) : null}
         </div>
@@ -170,7 +171,10 @@ const ImportKarte = ({ satz: s, modus, offen, oeffnen, umschalten, aendern, adre
             <>
               <Feld breit={false} typ="date" label={feldText('datum')} value={d.ride_date} onChange={(v) => aendern({ ride_date: v || null })} />
               <Feld breit={false} typ="time" label={feldText('uhrzeit')} value={(d.etd || '').slice(0, 5)} onChange={(v) => aendern({ etd: v ? `${v}:00` : null, original_etd: v ? `${v}:00` : null })} />
+              <Feld breit={false} typ="time" label={feldText('uhrzeitBis')} value={(d.etd_bis || '').slice(0, 5)} onChange={(v) => aendern({ etd_bis: v ? `${v}:00` : null })} />
+              <Feld breit={false} label={feldText('konvoi')} value={d.konvoi || ''} onChange={(v) => aendern({ konvoi: v || null })} />
               <Feld label={feldText('abholort')} value={d.pickup_address} onChange={(v) => aendern({ pickup_address: v, pickup_name: K.kurzname(v) })} />
+              <Feld label={feldText('zwischenstopp')} value={(d.zwischenstopps || []).join('; ')} onChange={(v) => aendern({ zwischenstopps: v.split(/\s*;\s*/).filter(Boolean) })} />
               <Feld label={feldText('zielort')} value={d.dropoff_address} onChange={(v) => aendern({ dropoff_address: v, dropoff_name: K.kurzname(v) })} />
               <Feld breit={false} label={feldText('flugnummer')} value={d.flight_number || d.train_number} onChange={(v) => aendern(/^(ICE|IC|EC|RJ|RE|RB)\s?\d/i.test(v) ? { train_number: v, flight_number: null } : { flight_number: v, train_number: null })} />
               <Feld breit={false} typ="number" label={feldText('anzahl')} value={d.anzahl ?? ''} onChange={(v) => aendern({ anzahl: v ? Number(v) : null })} />

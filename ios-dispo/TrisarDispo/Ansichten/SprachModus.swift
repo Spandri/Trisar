@@ -13,6 +13,8 @@ struct SprachOffen: Equatable {
     var zeile: String = ""
     /// Bei lokal: ID der Chat-Nachricht, deren Karten bestaetigt werden.
     var id: String?
+    /// Ja/Nein-Knoepfe nur bei einer Ja/Nein-Frage (19.11.), nicht bei „Um wie viel Uhr?“.
+    var jaNein: Bool = true
 }
 
 struct SprachAntwort {
@@ -105,6 +107,16 @@ struct SprechenKnopf: View {
         case .hoeren, .frage: erkennung?.jetztSenden()
         default: break
         }
+    }
+
+    /// Ja/Nein-Knopf an der Rueckfrage (18.11.): wirkt wie gesprochenes "ja" bzw. "nein", auch mitten im Vorlesen.
+    func knopf(ja: Bool) {
+        guard offen != nil, modus != .denken else { return }
+        if vorlesen != nil {
+            vorlesen = nil
+            vorleser.stoppen()
+        }
+        Task { await satzVerarbeiten(ja ? "ja" : "nein") }
     }
 
     /// Kugel antippen, waehrend gesprochen wird: abbrechen und wieder zuhoeren.
@@ -288,9 +300,11 @@ struct SprachModusAnsicht: View {
                         }
                         .padding(.top, 8)
                     } else {
+                        // Bis knapp ueber Mikro und X, langer Text scrollt (18.11.).
                         unten(breite)
                             .padding(.top, 36)
-                        Spacer(minLength: 0)
+                            .padding(.bottom, 116)
+                            .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -319,8 +333,9 @@ struct SprachModusAnsicht: View {
 
     @ViewBuilder private func unten(_ breite: CGFloat) -> some View {
         if let o = ablauf.offen, [.frage, .sprechen, .denken].contains(ablauf.modus) {
+          let kartenBreite = min(breite - 40, 362)
           VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 0) {
+            let inhalt = VStack(alignment: .leading, spacing: 0) {
                 Text(o.titel).font(.grotesk(20, .bold)).lineSpacing(0)
                     .fixedSize(horizontal: false, vertical: true)
                 if !o.zeile.isEmpty {
@@ -328,12 +343,36 @@ struct SprachModusAnsicht: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 4)
                 }
-                Text("Sag „ja“ oder „nein“").font(.grotesk(11, .bold)).padding(.top, 8)
             }
             .foregroundStyle(.black)
             .padding(16)
-            .frame(width: min(breite - 40, 362), alignment: .leading)
+            .frame(width: kartenBreite, alignment: .leading)
+            // Kurzer Text: Karte so hoch wie der Text. Langer Text: Karte fuellt den Platz und scrollt.
+            ViewThatFits(in: .vertical) {
+                inhalt
+                ScrollView(.vertical) { inhalt }
+            }
+            .frame(width: kartenBreite)
             .background(Color.white)
+            // Ja/Nein wie Annehmen/Ablehnen (EinsatzTagAnsicht): Nein rot umrandet, Ja lime. Nur bei Ja/Nein-Fragen.
+            if ablauf.offen?.jaNein != false {
+            HStack(spacing: 6) {
+                Button { ablauf.knopf(ja: false) } label: {
+                    Text("Nein").font(.grotesk(24, .bold)).tracking(-0.5).foregroundStyle(EinsatzFarbe.rot)
+                        .frame(maxWidth: .infinity).frame(height: 51)
+                        .overlay(Rectangle().strokeBorder(EinsatzFarbe.rot, lineWidth: 2)).contentShape(Rectangle())
+                }
+                .buttonStyle(.web)
+                Button { ablauf.knopf(ja: true) } label: {
+                    Text("Ja").font(.grotesk(24, .bold)).tracking(-0.5).foregroundStyle(.black)
+                        .frame(maxWidth: .infinity).frame(height: 51).background(EinsatzFarbe.lime)
+                }
+                .buttonStyle(.web)
+            }
+            .frame(width: kartenBreite)
+            .padding(.top, 12)
+            .opacity(ablauf.modus == .denken ? 0.4 : 1)
+            }
             // Was gerade gehoert wird, wie beim normalen Zuhoeren.
             Text(ablauf.modus == .frage ? ablauf.gehoert : "")
                 .font(.grotesk(17, .medium))
@@ -345,15 +384,19 @@ struct SprachModusAnsicht: View {
                 .padding(.top, 16)
           }
         } else {
-            Text(ablauf.zeile)
-                .font(.grotesk(17, .medium))
-                .lineSpacing(4)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Color(hex: ablauf.zeileHell ? 0xFFFFFF : 0xA0A0A0))
-                .textSelection(.enabled)
-                .frame(width: min(breite - 48, 340))
-                .frame(minHeight: 72, maxHeight: 140, alignment: .top)
-                .clipped()
+            // Lange Antworten scrollen statt abgeschnitten zu werden (18.11.).
+            ScrollView(.vertical) {
+                Text(ablauf.zeile)
+                    .font(.grotesk(17, .medium))
+                    .lineSpacing(4)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Color(hex: ablauf.zeileHell ? 0xFFFFFF : 0xA0A0A0))
+                    .textSelection(.enabled)
+                    .frame(width: min(breite - 48, 340))
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(width: min(breite - 48, 340))
+            .frame(minHeight: 72, alignment: .top)
         }
     }
 

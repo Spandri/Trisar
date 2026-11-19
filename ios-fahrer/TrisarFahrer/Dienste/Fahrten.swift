@@ -28,6 +28,9 @@ struct FahrtZeile: Decodable {
     let pickup_ort_id: UUID?
     let dropoff_ort_id: UUID?
     let zwischenstopps: [String]?
+    /// Danach Dienstende (19.11.) und echte Ankunft (fehlen die Spalten noch, bleiben sie leer).
+    var danach_dienstende: Bool? = nil
+    var ankunft_echt: String? = nil
 }
 
 struct FahrzeugZeile: Decodable, Equatable {
@@ -93,6 +96,10 @@ struct Fahrt: Identifiable, Equatable {
     var zwischenstopps: [String] = []
     /// Routenpunkte der Dispo (jobs.routen_punkte, 15.11.), leer = schnellste Route.
     var routenPunkte: [RoutenPunkt] = []
+    /// Danach Dienstende (jobs.danach_dienstende, 19.11.): rote Zeile direkt unter der Fahrt.
+    var danachDienstende = false
+    /// Echte Ankunft (jobs.ankunft_echt), ISO-Zeitstempel.
+    var ankunftEcht: String? = nil
 
     /// Kurzname fuer die Karte (wie toShortFormattedAddress + kurzAdresse).
     var abholKurz: String { Adresse.kurz(name: abholName, adresse: abholAdresse) }
@@ -222,6 +229,9 @@ final class FahrtenSpeicher: ObservableObject {
     @Published private(set) var fahrzeug: FahrzeugZeile?
     @Published private(set) var dienstAnfragen: [DienstAnfrage] = []
     @Published private(set) var geladen = false
+    /// Zaehlt jede Aenderung aus der Datenbank (Realtime). Offene Ansichten laden damit ihre Details nach,
+    /// z. B. die Route, die der Server erst kurz nach dem Anlegen fertig hat (18.11.).
+    @Published private(set) var fahrtenStand = 0
     @Published private(set) var arbeitet = false
     @Published var fehler: String?
     /// Ungelesene Nachrichten je Kolonnen-Chat (convoy_id).
@@ -344,7 +354,9 @@ final class FahrtenSpeicher: ObservableObject {
                     meineAntwort: eigene?.response_status ?? "pending",
                     abholOrtID: zeile.pickup_ort_id,
                     zielOrtID: zeile.dropoff_ort_id,
-                    zwischenstopps: zeile.zwischenstopps ?? []
+                    zwischenstopps: zeile.zwischenstopps ?? [],
+                    danachDienstende: zeile.danach_dienstende == true,
+                    ankunftEcht: zeile.ankunft_echt
                 )
             }
             // Routenpunkte der Dispo in eigener Abfrage: fehlt die Spalte noch, bleibt es die schnellste Route.
@@ -542,6 +554,7 @@ final class FahrtenSpeicher: ObservableObject {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             await self?.laden()
+            self?.fahrtenStand += 1
         }
     }
 

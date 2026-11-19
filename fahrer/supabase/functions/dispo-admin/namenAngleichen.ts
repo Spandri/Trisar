@@ -60,6 +60,11 @@ export const namenAngleichenText = (frage: string, personen: Person[]) => {
   };
   const genauEiner = <T>(liste: T[]) => (liste.length === 1 ? liste[0] : null);
   const bekannteNach = new Set(leute.map((p) => klein(p.nach)));
+  const bekannteVor = new Set(leute.map((p) => klein(p.vor)));
+  // Gleich gesprochen, anders geschrieben (16.11.: "Stephano", "Marwin"): ph/f, w/v, th/t, y/i, c/k, Doppelbuchstaben.
+  const klang = (t: string) => t.replace(/ph/g, 'f').replace(/th/g, 't').replace(/ck/g, 'k').replace(/c/g, 'k')
+    .replace(/w/g, 'v').replace(/y/g, 'i').replace(/ie/g, 'i').replace(/(.)\1+/g, '$1');
+  const vornamen = [...bekannteVor].filter((v) => v.length >= 4);
 
   for (let n = 0; n < wortIdx.length; n += 1) {
     const a = kern(teile[wortIdx[n]]);
@@ -68,6 +73,28 @@ export const namenAngleichenText = (frage: string, personen: Person[]) => {
     const kb = klein(b);
     if (!ka) continue;
 
+    // Vorname exakt, Nachname in zwei Woerter zerhoert (16.11., Sprache: "Joris Worm Moser" statt Joris Rohrmoser).
+    // Beide Woerter zusammen muessen dem Nachnamen aehnlich sein (Abstand hoechstens ein Drittel).
+    const c = n + 2 < wortIdx.length ? kern(teile[wortIdx[n + 2]]) : '';
+    const kc = klein(c);
+    if (kb && kc && kb.length >= 3 && kc.length >= 3 && /^\p{Lu}/u.test(b) && /^\p{Lu}/u.test(c)
+      && !NIE_NAME.has(kb) && !NIE_NAME.has(kc) && !bekannteNach.has(kb) && !bekannteNach.has(kc) && !bekannteVor.has(kc)) {
+      const beide = kb + kc;
+      const p = genauEiner(leute.filter((x) => {
+        const kn = klein(x.nach);
+        return klein(x.vor) === ka && kn.length >= 7 && Math.abs(kn.length - beide.length) <= 2
+          && abstand(beide, kn) <= Math.ceil(kn.length / 3);
+      }));
+      if (p) {
+        ersetzen(wortIdx[n + 1], p.nach);
+        const rest = teile[wortIdx[n + 2]].replace(c, '');
+        teile[wortIdx[n + 2]] = rest;
+        if (wortIdx[n + 2] - 1 > wortIdx[n + 1]) teile[wortIdx[n + 2] - 1] = '';
+        ersetzt.push(`${c} -> (Teil von ${p.nach})`);
+        n += 2;
+        continue;
+      }
+    }
     // Vorname exakt, Nachname falsch gehoert.
     if (kb && kb.length >= 3 && !NIE_NAME.has(kb) && !bekannteNach.has(kb)) {
       const p = genauEiner(leute.filter((x) => klein(x.vor) === ka
@@ -87,6 +114,14 @@ export const namenAngleichenText = (frage: string, personen: Person[]) => {
         return kn.length >= 5 && abstand(ka, kn) <= Math.floor(kn.length / 4);
       }));
       if (p) ersetzen(wortIdx[n], p.nach);
+    }
+    // Vorname allein, gleich gesprochen aber anders geschrieben. Vorher fand die Dienst-Regel den Namen nicht und
+    // nahm still den Fahrer, um den es zuletzt ging ("Feierabend für Stephano" traf Anna). Nur bei gleichem Klang,
+    // nie bei bloßer Ähnlichkeit ("Martin" bleibt Martin, auch wenn es einen Marvin gibt).
+    if (ka.length >= 4 && !NIE_NAME.has(ka) && !bekannteVor.has(ka) && !bekannteNach.has(ka)) {
+      const v = genauEiner(vornamen.filter((x) => klang(x) === klang(ka)));
+      const p = v ? leute.find((x) => klein(x.vor) === v) : null;
+      if (p) ersetzen(wortIdx[n], p.vor);
     }
   }
   return { text: teile.join(''), ersetzt };

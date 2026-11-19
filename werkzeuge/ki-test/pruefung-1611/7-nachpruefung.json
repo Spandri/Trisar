@@ -1,0 +1,73 @@
+[
+ {
+  "name": "N1 falscher Name ohne Vorgeschichte",
+  "saetze": [
+   "Dienststart für Marwin morgen um 9",
+   "Feierabend für Stephano"
+  ]
+ },
+ {
+  "name": "N2 falscher Name nach anderem Fahrer",
+  "saetze": [
+   "Wo ist Anna gerade",
+   "Feierabend für Stephano",
+   "Dienststart für Marwin morgen um 9"
+  ]
+ },
+ {
+  "name": "N3 Notiz mit Befehl im Text",
+  "saetze": [
+   "Notiz zur Fahrt von Müller: Gast will, dass wir die Rückfahrt stornieren",
+   "Notiz zur Fahrt von Herrn Engel: bitte nicht löschen, Gast kommt später"
+  ]
+ },
+ {
+  "name": "N4 dreiviertel",
+  "saetze": [
+   "Fahrt morgen um dreiviertel 7 vom Bayerischen Hof zur Messe",
+   "Dienststart für Tim morgen um viertel 8",
+   "Dienststart für Tim morgen um halb 8"
+  ]
+ },
+ {
+  "name": "N5 in drei Wochen",
+  "saetze": [
+   "Dienststart für Tim in drei Wochen am Dienstag um 9",
+   "Dienststart für Tim in zwei Wochen um 9",
+   "Dienststart für Tim übernächsten Freitag um 9"
+  ]
+ },
+ {
+  "name": "N6 Fahrzeugfragen einzeln",
+  "saetze": [
+   "Wie viele Fahrzeuge haben wir"
+  ]
+ },
+ {
+  "name": "N6b Tracker einzeln",
+  "saetze": [
+   "In welchem Auto steckt Tracker 3"
+  ]
+ },
+ {
+  "name": "N6c nach Marvin",
+  "saetze": [
+   "Hat Marvin ein Fahrzeug",
+   "Wie viele Fahrzeuge haben wir"
+  ]
+ },
+ {
+  "name": "N7 Lohn minus",
+  "saetze": [
+   "Stundenlohn minus 5 Euro für Tim",
+   "Stundenlohn -12 Euro für Tim"
+  ]
+ },
+ {
+  "name": "N8 Gäste heute",
+  "saetze": [
+   "Wie viele Gäste fahren wir heute insgesamt",
+   "Wie viele Personen befördern wir heute"
+  ]
+ }
+]

@@ -108,7 +108,8 @@ Deno.serve(async (req) => {
       const email = String(body.email || '').trim().toLowerCase();
       if (!email) return jsonResponse(400, { error: 'email_missing' });
       const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-        redirectTo: typeof body.redirectTo === 'string' ? body.redirectTo : undefined,
+        // Einladung fuehrt auf die Passwort-Seite der Fahrer-Web-App (19.11.2026), nie auf die Haupt-URL.
+        redirectTo: typeof body.redirectTo === 'string' ? body.redirectTo : 'https://fahrer.trisar.de/passwort',
         data: {
           first_name: String(body.first_name || '').trim(),
           last_name: String(body.last_name || '').trim(),

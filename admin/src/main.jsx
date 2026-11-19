@@ -1,5 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import './bildschirm.js';
+import { hintergrundBreitStarten } from './hintergrundBreit.js';
 import './index.css';
 // Karten laufen auf MapLibre mit dunklem Carto-Stil (siehe shared/karte).
 import { karteBereitstellen } from './shared/karte/maplibreKarte';
@@ -97,6 +99,7 @@ function BootSplashGate() {
 }
 
 karteBereitstellen();
+hintergrundBreitStarten();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

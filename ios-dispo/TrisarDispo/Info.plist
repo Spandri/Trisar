@@ -24,10 +24,14 @@
 	<false/>
 	<key>NFCReaderUsageDescription</key>
 	<string>NFC-Tags an den OBD-Trackern beschreiben und auslesen.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>TRISAR braucht die Kamera, damit du Schäden am Fahrzeug fotografieren kannst.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Dein Standort wird auf der Dispo-Karte gezeigt und für „Ankünfte bei mir“ genutzt.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Das Mikrofon wird im Sprachmodus des KI-Assistenten genutzt, damit du mit ihm sprechen kannst.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TRISAR braucht Zugriff auf deine Fotos, damit du Bilder eines Schadens anhängen kannst.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Deine Sprache wird im Sprachmodus des KI-Assistenten in Text umgewandelt und an den Assistenten geschickt.</string>
 	<key>UIAppFonts</key>

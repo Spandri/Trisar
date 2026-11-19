@@ -15,6 +15,7 @@ import { FLAGGE_UMRISS, flaggeId, flaggeNachId, flaggeSetzen } from '../../share
 import { ExportKnopf, StundenExportFenster } from './StundenExport';
 import { LEERER_TREFFPUNKT, treffpunktAufloesen, treffpunktSchluessel, treffpunktSpeichern } from '../../shared/dienstTreffpunkt';
 import { orteStand } from '../../shared/orte';
+import { bildschirmZoom } from '../../bildschirm.js';
 
 const DRIVERS_RELOAD_EVENT = 'trisar:admin:drivers:reload';
 const ADMIN_FALLBACK_ERROR_RE = /invalid jwt|signature is invalid|not allowed|unauthorized|permission denied|row-level security|42501/i;
@@ -1354,7 +1355,8 @@ export default function AlleFahrer({ setView, onCreateDriver, onEditDriver, onOp
 
     const updateKeyboardState = () => {
       const baseLayoutHeight = stableViewportHeightRef.current;
-      const viewportBottom = viewport.height + viewport.offsetTop;
+      // Echte Pixel in App-Pixel (bildschirm.js), sonst passt es nicht zu innerHeight.
+      const viewportBottom = (viewport.height + viewport.offsetTop) / bildschirmZoom();
       const nextInset = Math.max(0, baseLayoutHeight - viewportBottom);
       setKeyboardInset(nextInset);
 

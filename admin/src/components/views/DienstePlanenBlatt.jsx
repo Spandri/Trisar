@@ -427,7 +427,7 @@ export default function DienstePlanenBlatt({
   return (
     <div
       data-tutorial="dienste-sheet"
-      className="absolute left-0 right-0 bottom-0 bg-black px-[20px] pt-[20px] pb-[22px] max-h-[calc(100dvh-20px)] overflow-y-auto font-['Space_Grotesk']"
+      className="absolute left-0 right-0 bottom-0 bg-black px-[20px] pt-[20px] pb-[22px] max-h-[calc(var(--app-h,100dvh)-20px)] overflow-y-auto font-['Space_Grotesk']"
     >
       <div className="border-2 px-[17px] pt-[14px] pb-[16px]" style={{ background: '#1A1A1A', borderColor: GRUEN }}>
         <div className="text-center text-[18px] font-bold tracking-[-0.5px]" style={{ color: LIME }}>{t('fahrer.planServices')}</div>

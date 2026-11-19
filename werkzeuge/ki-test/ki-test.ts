@@ -11,6 +11,7 @@
 
 // deno-lint-ignore-file no-explicit-any
 import './uhr.ts';
+import './places-stub.ts';
 import { kiFrage, antwortArt } from '../../fahrer/supabase/functions/dispo-admin/ki.ts';
 import { SpeicherDb } from './speicherDb.ts';
 import { ID, testdaten } from './testdaten.ts';
@@ -25,6 +26,8 @@ const nur = arg('nur', '');
 const verstehen = arg('verstehen', '');
 // --modus=frei: wie die App mit Umschalter "Frei" (Standard dort). Fragen gehen dann nach den Regeln ans freie Modell.
 const modus = arg('modus', '');
+// --ablauf=neu: neuer Ablauf (dispo-admin/kiNeuAblauf.ts, integration_settings ki_ablauf). --nur=A,B mehrere Gruppen.
+const ablauf = arg('ablauf', '');
 
 const NAMEN: Record<string, string> = { [ID.tim]: 'Tim Schedler', [ID.marvin]: 'Marvin Keller', [ID.stefano]: 'Stefano Spandri', [ID.anna]: 'Anna Berger' };
 
@@ -44,7 +47,7 @@ const felder = (daten: any): Record<string, string> => {
   if (a?.type === 'booking_proposal') {
     const p = a.proposal || {};
     return {
-      datum: String(p.datum || ''), startZeit: String(p.startZeit || ''), start: String(p.start || ''),
+      datum: String(p.datum || ''), startZeit: String(p.startZeit || ''), startZeitBis: String(p.startZeitBis || ''), start: String(p.start || ''),
       ziel: String(p.ziel || ''), fahrgaeste: String(p.fahrgaeste || ''),
       fahrerNamen: (p.fahrerNamen || []).join(', '), fahrtId: String(p.fahrtId || ''),
       startOrtId: String(p.startOrtId || ''), zielOrtId: String(p.zielOrtId || ''),
@@ -97,11 +100,13 @@ type Ergebnis = { fall: string; gruppe: string; schritt: number; frage: string; 
 const ergebnisse: Ergebnis[] = [];
 
 // Nacht-Faelle nur gezielt mit --nur=Nacht --uhr=01:30, sonst passt die Testuhr (11:00) nicht.
-const alle = faelle().filter((f) => (nur ? f.gruppe === nur : f.gruppe !== 'Nacht'));
+const alle = faelle().filter((f) => (nur ? nur.split(',').includes(f.gruppe) : f.gruppe !== 'Nacht'));
 console.log(`KI-Testsatz: ${alle.length} Fälle, Modell ${modell}, Ollama ${ollama}\n`);
 
 for (const fall of alle) {
-  const db = new SpeicherDb(testdaten(ollama, modell, verstehen));
+  const daten = testdaten(ollama, modell, verstehen);
+  if (ablauf) daten.integration_settings.push({ key: 'ki_ablauf', value: ablauf });
+  const db = new SpeicherDb(daten);
   const verlauf: { role: string; text: string }[] = [];
   let kontext: any = null;
   let offenerVorschlag: any = null;

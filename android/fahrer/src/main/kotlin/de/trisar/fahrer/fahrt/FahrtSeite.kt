@@ -88,6 +88,9 @@ private val ENDE = setOf("done", "completed", "arrived", "beendet", "cancelled",
 private val UNTERWEGS = setOf("at_pickup", "beim_pickup", "beim pickup", "in_progress", "started", "unterwegs", "active", "ongoing", "on_trip", "done", "completed", "arrived")
 private val LAEUFT = setOf("in_progress", "unterwegs", "started", "on_trip", "ongoing", "active")
 private val SCHNAPP = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+/** Antwort des Fahrers steht noch aus (wie Fahrt.offen in der Fahrtenliste). */
+private val OFFEN_STATUS = setOf("pending", "new", "offered", "requested", "assigned_pending")
+private val OFFEN_ANTWORT = setOf("pending", "new", "offered", "requested")
 
 /** `position: absolute` im Blatt, aber mit Platzbedarf (wie platz() in iOS ueber Abstand statt offset). */
 private fun Modifier.bei(x: Float, y: Float): Modifier = this.padding(start = x.dp, top = maxOf(0f, y).dp)
@@ -119,6 +122,8 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
     var gewaehlterKollege by remember { mutableStateOf<FahrtDetails.KolonnenFahrer?>(null) }
     var chatOffen by remember { mutableStateOf(false) }
     var supportOffen by remember { mutableStateOf(false) }
+    /** Eigene Navigation entlang der Route der Dispo (16.11.), Vollbild ueber allem. */
+    var naviOffen by remember { mutableStateOf(false) }
 
     val fahrt = details.fahrt
     /** Kolonnen-Ansicht nur mit Kollegen in der Kolonne (hasKolonneColleagues). */
@@ -143,7 +148,8 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
         var nachladen: Job? = null
         fun spaeterLaden() {
             nachladen?.cancel()
-            nachladen = scope.launch { delay(400); details.fahrtLaden() }
+            // Auch die Details (Route, Gaeste, Ankunft), 18.11.: die Route ist erst kurz nach dem Anlegen fertig.
+            nachladen = scope.launch { delay(400); details.fahrtLaden(); details.laden() }
         }
         val jobs = listOf(
             fahrten.onEach { spaeterLaden() }.launchIn(scope),
@@ -154,6 +160,15 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
         onDispose {
             jobs.forEach { it.cancel() }
             fahrtAufraeumen.launch { runCatching { Backend.client.realtime.removeChannel(kanal) } }
+        }
+    }
+    // Fehlt die Route noch: eine Minute lang alle 3 s nachfragen (18.11.).
+    LaunchedEffect(details.tomtomFahrt.isEmpty()) {
+        if (details.tomtomFahrt.isNotEmpty()) return@LaunchedEffect
+        repeat(20) {
+            delay(3_000)
+            details.laden()
+            if (details.tomtomFahrt.isNotEmpty()) return@LaunchedEffect
         }
     }
     LaunchedEffect(istFlug) {
@@ -285,7 +300,8 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
         val hoehePx = constraints.maxHeight.toFloat()
         val blattHoehe = hoehe * blattProzent / 100f
 
-        TrisarKarte(karte, blattHoehe, Modifier.fillMaxSize())
+        // Unter der Navigation keine zweite Karte: zwei Kartenflaechen uebereinander stoeren sich.
+        if (!(naviOffen && fahrt != null)) TrisarKarte(karte, blattHoehe, Modifier.fillMaxSize())
 
         if (fahrt != null) {
             Column(
@@ -321,7 +337,7 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
                         fahrt = fahrt, details = details, istKolonne = istKolonne, istFlug = istFlug,
                         etaText = if (istFlug) etaFlug(fahrt) else eta(fahrt), fahrDauerText = fahrDauerText,
                         offnen = { offenesBlatt = it }, chat = { chatOffen = true }, support = { supportOffen = true },
-                        kollege = { gewaehlterKollege = it },
+                        kollege = { gewaehlterKollege = it }, navigation = { naviOffen = true },
                     )
                 }
             }
@@ -393,6 +409,11 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
                 )
                 FahrtBlatt.SCHILD -> FahrtAbholschild(details.gaeste) { offenesBlatt = null }
             }
+        }
+
+        // Eigene Navigation: vor der Abholung zum Abholort, mit Gast an Bord die Route der Fahrt.
+        if (naviOffen && fahrt != null) {
+            NavigationSeite(fahrtID, LAEUFT.contains(fahrt.status.lowercase())) { naviOffen = false }
         }
     }
 }
@@ -470,6 +491,7 @@ private fun BlattInhalt(
     fahrt: FahrtKopf, details: FahrtDetails, istKolonne: Boolean, istFlug: Boolean,
     etaText: String, fahrDauerText: String,
     offnen: (FahrtBlatt) -> Unit, chat: () -> Unit, support: () -> Unit, kollege: (FahrtDetails.KolonnenFahrer) -> Unit,
+    navigation: () -> Unit,
 ) {
     fun y(webOben: Float) = webOben - if (istKolonne) 24f else 111f
     val breite = 402f
@@ -478,7 +500,12 @@ private fun BlattInhalt(
     // Gemeinsame Regel: Namen je Zeile, anonyme Gaeste als eigene Zeile, sonst "Keine Gäste".
     val gaeste = de.trisar.kern.GaesteAnzeige.zeilen(details.gaeste, details.anonym)
     // Flughafen: Gaeste immer bei 482 (Platz fuer Flugnummer), sonst je nach Merkmalen.
-    val gaesteOben = y(if (istFlug || merkmale.isNotEmpty()) 563f - 81f else 289f + 64f + 42f)
+    // Knopf „Navigation starten“ nur mit Routenpunkten der Dispo und wenn die Fahrt angenommen ist.
+    // Er steht unter der Zeile „Route von Dispo“, alles darunter rueckt um seine Hoehe nach unten.
+    val antwortOffen = if (fahrt.istKolonne) fahrt.meineAntwort.lowercase() in OFFEN_ANTWORT else fahrt.status.lowercase() in OFFEN_STATUS
+    val naviKnopf = fahrt.routenPunkte.isNotEmpty() && !antwortOffen
+    val naviVersatz = if (!naviKnopf) 0f else (if (fahrt.zwischenstopps.isNotEmpty()) 36f else 20f) + 56f
+    val gaesteOben = y(if (istFlug || merkmale.isNotEmpty()) 563f - 81f else 289f + 64f + 42f) + naviVersatz
     val ersteGastZeile = gaesteOben + 50f
     val gaesteUnten = ersteGastZeile + (gaeste.size - 1) * 57f + 51f
     val nav = navigationsURL(fahrt)
@@ -522,7 +549,8 @@ private fun BlattInhalt(
 
         // Routenpunkte der Dispo: Lime-Chip „Route von Dispo“ vor der Stopp-Zeile.
         if (fahrt.zwischenstopps.isNotEmpty() || fahrt.routenPunkte.isNotEmpty()) {
-            Row(Modifier.bei(20f, y(352f)).width(innen.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.bei(20f, y(352f)).width(innen.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (fahrt.routenPunkte.isNotEmpty()) {
                     Box(Modifier.background(lime, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp)) {
                         Text("Route von Dispo", style = grotesk(12f, 700, farbe = androidx.compose.ui.graphics.Color.Black), maxLines = 1)
@@ -538,10 +566,15 @@ private fun BlattInhalt(
                     )
                 }
             }
+            if (naviKnopf) {
+                Spacer(Modifier.height(16.dp))
+                AktionsKnopf("Navigation starten", lime, navigation)
+            }
+            }
         }
 
         if (merkmale.isNotEmpty()) {
-            Box(Modifier.bei(20f, y(386f)).then(if (istFlug) Modifier.width(innen.dp) else Modifier),
+            Box(Modifier.bei(20f, y(386f) + naviVersatz).then(if (istFlug) Modifier.width(innen.dp) else Modifier),
                 contentAlignment = if (istFlug) Alignment.TopEnd else Alignment.TopStart) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     merkmale.forEach { m -> Icon(merkmalIcon(m), Modifier.size(58.dp)) }
@@ -550,10 +583,10 @@ private fun BlattInhalt(
         }
 
         if (istFlug) {
-            Text(fahrt.flug.trim(), style = grotesk(42f, 700, zeilenHoehe = 42f * 0.88f, abstand = -1f, farbe = grauHell), modifier = Modifier.bei(20f, y(386f)))
+            Text(fahrt.flug.trim(), style = grotesk(42f, 700, zeilenHoehe = 42f * 0.88f, abstand = -1f, farbe = grauHell), modifier = Modifier.bei(20f, y(386f) + naviVersatz))
             if (details.flugHerkunft.isNotEmpty()) {
                 Text("Aus: ${details.flugHerkunft}", style = grotesk(16f, 700, zeilenHoehe = 16f, abstand = -0.5f, farbe = grauHell.copy(alpha = 0.5f)),
-                    modifier = Modifier.bei(20f, y(424f)))
+                    modifier = Modifier.bei(20f, y(424f) + naviVersatz))
             }
         }
 

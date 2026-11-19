@@ -5,6 +5,7 @@
 import CoreLocation
 import Foundation
 import UIKit
+import Supabase
 
 @MainActor
 final class EigenerStandort: NSObject, ObservableObject {
@@ -103,6 +104,23 @@ final class EigenerStandort: NSObject, ObservableObject {
         position = ort
         alleAntworten(ort)
         if zuschauer.isEmpty { pruefen() }
+        speichern(ort)
+    }
+
+    /// In dispo_standort merken (19.11.): Der KI-Assistent sucht Adressen zuerst in der Naehe der Dispo.
+    /// Hoechstens einmal je Minute oder nach 100 m, Fehler stoeren nie.
+    private var gespeichert: CLLocation?
+    private func speichern(_ ort: CLLocation) {
+        if let g = gespeichert, ort.timestamp.timeIntervalSince(g.timestamp) < 60, ort.distance(from: g) < 100 { return }
+        gespeichert = ort
+        struct Zeile: Encodable { let user_id: String; let lat: Double; let lng: Double; let genau_m: Double?; let aktualisiert: String }
+        Task {
+            guard let id = Backend.client.auth.currentUser?.id else { return }
+            let zeile = Zeile(user_id: id.uuidString.lowercased(), lat: ort.coordinate.latitude, lng: ort.coordinate.longitude,
+                              genau_m: ort.horizontalAccuracy >= 0 ? ort.horizontalAccuracy : nil,
+                              aktualisiert: ISO8601DateFormatter().string(from: Date()))
+            _ = try? await Backend.client.from("dispo_standort").upsert(zeile).execute()
+        }
     }
 
     fileprivate func fehlgeschlagen(_ fehler: Error) {

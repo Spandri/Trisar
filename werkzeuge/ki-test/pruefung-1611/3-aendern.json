@@ -1,0 +1,48 @@
+[
+ {
+  "name": "Zeit verschieben relativ",
+  "saetze": [
+   "Die Fahrt von Herrn Engel fängt 20 Minuten später an",
+   "nein",
+   "Zieh die Fahrt von Müller eine halbe Stunde vor",
+   "nein"
+  ]
+ },
+ {
+  "name": "Fahrer tauschen und abziehen",
+  "saetze": [
+   "Tausch die Fahrer der Fahrten von Engel und Tim",
+   "Nimm Stefano von der 14 Uhr Fahrt runter",
+   "nein",
+   "Anna übernimmt heute die Fahrt von Tim",
+   "nein"
+  ]
+ },
+ {
+  "name": "Ziel und Gast ändern",
+  "saetze": [
+   "Ändere das Ziel der Fahrt von Herrn Engel auf Messe München",
+   "nein",
+   "Bei der Fahrt von Müller kommen noch zwei Personen dazu",
+   "nein",
+   "Frau Weber fährt morgen doch nicht"
+  ]
+ },
+ {
+  "name": "Mehrdeutig",
+  "saetze": [
+   "Verschieb die Fahrt zum Flughafen auf 12 Uhr",
+   "Storniere die Fahrt von Stefano",
+   "die um 14 Uhr",
+   "nein"
+  ]
+ },
+ {
+  "name": "Nicht vorhanden",
+  "saetze": [
+   "Verschieb die Fahrt von Herrn Schmidt auf 15 Uhr",
+   "Storniere die Fahrt von Marvin heute",
+   "Markier die Fahrt von Anna heute als erledigt"
+  ]
+ }
+]

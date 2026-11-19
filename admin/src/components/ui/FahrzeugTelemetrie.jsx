@@ -23,6 +23,7 @@ export default function FahrzeugTelemetrie({ driverId }) {
             <div key={z.key} className="min-w-0">
               <div className="text-[#8d8d8d] text-[11px] leading-none truncate">{z.label}</div>
               <div className={`mt-[4px] text-[18px] leading-none font-bold truncate ${z.warn ? 'text-[#ff6b57]' : 'text-[#D6D6D6]'}`}>{z.value}</div>
+              {z.unter ? <div className="mt-[3px] text-[11px] leading-none text-[#8D8D8D] truncate">{z.unter}</div> : null}
             </div>
           ))}
         </div>

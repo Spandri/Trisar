@@ -22,6 +22,11 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+		<string>maps</string>
+	</array>
 	<key>NFCReaderUsageDescription</key>
 	<string>NFC-Tag am Tracker lesen, um dich mit dem Fahrzeug zu verbinden.</string>
 	<key>NSCameraUsageDescription</key>
@@ -59,6 +64,7 @@
 	<array>
 		<string>location</string>
 		<string>remote-notification</string>
+		<string>audio</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>

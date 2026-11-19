@@ -50,8 +50,10 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
     data class Schaden(val id: String, val datum: String, val stelle: String, val beschreibung: String, val bilder: List<String>,
         val punkt: androidx.compose.ui.geometry.Offset? = null,
         /** ganze gespeicherte Stelle (mit Ansicht und Bildpunkt, wenn am drehbaren Auto markiert) */
-        val genau: kotlinx.serialization.json.JsonObject? = null)
-    data class TelemetrieZeile(val id: String, val titel: String, val wert: String, val warnung: Boolean)
+        val genau: kotlinx.serialization.json.JsonObject? = null,
+        /** vehicle_damages.gemeldet_von (per DB-Trigger), leer wenn nicht da */
+        val gemeldetVon: String = "")
+    data class TelemetrieZeile(val id: String, val titel: String, val wert: String, val warnung: Boolean, val unter: String = "")
     data class Ereignis(val id: String, val zeit: String, val text: String)
 
     val ausstattung = MutableStateFlow("")
@@ -151,6 +153,7 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
         val image_url: String? = null,
         val image_urls: List<String>? = null,
         val stelle: kotlinx.serialization.json.JsonObject? = null,
+        val gemeldet_von: String? = null,
     )
 
     suspend fun schaedenLaden() {
@@ -165,7 +168,7 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
             val bilder = (if (!z.image_urls.isNullOrEmpty()) z.image_urls else listOfNotNull(z.image_url))
                 .filter { it.isNotEmpty() && !it.startsWith("blob:") }
             Schaden(z.id, datumKurz(z.report_date.orEmpty()), z.part_name.orEmpty(), z.description.orEmpty(), bilder,
-                de.trisar.kern.FahrzeugSkizze.punkt(z.stelle), z.stelle)
+                de.trisar.kern.FahrzeugSkizze.punkt(z.stelle), z.stelle, z.gemeldet_von?.trim().orEmpty())
         }
     }
 
@@ -268,11 +271,21 @@ class FahrzeugDaten(private val ctx: Context, private val fahrerID: String, priv
         fun zeilen(live: JsonObject?): List<TelemetrieZeile> {
             if (live == null) return emptyList()
             val z = mutableListOf<TelemetrieZeile>()
-            (live["ignition"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.booleanOrNull?.let {
-                z += TelemetrieZeile("ignition", "Zündung", if (it) "An" else "Aus", false)
+            // Geparkt: Zuendung aus oder seit 2 Minuten keine Meldung (bei Zuendung an kommt alle 30 s eine,
+            // am OBD-Stecker schlaeft der Tracker nach dem Abstellen ohne letzte "Aus"-Meldung ein).
+            val standText = (live["captured_at"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content.orEmpty()
+            val stand = runCatching { java.time.OffsetDateTime.parse(standText).toInstant() }.getOrNull()
+                ?: runCatching { java.time.OffsetDateTime.parse(standText.replace(" ", "T")).toInstant() }.getOrNull()
+            val an = (live["ignition"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.booleanOrNull
+            val geparkt = an == false || (stand != null && java.time.Duration.between(stand, java.time.Instant.now()).seconds > 120)
+            if (geparkt) {
+                val uhr = stand?.let { java.time.LocalTime.ofInstant(it, java.time.ZoneId.systemDefault()) }
+                z += TelemetrieZeile("ignition", "Zündung", "Geparkt", false, uhr?.let { "seit %02d:%02d".format(it.hour, it.minute) } ?: "")
+            } else if (an == true) {
+                z += TelemetrieZeile("ignition", "Zündung", "An", false)
             }
-            zahl(live["rpm"])?.let { z += TelemetrieZeile("rpm", "Drehzahl", "${it.roundToInt()}", false) }
-            zahl(live["obd_speed_kph"])?.let { z += TelemetrieZeile("speed", "Tempo (OBD)", "${it.roundToInt()} km/h", false) }
+            if (!geparkt) zahl(live["rpm"])?.let { z += TelemetrieZeile("rpm", "Drehzahl", "${it.roundToInt()}", false) }
+            if (!geparkt) zahl(live["obd_speed_kph"])?.let { z += TelemetrieZeile("speed", "Tempo (OBD)", "${it.roundToInt()} km/h", false) }
             val tank = zahl(live["fuel_level_pct"])
             if (tank != null) z += TelemetrieZeile("fuel", "Tank", "${tank.roundToInt()} %", tank < 15)
             if (tank == null) zahl(live["oem_fuel_l"])?.let { z += TelemetrieZeile("fuel", "Tank", "${dezimal(it)} l", false) }
