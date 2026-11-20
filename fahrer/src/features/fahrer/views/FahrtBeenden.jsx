@@ -3,6 +3,9 @@ import TrisarFooter from '../../../components/ui/TrisarFooter';
 import { useI18n } from '../../../i18n';
 import ZurueckKnopf from '../../../components/ui/ZurueckKnopf';
 
+const BASE_WIDTH = 402;
+const BASE_HEIGHT = 864;
+
 const screenBg = {
   backgroundImage:
     "url(\"data:image/svg+xml;utf8,<svg viewBox='0 0 402 864' xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><rect x='0' y='0' height='100%' width='100%' fill='url(%23grad)' opacity='1'/><defs><radialGradient id='grad' gradientUnits='userSpaceOnUse' cx='0' cy='0' r='10' gradientTransform='matrix(40.2 86.4 -40.2 18.279 0 -1.9185e-13)'><stop stop-color='rgba(49,55,1,1)' offset='0'/><stop stop-color='rgba(25,28,0,1)' offset='0.2283'/><stop stop-color='rgba(12,14,0,1)' offset='0.34244'/><stop stop-color='rgba(0,0,0,1)' offset='0.45659'/><stop stop-color='rgba(0,0,0,1)' offset='0.83626'/><stop stop-color='rgba(0,0,0,1)' offset='1'/></radialGradient></defs></svg>\")",

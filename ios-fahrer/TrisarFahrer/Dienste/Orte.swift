@@ -151,6 +151,8 @@ struct EigenerOrt: Codable, Identifiable, Equatable {
 
     var symbol: OrtSymbol { OrtSymbol(schluessel: icon) }
     var punkt: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lng) }
+    /// "rein 50 m / raus 120 m"
+    var radienText: String { "rein \(radius_rein_m) m / raus \(radius_raus_m) m" }
 }
 
 /// Standard-Radien fuer alle Adressen ohne eigenen Ort (public.orte_standard, eine Zeile).
@@ -175,6 +177,9 @@ final class OrteSpeicher: ObservableObject {
     private var beobachter: [Task<Void, Never>] = []
     private var zuschauer = 0
 
+    // Grenzen wie die Pruefungen in der Datenbank.
+    static let reinBereich = 10...5000
+    static let rausBereich = 11...10000
 
     func ort(_ id: UUID?) -> EigenerOrt? {
         guard let id else { return nil }
@@ -249,5 +254,93 @@ final class OrteSpeicher: ObservableObject {
             }
         }
         return vorne + wort
+    }
+
+    // MARK: Schreiben (nur Dispo)
+
+    private struct Kennung: Decodable { let id: UUID }
+
+    enum Fehler: LocalizedError {
+        case text(String)
+        var errorDescription: String? { if case let .text(t) = self { return t }; return nil }
+    }
+
+    /// Prueft wie die Datenbank und liefert einen kurzen Hinweis, nil wenn alles passt.
+    func pruefen(name: String, rein: Int?, raus: Int?, ohne id: UUID? = nil) -> String? {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if n.isEmpty { return "Bitte einen Namen eingeben." }
+        if orte.contains(where: { $0.id != id && $0.name.trimmingCharacters(in: .whitespaces).lowercased() == n.lowercased() }) {
+            return "Diesen Namen gibt es schon."
+        }
+        return Self.radienPruefen(rein: rein, raus: raus)
+    }
+
+    static func radienPruefen(rein: Int?, raus: Int?) -> String? {
+        guard let rein, reinBereich.contains(rein) else { return "Reinfahr-Radius 10 bis 5000 m." }
+        guard let raus, rausBereich.contains(raus) else { return "Rausfahr-Radius 11 bis 10000 m." }
+        if raus <= rein { return "Der Rausfahr-Radius muss größer sein als der Reinfahr-Radius." }
+        return nil
+    }
+
+    func speichern(_ ort: EigenerOrt, neu: Bool) async throws {
+        let zeile: [String: AnyJSON] = [
+            "name": .string(ort.name.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "adresse": .string(ort.adresse.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "lat": .double(ort.lat),
+            "lng": .double(ort.lng),
+            "radius_rein_m": .integer(ort.radius_rein_m),
+            "radius_raus_m": .integer(ort.radius_raus_m),
+            "icon": .string(ort.symbol.rawValue),
+        ]
+        do {
+            if neu {
+                try await Backend.client.from("orte").insert(zeile).execute()
+            } else {
+                let geaendert: [Kennung] = try await Backend.client.from("orte").update(zeile)
+                    .eq("id", value: ort.id).select("id").execute().value
+                // RLS ohne Treffer meldet keinen Fehler, nur eine leere Antwort.
+                if geaendert.isEmpty { throw Fehler.text("Nur die Disposition darf Orte ändern.") }
+            }
+        } catch let f as Fehler {
+            throw f
+        } catch {
+            throw Self.lesbar(error)
+        }
+        await laden()
+    }
+
+    func loeschen(_ id: UUID) async throws {
+        do {
+            try await Backend.client.from("orte").delete().eq("id", value: id).execute()
+        } catch {
+            throw Self.lesbar(error)
+        }
+        orte.removeAll { $0.id == id }
+        await laden()
+    }
+
+    func standardSpeichern(rein: Int, raus: Int) async throws {
+        do {
+            let geaendert: [OrteStandard] = try await Backend.client.from("orte_standard")
+                .update(["radius_rein_m": AnyJSON.integer(rein), "radius_raus_m": AnyJSON.integer(raus)])
+                .eq("id", value: "true").select("radius_rein_m, radius_raus_m").execute().value
+            if geaendert.isEmpty { throw Fehler.text("Nur die Disposition darf Orte ändern.") }
+        } catch let f as Fehler {
+            throw f
+        } catch {
+            throw Self.lesbar(error)
+        }
+        standard = OrteStandard(radius_rein_m: rein, radius_raus_m: raus)
+    }
+
+    /// Datenbankfehler in kurze Hinweise uebersetzen.
+    private static func lesbar(_ error: Error) -> Error {
+        let text = "\(error)"
+        if text.contains("orte_name_eindeutig") || text.contains("23505") { return Fehler.text("Diesen Namen gibt es schon.") }
+        if text.contains("raus_groesser_rein") { return Fehler.text("Der Rausfahr-Radius muss größer sein als der Reinfahr-Radius.") }
+        if text.contains("42501") || text.lowercased().contains("row-level security") {
+            return Fehler.text("Nur die Disposition darf Orte ändern.")
+        }
+        return error
     }
 }

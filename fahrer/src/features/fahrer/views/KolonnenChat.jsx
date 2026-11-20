@@ -22,6 +22,7 @@ const TASTATUR_HOEHE = 297;
 const EINGABE_UNTEN = 70;        // Abstand zum unteren Rand ohne Tastatur
 const EINGABE_HOEHE = 48;        // eine Zeile
 const EINGABE_HOEHE_MAX = 144;   // fuenf Zeilen, ab hier scrollt das Feld statt zu wachsen
+const EINGABE_ZEILE = 24;
 // 12 px ueber und 12 px unter dem Text. Vorher waren es 12 zusammen, ab der
 // zweiten Zeile klebte der Text dann oben und unten am Rand der Blase.
 const EINGABE_INNEN = 24;        // Polsterung oben + unten zusammen

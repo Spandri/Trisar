@@ -402,6 +402,7 @@ struct NaviKarte: UIViewRepresentable {
         private var uebersichtSignal = 0
         private var zentrierenSignal = 0
         private var vorschauGanz = false
+        private var vorschauGezeichnet = -1
         private var vorschauPin: MLNPointAnnotation?
 
         // Fahrer: der gezeigte Ort gleitet gleichmaessig von Standort zu Standort.

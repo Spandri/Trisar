@@ -26,6 +26,15 @@ export const anonymeGaesteText = (anzahl, t) => {
   return n === 1 ? t('gaeste.anonymEins') : t('gaeste.anonymViele', { n });
 };
 
+// Ganzer Text in einer Zeile, z. B. fuer Titel oder Antworten.
+export const gaesteText = (namen, anonym, t, { trenner = ', ' } = {}) => {
+  const teile = gaesteTeile(namen, anonym);
+  if (teile.namen.length && teile.anonym) return `${teile.namen.join(trenner)} + ${teile.anonym}`;
+  if (teile.namen.length) return teile.namen.join(trenner);
+  if (teile.anonym) return anonymeGaesteText(teile.anonym, t);
+  return t('gaeste.keine');
+};
+
 // Abholschild: Vornamen abgekuerzt, Titel und Nachname bleiben.
 // "Simone Müller" -> "S. Müller", "Dr. Hans Peter Meier" -> "Dr. H. P. Meier",
 // "Hans-Peter Meier" -> "H.-P. Meier", "Anna von Berg" -> "A. von Berg", "Müller, Simone" -> "S. Müller".

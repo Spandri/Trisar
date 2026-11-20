@@ -159,6 +159,59 @@ internal object StundenKarteMass {
     fun hoehe(e: Stunden.Eintrag): Float = kartenHoehe(e) + if (mitKnoepfen(e)) 12f + 51f else 0f
 }
 
+/** Die Stundenkarte. Breite 362, Hoehe aus StundenKarteMass.hoehe (fuer das Raster der Fahrtenliste). */
+@Composable
+internal fun StundenKarte(
+    eintrag: Stunden.Eintrag,
+    modifier: Modifier = Modifier,
+    beschaeftigt: Boolean = false,
+    annehmen: () -> Unit,
+    bearbeiten: () -> Unit,
+    ablehnen: () -> Unit,
+) {
+    val z = eintrag.zettel
+    val v = eintrag.vorschlag
+    val arbeitsMin = z?.arbeitsMin ?: v.arbeitsMin
+    val beginn = Stunden.uhr(z?.beginn ?: v.beginn)
+    val ende = Stunden.uhr(z?.ende ?: v.ende)
+    val pauseMin = z?.pauseMin ?: v.pauseMin
+    val rand = when (z?.status) { "eingereicht" -> LIME; "zurueckgewiesen" -> ROT; "dispo_geaendert" -> ORANGE; else -> Color.Transparent }
+    val etikett = when (z?.status) {
+        "eingereicht" -> "Eingereicht" to LIME
+        "dispo_geaendert" -> "Von Dispo geändert" to ORANGE
+        "zurueckgewiesen" -> "Zurückgegeben" to ROT
+        "bestaetigt" -> "Bestätigt" to GRUEN
+        else -> null
+    }
+    val notiz = StundenKarteMass.notiz(eintrag)
+
+    Column(modifier.width(362.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.width(362.dp).height(StundenKarteMass.kartenHoehe(eintrag).dp).background(FLAECHE).border(2.dp, rand)) {
+            // Kopf wie die Dienstkarte: grosse Zeile Lime, darunter Zeiten
+            Column(Modifier.height(StundenKarteMass.KOPF.dp).padding(start = 12.dp, end = 12.dp, top = 19.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("Stunden ${Stunden.hmm(arbeitsMin)}", style = grotesk(38f, 700, farbe = LIME), maxLines = 1, softWrap = false)
+                    Spacer(Modifier.weight(1f))
+                    if (etikett != null) Text(etikett.first, style = grotesk(13f, 700, farbe = etikett.second), modifier = Modifier.padding(bottom = 8.dp))
+                }
+                Text("$beginn – $ende" + if (pauseMin > 0) " · Pause ${Stunden.hmm(pauseMin)}" else "",
+                    style = grotesk(24f, 700, farbe = Color.White), maxLines = 1, softWrap = false)
+            }
+            if (v.fahrten.isNotEmpty()) {
+                Box(Modifier.padding(horizontal = 12.dp).fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.1f)))
+                Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(StundenKarteMass.ZEILEN_ABSTAND.dp)) {
+                    v.fahrten.forEach { f -> FahrtZeile(f) }
+                }
+            }
+            if (notiz != null) {
+                Text(notiz, style = grotesk(13f, 500, farbe = if (z?.status == "zurueckgewiesen") ROT else ORANGE), maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.height(18.dp).padding(horizontal = 12.dp))
+            }
+        }
+        if (StundenKarteMass.mitKnoepfen(eintrag)) StundenKnoepfe(beschaeftigt, ablehnen, bearbeiten, annehmen)
+    }
+}
+
 /** Eine Fahrt: Planzeit gross in Lime, Strecke, darunter gefahrene Zeit und Gaeste. */
 @Composable
 private fun FahrtZeile(f: Stunden.Fahrt) {

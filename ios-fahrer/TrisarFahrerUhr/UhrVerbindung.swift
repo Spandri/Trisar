@@ -36,6 +36,8 @@ final class UhrVerbindung: NSObject, ObservableObject {
         if sitzung.activationState != .activated { sitzung.activate() }
     }
 
+    var iPhoneErreichbar: Bool { WCSession.isSupported() && WCSession.default.isReachable }
+
     private func uebernehmen(_ neu: UhrStand) {
         // Neue offene Fahrt: kurz am Handgelenk tippen.
         let alteOffene = Set(stand.fahrten.filter(\.offen).map(\.id))

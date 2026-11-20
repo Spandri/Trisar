@@ -31,6 +31,11 @@ import NaviStart from './Navigation';
 import { naviVersatz } from '../../../shared/navigation/naviLogik';
 import { ortIconFuer } from '../../../shared/orte';
 import { gaesteTeile, gaesteZeilen } from '../../../shared/gaesteAnzeige';
+const envOrDefault = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value === 'string' && value.trim().toLowerCase().startsWith('your_')) return fallback;
+  return value;
+};
 const MAP_DEFAULT_CENTER = { lat: 48.1215, lng: 11.6644 };
 // Technisches Kaestchen (letzter Positions-Push, Status, Quelle) nur auf Wunsch —
 // wie in den Flughafen-Varianten hinter VITE_SHOW_DRIVER_DEBUG_OVERLAY.

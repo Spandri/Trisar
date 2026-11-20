@@ -1,0 +1,1126 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		000DD641CE3298DCFFE2A1E2 /* DienstStartAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3726170CD481A319CC890ECB /* DienstStartAnsicht.swift */; };
+		0089C18A32EA0B5330E9BADF /* PushAntwort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2603C527B982638A5EAD4A26 /* PushAntwort.swift */; };
+		01EEB60AFC1730A58773EFE4 /* EinstellungenAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6561A35E7596A8B70143FB66 /* EinstellungenAnsicht.swift */; };
+		02AF4907DD0158A820902472 /* KolonnenChatAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC00D212E87E36220C37715 /* KolonnenChatAnsicht.swift */; };
+		081CAD22D6474216583466BB /* Orte.swift in Sources */ = {isa = PBXBuildFile; fileRef = 645B32D1781E674BC87848C3 /* Orte.swift */; };
+		08F1BEB4C79A37E7887993AD /* UhrStand.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE9E90D9312B8A09A5FD3C21 /* UhrStand.swift */; };
+		0967757111F757D466FD9F75 /* startvideo.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 225B62DE4F90377338925087 /* startvideo.mp4 */; };
+		099B2848A247E5799D5E8518 /* ProfilDienst.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA7C42E1FB279EC8DC6EDD48 /* ProfilDienst.swift */; };
+		0E01D15913D786C965DEEE07 /* StartVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38E3C673F485F806CD9A301F /* StartVideo.swift */; };
+		0F9CCAFC7A1E5F398B93DEA6 /* OrtungAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 433DE1F2A13E932C15243932 /* OrtungAnsicht.swift */; };
+		1019861107FFA1E9051C94E8 /* ReiseLage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF0A3C58608CAAF80BDDCF4E /* ReiseLage.swift */; };
+		1059DAD28D3759F082054D94 /* FahrzeugDaten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C180292DDABF66FFF13058E /* FahrzeugDaten.swift */; };
+		13D928A28C3E72B3CD3BACA2 /* FahrzeugForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = B43806F5F0EDCCD314294CC7 /* FahrzeugForm.swift */; };
+		13EF1C11C9C35D4C5DAD2D29 /* DienstreiseVerbindung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EDD25C876F51BA28748F53E /* DienstreiseVerbindung.swift */; };
+		177E444B3FC8E0AF4C3D52AC /* SoloNormalAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E792F49F7375DF0B20716D3 /* SoloNormalAnsicht.swift */; };
+		1E246CEC1F06DCDA8FD2CBDA /* TrisarFahrerUhr.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = D8E6520AFC2F8C84805AB835 /* TrisarFahrerUhr.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		26A069E776D926F0F5E3A915 /* Ortung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F9DA955D8BC4470B0CE4EB /* Ortung.swift */; };
+		2A57718F4A4E1E4760FB7C96 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 31E99A836AAC12A58E1053A1 /* Assets.xcassets */; };
+		2E206D90B9722AF1E84EA1E2 /* FahrtAktivitaet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD98CEE8463AD5495665374D /* FahrtAktivitaet.swift */; };
+		329D7CE87CD66CE90484639B /* KarteAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1AF6E4279E01957BEB4F20F /* KarteAnsicht.swift */; };
+		36B7ECB2049192FEC9AFF755 /* LiveFahrt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21CA865CAD668022C2D79815 /* LiveFahrt.swift */; };
+		3A8D6C967E2D420B19CCD6FE /* FahrtDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D426D509D15C1FBFF5BE42 /* FahrtDetails.swift */; };
+		3E93B443B79A76AE64C7770F /* UhrStand.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE9E90D9312B8A09A5FD3C21 /* UhrStand.swift */; };
+		40851B5EEC8636CB99E4ACA9 /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = F0367CA0CCA001C40D9D6ED3 /* OFL.txt */; };
+		4538C565E48134B9DC329AE5 /* SupportAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0A6481507EE9E12C90D003 /* SupportAnsicht.swift */; };
+		47A454F1982B870C7EB4E806 /* SpaceGrotesk.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5BD82C84E39A6594C2F10F56 /* SpaceGrotesk.ttf */; };
+		49A8CB816C9B6C97A2514F8A /* CarPlaySzene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84E8C7B77FB62925D95A6FC4 /* CarPlaySzene.swift */; };
+		51E7DDC89AA23ABD3CDDE3F9 /* SpaceGrotesk.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5BD82C84E39A6594C2F10F56 /* SpaceGrotesk.ttf */; };
+		5AC613F6A84F4DA9265A46E9 /* DienstreiseAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDABC6BC14B05DBD3DB5C493 /* DienstreiseAnsicht.swift */; };
+		608CCFD9A8A02596077AD5AA /* FahrzeugKarte.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10049ADC8E663E8F5AFCF7D9 /* FahrzeugKarte.swift */; };
+		629AFD7FFD0E5F7F71E0D18A /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 618A3F6BB3E4F63043127EA2 /* LaunchScreen.storyboard */; };
+		6418908A82F8F51A49E2FF43 /* ProfilAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE013B94E0CE1B543D4FB3B /* ProfilAnsicht.swift */; };
+		6654105F643098C618025C89 /* WebText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FA90FFE268A9ADD9A524005 /* WebText.swift */; };
+		6837F88B4B055E3637D6C919 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E75A13E6DBC63CB46F676784 /* Assets.xcassets */; };
+		68949569793B99D866860ECA /* TrisarFahrerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD39DD47EA9A24B5E4257F60 /* TrisarFahrerApp.swift */; };
+		70F5A5D1FD0FAD3D182B92FA /* FahrtWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151ED1807B29224A4567C6AB /* FahrtWidget.swift */; };
+		757DD1AD33647C24D6158074 /* StandbyKarte.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A61929C3A5E4601F001A35 /* StandbyKarte.swift */; };
+		78ABF37A0DAA01999FAB1500 /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = F0367CA0CCA001C40D9D6ED3 /* OFL.txt */; };
+		79D5EC1AFBD716BE49990C0E /* FahrtAktivitaet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD98CEE8463AD5495665374D /* FahrtAktivitaet.swift */; };
+		7F55F83FD8AB36B7B647A13A /* Fahrten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C8833354FEF1890B6DAA643 /* Fahrten.swift */; };
+		80357ECDAC820C11290F06C5 /* UhrKurzbefehle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A66B87AE987CDCDFFE26B650 /* UhrKurzbefehle.swift */; };
+		84B52D8739F67C3583EF16AA /* HauptAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F66D44B87FB4501BD68DB74 /* HauptAnsicht.swift */; };
+		84D5B43C58A72781775F379E /* Push.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9BA34C3224191B1347EC08 /* Push.swift */; };
+		84EE77F6C38556E24AF28B6B /* GaesteAnzeige.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D73713EACFCBEDE5080F490 /* GaesteAnzeige.swift */; };
+		88DB2853EC962D9EC18A009A /* UhrStil.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7DD964BA9954D9467B8409B /* UhrStil.swift */; };
+		8A49F48FCB7998C83FC83BAC /* Backend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1948215C34DC01CB7C4A971D /* Backend.swift */; };
+		8E17CD493C38DFC53A34F4B2 /* UhrSeiten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E35A7E0A72F133307EB2C8F /* UhrSeiten.swift */; };
+		949FB60C36462D2E8C47B0FB /* TrisarFahrerWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 75517E9F7EF1B9676DA9F549 /* TrisarFahrerWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		9F8BF7EFEA18B556D3288E08 /* Raster.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E82F67918130CB0F4049AA4 /* Raster.swift */; };
+		A2571626226DD86E5724758B /* FahrtenListeAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7492A3488651A56295FE7A4F /* FahrtenListeAnsicht.swift */; };
+		A7CE02FF50C54C432C877456 /* Stil.swift in Sources */ = {isa = PBXBuildFile; fileRef = C454F70458C953E9566766FD /* Stil.swift */; };
+		A9AA5D3530232AE83606238C /* FahrzeugDrehung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D3BFB4F4B22AC26D5A0077C /* FahrzeugDrehung.swift */; };
+		ACC951D5E94B2D7ECB938E69 /* StundenAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB968733B63CF18366A79FE0 /* StundenAnsicht.swift */; };
+		ACE89A2AD02954ECAC080B0D /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = E45E1CD706EFE4C507C0EDEE /* Chat.swift */; };
+		ADAD253897224853ADB2DE73 /* DienstTreffpunkt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B33E414AACBCBDA29B7DEC2 /* DienstTreffpunkt.swift */; };
+		B17A845076E45CA1A28375C2 /* SpaceGrotesk.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5BD82C84E39A6594C2F10F56 /* SpaceGrotesk.ttf */; };
+		B251B8342FC06A9E4334DC6A /* DienstreiseKarte.swift in Sources */ = {isa = PBXBuildFile; fileRef = 827C2BC805DA9927056758D5 /* DienstreiseKarte.swift */; };
+		B2941EC7C7DEF2DB81F11E03 /* Anmeldung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668DEF83CA953AE5C54136D7 /* Anmeldung.swift */; };
+		B48886CFEACA74DEF5B23B7D /* UhrVerbindung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8472FF5671CF4D1F70BA8279 /* UhrVerbindung.swift */; };
+		B5B4EB02591249B55C777A06 /* UhrStand.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE9E90D9312B8A09A5FD3C21 /* UhrStand.swift */; };
+		B6B1F328EE05B39DBCBEC2FE /* FahrzeugSkizze.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9711917F21A789701CB5E053 /* FahrzeugSkizze.swift */; };
+		B7215F8ACAD1A4D938977D39 /* Stunden.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3AFA9E228D930E9B6D3908D /* Stunden.swift */; };
+		BCA921F2A3F9B988A7CA2EF4 /* LoginAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9608472CAA30A9F9C18837C2 /* LoginAnsicht.swift */; };
+		C13586450CD5232C22141BD8 /* NfcTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3CAB04EA8AACBD40B2638EC /* NfcTag.swift */; };
+		C252078A783D9F8BAD1D49A9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 26A99E8DCE9A5294BA57E8CD /* Assets.xcassets */; };
+		CBEFF5531EE3A6641D763989 /* TrisarFahrerUhrWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 89EEFA7C3B8C4007BE691901 /* TrisarFahrerUhrWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D64049C8DDF8ECB2542722BB /* UhrKomplikation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F45A71542369E0658584C /* UhrKomplikation.swift */; };
+		D67411DF6CFC96BD1005CF02 /* TrisarFahrerUhrApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E16F00218F6130D4FF1BD59 /* TrisarFahrerUhrApp.swift */; };
+		DB52D2800B3CC2F8078B645A /* KeineFahrtAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C21546F5A0FE4D1EDF8C10E /* KeineFahrtAnsicht.swift */; };
+		DB72F1D3845C9A3342A53A74 /* FahrzeugAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12E3352221AD8956873918EF /* FahrzeugAnsicht.swift */; };
+		E0EF2E4F4BA768A33DB5E940 /* SpaceGrotesk.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5BD82C84E39A6594C2F10F56 /* SpaceGrotesk.ttf */; };
+		E50088475B02D0CAA9C1E9CF /* Routen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3750AC5F9497C8C128D43B5A /* Routen.swift */; };
+		E90A340DD2B6F29E69178029 /* MapLibre in Frameworks */ = {isa = PBXBuildFile; productRef = F5B6B9190A59D7836AA38925 /* MapLibre */; };
+		EA45AF3988367F93D855DCAB /* Konfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787478CE4142338A85BD7D90 /* Konfig.swift */; };
+		EC6D6710D857B5A25E2104A0 /* NfcTagDienst.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6264C59AD640D38E1A9CD705 /* NfcTagDienst.swift */; };
+		EED892FF193D52FC604FB81B /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = F0367CA0CCA001C40D9D6ED3 /* OFL.txt */; };
+		F0A44E6480FCA5CB318E3677 /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = F0367CA0CCA001C40D9D6ED3 /* OFL.txt */; };
+		F258BE49875E69EFC5546FF1 /* StandbySpeicher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FED7BEB7655C51539CEE200 /* StandbySpeicher.swift */; };
+		F3572C2F11AB5C2D9F04A9B5 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 2C65B91DD76E29259C4C4AE6 /* Supabase */; };
+		F6816BCCFC962357283DC7A0 /* DienstreiseSpeicher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CAB180E37203C9631C7AB17 /* DienstreiseSpeicher.swift */; };
+		F9EEAF40F67D5FCA060653BD /* UhrBruecke.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D18C43BE2CF583174038AA /* UhrBruecke.swift */; };
+		FEB5A530AC98467C9900F7A5 /* fahrzeug-dreh.json in Resources */ = {isa = PBXBuildFile; fileRef = 9C58181F8C56EEC7F2CA7D1B /* fahrzeug-dreh.json */; };
+		FEEE899BFCDF14B4293723E3 /* SchadenMeldenAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AFE0E9C371F03ED9AB17561 /* SchadenMeldenAnsicht.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		7244113ACFBBE178C7755BFE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4B31B02152F26A326B616662 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9F744046048C972A9C665BC5;
+			remoteInfo = TrisarFahrerWidget;
+		};
+		AF230FDFDBC93E2F3FA43355 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4B31B02152F26A326B616662 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 75EA197D43F9787644A6FC3E;
+			remoteInfo = TrisarFahrerUhr;
+		};
+		B4581456A33259C9A6A83285 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4B31B02152F26A326B616662 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A2D13A1811E1A01717867016;
+			remoteInfo = TrisarFahrerUhrWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8533F8193954D94292E30796 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				1E246CEC1F06DCDA8FD2CBDA /* TrisarFahrerUhr.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9569FAC29104BC8FE09C6FE7 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CBEFF5531EE3A6641D763989 /* TrisarFahrerUhrWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A96DCF6356B3D62D69461E03 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				949FB60C36462D2E8C47B0FB /* TrisarFahrerWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0AE013B94E0CE1B543D4FB3B /* ProfilAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilAnsicht.swift; sourceTree = "<group>"; };
+		10049ADC8E663E8F5AFCF7D9 /* FahrzeugKarte.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FahrzeugKarte.swift; sourceTree = "<group>"; };
+		12E3352221AD8956873918EF /* FahrzeugAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FahrzeugAnsicht.swift; sourceTree = "<group>"; };
+		151ED1807B29224A4567C6AB /* FahrtWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FahrtWidget.swift; sourceTree = "<group>"; };
+		1948215C34DC01CB7C4A971D /* Backend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backend.swift; sourceTree = "<group>"; };
+		1D9BA34C3224191B1347EC08 /* Push.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Push.swift; sourceTree = "<group>"; };
+		1FED7BEB7655C51539CEE200 /* StandbySpeicher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandbySpeicher.swift; sourceTree = "<group>"; };
+		202F45A71542369E0658584C /* UhrKomplikation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UhrKomplikation.swift; sourceTree = "<group>"; };
+		21CA865CAD668022C2D79815 /* LiveFahrt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveFahrt.swift; sourceTree = "<group>"; };
+		225B62DE4F90377338925087 /* startvideo.mp4 */ = {isa = PBXFileReference; path = startvideo.mp4; sourceTree = "<group>"; };
+		256C10EFB1046DA4AD112506 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		2603C527B982638A5EAD4A26 /* PushAntwort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushAntwort.swift; sourceTree = "<group>"; };
+		26A99E8DCE9A5294BA57E8CD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2F0A6481507EE9E12C90D003 /* SupportAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportAnsicht.swift; sourceTree = "<group>"; };
+		31E99A836AAC12A58E1053A1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		3726170CD481A319CC890ECB /* DienstStartAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DienstStartAnsicht.swift; sourceTree = "<group>"; };
+		3750AC5F9497C8C128D43B5A /* Routen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Routen.swift; sourceTree = "<group>"; };
+		38E3C673F485F806CD9A301F /* StartVideo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartVideo.swift; sourceTree = "<group>"; };
+		3F66D44B87FB4501BD68DB74 /* HauptAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HauptAnsicht.swift; sourceTree = "<group>"; };
+		433DE1F2A13E932C15243932 /* OrtungAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrtungAnsicht.swift; sourceTree = "<group>"; };
+		4C21546F5A0FE4D1EDF8C10E /* KeineFahrtAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeineFahrtAnsicht.swift; sourceTree = "<group>"; };
+		4E35A7E0A72F133307EB2C8F /* UhrSeiten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UhrSeiten.swift; sourceTree = "<group>"; };
+		504E787D8590C4990A8A96EA /* TrisarFahrer.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TrisarFahrer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5AFE0E9C371F03ED9AB17561 /* SchadenMeldenAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchadenMeldenAnsicht.swift; sourceTree = "<group>"; };
+		5BD82C84E39A6594C2F10F56 /* SpaceGrotesk.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = SpaceGrotesk.ttf; sourceTree = "<group>"; };
+		5C180292DDABF66FFF13058E /* FahrzeugDaten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FahrzeugDaten.swift; sourceTree = "<group>"; };
+		5C8833354FEF1890B6DAA643 /* Fahrten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Fahrten.swift; sourceTree = "<group>"; };
+		5E16F00218F6130D4FF1BD59 /* TrisarFahrerUhrApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrisarFahrerUhrApp.swift; sourceTree = "<group>"; };
+		5E792F49F7375DF0B20716D3 /* SoloNormalAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoloNormalAnsicht.swift; sourceTree = "<group>"; };
+		5E82F67918130CB0F4049AA4 /* Raster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Raster.swift; sourceTree = "<group>"; };
+		618A3F6BB3E4F63043127EA2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		6264C59AD640D38E1A9CD705 /* NfcTagDienst.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NfcTagDienst.swift; sourceTree = "<group>"; };
+		645B32D1781E674BC87848C3 /* Orte.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orte.swift; sourceTree = "<group>"; };
+		6561A35E7596A8B70143FB66 /* EinstellungenAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EinstellungenAnsicht.swift; sourceTree = "<group>"; };
+		668DEF83CA953AE5C54136D7 /* Anmeldung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Anmeldung.swift; sourceTree = "<group>"; };
+		6B33E414AACBCBDA29B7DEC2 /* DienstTreffpunkt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DienstTreffpunkt.swift; sourceTree = "<group>"; };
+		71DD6999C0C675B7D3C9948D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		7492A3488651A56295FE7A4F /* FahrtenListeAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FahrtenListeAnsicht.swift; sourceTree = "<group>"; };
+		75517E9F7EF1B9676DA9F549 /* TrisarFahrerWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TrisarFahrerWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		787478CE4142338A85BD7D90 /* Konfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Konfig.swift; sourceTree = "<group>"; };
+		7D3BFB4F4B22AC26D5A0077C /* FahrzeugDrehung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FahrzeugDrehung.swift; sourceTree = "<group>"; };
+		7EDD25C876F51BA28748F53E /* DienstreiseVerbindung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DienstreiseVerbindung.swift; sourceTree = "<group>"; };
+		827C2BC805DA9927056758D5 /* DienstreiseKarte.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DienstreiseKarte.swift; sourceTree = "<group>"; };
+		8472FF5671CF4D1F70BA8279 /* UhrVerbindung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UhrVerbindung.swift; sourceTree = "<group>"; };
+		84E8C7B77FB62925D95A6FC4 /* CarPlaySzene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySzene.swift; sourceTree = "<group>"; };
+		89EEFA7C3B8C4007BE691901 /* TrisarFahrerUhrWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TrisarFahrerUhrWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8CAB180E37203C9631C7AB17 /* DienstreiseSpeicher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DienstreiseSpeicher.swift; sourceTree = "<group>"; };
+		94DBA47F22629894EE531204 /* TrisarFahrer-Simulator.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "TrisarFahrer-Simulator.entitlements"; sourceTree = "<group>"; };
+		9608472CAA30A9F9C18837C2 /* LoginAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginAnsicht.swift; sourceTree = "<group>"; };
+		9711917F21A789701CB5E053 /* FahrzeugSkizze.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FahrzeugSkizze.swift; sourceTree = "<group>"; };
+		99F9DA955D8BC4470B0CE4EB /* Ortung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ortung.swift; sourceTree = "<group>"; };
+		9C58181F8C56EEC7F2CA7D1B /* fahrzeug-dreh.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "fahrzeug-dreh.json"; sourceTree = "<group>"; };
+		9D73713EACFCBEDE5080F490 /* GaesteAnzeige.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaesteAnzeige.swift; sourceTree = "<group>"; };
+		9FA90FFE268A9ADD9A524005 /* WebText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebText.swift; sourceTree = "<group>"; };
+		A66B87AE987CDCDFFE26B650 /* UhrKurzbefehle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UhrKurzbefehle.swift; sourceTree = "<group>"; };
+		B43806F5F0EDCCD314294CC7 /* FahrzeugForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FahrzeugForm.swift; sourceTree = "<group>"; };
+		B6A61929C3A5E4601F001A35 /* StandbyKarte.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandbyKarte.swift; sourceTree = "<group>"; };
+		C1AF6E4279E01957BEB4F20F /* KarteAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KarteAnsicht.swift; sourceTree = "<group>"; };
+		C3AFA9E228D930E9B6D3908D /* Stunden.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stunden.swift; sourceTree = "<group>"; };
+		C454F70458C953E9566766FD /* Stil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stil.swift; sourceTree = "<group>"; };
+		C4D426D509D15C1FBFF5BE42 /* FahrtDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FahrtDetails.swift; sourceTree = "<group>"; };
+		C75D1F2011E7D80D2733B156 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C8D18C43BE2CF583174038AA /* UhrBruecke.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UhrBruecke.swift; sourceTree = "<group>"; };
+		CA7C42E1FB279EC8DC6EDD48 /* ProfilDienst.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilDienst.swift; sourceTree = "<group>"; };
+		CD98CEE8463AD5495665374D /* FahrtAktivitaet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FahrtAktivitaet.swift; sourceTree = "<group>"; };
+		D6491F5FC6A5EA684BD597F2 /* TrisarFahrer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TrisarFahrer.entitlements; sourceTree = "<group>"; };
+		D8E6520AFC2F8C84805AB835 /* TrisarFahrerUhr.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrisarFahrerUhr.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DD39DD47EA9A24B5E4257F60 /* TrisarFahrerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrisarFahrerApp.swift; sourceTree = "<group>"; };
+		DD4C3F7DA26B43A3FF351A5A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		DDABC6BC14B05DBD3DB5C493 /* DienstreiseAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DienstreiseAnsicht.swift; sourceTree = "<group>"; };
+		DF0A3C58608CAAF80BDDCF4E /* ReiseLage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReiseLage.swift; sourceTree = "<group>"; };
+		E358D83F8C667F3817C8BBD5 /* TrisarFahrerUhr.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TrisarFahrerUhr.entitlements; sourceTree = "<group>"; };
+		E45E1CD706EFE4C507C0EDEE /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
+		E75A13E6DBC63CB46F676784 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		EE9E90D9312B8A09A5FD3C21 /* UhrStand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UhrStand.swift; sourceTree = "<group>"; };
+		F0367CA0CCA001C40D9D6ED3 /* OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OFL.txt; sourceTree = "<group>"; };
+		F3CAB04EA8AACBD40B2638EC /* NfcTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NfcTag.swift; sourceTree = "<group>"; };
+		F7DD964BA9954D9467B8409B /* UhrStil.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UhrStil.swift; sourceTree = "<group>"; };
+		F934E1DF96BD77145727B071 /* TrisarFahrerUhrWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TrisarFahrerUhrWidget.entitlements; sourceTree = "<group>"; };
+		FAC00D212E87E36220C37715 /* KolonnenChatAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KolonnenChatAnsicht.swift; sourceTree = "<group>"; };
+		FB968733B63CF18366A79FE0 /* StundenAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StundenAnsicht.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		EE52041B1C04927394C30027 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F3572C2F11AB5C2D9F04A9B5 /* Supabase in Frameworks */,
+				E90A340DD2B6F29E69178029 /* MapLibre in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0EB71D12C47D85570338E280 = {
+			isa = PBXGroup;
+			children = (
+				B35FAA514AB4C5CB53513F61 /* trisar */,
+				241424D58DABD99C5EC6A03B /* TrisarFahrer */,
+				7C5279B1C745F3C608C8C084 /* TrisarFahrerUhr */,
+				9BCC6DB954ECB673962E3EC7 /* TrisarFahrerUhrWidget */,
+				B3F602BD516BAE0E566E28FB /* TrisarFahrerWidget */,
+				1044A4AA777942D25A971AE6 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1044A4AA777942D25A971AE6 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				504E787D8590C4990A8A96EA /* TrisarFahrer.app */,
+				D8E6520AFC2F8C84805AB835 /* TrisarFahrerUhr.app */,
+				89EEFA7C3B8C4007BE691901 /* TrisarFahrerUhrWidget.appex */,
+				75517E9F7EF1B9676DA9F549 /* TrisarFahrerWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		241424D58DABD99C5EC6A03B /* TrisarFahrer */ = {
+			isa = PBXGroup;
+			children = (
+				26A99E8DCE9A5294BA57E8CD /* Assets.xcassets */,
+				DD4C3F7DA26B43A3FF351A5A /* Info.plist */,
+				94DBA47F22629894EE531204 /* TrisarFahrer-Simulator.entitlements */,
+				D6491F5FC6A5EA684BD597F2 /* TrisarFahrer.entitlements */,
+				527FC01668BC6F905DFC6512 /* Ansichten */,
+				C019D13DBDCB3CE320EC8A86 /* App */,
+				4AD735FB9F8DBFB4CF7604E9 /* CarPlay */,
+				C7892832F9172E908D9DD094 /* Dienste */,
+				24D63139786C1CD86FE0C622 /* FahrzeugDreh */,
+				85ABB32DD79802A9F277F161 /* Schrift */,
+			);
+			path = TrisarFahrer;
+			sourceTree = "<group>";
+		};
+		24D63139786C1CD86FE0C622 /* FahrzeugDreh */ = {
+			isa = PBXGroup;
+			children = (
+				9C58181F8C56EEC7F2CA7D1B /* fahrzeug-dreh.json */,
+			);
+			path = FahrzeugDreh;
+			sourceTree = "<group>";
+		};
+		276FB08FCD87A657EA3AFB9E /* ios-dispo */ = {
+			isa = PBXGroup;
+			children = (
+				B2431EB5EFB6EF11D291708B /* TrisarDispo */,
+			);
+			path = "ios-dispo";
+			sourceTree = "<group>";
+		};
+		4AD735FB9F8DBFB4CF7604E9 /* CarPlay */ = {
+			isa = PBXGroup;
+			children = (
+				84E8C7B77FB62925D95A6FC4 /* CarPlaySzene.swift */,
+				CD98CEE8463AD5495665374D /* FahrtAktivitaet.swift */,
+				21CA865CAD668022C2D79815 /* LiveFahrt.swift */,
+			);
+			path = CarPlay;
+			sourceTree = "<group>";
+		};
+		527FC01668BC6F905DFC6512 /* Ansichten */ = {
+			isa = PBXGroup;
+			children = (
+				DDABC6BC14B05DBD3DB5C493 /* DienstreiseAnsicht.swift */,
+				827C2BC805DA9927056758D5 /* DienstreiseKarte.swift */,
+				3726170CD481A319CC890ECB /* DienstStartAnsicht.swift */,
+				6561A35E7596A8B70143FB66 /* EinstellungenAnsicht.swift */,
+				7492A3488651A56295FE7A4F /* FahrtenListeAnsicht.swift */,
+				12E3352221AD8956873918EF /* FahrzeugAnsicht.swift */,
+				7D3BFB4F4B22AC26D5A0077C /* FahrzeugDrehung.swift */,
+				B43806F5F0EDCCD314294CC7 /* FahrzeugForm.swift */,
+				10049ADC8E663E8F5AFCF7D9 /* FahrzeugKarte.swift */,
+				9711917F21A789701CB5E053 /* FahrzeugSkizze.swift */,
+				3F66D44B87FB4501BD68DB74 /* HauptAnsicht.swift */,
+				C1AF6E4279E01957BEB4F20F /* KarteAnsicht.swift */,
+				4C21546F5A0FE4D1EDF8C10E /* KeineFahrtAnsicht.swift */,
+				FAC00D212E87E36220C37715 /* KolonnenChatAnsicht.swift */,
+				9608472CAA30A9F9C18837C2 /* LoginAnsicht.swift */,
+				433DE1F2A13E932C15243932 /* OrtungAnsicht.swift */,
+				0AE013B94E0CE1B543D4FB3B /* ProfilAnsicht.swift */,
+				5E82F67918130CB0F4049AA4 /* Raster.swift */,
+				5AFE0E9C371F03ED9AB17561 /* SchadenMeldenAnsicht.swift */,
+				5E792F49F7375DF0B20716D3 /* SoloNormalAnsicht.swift */,
+				B6A61929C3A5E4601F001A35 /* StandbyKarte.swift */,
+				C454F70458C953E9566766FD /* Stil.swift */,
+				FB968733B63CF18366A79FE0 /* StundenAnsicht.swift */,
+				2F0A6481507EE9E12C90D003 /* SupportAnsicht.swift */,
+				9FA90FFE268A9ADD9A524005 /* WebText.swift */,
+			);
+			path = Ansichten;
+			sourceTree = "<group>";
+		};
+		67ED7854604756C8EB3F31AD /* Dienste */ = {
+			isa = PBXGroup;
+			children = (
+				6264C59AD640D38E1A9CD705 /* NfcTagDienst.swift */,
+			);
+			path = Dienste;
+			sourceTree = "<group>";
+		};
+		7C5279B1C745F3C608C8C084 /* TrisarFahrerUhr */ = {
+			isa = PBXGroup;
+			children = (
+				31E99A836AAC12A58E1053A1 /* Assets.xcassets */,
+				256C10EFB1046DA4AD112506 /* Info.plist */,
+				E358D83F8C667F3817C8BBD5 /* TrisarFahrerUhr.entitlements */,
+				5E16F00218F6130D4FF1BD59 /* TrisarFahrerUhrApp.swift */,
+				A66B87AE987CDCDFFE26B650 /* UhrKurzbefehle.swift */,
+				4E35A7E0A72F133307EB2C8F /* UhrSeiten.swift */,
+				EE9E90D9312B8A09A5FD3C21 /* UhrStand.swift */,
+				F7DD964BA9954D9467B8409B /* UhrStil.swift */,
+				8472FF5671CF4D1F70BA8279 /* UhrVerbindung.swift */,
+			);
+			path = TrisarFahrerUhr;
+			sourceTree = "<group>";
+		};
+		85ABB32DD79802A9F277F161 /* Schrift */ = {
+			isa = PBXGroup;
+			children = (
+				F0367CA0CCA001C40D9D6ED3 /* OFL.txt */,
+				5BD82C84E39A6594C2F10F56 /* SpaceGrotesk.ttf */,
+			);
+			path = Schrift;
+			sourceTree = "<group>";
+		};
+		9BCC6DB954ECB673962E3EC7 /* TrisarFahrerUhrWidget */ = {
+			isa = PBXGroup;
+			children = (
+				C75D1F2011E7D80D2733B156 /* Info.plist */,
+				F934E1DF96BD77145727B071 /* TrisarFahrerUhrWidget.entitlements */,
+				202F45A71542369E0658584C /* UhrKomplikation.swift */,
+			);
+			path = TrisarFahrerUhrWidget;
+			sourceTree = "<group>";
+		};
+		B2431EB5EFB6EF11D291708B /* TrisarDispo */ = {
+			isa = PBXGroup;
+			children = (
+				67ED7854604756C8EB3F31AD /* Dienste */,
+			);
+			path = TrisarDispo;
+			sourceTree = "<group>";
+		};
+		B35FAA514AB4C5CB53513F61 /* trisar */ = {
+			isa = PBXGroup;
+			children = (
+				276FB08FCD87A657EA3AFB9E /* ios-dispo */,
+			);
+			name = trisar;
+			path = ..;
+			sourceTree = "<group>";
+		};
+		B3F602BD516BAE0E566E28FB /* TrisarFahrerWidget */ = {
+			isa = PBXGroup;
+			children = (
+				E75A13E6DBC63CB46F676784 /* Assets.xcassets */,
+				151ED1807B29224A4567C6AB /* FahrtWidget.swift */,
+				71DD6999C0C675B7D3C9948D /* Info.plist */,
+			);
+			path = TrisarFahrerWidget;
+			sourceTree = "<group>";
+		};
+		C019D13DBDCB3CE320EC8A86 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				787478CE4142338A85BD7D90 /* Konfig.swift */,
+				618A3F6BB3E4F63043127EA2 /* LaunchScreen.storyboard */,
+				225B62DE4F90377338925087 /* startvideo.mp4 */,
+				38E3C673F485F806CD9A301F /* StartVideo.swift */,
+				DD39DD47EA9A24B5E4257F60 /* TrisarFahrerApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		C7892832F9172E908D9DD094 /* Dienste */ = {
+			isa = PBXGroup;
+			children = (
+				668DEF83CA953AE5C54136D7 /* Anmeldung.swift */,
+				1948215C34DC01CB7C4A971D /* Backend.swift */,
+				E45E1CD706EFE4C507C0EDEE /* Chat.swift */,
+				8CAB180E37203C9631C7AB17 /* DienstreiseSpeicher.swift */,
+				7EDD25C876F51BA28748F53E /* DienstreiseVerbindung.swift */,
+				6B33E414AACBCBDA29B7DEC2 /* DienstTreffpunkt.swift */,
+				C4D426D509D15C1FBFF5BE42 /* FahrtDetails.swift */,
+				5C8833354FEF1890B6DAA643 /* Fahrten.swift */,
+				5C180292DDABF66FFF13058E /* FahrzeugDaten.swift */,
+				9D73713EACFCBEDE5080F490 /* GaesteAnzeige.swift */,
+				F3CAB04EA8AACBD40B2638EC /* NfcTag.swift */,
+				645B32D1781E674BC87848C3 /* Orte.swift */,
+				99F9DA955D8BC4470B0CE4EB /* Ortung.swift */,
+				CA7C42E1FB279EC8DC6EDD48 /* ProfilDienst.swift */,
+				1D9BA34C3224191B1347EC08 /* Push.swift */,
+				2603C527B982638A5EAD4A26 /* PushAntwort.swift */,
+				DF0A3C58608CAAF80BDDCF4E /* ReiseLage.swift */,
+				3750AC5F9497C8C128D43B5A /* Routen.swift */,
+				1FED7BEB7655C51539CEE200 /* StandbySpeicher.swift */,
+				C3AFA9E228D930E9B6D3908D /* Stunden.swift */,
+				C8D18C43BE2CF583174038AA /* UhrBruecke.swift */,
+			);
+			path = Dienste;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		75EA197D43F9787644A6FC3E /* TrisarFahrerUhr */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 94FE476D4609E3AD0F6F0904 /* Build configuration list for PBXNativeTarget "TrisarFahrerUhr" */;
+			buildPhases = (
+				431208E3F042773966667E14 /* Sources */,
+				5EAD712BAB040F569DED44B7 /* Resources */,
+				9569FAC29104BC8FE09C6FE7 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B2583C1E6B659BDE4BEDAE03 /* PBXTargetDependency */,
+			);
+			name = TrisarFahrerUhr;
+			packageProductDependencies = (
+			);
+			productName = TrisarFahrerUhr;
+			productReference = D8E6520AFC2F8C84805AB835 /* TrisarFahrerUhr.app */;
+			productType = "com.apple.product-type.application";
+		};
+		9F744046048C972A9C665BC5 /* TrisarFahrerWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 02B2E70D722C6DA6C28103A6 /* Build configuration list for PBXNativeTarget "TrisarFahrerWidget" */;
+			buildPhases = (
+				E9758865D0A2C7EC5E28FD01 /* Sources */,
+				06E72EF4A6F75CD2146BC4F1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TrisarFahrerWidget;
+			packageProductDependencies = (
+			);
+			productName = TrisarFahrerWidget;
+			productReference = 75517E9F7EF1B9676DA9F549 /* TrisarFahrerWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		A2D13A1811E1A01717867016 /* TrisarFahrerUhrWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 93766BF94CFABAC806D667CA /* Build configuration list for PBXNativeTarget "TrisarFahrerUhrWidget" */;
+			buildPhases = (
+				4FDD2ACB773B899EA51E7691 /* Sources */,
+				0AA63B60D98BCFC0E0A399E2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TrisarFahrerUhrWidget;
+			packageProductDependencies = (
+			);
+			productName = TrisarFahrerUhrWidget;
+			productReference = 89EEFA7C3B8C4007BE691901 /* TrisarFahrerUhrWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		CE1335AFB43ECEA55FDB53B6 /* TrisarFahrer */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AFADF22E3086ADDEA04148B7 /* Build configuration list for PBXNativeTarget "TrisarFahrer" */;
+			buildPhases = (
+				D8D32D9C57CEB93527ACB9CA /* Sources */,
+				E48E26A87613363E322FC3E4 /* Resources */,
+				EE52041B1C04927394C30027 /* Frameworks */,
+				A96DCF6356B3D62D69461E03 /* Embed Foundation Extensions */,
+				8533F8193954D94292E30796 /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7C6C4EB954DECFEEF5EA6539 /* PBXTargetDependency */,
+				F87BC290E658181DBD00F67D /* PBXTargetDependency */,
+			);
+			name = TrisarFahrer;
+			packageProductDependencies = (
+				2C65B91DD76E29259C4C4AE6 /* Supabase */,
+				F5B6B9190A59D7836AA38925 /* MapLibre */,
+			);
+			productName = TrisarFahrer;
+			productReference = 504E787D8590C4990A8A96EA /* TrisarFahrer.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4B31B02152F26A326B616662 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					75EA197D43F9787644A6FC3E = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					9F744046048C972A9C665BC5 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					A2D13A1811E1A01717867016 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					CE1335AFB43ECEA55FDB53B6 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 7DF7DE8E14319967D0D8C34A /* Build configuration list for PBXProject "TrisarFahrer" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 0EB71D12C47D85570338E280;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				BF62D5BEBC2A032AB752C376 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+				4191F18A61F6E642E75A0A29 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 1044A4AA777942D25A971AE6 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				CE1335AFB43ECEA55FDB53B6 /* TrisarFahrer */,
+				9F744046048C972A9C665BC5 /* TrisarFahrerWidget */,
+				75EA197D43F9787644A6FC3E /* TrisarFahrerUhr */,
+				A2D13A1811E1A01717867016 /* TrisarFahrerUhrWidget */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		06E72EF4A6F75CD2146BC4F1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6837F88B4B055E3637D6C919 /* Assets.xcassets in Resources */,
+				40851B5EEC8636CB99E4ACA9 /* OFL.txt in Resources */,
+				E0EF2E4F4BA768A33DB5E940 /* SpaceGrotesk.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0AA63B60D98BCFC0E0A399E2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EED892FF193D52FC604FB81B /* OFL.txt in Resources */,
+				47A454F1982B870C7EB4E806 /* SpaceGrotesk.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5EAD712BAB040F569DED44B7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2A57718F4A4E1E4760FB7C96 /* Assets.xcassets in Resources */,
+				F0A44E6480FCA5CB318E3677 /* OFL.txt in Resources */,
+				51E7DDC89AA23ABD3CDDE3F9 /* SpaceGrotesk.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E48E26A87613363E322FC3E4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C252078A783D9F8BAD1D49A9 /* Assets.xcassets in Resources */,
+				629AFD7FFD0E5F7F71E0D18A /* LaunchScreen.storyboard in Resources */,
+				78ABF37A0DAA01999FAB1500 /* OFL.txt in Resources */,
+				B17A845076E45CA1A28375C2 /* SpaceGrotesk.ttf in Resources */,
+				FEB5A530AC98467C9900F7A5 /* fahrzeug-dreh.json in Resources */,
+				0967757111F757D466FD9F75 /* startvideo.mp4 in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		431208E3F042773966667E14 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D67411DF6CFC96BD1005CF02 /* TrisarFahrerUhrApp.swift in Sources */,
+				80357ECDAC820C11290F06C5 /* UhrKurzbefehle.swift in Sources */,
+				8E17CD493C38DFC53A34F4B2 /* UhrSeiten.swift in Sources */,
+				3E93B443B79A76AE64C7770F /* UhrStand.swift in Sources */,
+				88DB2853EC962D9EC18A009A /* UhrStil.swift in Sources */,
+				B48886CFEACA74DEF5B23B7D /* UhrVerbindung.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4FDD2ACB773B899EA51E7691 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D64049C8DDF8ECB2542722BB /* UhrKomplikation.swift in Sources */,
+				B5B4EB02591249B55C777A06 /* UhrStand.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8D32D9C57CEB93527ACB9CA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B2941EC7C7DEF2DB81F11E03 /* Anmeldung.swift in Sources */,
+				8A49F48FCB7998C83FC83BAC /* Backend.swift in Sources */,
+				49A8CB816C9B6C97A2514F8A /* CarPlaySzene.swift in Sources */,
+				ACE89A2AD02954ECAC080B0D /* Chat.swift in Sources */,
+				000DD641CE3298DCFFE2A1E2 /* DienstStartAnsicht.swift in Sources */,
+				ADAD253897224853ADB2DE73 /* DienstTreffpunkt.swift in Sources */,
+				5AC613F6A84F4DA9265A46E9 /* DienstreiseAnsicht.swift in Sources */,
+				B251B8342FC06A9E4334DC6A /* DienstreiseKarte.swift in Sources */,
+				F6816BCCFC962357283DC7A0 /* DienstreiseSpeicher.swift in Sources */,
+				13EF1C11C9C35D4C5DAD2D29 /* DienstreiseVerbindung.swift in Sources */,
+				01EEB60AFC1730A58773EFE4 /* EinstellungenAnsicht.swift in Sources */,
+				2E206D90B9722AF1E84EA1E2 /* FahrtAktivitaet.swift in Sources */,
+				3A8D6C967E2D420B19CCD6FE /* FahrtDetails.swift in Sources */,
+				7F55F83FD8AB36B7B647A13A /* Fahrten.swift in Sources */,
+				A2571626226DD86E5724758B /* FahrtenListeAnsicht.swift in Sources */,
+				DB72F1D3845C9A3342A53A74 /* FahrzeugAnsicht.swift in Sources */,
+				1059DAD28D3759F082054D94 /* FahrzeugDaten.swift in Sources */,
+				A9AA5D3530232AE83606238C /* FahrzeugDrehung.swift in Sources */,
+				13D928A28C3E72B3CD3BACA2 /* FahrzeugForm.swift in Sources */,
+				608CCFD9A8A02596077AD5AA /* FahrzeugKarte.swift in Sources */,
+				B6B1F328EE05B39DBCBEC2FE /* FahrzeugSkizze.swift in Sources */,
+				84EE77F6C38556E24AF28B6B /* GaesteAnzeige.swift in Sources */,
+				84B52D8739F67C3583EF16AA /* HauptAnsicht.swift in Sources */,
+				329D7CE87CD66CE90484639B /* KarteAnsicht.swift in Sources */,
+				DB52D2800B3CC2F8078B645A /* KeineFahrtAnsicht.swift in Sources */,
+				02AF4907DD0158A820902472 /* KolonnenChatAnsicht.swift in Sources */,
+				EA45AF3988367F93D855DCAB /* Konfig.swift in Sources */,
+				36B7ECB2049192FEC9AFF755 /* LiveFahrt.swift in Sources */,
+				BCA921F2A3F9B988A7CA2EF4 /* LoginAnsicht.swift in Sources */,
+				C13586450CD5232C22141BD8 /* NfcTag.swift in Sources */,
+				EC6D6710D857B5A25E2104A0 /* NfcTagDienst.swift in Sources */,
+				081CAD22D6474216583466BB /* Orte.swift in Sources */,
+				26A069E776D926F0F5E3A915 /* Ortung.swift in Sources */,
+				0F9CCAFC7A1E5F398B93DEA6 /* OrtungAnsicht.swift in Sources */,
+				6418908A82F8F51A49E2FF43 /* ProfilAnsicht.swift in Sources */,
+				099B2848A247E5799D5E8518 /* ProfilDienst.swift in Sources */,
+				84D5B43C58A72781775F379E /* Push.swift in Sources */,
+				0089C18A32EA0B5330E9BADF /* PushAntwort.swift in Sources */,
+				9F8BF7EFEA18B556D3288E08 /* Raster.swift in Sources */,
+				1019861107FFA1E9051C94E8 /* ReiseLage.swift in Sources */,
+				E50088475B02D0CAA9C1E9CF /* Routen.swift in Sources */,
+				FEEE899BFCDF14B4293723E3 /* SchadenMeldenAnsicht.swift in Sources */,
+				177E444B3FC8E0AF4C3D52AC /* SoloNormalAnsicht.swift in Sources */,
+				757DD1AD33647C24D6158074 /* StandbyKarte.swift in Sources */,
+				F258BE49875E69EFC5546FF1 /* StandbySpeicher.swift in Sources */,
+				0E01D15913D786C965DEEE07 /* StartVideo.swift in Sources */,
+				A7CE02FF50C54C432C877456 /* Stil.swift in Sources */,
+				B7215F8ACAD1A4D938977D39 /* Stunden.swift in Sources */,
+				ACC951D5E94B2D7ECB938E69 /* StundenAnsicht.swift in Sources */,
+				4538C565E48134B9DC329AE5 /* SupportAnsicht.swift in Sources */,
+				68949569793B99D866860ECA /* TrisarFahrerApp.swift in Sources */,
+				F9EEAF40F67D5FCA060653BD /* UhrBruecke.swift in Sources */,
+				08F1BEB4C79A37E7887993AD /* UhrStand.swift in Sources */,
+				6654105F643098C618025C89 /* WebText.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E9758865D0A2C7EC5E28FD01 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				79D5EC1AFBD716BE49990C0E /* FahrtAktivitaet.swift in Sources */,
+				70F5A5D1FD0FAD3D182B92FA /* FahrtWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7C6C4EB954DECFEEF5EA6539 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9F744046048C972A9C665BC5 /* TrisarFahrerWidget */;
+			targetProxy = 7244113ACFBBE178C7755BFE /* PBXContainerItemProxy */;
+		};
+		B2583C1E6B659BDE4BEDAE03 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A2D13A1811E1A01717867016 /* TrisarFahrerUhrWidget */;
+			targetProxy = B4581456A33259C9A6A83285 /* PBXContainerItemProxy */;
+		};
+		F87BC290E658181DBD00F67D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 75EA197D43F9787644A6FC3E /* TrisarFahrerUhr */;
+			targetProxy = AF230FDFDBC93E2F3FA43355 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		282080965F8F1BE313F1E69F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TrisarFahrerUhr/TrisarFahrerUhr.entitlements;
+				DEVELOPMENT_LANGUAGE = de;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrisarFahrerUhr/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TRISAR;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "$(TRISAR_BUNDLE)";
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(TRISAR_BUNDLE).watchkitapp";
+				PRODUCT_NAME = TRISAR;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+		444121AF14CEF144DB6B15AC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TrisarFahrerUhrWidget/TrisarFahrerUhrWidget.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrisarFahrerUhrWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(TRISAR_BUNDLE).watchkitapp.widget";
+				PRODUCT_NAME = TrisarFahrerUhrWidget;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+		7412E72148D224F294E49E3E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 48;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+				TRISAR_BUNDLE = de.trisar.fahrer;
+				TRISAR_UHR_GRUPPE = group.de.trisar.fahrer.uhr;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+		A89AEEB7B7AFFB90CDF9979C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TrisarFahrer/TrisarFahrer.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrisarFahrer/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TRISAR;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(TRISAR_BUNDLE)";
+				PRODUCT_NAME = TRISAR;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		AA57783CD7DF6B46BFFCAD3C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TrisarFahrer/TrisarFahrer.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrisarFahrer/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TRISAR;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(TRISAR_BUNDLE)";
+				PRODUCT_NAME = TRISAR;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		B69C4527D2DC44BB7C9368EF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 48;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.10;
+				TRISAR_BUNDLE = de.trisar.fahrer;
+				TRISAR_UHR_GRUPPE = group.de.trisar.fahrer.uhr;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		D4486EF38959D2E6AC76EF18 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrisarFahrerWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(TRISAR_BUNDLE).widget";
+				PRODUCT_NAME = TrisarFahrerWidget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		E61760A721C97919DB8D2242 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrisarFahrerWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(TRISAR_BUNDLE).widget";
+				PRODUCT_NAME = TrisarFahrerWidget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		FB811A5C61D3D74A52BACB41 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = TrisarFahrerUhrWidget/TrisarFahrerUhrWidget.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrisarFahrerUhrWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(TRISAR_BUNDLE).watchkitapp.widget";
+				PRODUCT_NAME = TrisarFahrerUhrWidget;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		FD1402E79C5FB0D4B30606A1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TrisarFahrerUhr/TrisarFahrerUhr.entitlements;
+				DEVELOPMENT_LANGUAGE = de;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TrisarFahrerUhr/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TRISAR;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "$(TRISAR_BUNDLE)";
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(TRISAR_BUNDLE).watchkitapp";
+				PRODUCT_NAME = TRISAR;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		02B2E70D722C6DA6C28103A6 /* Build configuration list for PBXNativeTarget "TrisarFahrerWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D4486EF38959D2E6AC76EF18 /* Debug */,
+				E61760A721C97919DB8D2242 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7DF7DE8E14319967D0D8C34A /* Build configuration list for PBXProject "TrisarFahrer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B69C4527D2DC44BB7C9368EF /* Debug */,
+				7412E72148D224F294E49E3E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		93766BF94CFABAC806D667CA /* Build configuration list for PBXNativeTarget "TrisarFahrerUhrWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FB811A5C61D3D74A52BACB41 /* Debug */,
+				444121AF14CEF144DB6B15AC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		94FE476D4609E3AD0F6F0904 /* Build configuration list for PBXNativeTarget "TrisarFahrerUhr" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FD1402E79C5FB0D4B30606A1 /* Debug */,
+				282080965F8F1BE313F1E69F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AFADF22E3086ADDEA04148B7 /* Build configuration list for PBXNativeTarget "TrisarFahrer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA57783CD7DF6B46BFFCAD3C /* Debug */,
+				A89AEEB7B7AFFB90CDF9979C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4191F18A61F6E642E75A0A29 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+		BF62D5BEBC2A032AB752C376 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2C65B91DD76E29259C4C4AE6 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4191F18A61F6E642E75A0A29 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		F5B6B9190A59D7836AA38925 /* MapLibre */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BF62D5BEBC2A032AB752C376 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
+			productName = MapLibre;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 4B31B02152F26A326B616662 /* Project object */;
+}

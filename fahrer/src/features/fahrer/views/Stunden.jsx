@@ -144,6 +144,8 @@ const KOPF = 124;
 const ZEILE = 46;
 const ZEILEN_ABSTAND = 8;
 const KNOPF_ABSTAND = 12;
+const KNOPF_HOEHE = 51;
+
 const notizText = (e) => {
   const z = e.zettel;
   if (!z) return null;
@@ -158,6 +160,8 @@ const kartenHoehe = (e) => {
   if (notizText(e)) h += 30;
   return h;
 };
+export const stundenKartenHoehe = (e) => kartenHoehe(e) + (stundenMitKnoepfen(e) ? KNOPF_ABSTAND + KNOPF_HOEHE : 0);
+
 const FahrtZeile = ({ f }) => (
   <div className="flex items-start gap-[12px]" style={{ height: ZEILE }}>
     <span className="w-[52px] shrink-0 text-[18px] font-bold leading-[22px]" style={{ ...schrift, color: LIME }}>{f.zeit || uhr(f.start)}</span>
@@ -445,6 +449,20 @@ const RollZiffer = ({ z }) => {
     </span>
   );
 };
+
+const Kasten = ({ titel, oben, unten, grau }) => (
+  <div className="flex flex-col items-center w-[78px] shrink-0">
+    <div className="w-[78px] h-[78px] rounded-[12px] flex flex-col items-center justify-center font-bold tracking-[-0.5px]" style={{ ...schrift, background: '#242525' }}>
+      {grau ? (
+        <>
+          <span className="text-[17px] leading-[24.5px]" style={{ color: '#5f5f5f' }}>{oben}</span>
+          {unten ? <span className="mt-[4.5px] text-[17px] leading-[24.5px]" style={{ color: '#5f5f5f' }}>{unten}</span> : null}
+        </>
+      ) : <span className="text-[22px] leading-[28px]" style={{ color: '#e2f754' }}>{oben}</span>}
+    </div>
+    <span className="mt-[8px] text-[16px] leading-[20px] font-bold tracking-[-0.5px]" style={{ ...schrift, color: grau ? '#5f5f5f' : '#fff' }}>{titel}</span>
+  </div>
+);
 
 // Zeitfeld im Kasten: im Bearbeiten-Modus antippbar (Uhrzeit-Auswahl des Geraets), sonst Text.
 const ZeitFeld = ({ wert, setWert, klasse, farbe }) => (

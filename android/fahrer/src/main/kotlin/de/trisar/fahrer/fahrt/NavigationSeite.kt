@@ -115,6 +115,7 @@ import kotlin.math.roundToInt
 private val NAVI_LIME = hex(0xE2F754)
 private val NAVI_ORANGE = hex(0xFF9F43)
 private val NAVI_KACHEL = hex(0x242525)
+private val NAVI_BLAU = hex(0x2F6BFF)
 /** Anfahrtslinie, wenn die Route der Dispo als Vorschau mitkommt. */
 private val NAVI_ANFAHRT = hex(0x0059FF)
 private const val NAVI_SPEICHER = "trisar_navi"

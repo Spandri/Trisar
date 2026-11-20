@@ -137,6 +137,7 @@ struct RoutenPunkt: Codable, Equatable, Hashable {
 
     /// Google Maps nimmt 9 Zwischenziele, Abholung und Stopps zaehlen mit.
     static let googleZwischenziele = 9
+    static func maximum(stopps: Int) -> Int { max(0, googleZwischenziele - 1 - stopps) }
 
     init(lat: Double, lng: Double, nach: Int) {
         self.lat = lat
