@@ -27,6 +27,8 @@ struct Fahrtenbuch: Decodable {
     let kennzeichen: String?
     /// Beginn des gelieferten Zeitraums. Ohne Angabe der Tag des ersten Eintrags, sonst heute.
     let von: String?
+    /// Tag des ersten Eintrags des Wagens, nil ohne Eintraege.
+    let erster_tag: String?
     let km_stand: Double?
     let km_heute: Double?
     let km_monat: Double?
@@ -61,7 +63,7 @@ struct Fahrtenbuch: Decodable {
     /// Beispieldaten fuer den Start mit -fahrtenbuchTest (ohne Anmeldung, ohne Datenbank).
     static var beispiel: Fahrtenbuch? {
         let json = """
-        {"vin":"WBA21EN0309582583","kennzeichen":"M-X7247","von":"2026-11-16","km_stand":48212,"km_heute":83.4,"km_monat":1284.4,
+        {"vin":"WBA21EN0309582583","kennzeichen":"M-X7247","von":"2026-11-16","erster_tag":"2026-11-16","km_stand":48212,"km_heute":83.4,"km_monat":1284.4,
          "km_gesamt":1284.4,"km_gast":842.1,"km_leer":442.3,"anzahl":5,"zeilen":[
          {"id":5,"tag":"2026-11-17","art":"leer","beginn":"2026-11-17T21:12:00+00:00","ende":"2026-11-17T21:40:00+00:00","km_start":48203,"km_ende":48212,"km":9.3,"genau":true,"von":"Bayerischer Hof","nach":"Depot","fahrer":null},
          {"id":4,"tag":"2026-11-17","art":"gast","beginn":"2026-11-17T20:13:00+00:00","ende":"2026-11-17T21:12:00+00:00","km_start":48165,"km_ende":48203,"km":38.1,"genau":true,"von":"MUC T2","nach":"Hotel Bayerischer Hof, Promenadeplatz","fahrer":"Joris Müller"},
@@ -253,8 +255,8 @@ struct FahrtenbuchSeite: View {
 
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
-                        datumFeld("Von", $von)
-                        datumFeld("Bis", $bis)
+                        datumFeld("Von", $von, vonBereich)
+                        datumFeld("Bis", $bis, bisBereich)
                     }
                     HStack(spacing: 8) {
                         exportKnopf("Excel", "xlsx")
@@ -315,10 +317,23 @@ struct FahrtenbuchSeite: View {
         .sheet(item: $datei) { d in DateiTeilen(url: d.url).ignoresSafeArea() }
     }
 
-    private func datumFeld(_ titel: String, _ wert: Binding<Date>) -> some View {
+    /// Waehlbar ist nur vom ersten Eintrag bis heute (ohne Eintraege nur heute), Von nie nach Bis.
+    private var ersterTag: Date {
+        let lesen = DateFormatter(); lesen.locale = Locale(identifier: "en_US_POSIX"); lesen.timeZone = Stunden.berlin; lesen.dateFormat = "yyyy-MM-dd"
+        let jetzt = Date()
+        guard let tag = daten?.erster_tag.flatMap({ lesen.date(from: String($0.prefix(10))) }) else {
+            var k = Calendar(identifier: .gregorian); k.timeZone = Stunden.berlin
+            return k.startOfDay(for: jetzt)
+        }
+        return min(tag, jetzt)
+    }
+    private var vonBereich: ClosedRange<Date> { let unten = ersterTag; return unten...max(unten, min(bis, Date())) }
+    private var bisBereich: ClosedRange<Date> { let oben = Date(); return min(max(ersterTag, von), oben)...oben }
+
+    private func datumFeld(_ titel: String, _ wert: Binding<Date>, _ bereich: ClosedRange<Date>) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(titel).grotesk(10, .medium).foregroundStyle(.white.opacity(0.5))
-            DatePicker("", selection: wert, displayedComponents: .date)
+            DatePicker("", selection: wert, in: bereich, displayedComponents: .date)
                 .labelsHidden().environment(\.timeZone, Stunden.berlin).environment(\.locale, Locale(identifier: "de_DE"))
                 .colorScheme(.dark)
         }

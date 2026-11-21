@@ -142,13 +142,20 @@ export function FahrtenbuchBlock({ vehicleId, blockRef, top, onOeffnen }) {
   );
 }
 
-const Datum = ({ label, value, onChange }) => (
+// min und max begrenzen die Auswahl. Getippte Werte ausserhalb rutschen an die Grenze.
+const Datum = ({ label, value, onChange, min, max }) => (
   <label className="flex flex-col gap-[3px] flex-1 min-w-0">
     <span className="text-[10px] font-medium text-white/50" style={schrift}>{label}</span>
     <input
       type="date"
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      min={min}
+      max={max}
+      onChange={(e) => {
+        const w = e.target.value;
+        if (!w) return;
+        onChange(min && w < min ? min : max && w > max ? max : w);
+      }}
       className="h-[38px] w-full bg-black border border-white/30 px-2 text-[14px] font-medium text-white outline-none focus:border-[#E3F654]"
       style={schrift}
     />
@@ -159,9 +166,12 @@ export function FahrtenbuchSeite({ vehicleId, schliessen }) {
   const { t, locale } = useI18n();
   // Standard: vom ersten Eintrag bis heute. Den ersten Tag liefert die Datenbank (Anfrage ohne "von").
   const [vonEigen, setVon] = useState('');
-  const [bis, setBis] = useState(isoTag(new Date()));
+  const heute = isoTag(new Date());
+  const [bis, setBis] = useState(heute);
   const daten = useFahrtenbuch(vehicleId, vonEigen || null, bis || null);
   const von = vonEigen || String(daten?.von || '').slice(0, 10);
+  // Waehlbar ist nur vom ersten Eintrag bis heute (ohne Eintraege nur heute), Von nie nach Bis.
+  const erster = String(daten?.erster_tag || '').slice(0, 10) || heute;
   const gueltig = Boolean(von && bis && von <= bis);
   const [busy, setBusy] = useState('');
   const [fehler, setFehler] = useState(false);
@@ -192,8 +202,8 @@ export function FahrtenbuchSeite({ vehicleId, schliessen }) {
         </div>
 
         <div className="flex gap-2">
-          <Datum label={t('fahrtenbuch.from')} value={von} onChange={setVon} />
-          <Datum label={t('fahrtenbuch.to')} value={bis} onChange={setBis} />
+          <Datum label={t('fahrtenbuch.from')} value={von} onChange={setVon} min={erster} max={bis || heute} />
+          <Datum label={t('fahrtenbuch.to')} value={bis} onChange={setBis} min={von || erster} max={heute} />
         </div>
         <div className="mt-[10px] flex gap-2">
           {['xlsx', 'pdf', 'csv'].map((f) => (

@@ -91,7 +91,7 @@ private val BERLIN: ZoneId = ZoneId.of("Europe/Berlin")
 internal class FahrtenbuchZeile(val id: String, val tag: String, val art: String, val beginn: String, val ende: String,
     val kmStart: Double?, val kmEnde: Double?, val km: Double?, val genau: Boolean, val von: String, val nach: String, val fahrer: String)
 
-internal class FahrtenbuchStand(val vin: String, val kennzeichen: String, val von: String, val kmStand: Double?, val kmHeute: Double?, val kmMonat: Double?,
+internal class FahrtenbuchStand(val vin: String, val kennzeichen: String, val von: String, val ersterTag: String, val kmStand: Double?, val kmHeute: Double?, val kmMonat: Double?,
     val kmGesamt: Double?, val kmGast: Double?, val kmLeer: Double?, val anzahl: Int, val zeilen: List<FahrtenbuchZeile>)
 
 private fun fbTxt(o: JsonObject, k: String): String = (o[k] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content ?: ""
@@ -105,7 +105,7 @@ internal suspend fun fahrtenbuchLesen(fahrzeugID: String, von: String? = null, b
     }).data
     val o = Backend.json.parseToJsonElement(text) as? JsonObject
     if (o == null) null else FahrtenbuchStand(
-        vin = fbTxt(o, "vin"), kennzeichen = fbTxt(o, "kennzeichen"), von = fbTxt(o, "von").take(10),
+        vin = fbTxt(o, "vin"), kennzeichen = fbTxt(o, "kennzeichen"), von = fbTxt(o, "von").take(10), ersterTag = fbTxt(o, "erster_tag").take(10),
         kmStand = fbZahl(o, "km_stand"), kmHeute = fbZahl(o, "km_heute"), kmMonat = fbZahl(o, "km_monat"),
         kmGesamt = fbZahl(o, "km_gesamt"), kmGast = fbZahl(o, "km_gast"), kmLeer = fbZahl(o, "km_leer"),
         anzahl = fbTxt(o, "anzahl").toIntOrNull() ?: 0,
@@ -231,10 +231,19 @@ private suspend fun fahrtenbuchExportieren(ctx: Context, fahrzeugID: String, von
     false
 }
 
-private fun fbDatumDialog(ctx: Context, iso: String, setzen: (String) -> Unit) {
+/** Auswahl nur zwischen min und max (beide eingeschlossen). */
+private fun fbDatumDialog(ctx: Context, iso: String, min: String, max: String, setzen: (String) -> Unit) {
     val d = runCatching { LocalDate.parse(iso) }.getOrElse { LocalDate.now() }
-    DatePickerDialog(ctx, android.R.style.Theme_Material_Dialog_Alert, { _, y, mo, t -> setzen(LocalDate.of(y, mo + 1, t).toString()) },
-        d.year, d.monthValue - 1, d.dayOfMonth).show()
+    val unten = runCatching { LocalDate.parse(min) }.getOrElse { LocalDate.now() }
+    val oben = runCatching { LocalDate.parse(max) }.getOrElse { LocalDate.now() }.let { if (it < unten) unten else it }
+    val zone = ZoneId.systemDefault()
+    val dialog = DatePickerDialog(ctx, android.R.style.Theme_Material_Dialog_Alert, { _, y, mo, t ->
+        val w = LocalDate.of(y, mo + 1, t)
+        setzen((if (w < unten) unten else if (w > oben) oben else w).toString())
+    }, d.year, d.monthValue - 1, d.dayOfMonth)
+    dialog.datePicker.minDate = unten.atStartOfDay(zone).toInstant().toEpochMilli()
+    dialog.datePicker.maxDate = oben.atTime(23, 59, 59).atZone(zone).toInstant().toEpochMilli()
+    dialog.show()
 }
 
 @Composable
@@ -286,11 +295,15 @@ internal fun FahrtenbuchSeite(fahrzeugID: String, schliessen: () -> Unit) {
 
             Column(Modifier.platz(24.5f, versatz + oben, 353f).onSizeChanged { inhaltHoehe = with(dichte) { it.height.toDp().value } }) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Waehlbar ist nur vom ersten Eintrag bis heute (ohne Eintraege nur heute), Von nie nach Bis.
+                    val heuteIso = heute.toString()
+                    val erster = daten?.ersterTag?.ifEmpty { null } ?: heuteIso
+                    val grenzen = mapOf("Von" to (erster to bis), "Bis" to (von.ifEmpty { erster } to heuteIso))
                     for ((titel, wert, setzen) in listOf(Triple("Von", von) { v: String -> von = v }, Triple("Bis", bis) { v: String -> bis = v })) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(titel, style = grotesk(10f, 500, farbe = Color.White.copy(alpha = 0.5f)))
                             Box(Modifier.fillMaxWidth().height(38.dp).background(Color.Black).border(1.dp, Color.White.copy(alpha = 0.3f))
-                                .tippen { fbDatumDialog(ctx, wert, setzen) }.padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
+                                .tippen { fbDatumDialog(ctx, wert, grenzen.getValue(titel).first, grenzen.getValue(titel).second, setzen) }.padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
                                 Text(fbDatum(wert), style = grotesk(14f, 500, farbe = Color.White))
                             }
                         }
