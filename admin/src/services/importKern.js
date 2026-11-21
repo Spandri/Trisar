@@ -146,7 +146,9 @@ export const MUSTER = {
   ort: (t) => !datumLesen(t) && !MUSTER_UHR(t) && (/(stra(ß|ss)e|str\.|platz|weg|allee|ring|gasse|damm|ufer|road|street|avenue|hotel|flughafen|airport|terminal|bahnhof|hbf|messe|zentrum|center|centre|halle|restaurant|büro|office)/i.test(t)
     || /\b\d{5}\b/.test(t) || /\b[A-ZÄÖÜ][a-zäöüß]+\s\d{1,4}[a-z]?\b/.test(t) || /\b(MUC|FRA|BER|HAM|DUS|STR|NUE|CGN)\b/.test(t)),
   name: (t0) => { const t = t0.replace(/^[^:]{2,60}:\s*/, ''); return /^([A-ZÄÖÜ][a-zäöüß'-]+\.?\s){1,3}[A-ZÄÖÜ][a-zäöüß'-]+(\s*[,;&/+]\s*([A-ZÄÖÜ][a-zäöüß'-]+\.?\s){0,3}[A-ZÄÖÜ][a-zäöüß'-]+)*$/.test(t.replace(/^(herr|frau|mr|mrs|ms|dr|prof)\.?\s+/i, '').trim())
-    || /^[A-ZÄÖÜ][a-zäöüß'-]+,\s*[A-ZÄÖÜ][a-zäöüß'-]+$/.test(t.trim()); },
+    || /^[A-ZÄÖÜ][a-zäöüß'-]+,\s*[A-ZÄÖÜ][a-zäöüß'-]+$/.test(t.trim())
+    // Nur Anrede oder Titel und Nachname ("Prof. Buck", "Frau Dr. Meier").
+    || /^((herr|frau|mr|mrs|ms|dr|prof)\.?\s+)+[A-ZÄÖÜ][a-zäöüß'-]+$/i.test(t.trim()); },
   anzahl: (t) => /^\d{1,2}$/.test(t.trim()) && Number(t) >= 1 && Number(t) <= 30,
   janein: (t) => /^(ja|nein|yes|no|x|true|false|1|0|y|n|✓|✔|wahr|falsch)$/i.test(t.trim()),
   email: (t) => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(t.trim()),
@@ -170,7 +172,9 @@ const FAHRT_FELDER = [
   // Ende des Zeitraums als eigene Spalte ("Abholung bis", "spaetestens").
   { key: 'uhrzeitBis', kopf: ['uhrzeit bis', 'zeit bis', 'abholung bis', 'abholzeit bis', 'start bis', 'spätestens', 'spaetestens', 'latest', 'latest pickup', 'pickup until', 'pick up until', 'time to', 'zeitfenster bis', 'zeitraum bis', 'ende zeitfenster'], werte: ['uhrzeit'] },
   { key: 'abholort', kopf: ['abholort', 'abholung', 'abholadresse', 'von', 'start', 'startadresse', 'startort', 'pick up location', 'pickup location', 'pick up address', 'pickup address', 'pick up', 'pickup', 'p u', 'pu', 'from', 'from address', 'origin address', 'treffpunkt', 'abfahrtsort'], werte: ['ort'] },
-  { key: 'zielort', kopf: ['zielort', 'ziel', 'zieladresse', 'nach', 'bis', 'drop off', 'dropoff', 'drop off location', 'drop off address', 'd o', 'do', 'destination', 'to', 'to address', 'hotel', 'unterkunft', 'ankunftsort'], werte: ['ort'] },
+  { key: 'zielort', kopf: ['zielort', 'ziel', 'zieladresse', 'nach', 'bis', 'drop off', 'dropoff', 'drop off location', 'drop off address', 'd o', 'do', 'destination', 'to', 'to address', 'hotel', 'unterkunft', 'ankunftsort', 'ziel adresse komplett', 'zieladresse komplett', 'ziel adresse', 'ziel komplett', 'adresse ziel'], werte: ['ort'] },
+  // Ziel auf mehrere Spalten verteilt ("Ziel Straße", "Ziel PLZ", "Ziel Ort"): wird zur Anschrift zusammengesetzt.
+  { key: 'zielTeil', nurKopf: true, kopf: ['ziel straße', 'ziel strasse', 'ziel str', 'ziel hausnummer', 'ziel plz', 'ziel ort', 'ziel stadt', 'destination street', 'destination zip', 'destination city'], werte: ['ort', 'plz'], mehrfach: true },
   { key: 'flugnummer', kopf: ['flug', 'flugnummer', 'flight', 'flight no', 'flight nr', 'flight number', 'flightnumber', 'arrival flight', 'zug flug', 'flug zug', 'flugnr', 'fl'], werte: ['flug', 'zug'] },
   { key: 'zugnummer', kopf: ['zug', 'zugnummer', 'train', 'train number', 'train no'], werte: ['zug'] },
   { key: 'herkunft', kopf: ['herkunft', 'abflugort', 'aus', 'arriving from', 'origin', 'kommt aus', 'abflughafen', 'departure airport'], werte: ['flughafenCode'] },
@@ -193,8 +197,15 @@ const FAHRT_FELDER = [
   { key: 'status', kopf: ['status', 'state', 'storniert', 'storno', 'abgesagt', 'cancelled', 'canceled'], werte: [] },
   // Ankunft am Ziel: trennt Sammelfahrten (gleicher Fahrer, gleiche Ankunft = eine Fahrt mit Zwischenstopps).
   { key: 'ankunft', kopf: ['ankunft', 'ankunft ziel', 'ankunft kongress', 'arrival at destination', 'eta ziel'], werte: ['uhrzeit'] },
+  // Rueckfahrt: aus der Zeile werden zwei Fahrten. Zeit (oder ja), Ziel der Rueckfahrt (sonst der Start).
+  { key: 'rueckZeit', nurKopf: true, kopf: ['rückfahrt', 'rueckfahrt', 'rückfahrt uhrzeit', 'rückfahrt zeit', 'rückfahrt um', 'abholung rückfahrt', 'abholzeit rückfahrt', 'abholung zurück', 'abfahrt zielort', 'abfahrt ziel', 'abfahrt rückfahrt', 'rückweg', 'hin und zurück', 'return', 'return time', 'return pickup', 'return pick up', 'return transfer', 'pickup return'], werte: ['uhrzeit', 'janein'] },
+  { key: 'rueckOrt', nurKopf: true, kopf: ['rückkehrort', 'rueckkehrort', 'rückfahrt nach', 'rückfahrt ziel', 'ziel rückfahrt', 'zurück nach', 'return to', 'return destination', 'return address'], werte: ['ort'] },
+  // Ankunft der Rueckfahrt rechnet TRISAR selbst: Spalte wird erkannt, damit sie nirgends falsch landet.
+  { key: 'rueckAnkunft', nurKopf: true, kopf: ['rückkehrzeit', 'rueckkehrzeit', 'rückkehr', 'ankunft rückfahrt', 'ankunft zurück', 'return arrival'], werte: ['uhrzeit'] },
+  // Fahrzeit rechnet TRISAR selbst. Erkannt, damit "4:00" nicht als Abholzeit-Ende gilt.
+  { key: 'fahrzeit', nurKopf: true, kopf: ['fahrzeit', 'fahrtdauer', 'dauer', 'duration', 'travel time', 'driving time'], werte: ['uhrzeit'] },
   // Kein eigenes Feld in jobs: beides kommt in die Notiz der Fahrt.
-  { key: 'firma', kopf: ['firma', 'unternehmen', 'company', 'organisation', 'organization', 'kunde firma', 'auftraggeber'], werte: [] },
+  { key: 'firma', kopf: ['firma', 'unternehmen', 'company', 'organisation', 'organization', 'kunde firma', 'auftraggeber', 'kunde'], werte: [] },
   { key: 'telefon', kopf: ['telefon', 'tel', 'phone', 'mobil', 'handy', 'mobile', 'telefonnummer', 'kontakt telefon'], werte: ['telefon'] },
 ];
 
@@ -383,6 +394,8 @@ export const spaltenErkennen = (rohzeilen, modus = 'rides', { vorlage = null } =
       if (k.wert === 0 && !feld.werte.length) punkte = 0;
       // Nur nach Werten (ohne passende Ueberschrift) erst ab drei Beispielen, sonst Zufall.
       if (k.wert === 0 && spalte.beispiele.length < 3) punkte = 0;
+      // Rueckfahrt, Zielteile, Fahrzeit nur ueber die Ueberschrift: jede Uhrzeitspalte saehe sonst nach Rueckfahrt aus.
+      if (k.wert === 0 && feld.nurKopf) punkte = 0;
       // Widerspruch: Ueberschrift passt, Werte sehen aber nach etwas anderem aus.
       if (k.wert > 0 && feld.werte.length && w.wert < 0.2) punkte *= 0.75;
       if (punkte < 0.34) return;
@@ -485,6 +498,7 @@ const STICHWORT = {
   rollstuhl: /rollstuhl|wheelchair|barrierefrei|rollator/i,
   gepaeck: /gep(ä|ae)ck|koffer|luggage|baggage|sperrgep|golfbag|ski/i,
 };
+const RUECKFAHRT_WORT = /(hin\s*(und|&|\+|\/)\s*(zur(ü|ue)ck|r(ü|ue)ck)|inkl\.?\s*r(ü|ue)ckfahrt|mit\s+r(ü|ue)ckfahrt|\bretour\b|round\s*trip|incl\.?\s*return)/i;
 const NAMEN_TRENNER = /\s*[,;&/+]\s*|\s+und\s+|\s+and\s+|\n/i;
 
 const namenTeilen = (gaesteText) => {
@@ -632,6 +646,11 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
     const ergaenzt = (ort) => (ort && !ort.includes(',') && kontext?.orte?.[schluessel(ort)]) || ort;
     const abholort = ergaenzt(wert(zeile, 'abholort'));
     let zielort = ergaenzt(wert(zeile, 'zielort'));
+    // "Hindenburgstraße 5" | "77654" | "Offenburg" -> "Hindenburgstraße 5, 77654 Offenburg".
+    const zielTeile = alleWerte(zeile, 'zielTeil');
+    if (zielTeile.length && !zielort.includes(',')) {
+      zielort = [zielort, ...zielTeile].filter(Boolean).join(', ').replace(/\b(\d{4,5}),\s+/g, '$1 ');
+    }
     // Keine Zielspalte, aber die Datei nennt ein Ziel ("Ziel: Kongress am Park, ...").
     const zielAusDatei = !zielort && spalteVon('zielort') == null && kontext?.ziel;
     if (zielAusDatei) zielort = kontext.ziel;
@@ -681,6 +700,13 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
     // Ja/Nein-Spalten: Ja-Woerter oder das Stichwort selbst ("Kindersitz x2"). Stichworte in der
     // Bemerkung zaehlen auch ("bitte Kindersitz").
     const flag = (feld) => ja(wert(zeile, feld)) || STICHWORT[feld].test(wert(zeile, feld)) || STICHWORT[feld].test(notiz);
+    // Rueckfahrt: Zeit oder Zeitraum in der Spalte, "ja", eigenes Ziel oder "hin und zurueck" in der Bemerkung.
+    const rueckRoh = wert(zeile, 'rueckZeit');
+    const rueckRaum = zeitraumLesen(rueckRoh);
+    const rueckUhr = rueckRaum?.von || uhrzeitLesen(rueckRoh);
+    const rueckOrt = ergaenzt(wert(zeile, 'rueckOrt'));
+    const rueck = rueckUhr || rueckOrt || ja(rueckRoh) || RUECKFAHRT_WORT.test(rueckRoh) || RUECKFAHRT_WORT.test(notiz)
+      ? { uhrzeit: rueckUhr || '', bis: rueckRaum ? rueckRaum.bis : '', ort: rueckOrt || '' } : null;
     const daten = {
       ride_date: datum || null,
       etd: uhrzeit ? `${uhrzeit}:00` : null,
@@ -707,6 +733,7 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
       storniert,
       ankunft: ankunft && ankunft !== uhrzeit ? ankunft : null,
       zwischenstopps: stopps,
+      rueck,
     };
 
     // Gleiche Fahrt in mehreren Zeilen (ein Gast je Zeile): zusammenfassen.
@@ -731,7 +758,7 @@ export const fahrtenBauen = (datenzeilen, zuordnung, kontext = null) => {
     letzte = satz;
   });
 
-  const ergebnis = zwischenstoppsBilden(datensaetze);
+  const ergebnis = rueckfahrtenBilden(zwischenstoppsBilden(datensaetze));
   ergebnis.forEach(fahrtPruefen);
   return { datensaetze: ergebnis };
 };
@@ -776,6 +803,36 @@ export const zwischenstoppsBilden = (datensaetze) => {
   return datensaetze.filter((satz) => !weg.has(satz));
 };
 
+// Rueckfahrt als eigene Fahrt direkt unter der Hinfahrt: Start und Ziel getauscht, Stopps umgekehrt,
+// eigene Zeit (Zeitraum nur, wenn in der Zelle einer steht). Gaeste, Fahrer, Konvoi, Merkmale und
+// Storno wie die Hinfahrt. Flug/Zug gehoeren zur Hinfahrt. Ohne Zeit fehlt die Uhrzeit (rot in der Vorschau).
+export const rueckfahrtenBilden = (datensaetze) => datensaetze.flatMap((satz) => {
+  const { rueck, ...d } = satz.daten;
+  satz.daten = d;
+  if (!rueck) return [satz];
+  const zeit = rueck.uhrzeit ? `${rueck.uhrzeit}:00` : null;
+  const ziel = rueck.ort || d.pickup_address;
+  const daten = {
+    ...d,
+    etd: zeit,
+    original_etd: zeit,
+    etd_bis: rueck.bis ? `${rueck.bis}:00` : null,
+    pickup_name: d.dropoff_name || kurzname(d.dropoff_address) || null,
+    pickup_address: d.dropoff_address || null,
+    dropoff_name: rueck.ort ? kurzname(rueck.ort) : d.pickup_name || kurzname(d.pickup_address) || null,
+    dropoff_address: ziel || null,
+    flight_number: null,
+    flight_origin: null,
+    train_number: null,
+    passengers: [...(d.passengers || [])],
+    fahrer_namen: d.fahrer_namen ? [...d.fahrer_namen] : null,
+    zwischenstopps: [...(d.zwischenstopps || [])].reverse(),
+    note: [d.note, 'Rückfahrt'].filter(Boolean).join(' · '),
+    ankunft: null,
+  };
+  return [satz, { zeilen: [...satz.zeilen], daten, fehlt: [], hinweise: ['rueckfahrt'] }];
+});
+
 // Pflichtangaben und Auffaelligkeiten einer Fahrt (auch nach Bearbeitung in der Vorschau).
 export const fahrtPruefen = (satz) => {
   const d = satz.daten;
@@ -784,7 +841,7 @@ export const fahrtPruefen = (satz) => {
   if (!d.etd) satz.fehlt.push('uhrzeit');
   if (!text(d.pickup_address)) satz.fehlt.push('abholort');
   if (!text(d.dropoff_address)) satz.fehlt.push('zielort');
-  const behalten = (satz.hinweise || []).filter((h) => ['mehrereZeilen', 'datumUebernommen', 'datumAusDatei', 'zielAusDatei', 'llama', 'doppelt', 'adresseUnbekannt', 'zwischenstopp', 'fahrerUnbekannt', 'konvoiUnbekannt', 'ausWeiteremBlatt'].includes(h));
+  const behalten = (satz.hinweise || []).filter((h) => ['mehrereZeilen', 'datumUebernommen', 'datumAusDatei', 'zielAusDatei', 'llama', 'doppelt', 'adresseUnbekannt', 'zwischenstopp', 'fahrerUnbekannt', 'konvoiUnbekannt', 'ausWeiteremBlatt', 'rueckfahrt'].includes(h));
   if (d.storniert) behalten.push('storniert');
   if ((d.zwischenstopps || []).length > 8) behalten.push('zuVieleStopps');
   if (d.ride_date && d.ride_date < heuteIso()) behalten.push('vergangen');
