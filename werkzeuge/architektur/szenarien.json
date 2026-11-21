@@ -1,0 +1,135 @@
+{
+  "_hinweis": "Nur der Startpunkt steht hier. Trigger, pg_net, Push und Realtime rechnet modell-bauen.py aus dem Modell. Beleg = Datei:Zeile der Schreib-Stelle.",
+  "szenarien": [
+    {
+      "id": "fahrt_anlegen",
+      "titel": "Dispo legt Fahrt an",
+      "start": "web_dispo",
+      "schreiben": {
+        "tabelle": "jobs",
+        "op": "insert",
+        "beleg": "admin/src/App.jsx:3290",
+        "text": "Formular speichern"
+      }
+    },
+    {
+      "id": "ki_bucht",
+      "titel": "KI bucht Fahrt",
+      "start": "web_dispo",
+      "ueber": [
+        {
+          "von": "web_dispo",
+          "nach": "edge_dispo_admin",
+          "text": "aktion ki_frage (Satz der Dispo)",
+          "beleg": "admin/src/services/kiAssistant.js:266"
+        },
+        {
+          "von": "edge_dispo_admin",
+          "nach": "infra_ollama",
+          "text": "Satz verstehen (qwen)",
+          "beleg": "fahrer/supabase/functions/dispo-admin/ki.ts:565"
+        },
+        {
+          "von": "edge_dispo_admin",
+          "nach": "web_dispo",
+          "text": "Vorschlag als Karte",
+          "beleg": "admin/src/components/views/KiAssistentView.jsx:712"
+        }
+      ],
+      "schreiben": {
+        "tabelle": "jobs",
+        "op": "insert",
+        "beleg": "admin/src/App.jsx:3290",
+        "text": "Dispo bestätigt, ai_booked = true"
+      }
+    },
+    {
+      "id": "fahrer_antwortet",
+      "titel": "Fahrer nimmt an oder lehnt ab",
+      "start": "ios_fahrer",
+      "schreiben": {
+        "tabelle": "jobs",
+        "op": "update",
+        "spalten": [
+          "status",
+          "refused_by_driver_id",
+          "refusal_reason",
+          "driver_response_status",
+          "driver_responded_at"
+        ],
+        "beleg": "ios-fahrer/TrisarFahrer/Dienste/Fahrten.swift:438"
+      }
+    },
+    {
+      "id": "standort",
+      "titel": "Fahrer-Standort kommt rein",
+      "start": "ios_fahrer",
+      "schreiben": {
+        "tabelle": "driver_live_locations",
+        "op": "update",
+        "spalten": [
+          "lat",
+          "lng",
+          "captured_at",
+          "active_job_id"
+        ],
+        "beleg": "ios-fahrer/TrisarFahrer/Dienste/Ortung.swift:332",
+        "text": "upsert alle 5 s"
+      }
+    },
+    {
+      "id": "tracker",
+      "titel": "Tracker meldet Fahrzeugdaten",
+      "start": "gateway",
+      "schreiben": {
+        "tabelle": "vehicle_telemetry_live",
+        "op": "update",
+        "beleg": "admin/scripts/teltonika-gateway.js:1175",
+        "text": "upsert je Paket"
+      }
+    },
+    {
+      "id": "fahrt_beenden",
+      "titel": "Fahrer beendet Fahrt",
+      "start": "ios_fahrer",
+      "schreiben": {
+        "tabelle": "jobs",
+        "op": "update",
+        "spalten": [
+          "status"
+        ],
+        "beleg": "ios-fahrer/TrisarFahrer/Dienste/FahrtDetails.swift:341"
+      }
+    },
+    {
+      "id": "dienst_planen",
+      "titel": "Dispo plant Dienst",
+      "start": "web_dispo",
+      "schreiben": {
+        "tabelle": "driver_service_requests",
+        "op": "insert",
+        "beleg": "admin/src/components/views/FahrerDienste.jsx:121"
+      }
+    },
+    {
+      "id": "schaden",
+      "titel": "Fahrer meldet Schaden",
+      "start": "ios_fahrer",
+      "schreiben": {
+        "tabelle": "vehicle_damages",
+        "op": "insert",
+        "beleg": "ios-fahrer/TrisarFahrer/Dienste/FahrzeugDaten.swift:197"
+      }
+    },
+    {
+      "id": "nachricht",
+      "titel": "Fahrer schickt Nachricht",
+      "start": "ios_fahrer",
+      "schreiben": {
+        "tabelle": "messages",
+        "op": "insert",
+        "beleg": "ios-fahrer/TrisarFahrer/Dienste/Chat.swift:80"
+      }
+    }
+  ]
+}

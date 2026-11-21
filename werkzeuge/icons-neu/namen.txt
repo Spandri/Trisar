@@ -2,6 +2,8 @@ hotel	Hotel_Trisar_Icons_01
 bett	Bett_Trisar_Icons_01
 flughafen-tower	Flughafen_Tower_Trisar_Icons_01
 bahnhof-zug	Bahnhof_Zug_Trisar_Icons_01
+hauptbahnhof	Hauptbahnhof_Trisar_Icons_01
+hauptbahnhof-gebaeude	Hauptbahnhof_Gebaeude_Trisar_Icons_01
 u-bahn	U_Bahn_Trisar_Icons_01
 bus	Bus_Trisar_Icons_01
 taxi	Taxi_Trisar_Icons_01
@@ -71,3 +73,9 @@ warnung	Warnung_Trisar_Icons_01
 check	Check_Trisar_Icons_01
 schliessen	Schliessen_Trisar_Icons_01
 plus	Plus_Trisar_Icons_01
+hotel-fassade	Hotel_Fassade_Trisar_Icons_01
+flughafen-tower-t1	Flughafen_Tower_T1_Trisar_Icons_01
+flughafen-tower-t2	Flughafen_Tower_T2_Trisar_Icons_01
+flughafen-tower-t3	Flughafen_Tower_T3_Trisar_Icons_01
+flughafen-tower-t4	Flughafen_Tower_T4_Trisar_Icons_01
+hochhaus-glas	Hochhaus_Glas_Trisar_Icons_01

@@ -19,7 +19,7 @@ packages:
 settings:
   base:
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "87"
+    CURRENT_PROJECT_VERSION: "88"
     SWIFT_VERSION: "5.10"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
@@ -82,14 +82,15 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: YES
-        # CarPlay (CarPlay/DispoCarPlaySzene.swift): Apple-Freigabe carplay-driving-task, auch auf dem Geraet.
+        # CarPlay (CarPlay/DispoCarPlaySzene.swift): seit 20.11. Kategorie Navigation (carplay-maps) statt Driving Task,
+        # damit die Dispo-Karte mit allen Fahrern als Startseite laufen darf. Nur eine Kategorie je App.
     entitlements:
       path: TrisarDispo/TrisarDispo.entitlements
       properties:
         aps-environment: development
         com.apple.developer.nfc.readersession.formats:
           - TAG
-        com.apple.developer.carplay-driving-task: true
+        com.apple.developer.carplay-maps: true
     info:
       path: TrisarDispo/Info.plist
       properties:

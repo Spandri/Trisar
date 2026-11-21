@@ -71,7 +71,7 @@ final class CarPlayFuehrung {
 
     // MARK: Start und Ende
 
-    /// Knopf „TRISAR-Navigation starten“ (nur mit Route von der Dispo und Gast an Bord).
+    /// Knopf „TRISAR-Navigation starten“ (nur mit Route von der Dispo, ab „Beim Gast“).
     func starten(fahrtID: UUID, start: CLLocation?) {
         nichtMitzeigen = nil
         navi.starten(fahrtID: fahrtID, unterwegs: true, start: start, fuer: .carplay)

@@ -153,22 +153,19 @@ export const adresseSuchen = async (admin: any, text: string, dispoId: string | 
   }
 };
 
-// Koordinaten eines Ergebnisses (19.11.): eigener Ort aus orte, sonst Google Place Details (nur geometry).
-// Damit wird das Ziel um den Start gesucht ("von Reutlingen zum Hauptbahnhof" ist Reutlingen Hbf).
-const punktCache = new Map<string, Punkt | null>();
-export const ortPunkt = async (admin: any, e: { ortId?: string; placeId?: string }, orte: Ort[], dispoId: string | null): Promise<Punkt | null> => {
-  if (e.ortId) {
-    const o = orte.find((x) => x.id === e.ortId);
-    return punktOk(o);
-  }
-  const id = String(e.placeId || '');
+// Google Place Details zu einem Treffer (19.11. Koordinaten, 20.11. auch die ganze Anschrift).
+// Eine Abfrage je Treffer, gemerkt je place_id.
+type Details = { punkt: Punkt | null; anschrift: string };
+const detailCache = new Map<string, Details>();
+const placeDetails = async (admin: any, id: string, dispoId: string | null): Promise<Details | null> => {
   const schluessel = String(Deno.env.get(providerConfig.googlePlaces.envKey) || '').trim();
   if (!id || !schluessel) return null;
-  if (punktCache.has(id)) return punktCache.get(id) ?? null;
+  if (detailCache.has(id)) return detailCache.get(id)!;
   try {
     const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
     url.searchParams.set('place_id', id);
-    url.searchParams.set('fields', 'geometry');
+    url.searchParams.set('fields', 'geometry,formatted_address');
+    url.searchParams.set('language', 'de');
     url.searchParams.set('key', schluessel);
     const antwort = await fetch(url.toString(), { signal: AbortSignal.timeout(4000) });
     const daten = await antwort.json().catch(() => ({}));
@@ -176,13 +173,39 @@ export const ortPunkt = async (admin: any, e: { ortId?: string; placeId?: string
       provider: 'google-places', action: 'place_details', reason: 'ki_assistent', cache_hit: false,
       requested_by: dispoId, http_status: antwort.status, error_text: antwort.ok ? null : 'Google Place Details failed', units: 1, unit_name: 'request',
     }).catch(() => null);
+    if (!antwort.ok || daten?.status !== 'OK') return null;
     const l = daten?.result?.geometry?.location;
-    const p = punktOk({ lat: l?.lat, lng: l?.lng });
-    punktCache.set(id, p);
-    return p;
+    const d: Details = {
+      punkt: punktOk({ lat: l?.lat, lng: l?.lng }),
+      anschrift: String(daten?.result?.formatted_address || '').trim().replace(/,\s*(Deutschland|Germany)$/i, ''),
+    };
+    detailCache.set(id, d);
+    return d;
   } catch {
     return null;
   }
+};
+
+// Koordinaten eines Ergebnisses: eigener Ort aus orte, sonst Google Place Details.
+// Damit wird das Ziel um den Start gesucht ("von Reutlingen zum Hauptbahnhof" ist Reutlingen Hbf).
+export const ortPunkt = async (admin: any, e: { ortId?: string; placeId?: string }, orte: Ort[], dispoId: string | null): Promise<Punkt | null> => {
+  if (e.ortId) {
+    const o = orte.find((x) => x.id === e.ortId);
+    return punktOk(o);
+  }
+  return (await placeDetails(admin, String(e.placeId || ''), dispoId))?.punkt ?? null;
+};
+
+// Ganze Anschrift eines Google-Treffers (20.11.): Autocomplete liefert "Wöllinger Wirtshaus, Johann-Clanze-Straße,
+// München, Deutschland" ohne Hausnummer und PLZ, Karte und Route lagen dann auf der Strassenmitte. Gespeichert wird
+// "Wöllinger Wirtshaus, Johann-Clanze-Straße 112, 81369 München". Ohne Details bleibt der Text, wie er war.
+export const anschriftVoll = async (admin: any, o: { wert: string; titel?: string; placeId?: string }, dispoId: string | null): Promise<string> => {
+  const d = o.placeId ? await placeDetails(admin, o.placeId, dispoId) : null;
+  if (!d?.anschrift) return o.wert;
+  const name = String(o.titel || '').trim();
+  const strasse = d.anschrift.split(',')[0].trim();
+  const mitName = name && !normal(d.anschrift).includes(normal(name)) && !normal(name).startsWith(normal(strasse));
+  return mitName ? `${name}, ${d.anschrift}` : d.anschrift;
 };
 
 // Hausnummer im Text ("Franz Josef Straße 48"), Postleitzahlen zaehlen nicht.
@@ -247,7 +270,7 @@ export const ortAufloesen = async (admin: any, text: string, orte: Ort[], dispoI
     && a.distanzM <= 50_000 && b.distanzM >= 2 * a.distanzM && b.distanzM - a.distanzM >= 20_000);
   if (eindeutig) {
     const andere = [...passend.slice(1), ...liste.filter((o) => !passend.includes(o)).sort(nachNaehe)].slice(0, 5);
-    return { text: passend[0].wert, ortId: '', adresse: '', ...(passend[0].placeId ? { placeId: passend[0].placeId } : {}), ...(andere.length ? { alternativen: andere } : {}) };
+    return { text: await anschriftVoll(admin, passend[0], dispoId), ortId: '', adresse: '', ...(passend[0].placeId ? { placeId: passend[0].placeId } : {}), ...(andere.length ? { alternativen: andere } : {}) };
   }
   // Auswahl ebenfalls nach Naehe, der naechste oben.
   return { text: roh, ortId: '', adresse: '', unsicher: (passend.length ? passend : [...liste].sort(nachNaehe)).slice(0, 3) };

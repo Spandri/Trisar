@@ -320,8 +320,9 @@ function OhneSignalAbschnitt({ top }) {
 }
 
 // Dienststart automatisch (15.11.): Vorlauf vor der ersten Fahrt, gilt fuer alle Fahrer (DB-Trigger).
-// Gleiches Aussehen wie "Feierabend in ... min". Hoehe fest: Ueberschrift, Zeile, Hinweis.
-const DIENSTSTART_H = 132;
+// Gleiches Aussehen wie "Feierabend in ... min". Nur die Zeile (20.11. Ueberschrift und Hinweis raus),
+// darunter Platz fuer eine Fehlermeldung, falls Speichern scheitert.
+const dienststartHoehe = (fehler) => (fehler ? 112 : 80);
 
 function DienststartAbschnitt({ top, minuten, fehler, onChange }) {
   const { t } = useI18n();
@@ -329,15 +330,9 @@ function DienststartAbschnitt({ top, minuten, fehler, onChange }) {
   return (
     <>
       <div
-        className="absolute left-[20px] w-[362px] h-6 text-base leading-6 tracking-[0.5px] text-[#E3F654]/60 font-medium font-['Space_Grotesk']"
-        style={{ top: `${top}px` }}
-      >
-        {t('filter.dienststartTitel')}
-      </div>
-      <div
         data-tutorial="karte-filter-dienststart"
         className="absolute left-[20px] w-[362px] h-14 border-2 border-[#E3F654] flex items-center px-3"
-        style={{ top: `${top + 32}px` }}
+        style={{ top: `${top}px` }}
       >
         <div className="relative flex-1 h-full">
           <select
@@ -373,12 +368,14 @@ function DienststartAbschnitt({ top, minuten, fehler, onChange }) {
           )}
         </div>
       </div>
-      <div
-        className="absolute left-[20px] w-[362px] text-xs leading-4 tracking-[0.3px] font-medium font-['Space_Grotesk']"
-        style={{ top: `${top + 96}px`, color: fehler ? RED : 'rgba(227,246,84,0.5)' }}
-      >
-        {fehler || t('filter.dienststartHinweis')}
-      </div>
+      {fehler ? (
+        <div
+          className="absolute left-[20px] w-[362px] text-xs leading-4 tracking-[0.3px] font-medium font-['Space_Grotesk']"
+          style={{ top: `${top + 64}px`, color: RED }}
+        >
+          {fehler}
+        </div>
+      ) : null}
     </>
   );
 }
@@ -561,7 +558,7 @@ export default function KartenFilterView({ setView, filters = {}, onChangeFilter
   const gemeinsameStufe = tracker.length > 0 && tracker.every((row) => row.stufe === tracker[0].stufe) ? tracker[0].stufe : null;
   // Abschnitt "Dienststart automatisch" direkt unter Feierabend, alles darunter rutscht mit.
   const dienststartTop = 462;
-  const ohneSignalTop = dienststart.verfuegbar ? dienststartTop + DIENSTSTART_H : dienststartTop;
+  const ohneSignalTop = dienststart.verfuegbar ? dienststartTop + dienststartHoehe(dienststart.fehler) : dienststartTop;
   const kartenStilTop = ohneSignalTop + OHNE_SIGNAL_H;
   const stufeTop = kartenStilTop + KARTEN_STIL_H;
   const stufeZeilenTop = stufeTop + 32 + 40 + 12;

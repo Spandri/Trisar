@@ -6,7 +6,7 @@
 // oder eine neue Adresse. Aeltere Apps zeigen die Orte nummeriert im Text.
 
 // deno-lint-ignore-file no-explicit-any
-import { bezugspunkt, type OrtOption, ortAufloesen, orteLaden } from './ortSuche.ts';
+import { anschriftVoll, bezugspunkt, type OrtOption, ortAufloesen, orteLaden } from './ortSuche.ts';
 import { normal as normalRoh } from './dienst.ts';
 
 // Ohne Rand und Satzzeichen ("1.", "Keiner davon.").
@@ -91,7 +91,7 @@ export const ortWahlAntwort = async (admin: any, kontext: any, text: string, dis
   let adresse = '';
   const x = gewaehlt(o, text);
   if (x) {
-    wert = x.wert;
+    wert = await anschriftVoll(admin, x, dispoId);
   } else {
     // Neue Adresse statt Auswahl ("Frankfurter Ring 227 München"). Ein neuer Auftrag beendet die Auswahl.
     if (!text.trim() || text.length > 80 || AUFTRAG.test(text) || /\?\s*$/.test(text)) return null;

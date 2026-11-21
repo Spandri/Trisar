@@ -6,7 +6,7 @@
 // Gilt im alten und im neuen Ablauf (aufgerufen aus kiFrage, vor allem anderen).
 
 // deno-lint-ignore-file no-explicit-any
-import { type OrtOption, ortAufloesen, orteLaden, bezugspunkt } from './ortSuche.ts';
+import { anschriftVoll, type OrtOption, ortAufloesen, orteLaden, bezugspunkt } from './ortSuche.ts';
 import { jetztBerlin, tagLesbar } from './dienst.ts';
 import { ortWahlFragen } from './ortWahl.ts';
 
@@ -75,7 +75,7 @@ export const ortKorrektur = async (admin: any, body: any, text: string, dispoId:
   const passt = (o: OrtOption) => woerter.every((w) => normal(o.wert).includes(w) || normal(o.wert).includes(w.slice(0, 5)));
   const treffer = (gemerkt?.optionen || []).filter(passt);
   if (treffer.length === 1) {
-    wert = treffer[0].wert;
+    wert = await anschriftVoll(admin, treffer[0], dispoId);
   } else if (treffer.length > 1) {
     return auswahl(treffer, gemerkt?.text || String(p[feld] || ''));
   } else {

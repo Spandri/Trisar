@@ -137,6 +137,7 @@ struct RoutenPunkt: Codable, Equatable, Hashable {
 
     /// Google Maps nimmt 9 Zwischenziele, Abholung und Stopps zaehlen mit.
     static let googleZwischenziele = 9
+    /// Wird im Routen-Editor der Dispo gebraucht (ios-dispo nutzt diese Datei mit).
     static func maximum(stopps: Int) -> Int { max(0, googleZwischenziele - 1 - stopps) }
 
     init(lat: Double, lng: Double, nach: Int) {
@@ -536,6 +537,10 @@ final class FahrtenSpeicher: ObservableObject {
             }
         } + [Task { [weak self] in
             for await _ in nachrichten { await self?.ungelesenAktualisieren() }
+        }, Task { [weak self] in
+            // Nach jedem (Wieder-)Verbinden neu laden: Realtime liefert verpasste Aenderungen nicht nach.
+            // Im Auto mit CarPlay und gesperrtem Handy blieb sonst die alte Adresse stehen (20.11.).
+            for await status in kanal.statusChange where status == .subscribed { self?.spaeterLaden() }
         }]
         try? await kanal.subscribeWithError()
     }

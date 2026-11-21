@@ -497,20 +497,37 @@ struct SoloNormalAnsicht: View {
         neu.fahrer = fahrer
         neu.fahrerNummer = details.fahrerNummer
 
+        // Gespeicherte Route vom Server sofort zeigen, OSRM bessert danach nach (20.11.: Linie kam sehr spaet).
+        if karte.fahrt.count < 2, details.tomtomFahrt.count >= 2 {
+            var sofort = karte
+            sofort.ziel = ziel
+            sofort.fahrer = fahrer
+            sofort.fahrt = details.tomtomFahrt
+            sofort.fahrtMinuten = details.fahrzeitMin > 0 ? details.fahrzeitMin : nil
+            if !unterwegs { sofort.abholort = abhol }
+            karte = sofort
+        }
+
         // Blaue Fahrt: bei Gast an Bord ab Fahrer, sonst ab Abholort.
         let fahrtStart = (unterwegs ? fahrer : nil) ?? abhol
         if let start = fahrtStart, let ziel {
             let s = await Routen.strecke(von: start, bis: ziel)
-            // OSRM ausgefallen: gespeicherte TomTom-Linie zeigen (Fahrzeit kommt dann aus details.fahrzeitMin).
-            neu.fahrt = s.punkte.count >= 2 ? s.punkte : details.tomtomFahrt
-            neu.fahrtMinuten = s.minuten
-            fahrtMinutenLive = s.minuten
+            if !s.notloesung || details.tomtomFahrt.count < 2 {
+                neu.fahrt = s.punkte
+                neu.fahrtMinuten = s.minuten
+                fahrtMinutenLive = s.minuten
+            } else {
+                // OSRM ausgefallen: gespeicherte TomTom-Linie statt Luftlinie (Fahrzeit aus details.fahrzeitMin).
+                neu.fahrt = details.tomtomFahrt
+                neu.fahrtMinuten = details.fahrzeitMin > 0 ? details.fahrzeitMin : s.minuten
+                fahrtMinutenLive = nil
+            }
         }
         if !unterwegs { neu.abholort = abhol }
         // Gelbe Anfahrt vom Fahrer zum Abholort, solange der Gast noch nicht eingestiegen ist.
         if !unterwegs, let fahrer, let abhol {
             let s = await Routen.strecke(von: fahrer, bis: abhol)
-            let anfahrt = s.punkte.count >= 2 ? s.punkte : details.tomtomAnfahrt
+            let anfahrt = s.notloesung && details.tomtomAnfahrt.count >= 2 ? details.tomtomAnfahrt : s.punkte
             anfahrtVoll = anfahrt
             neu.anfahrt = anfahrt
             neu.anfahrtMinuten = s.minuten

@@ -96,7 +96,7 @@ internal fun KartenFilterSeite(zurueck: () -> Unit, langeOhneSignal: List<Karten
     val dienststart = remember { DienststartVorlauf() }
     LaunchedEffect(Unit) { dienststart.laden() }
     val dienststartTop = 482f
-    val ohneSignalTop = if (dienststart.verfuegbar) dienststartTop + 132f else dienststartTop
+    val ohneSignalTop = if (dienststart.verfuegbar) dienststartTop + (if (dienststart.fehler == null) 80f else 112f) else dienststartTop
     // Abschnitt "Karte" (Dunkel/Hell/Farbig/Satellit) unter "Ohne Signal", Hoehe 96 wie im Web.
     val kartenStilTop = ohneSignalTop + 136f
     val stufeTop = kartenStilTop + 96f
@@ -148,16 +148,17 @@ internal fun KartenFilterSeite(zurueck: () -> Unit, langeOhneSignal: List<Karten
             FeierabendZeile(Modifier.platz(20f, 402f, 362f, 56f))
 
             if (dienststart.verfuegbar) {
-                Text("Dienststart automatisch", style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.6f)),
-                    modifier = Modifier.platz(20f, dienststartTop, 362f, 24f), maxLines = 1)
-                DienststartZeile(dienststart.minuten, Modifier.platz(20f, dienststartTop + 32f, 362f, 56f)) { neu ->
+                // 20.11.: nur die Zeile, Ueberschrift und Hinweis raus. Fehler bleibt sichtbar.
+                DienststartZeile(dienststart.minuten, Modifier.platz(20f, dienststartTop, 362f, 56f)) { neu ->
                     scope.launch { dienststart.setzen(neu) }
                 }
                 val fehler = dienststart.fehler
-                Text(if (fehler != null) "Speichern fehlgeschlagen: $fehler" else "Gilt für alle Fahrer. Der Fahrer bestätigt den Dienst wie gewohnt.",
-                    style = grotesk(12f, 500, abstand = 0.3f, farbe = if (fehler != null) hex(0xFF6B6B) else LIME.copy(alpha = 0.5f)),
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.platz(20f, dienststartTop + 96f, 362f, 32f))
+                if (fehler != null) {
+                    Text("Speichern fehlgeschlagen: $fehler",
+                        style = grotesk(12f, 500, abstand = 0.3f, farbe = hex(0xFF6B6B)),
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.platz(20f, dienststartTop + 64f, 362f, 32f))
+                }
             }
 
             Text("Ohne Signal ausblenden nach", style = grotesk(16f, 500, abstand = 0.5f, farbe = LIME.copy(alpha = 0.6f)),

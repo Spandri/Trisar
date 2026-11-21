@@ -242,9 +242,10 @@ struct OrtBearbeitenAnsicht: View {
                         zahlFeld($rausText, "raus")
                     }
                     .platz(20, radienTop + 68, 362, 56)
-                    Text(radienHinweis ?? "Beim Gast ab dem Reinfahr-Radius, unterwegs außerhalb des Rausfahr-Radius.")
+                    // 20.11.: Erklaerzeile raus, nur Fehler zeigen.
+                    Text(radienHinweis ?? "")
                         .font(.grotesk(13, .medium)).tracking(0.3)
-                        .foregroundStyle(radienHinweis == nil ? Self.lime.opacity(0.6) : Color(hex: 0xFF6B6B))
+                        .foregroundStyle(Color(hex: 0xFF6B6B))
                         .lineLimit(2).minimumScaleFactor(0.85)
                         .frame(width: 362, alignment: .topLeading)
                         .platz(20, radienTop + 68 + 56 + 6, 362, 34)

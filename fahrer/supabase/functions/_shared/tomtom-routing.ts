@@ -146,7 +146,8 @@ const tomtomSuche = async (
   const norm = adresse.trim().toLowerCase();
   if (!norm) return null;
   const ankerTeil = anker ? `|${anker.lat.toFixed(1)},${anker.lon.toFixed(1)}` : '';
-  const key = await sha256(`tomtom-geo|${norm}${ankerTeil}`);
+  // geo2 (20.11.): alte Eintraege lagen bei "Name, Strasse, Ort" auf der Strassenmitte (siehe unten).
+  const key = await sha256(`tomtom-geo2|${norm}${ankerTeil}`);
   const { data: alt } = await admin
     .from('api_route_cache')
     .select('payload')
@@ -160,12 +161,30 @@ const tomtomSuche = async (
   const umkreis = anker
     ? `&lat=${anker.lat}&lon=${anker.lon}&radius=${ANKER_RADIUS_M}`
     : `&lat=${MUC.lat}&lon=${MUC.lon}`;
-  for (const art of ['geocode', 'search']) {
+  // Kennt geocode nur die Strasse (keine Hausnummer im Text), vor der Strasse steht aber ein Name
+  // ("Wöllinger Wirtshaus, Johann-Clanze-Straße, München"), lag der Punkt auf der Strassenmitte, rund 1 km
+  // neben dem Lokal (20.11.). Dann zaehlt der Ort aus search, wenn er an derselben Strasse liegt.
+  const holen = async (art: string) => {
     const url = `https://api.tomtom.com/search/2/${art}/${encodeURIComponent(adresse.trim())}.json`
       + `?key=${schluessel}&limit=1${umkreis}&countrySet=DE,AT,CH&language=de-DE`;
     const res = await fetch(url);
-    if (!res.ok) continue;
+    if (!res.ok) return null;
     const json = await res.json().catch(() => ({}));
+    return json?.results?.[0] || null;
+  };
+  const nurStrasse = (r: any) => r?.type === 'Street' && !r?.address?.streetNumber;
+  const mitName = (() => {
+    const erster = adresse.split(',')[0]?.trim() || '';
+    return adresse.includes(',') && !/\d/.test(erster) && !/(str\.?|stra(ß|ss)e|weg|platz|allee|gasse|ring|damm|ufer)$/i.test(erster);
+  })();
+  for (const art of ['geocode', 'search']) {
+    let treffer = await holen(art);
+    if (art === 'geocode' && nurStrasse(treffer) && mitName) {
+      const ort = await holen('search');
+      const gleicheStrasse = ort?.address?.streetName && ort.address.streetName === treffer?.address?.streetName;
+      if (gleicheStrasse && Number.isFinite(ort?.position?.lat) && Number.isFinite(ort?.position?.lon)) treffer = ort;
+    }
+    const json = { results: treffer ? [treffer] : [] };
     const pos = json?.results?.[0]?.position;
     if (Number.isFinite(pos?.lat) && Number.isFinite(pos?.lon)) {
       await admin.from('api_route_cache').upsert([{

@@ -1,9 +1,11 @@
 import CarPlay
 import Combine
+import SwiftUI
 import UIKit
 
-/// CarPlay-Oberflaeche der Dispo-App (Kategorie Driving Task, nur Apple-Vorlagen), wie die
-/// Fahrer-CarPlay (ios-fahrer/TrisarFahrer/CarPlay/CarPlaySzene.swift). Drei Reiter:
+/// CarPlay-Oberflaeche der Dispo-App. Seit 20.11. Kategorie Navigation (carplay-maps) wie die
+/// Fahrer-CarPlay: Startseite ist die Dispo-Karte mit allen Fahrern (DispoCarPlayKarte), oben drei
+/// Knoepfe, die die Listen oeffnen:
 ///   Achtung – was jetzt Handeln braucht: Fahrt ohne Fahrer in der naechsten Stunde, Fahrer zu spaet,
 ///             Fahrer im Dienst ohne Signal, Fahrt angefragt und noch nicht angenommen.
 ///   Fahrer  – Standbys mit Zaehlung, darunter die Fahrer im Dienst mit Zustand und naechster Fahrt.
@@ -14,13 +16,18 @@ import UIKit
 /// Kommt eine neue Warnung dazu, zeigt CarPlay sie sofort als Hinweis (mehrere nacheinander).
 /// Daten aus denselben Speichern wie Handy und Apple Watch (DispoUhrBruecke.karte,
 /// DispoFahrtenSpeicher.gemeinsam, DispoStandbySpeicher.gemeinsam) mit deren Realtime.
-/// Laeuft auf dem Geraet erst, wenn de.trisar.dispo die Freigabe carplay-driving-task hat,
-/// im Simulator ueber TrisarDispo-Simulator.entitlements.
+/// Rechts auf der Karte Zoom, Verschieben und "Alle Fahrer". Navigation zum Fahrer usw. weiter
+/// ueber Apple Karten.
 @MainActor
-final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
+final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMapTemplateDelegate {
     private var steuerung: CPInterfaceController?
     private var szene: CPTemplateApplicationScene?
-    private var reiter: CPTabBarTemplate?
+    private var fenster: CPWindow?
+    private var kartenVorlage: CPMapTemplate?
+    private let kartenSteuerung = DispoCarPlayKartenSteuerung()
+    private var achtungKnopf: CPBarButton?
+    /// Sprachassistent (20.11.), Knopf mit den TRISAR-Balken auf der Karte.
+    private var sprache: DispoCarPlaySprache?
     private let achtungListe = CPListTemplate(title: "Achtung", sections: [])
     private let fahrerListe = CPListTemplate(title: "Fahrer", sections: [])
     private let fahrtenListe = CPListTemplate(title: "Fahrten", sections: [])
@@ -65,20 +72,50 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         }
     }
 
+    /// Navigations-Apps bekommen das Fenster fuer die Karte mit.
+    func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene,
+                                  didConnect interfaceController: CPInterfaceController, to window: CPWindow) {
+        verbinden(templateApplicationScene, interfaceController, window)
+    }
+
     func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene,
                                   didConnect interfaceController: CPInterfaceController) {
+        verbinden(templateApplicationScene, interfaceController, templateApplicationScene.carWindow)
+    }
+
+    private func verbinden(_ templateApplicationScene: CPTemplateApplicationScene,
+                           _ interfaceController: CPInterfaceController, _ window: CPWindow) {
+        // Beide Rueckrufe koennen kommen: nur einmal aufbauen.
+        guard steuerung == nil else { return }
         steuerung = interfaceController
         szene = templateApplicationScene
-        achtungListe.tabImage = UIImage(systemName: "exclamationmark.triangle")
+        fenster = window
+        interfaceController.prefersDarkUserInterfaceStyle = true
         achtungListe.emptyViewTitleVariants = ["Alles im Plan"]
         achtungListe.emptyViewSubtitleVariants = ["Neue Warnungen erscheinen hier von selbst."]
-        fahrerListe.tabImage = UIImage(systemName: "person.2")
         fahrerListe.emptyViewTitleVariants = ["Kein Fahrer im Dienst"]
-        fahrtenListe.tabImage = UIImage(systemName: "car")
         fahrtenListe.emptyViewTitleVariants = ["Keine Fahrten mehr heute"]
-        let reiter = CPTabBarTemplate(templates: [achtungListe, fahrerListe, fahrtenListe])
-        self.reiter = reiter
-        interfaceController.setRootTemplate(reiter, animated: false, completion: CarPlayFehler.melden)
+
+        // Grundansicht: die Dispo-Karte wie am Handy.
+        let ansicht = UIHostingController(rootView: DispoCarPlayKarte(daten: DispoUhrBruecke.shared.karte, steuerung: kartenSteuerung))
+        ansicht.view.backgroundColor = .black
+        window.rootViewController = ansicht
+        // Nach dem ersten Laden alle Fahrer einpassen (sonst letzter Ausschnitt vom Handy).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.kartenSteuerung.einpassen += 1 }
+
+        let vorlage = CPMapTemplate()
+        vorlage.mapDelegate = self
+        kartenVorlage = vorlage
+        let s = DispoCarPlaySprache(steuerung: interfaceController)
+        // Waehrend der Assistent offen war, aufgelaufene Warnungen danach zeigen.
+        s.fertig = { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self?.naechsterHinweis() }
+        }
+        sprache = s
+        // Kugel-Bildfolgen nach dem Start vorab erzeugen (dauert einen Moment).
+        Task { try? await Task.sleep(for: .seconds(3)); await DispoCarPlayKugel.vorbereiten() }
+        knoepfeSetzen()
+        interfaceController.setRootTemplate(vorlage, animated: false, completion: CarPlayFehler.melden)
 
         #if DEBUG
         if Self.beispielLauf {
@@ -106,14 +143,29 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
     }
 
     func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene,
+                                  didDisconnect interfaceController: CPInterfaceController, from window: CPWindow) {
+        trennen()
+    }
+
+    func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene,
                                   didDisconnectInterfaceController interfaceController: CPInterfaceController) {
+        trennen()
+    }
+
+    private func trennen() {
+        guard steuerung != nil else { return }
         DispoUhrBruecke.shared.carPlayVerbunden(false)
         abos.removeAll()
         takt?.invalidate()
         takt = nil
         steuerung = nil
         szene = nil
-        reiter = nil
+        sprache?.beenden()
+        sprache = nil
+        fenster?.rootViewController = nil
+        fenster = nil
+        kartenVorlage = nil
+        achtungKnopf = nil
         offen = nil
         offeneHinweise = []
         schluesselAchtung = nil
@@ -200,11 +252,76 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
         fahrtenFuellen()
     }
 
-    /// Titel am Reiter nur bei Aenderung setzen (updateTemplates baut die Leiste neu).
+    /// Titel am Knopf Achtung (mit Zahl der Warnungen), nur bei Aenderung.
     private func reiterTitelSetzen(_ titel: String) {
-        guard achtungListe.tabTitle != titel else { return }
-        achtungListe.tabTitle = titel
-        reiter?.updateTemplates([achtungListe, fahrerListe, fahrtenListe])
+        guard let k = achtungKnopf, k.title != titel else { return }
+        k.title = titel
+    }
+
+    // MARK: Karte
+
+    /// Oben links Achtung und Fahrer, rechts Fahrten. Rechts auf der Karte Sprechen, Zoom, alle Fahrer
+    /// (hoechstens vier Kartenknoepfe, Verschieben geht per Wischen).
+    private func knoepfeSetzen() {
+        guard let vorlage = kartenVorlage else { return }
+        let achtung = CPBarButton(title: stand.warnungen.isEmpty || !stand.angemeldet ? "Achtung" : "Achtung \(stand.warnungen.count)") { [weak self] _ in
+            self?.listeZeigen(self?.achtungListe)
+        }
+        achtungKnopf = achtung
+        vorlage.leadingNavigationBarButtons = [
+            achtung,
+            CPBarButton(title: "Fahrer") { [weak self] _ in self?.listeZeigen(self?.fahrerListe) },
+        ]
+        vorlage.trailingNavigationBarButtons = [
+            CPBarButton(title: "Fahrten") { [weak self] _ in self?.listeZeigen(self?.fahrtenListe) },
+        ]
+        let rein = CPMapButton { [weak self] _ in self?.kartenSteuerung.zoomen(1) }
+        rein.image = DispoCarPlayBild.kartenKnopf("plus")
+        let raus = CPMapButton { [weak self] _ in self?.kartenSteuerung.zoomen(-1) }
+        raus.image = DispoCarPlayBild.kartenKnopf("minus")
+        let sprechen = CPMapButton { [weak self] _ in
+            // Liegt ein Hinweis offen, erst den beantworten.
+            guard let self, let s = self.sprache, !s.laeuft, self.steuerung?.presentedTemplate == nil else { return }
+            // Offene Liste oder Ansicht schliessen, der Assistent liegt ueber der Karte.
+            if let st = self.steuerung, st.templates.count > 1 { st.popToRootTemplate(animated: false, completion: CarPlayFehler.melden) }
+            self.offen = nil
+            Task { await s.starten() }
+        }
+        sprechen.image = DispoCarPlayBild.balken
+        let alle = CPMapButton { [weak self] _ in self?.kartenSteuerung.einpassen += 1 }
+        alle.image = DispoCarPlayBild.kartenKnopf("person.2.fill")
+        vorlage.mapButtons = [sprechen, rein, raus, alle]
+        vorlage.automaticallyHidesNavigationBar = false
+    }
+
+    /// Liste ueber der Karte oeffnen (vorher offene Liste oder Einzelansicht schliessen).
+    private func listeZeigen(_ liste: CPListTemplate?) {
+        guard let liste, let steuerung else { return }
+        offen = nil
+        if steuerung.templates.count > 1 {
+            steuerung.popToRootTemplate(animated: false) { _, _ in steuerung.pushTemplate(liste, animated: true, completion: CarPlayFehler.melden) }
+        } else {
+            steuerung.pushTemplate(liste, animated: true, completion: CarPlayFehler.melden)
+        }
+    }
+
+    func mapTemplateDidShowPanningInterface(_ mapTemplate: CPMapTemplate) {}
+    func mapTemplateDidDismissPanningInterface(_ mapTemplate: CPMapTemplate) {}
+
+    func mapTemplate(_ mapTemplate: CPMapTemplate, panWith direction: CPMapTemplate.PanDirection) {
+        kartenSteuerung.verschieben(direction)
+    }
+
+    func mapTemplateDidBeginPanGesture(_ mapTemplate: CPMapTemplate) {
+        kartenSteuerung.gesteBeginnt()
+    }
+
+    func mapTemplate(_ mapTemplate: CPMapTemplate, didUpdatePanGestureWithTranslation translation: CGPoint, velocity: CGPoint) {
+        kartenSteuerung.gesteBewegt(translation)
+    }
+
+    func mapTemplate(_ mapTemplate: CPMapTemplate, didEndPanGestureWithVelocity velocity: CGPoint) {
+        kartenSteuerung.gesteEndet()
     }
 
     private func achtungFuellen() {
@@ -284,9 +401,9 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
             CarPlayFehler.melden(ok, fehler)
             if ok { Task { @MainActor in dann() } }
         }
-        // Liegt schon eine Ansicht oben, ersetzen statt stapeln.
-        if steuerung.templates.count > 1 {
-            steuerung.popToRootTemplate(animated: false) { _, _ in steuerung.pushTemplate(vorlage, animated: true, completion: fertig) }
+        // Liegt schon eine Einzelansicht oben, ersetzen statt stapeln. Eine Liste bleibt darunter.
+        if steuerung.topTemplate is CPInformationTemplate {
+            steuerung.popTemplate(animated: false) { _, _ in steuerung.pushTemplate(vorlage, animated: true, completion: fertig) }
         } else {
             steuerung.pushTemplate(vorlage, animated: true, completion: fertig)
         }
@@ -514,22 +631,20 @@ final class DispoCarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate {
                                                                 fahrer: ["Gregor Lang · vor Ort", "Stefano Spandri · mit Gast"])])
     }()
 
-    /// Zeigt nacheinander die Reiter, eine Fahrt, einen Fahrer und den Hinweis auf eine neue Warnung.
+    /// Zeigt nacheinander die Listen, eine Fahrt, einen Fahrer und den Hinweis auf eine neue Warnung.
     private func beispielDurchlauf() {
         Task {
             while steuerung != nil {
                 try? await Task.sleep(for: .seconds(6))
-                reiter?.select(fahrerListe)
+                listeZeigen(fahrerListe)
                 try? await Task.sleep(for: .seconds(6))
                 fahrerZeigen("f1")
                 try? await Task.sleep(for: .seconds(6))
-                steuerung?.popToRootTemplate(animated: false, completion: CarPlayFehler.melden)
-                reiter?.select(fahrtenListe)
+                listeZeigen(fahrtenListe)
                 try? await Task.sleep(for: .seconds(6))
                 fahrtZeigen("j3")
                 try? await Task.sleep(for: .seconds(6))
                 steuerung?.popToRootTemplate(animated: false, completion: CarPlayFehler.melden)
-                reiter?.select(achtungListe)
                 hinweis(Self.beispielStand.warnungen[0])
                 try? await Task.sleep(for: .seconds(6))
                 steuerung?.dismissTemplate(animated: false, completion: CarPlayFehler.melden)
@@ -636,8 +751,9 @@ struct DispoCarPlayStand {
         return String(f.startZeit.prefix(5))
     }
 
+    /// Storniert wie EDITOR_STORNIERT_STATUS im Web (20.11.: refused stand sonst bis Mitternacht als Offen).
     private static func beendet(_ jobStatus: String) -> Bool {
-        ["done", "completed", "arrived", "beendet", "archived", "cancelled", "canceled", "storniert"].contains(jobStatus.lowercased())
+        ["done", "completed", "arrived", "beendet", "archived", "cancelled", "canceled", "refused", "storniert", "stoniert"].contains(jobStatus.lowercased())
     }
 
     private static func statusText(_ jobStatus: String) -> String {
@@ -816,9 +932,34 @@ enum DispoCarPlayBild {
         UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(weight: .semibold))
     }
 
+    /// Farbe wie die Fahrer-Pins der Karte: Rot aktiv, Lime im Dienst ohne Fahrt, Gruen frei.
+    static func farbe(_ zustand: FahrerZustand) -> UIColor {
+        zustand == .aktiv ? rot : (zustand == .inaktiv ? lime : gruen)
+    }
+
+    /// TRISAR-Balken in Lime (Sprechen-Knopf am Handy, Hoehen aus der Aufnahme „TRISAR“).
+    static let balken: UIImage = {
+        let hoehen: [CGFloat] = [0.3, 0.38, 0.97, 1, 0.82, 0.5, 0.68, 0.44, 0.16]
+        let groesse = CGSize(width: 26, height: 22)
+        let breite: CGFloat = 2, abstand: CGFloat = 1
+        let gesamt = CGFloat(hoehen.count) * breite + CGFloat(hoehen.count - 1) * abstand
+        return UIGraphicsImageRenderer(size: groesse).image { _ in
+            lime.setFill()
+            for (i, h) in hoehen.enumerated() {
+                let hh = max(3, h * groesse.height)
+                let x = (groesse.width - gesamt) / 2 + CGFloat(i) * (breite + abstand)
+                UIBezierPath(roundedRect: CGRect(x: x, y: (groesse.height - hh) / 2, width: breite, height: hh), cornerRadius: 1).fill()
+            }
+        }.withRenderingMode(.alwaysOriginal)
+    }()
+
+    static func kartenKnopf(_ name: String) -> UIImage? {
+        UIImage(systemName: name, withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold))
+    }
+
     /// Farbiger Punkt wie die Fahrer-Pins der Karte: Rot aktiv, Lime im Dienst ohne Fahrt, Gruen frei.
     static func punkt(_ zustand: FahrerZustand) -> UIImage {
-        let farbe = zustand == .aktiv ? rot : (zustand == .inaktiv ? lime : gruen)
+        let farbe = farbe(zustand)
         let groesse = CPListItem.maximumImageSize
         return UIGraphicsImageRenderer(size: groesse).image { _ in
             let d = groesse.height * 0.42

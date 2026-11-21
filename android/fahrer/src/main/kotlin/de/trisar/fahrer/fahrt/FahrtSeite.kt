@@ -87,6 +87,8 @@ private enum class FahrtBlatt { BEENDEN, STORNIEREN, NOTIZ, SCHILD }
 private val ENDE = setOf("done", "completed", "arrived", "beendet", "cancelled", "canceled", "refused", "storniert")
 private val UNTERWEGS = setOf("at_pickup", "beim_pickup", "beim pickup", "in_progress", "started", "unterwegs", "active", "ongoing", "on_trip", "done", "completed", "arrived")
 private val LAEUFT = setOf("in_progress", "unterwegs", "started", "on_trip", "ongoing", "active")
+// Ab „Beim Gast“ fuehrt die Navigation zum Ziel (20.11.: eigene Route schon beim Gast starten).
+private val ZUM_ZIEL = LAEUFT + setOf("at_pickup", "pickup", "beim_pickup", "beim pickup")
 private val SCHNAPP = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 /** Antwort des Fahrers steht noch aus (wie Fahrt.offen in der Fahrtenliste). */
 private val OFFEN_STATUS = setOf("pending", "new", "offered", "requested", "assigned_pending")
@@ -225,19 +227,32 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
         val ziel = zielA.await()
         val fahrer = fahrerOrt
         var neu = KartenInhalt(ziel = ziel, fahrer = fahrer, fahrerNummer = details.fahrerNummer)
+        // Gespeicherte Route vom Server sofort zeigen, OSRM bessert danach nach (20.11.: Linie kam sehr spaet).
+        if (karte.fahrt.size < 2 && details.tomtomFahrt.size >= 2) {
+            karte = karte.copy(
+                ziel = ziel, fahrer = fahrer, fahrt = details.tomtomFahrt,
+                fahrtMinuten = details.fahrzeitMin.takeIf { it > 0 },
+                abholort = if (!unterwegs) abhol else karte.abholort,
+            )
+        }
         // Blaue Fahrt: bei Gast an Bord ab Fahrer, sonst ab Abholort.
         val fahrtStart = (if (unterwegs) fahrer else null) ?: abhol
         if (fahrtStart != null && ziel != null) {
             val s = Routen.strecke(ctx, fahrtStart, ziel)
-            // OSRM ausgefallen: gespeicherte TomTom-Linie zeigen (Fahrzeit dann aus details.fahrzeitMin).
-            neu = neu.copy(fahrt = if (s.punkte.size >= 2) s.punkte else details.tomtomFahrt, fahrtMinuten = s.minuten)
-            fahrtMinutenLive = s.minuten
+            if (!s.notloesung || details.tomtomFahrt.size < 2) {
+                neu = neu.copy(fahrt = s.punkte, fahrtMinuten = s.minuten)
+                fahrtMinutenLive = s.minuten
+            } else {
+                // OSRM ausgefallen: gespeicherte TomTom-Linie statt Luftlinie (Fahrzeit aus details.fahrzeitMin).
+                neu = neu.copy(fahrt = details.tomtomFahrt, fahrtMinuten = details.fahrzeitMin.takeIf { it > 0 } ?: s.minuten)
+                fahrtMinutenLive = null
+            }
         }
         if (!unterwegs) neu = neu.copy(abholort = abhol)
         // Gelbe Anfahrt vom Fahrer zum Abholort, solange der Gast noch nicht eingestiegen ist.
         if (!unterwegs && fahrer != null && abhol != null) {
             val s = Routen.strecke(ctx, fahrer, abhol)
-            val anfahrt = if (s.punkte.size >= 2) s.punkte else details.tomtomAnfahrt
+            val anfahrt = if (s.notloesung && details.tomtomAnfahrt.size >= 2) details.tomtomAnfahrt else s.punkte
             anfahrtVoll = anfahrt
             neu = neu.copy(anfahrt = anfahrt, anfahrtMinuten = s.minuten)
         } else {
@@ -413,7 +428,7 @@ fun FahrtSeite(fahrtID: String, fahrerID: String, zurueck: () -> Unit) {
 
         // Eigene Navigation: vor der Abholung zum Abholort, mit Gast an Bord die Route der Fahrt.
         if (naviOffen && fahrt != null) {
-            NavigationSeite(fahrtID, LAEUFT.contains(fahrt.status.lowercase())) { naviOffen = false }
+            NavigationSeite(fahrtID, ZUM_ZIEL.contains(fahrt.status.lowercase())) { naviOffen = false }
         }
     }
 }

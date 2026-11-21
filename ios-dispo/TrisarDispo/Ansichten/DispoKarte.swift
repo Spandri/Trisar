@@ -33,6 +33,10 @@ struct DispoKarte: UIViewRepresentable {
     var zugang: KartenZugang? = nil
     /// Fahrer auf Dienstreise (14.11.): Strecke offen/gefahren und Fahrzeug-Marker statt des Pins.
     var reisen: [ReiseKartenEintrag] = []
+    /// CarPlay (20.11.): eigener Rand beim Einpassen aller Fahrer (Handy: Platz fuer Leiste und Blatt).
+    var einpassRand: UIEdgeInsets? = nil
+    /// Ausschnitt fuers naechste Oeffnen merken. CarPlay aus, sonst springt die Handy-Karte mit.
+    var kameraMerken = true
 
     static let stil = URL(string: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json")!
     private static let kameraSchluessel = "admin_karten_camera_v1"
@@ -321,6 +325,7 @@ struct DispoKarte: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
             gruppenPlanen()
+            guard stand?.kameraMerken ?? true else { return }
             let m = mapView.centerCoordinate
             UserDefaults.standard.set([m.latitude, m.longitude, mapView.zoomLevel], forKey: DispoKarte.kameraSchluessel)
         }
@@ -565,12 +570,13 @@ struct DispoKarte: UIViewRepresentable {
 
         /// fitAllDriverMarkers: oben bleiben Zurueck, Filter und Statusleiste frei.
         private func alleEinpassen() {
+            let r = stand?.einpassRand ?? UIEdgeInsets(top: 200, left: 24, bottom: 190, right: 24)
             if let b = letzterBereich, b.count >= 3 {
-                einpassen(b, oben: 200, rechts: 24, unten: 190, links: 24)
+                einpassen(b, oben: r.top, rechts: r.right, unten: r.bottom, links: r.left)
                 return
             }
             // Nicht naeher als ein Stadtviertel (Web: ALLE_FAHRER_MAX_ZOOM).
-            einpassen(letzteListe.map(\.ort), oben: 200, rechts: 24, unten: 190, links: 24, maxZoom: 13.5)
+            einpassen(letzteListe.map(\.ort), oben: r.top, rechts: r.right, unten: r.bottom, links: r.left, maxZoom: 13.5)
         }
 
         /// Umriss des eigenen Bereichs: geschlossene Lime-Linie, 2 breit.

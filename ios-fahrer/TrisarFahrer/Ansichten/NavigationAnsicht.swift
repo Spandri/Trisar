@@ -37,7 +37,7 @@ struct NavigationAnsicht: View {
         #if DEBUG
         if NaviFuehrung.testLauf { return ProcessInfo.processInfo.environment["NAVI_TEST_ANFAHRT"] == nil }
         #endif
-        return NaviFuehrung.gastAnBord(fahrt?.status)
+        return NaviFuehrung.zumZiel(fahrt?.status)
     }
 
     var body: some View {

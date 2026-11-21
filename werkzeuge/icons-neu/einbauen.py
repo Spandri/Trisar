@@ -39,6 +39,11 @@ def svg(teile, farbe):
             f'stroke-miterlimit="10">{"".join(teile)}</g>\n</svg>\n')
 
 
+def svg_figma(inhalt, farbe):
+    return (f'<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">\n{MARKE}\n'
+            f'{inhalt.replace("{f}", farbe)}\n</svg>\n')
+
+
 def schreiben(pfad, inhalt):
     if os.path.exists(pfad) and MARKE not in open(pfad).read():
         raise SystemExit(f"Fremde Datei, nicht ueberschrieben: {pfad}")
@@ -50,12 +55,14 @@ def schreiben(pfad, inhalt):
 def main():
     zahl = 0
     liste = []
-    for kurz, teile in icons.ICONS.items():
+    alle = [(k, lambda farbe, t=t: svg(t, farbe)) for k, t in icons.ICONS.items()]
+    alle += [(k, lambda farbe, t=t: svg_figma(t, farbe)) for k, t in icons.FIGMA.items()]
+    for kurz, zeichnen in alle:
         name = dateiname(kurz)
         liste.append(f"{kurz}\t{name}")
         for ordner, endung, farbe in FARBEN:
             datei = f"{name}{endung}.svg"
-            inhalt = svg(teile, farbe)
+            inhalt = zeichnen(farbe)
             for web in WEB:
                 schreiben(os.path.join(WURZEL, web, ordner, datei), inhalt)
             for ios in IOS:
@@ -70,7 +77,7 @@ def main():
             zahl += 1
     with open(os.path.join(HIER, "namen.txt"), "w") as f:
         f.write("\n".join(liste) + "\n")
-    print(zahl, "Varianten von", len(icons.ICONS), "Icons verteilt")
+    print(zahl, "Varianten von", len(alle), "Icons verteilt")
 
 
 if __name__ == "__main__":

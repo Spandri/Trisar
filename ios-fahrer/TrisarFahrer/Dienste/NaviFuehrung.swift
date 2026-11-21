@@ -294,8 +294,9 @@ final class NaviFuehrung: NSObject, ObservableObject {
     }
 
     /// Gast an Bord ("unterwegs"): dann gilt die Route der Fahrt, davor nur die Anfahrt zum Abholort.
-    static func gastAnBord(_ status: String?) -> Bool {
-        ["in_progress", "unterwegs", "started", "on_trip", "ongoing", "active"].contains((status ?? "").lowercased())
+    /// Ab „Beim Gast“ fuehrt die Navigation zum Ziel (20.11.: eigene Route schon beim Gast starten).
+    static func zumZiel(_ status: String?) -> Bool {
+        ["at_pickup", "pickup", "beim_pickup", "beim pickup", "in_progress", "unterwegs", "started", "on_trip", "ongoing", "active"].contains((status ?? "").lowercased())
     }
 
     // MARK: Start und Ende

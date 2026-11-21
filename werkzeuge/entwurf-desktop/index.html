@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRISAR Dispo am PC, Entwurf</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--lime:#E3F654;--gruen:#59BE80;--rot:#FF6F63;--grau:#868687;--blau:#0059FF;--f1:#0c0c0c;--f2:#171717;--f3:#242525;--linie:#2c2c2c}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#000;color:#fff;font-family:"Space Grotesk",sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+kbd{font:500 10px "Space Grotesk";border:1px solid currentColor;padding:1px 5px;opacity:.6;letter-spacing:.5px}
+
+/* Umschalter des Entwurfs, gehoert nicht zur App */
+.wahl{height:40px;display:flex;align-items:center;gap:6px;padding:0 12px;background:#1b1b1b;border-bottom:1px solid #333;font-size:12px;color:#aaa}
+.wahl b{color:#fff;margin-right:10px;font-weight:500}
+.wahl button{padding:5px 12px;border:1px solid #444;color:#ccc}
+.wahl button.an{background:#fff;color:#000;border-color:#fff}
+
+.app{height:calc(100% - 40px);display:flex;background:radial-gradient(900px 600px at 0 0,#0048CF 0,#001a52 30%,#000 62%)}
+.seite{flex:1;min-width:0;display:none}
+.seite.an{display:flex}
+
+/* Leiste links */
+.leiste{width:76px;flex:none;display:flex;flex-direction:column;align-items:center;padding:18px 0 14px;gap:6px;background:rgba(0,0,0,.55);border-right:1px solid var(--linie)}
+.leiste .marke{width:34px;margin-bottom:16px}
+.leiste a{width:60px;padding:9px 0 7px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--grau);letter-spacing:.2px;cursor:pointer;border-radius:14px}
+.leiste a img{height:22px}
+.leiste a:hover{background:#1d1c1d}
+.leiste a.an{color:var(--lime);background:#1d1c1d}
+.leiste .unten{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:10px}
+.leiste .neu{width:48px;height:48px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#2a6bff,#0033a8);display:grid;place-items:center;font-size:26px;font-weight:300;box-shadow:0 0 0 2px #0a1d55}
+.leiste .bild{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#7c6a58,#3c3129);border:1px solid #555}
+
+/* Spalten */
+.spalte{flex:none;display:flex;flex-direction:column;min-height:0;background:rgba(0,0,0,.72);border-right:1px solid var(--linie)}
+.spalte.rechts{border-right:0;border-left:1px solid var(--linie)}
+.kopf{padding:18px 18px 12px}
+.kopf h1{margin:0;font-size:30px;line-height:1;font-weight:700;color:var(--lime);letter-spacing:-.5px}
+.zeile{display:flex;align-items:center;gap:8px}
+.zw{justify-content:space-between}
+.tag{display:flex;align-items:center;gap:10px;font-size:13px;color:#ddd}
+.tag button{width:26px;height:26px;border:1px solid #444;border-radius:50%;color:var(--lime)}
+.reiter{display:flex;border:1.5px solid var(--lime);margin-top:14px}
+.reiter button{flex:1;padding:8px 0;font-size:13px;font-weight:500;color:var(--lime)}
+.reiter button.an{background:var(--lime);color:#000}
+.reiter button span{opacity:.6;margin-left:4px;font-weight:400}
+.suche{margin-top:10px;display:flex;align-items:center;justify-content:space-between;border:1.5px solid var(--lime);padding:9px 12px;font-size:13px;color:var(--lime)}
+.suche span{opacity:.75}
+.marken{display:flex;gap:6px;margin-top:10px}
+.marke2{padding:5px 10px;font-size:12px;font-weight:500;border:1.5px solid #fff}
+.marke2.g{border-color:var(--gruen);color:var(--gruen)}
+.marke2.r{border-color:var(--rot);color:var(--rot)}
+.marke2.l{border-color:var(--lime);color:var(--lime)}
+.rollen{flex:1;overflow:auto;padding:0 18px 18px}
+.rollen::-webkit-scrollbar{width:8px}.rollen::-webkit-scrollbar-thumb{background:#333}
+
+/* Fahrt in der Liste */
+.stunde{font-size:11px;color:var(--grau);letter-spacing:1px;margin:14px 0 6px;display:flex;align-items:center;gap:8px}
+.stunde:after{content:"";flex:1;height:1px;background:var(--linie)}
+.fahrt{position:relative;display:grid;grid-template-columns:58px 1fr auto;gap:10px;padding:10px 12px 10px 14px;background:var(--f2);border:1.5px solid transparent;margin-bottom:6px;cursor:pointer}
+.fahrt:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--st,#555)}
+.fahrt:hover{border-color:#444}
+.fahrt.an{border-color:var(--lime);background:#1f2110}
+.fahrt .zeit{font-size:19px;font-weight:700;letter-spacing:-.3px;line-height:1.1}
+.fahrt .flug{font-size:10.5px;color:var(--grau);margin-top:3px}
+.fahrt .gast{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fahrt .weg{font-size:11.5px;color:#b7b7b7;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fahrt .weg i{color:var(--lime);font-style:normal;margin:0 4px}
+.fahrt .wer{text-align:right;font-size:11.5px;color:#b7b7b7;line-height:1.35}
+.fahrt .wer b{display:block;color:#fff;font-weight:500;font-size:12.5px}
+.fahrt .offen{color:var(--rot);font-weight:700}
+.zu{font-size:10px;font-weight:700;color:#000;background:var(--rot);padding:1px 5px;margin-left:6px}
+
+/* Karte */
+.karte{flex:1;min-width:0;position:relative;background:#0b0b0b;overflow:hidden}
+.karte svg.grund{position:absolute;inset:0;width:100%;height:100%}
+.oben{position:absolute;top:14px;left:14px;right:14px;display:flex;align-items:flex-start;gap:10px;pointer-events:none}
+.oben>*{pointer-events:auto}
+.legende{display:flex;gap:14px;background:#111;padding:9px 12px;font-size:12px;font-weight:500;border-radius:10px}
+.legende i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.legende span{color:var(--grau);font-weight:400}
+.befehl{margin:0 auto;width:min(420px,40%);display:flex;justify-content:space-between;align-items:center;background:#111;border:1.5px solid var(--lime);padding:9px 14px;font-size:13px;color:var(--lime)}
+.rund{display:flex;gap:8px}
+.rund button{width:40px;height:40px;border-radius:50%;background:var(--lime);display:grid;place-items:center}
+.rund img{height:20px}
+.pin{position:absolute;transform:translate(-50%,-100%);width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#000;border:2px solid #000;cursor:pointer}
+.pin:after{content:"";position:absolute;bottom:-6px;left:50%;margin-left:-4px;border:4px solid transparent;border-top:6px solid var(--c)}
+.pin.gew{outline:3px solid var(--lime);outline-offset:2px;z-index:3}
+.schild{position:absolute;transform:translate(-50%,-100%);background:#111;border:1px solid #333;padding:4px 8px;font-size:11px;white-space:nowrap}
+.schild b{color:var(--lime)}
+.menue{position:absolute;width:210px;background:#111;border:1.5px solid var(--lime);font-size:13px;z-index:5}
+.menue div{padding:9px 12px;display:flex;justify-content:space-between;align-items:center}
+.menue div:hover{background:var(--lime);color:#000}
+.menue .kopfz{font-size:11px;color:var(--grau);border-bottom:1px solid var(--linie)}
+.menue .kopfz:hover{background:none;color:var(--grau)}
+.menue .weg2{color:var(--rot)}
+.zoomk{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;background:#111;border-radius:10px;overflow:hidden}
+.zoomk button{width:36px;height:36px;font-size:18px;color:#ddd}
+.zoomk button+button{border-top:1px solid var(--linie)}
+
+/* Detail rechts */
+.dkopf{padding:16px 18px 0}
+.gross{font-size:34px;font-weight:700;color:var(--lime);letter-spacing:-.8px;line-height:1}
+.status{display:inline-block;font-size:11px;font-weight:700;color:#000;padding:3px 8px}
+.klein{font-size:11px;color:var(--grau);letter-spacing:.4px}
+.block{padding:12px 0;border-top:1px solid var(--linie)}
+.block .wert{font-size:15px;font-weight:500;margin-top:3px}
+.weg3{display:grid;grid-template-columns:16px 1fr auto;gap:4px 10px;align-items:center;font-size:14px}
+.weg3 .p{width:10px;height:10px;border:2px solid var(--lime);border-radius:50%}
+.weg3 .p.z{background:var(--lime);border-radius:0}
+.weg3 .l{width:2px;height:18px;background:var(--lime);margin-left:4px;opacity:.5}
+.weg3 time{font-size:12px;color:#b7b7b7}
+.fkarte{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;color:#1d1c1d;margin-top:6px}
+.fkarte b{font-size:20px;font-weight:700;letter-spacing:-.4px;display:block}
+.fkarte small{font-size:11px;font-weight:500}
+.fkarte .nr{font-weight:700;font-size:14px;text-align:right}
+.knopf{display:flex;justify-content:space-between;align-items:center;width:100%;padding:12px 14px;font-size:14px;font-weight:500;background:var(--lime);color:#000;border:1.5px solid var(--lime)}
+.knopf.leer{background:none;color:var(--lime)}
+.knopf.rot{background:none;color:var(--rot);border-color:var(--rot)}
+.fuss{padding:12px 18px 16px;display:grid;gap:8px;border-top:1px solid var(--linie)}
+.fuss.zwei{grid-template-columns:1fr 1.4fr}
+.balken{height:6px;background:#2a2a2a;margin-top:8px}.balken i{display:block;height:100%;background:var(--lime)}
+
+/* KI */
+.ki{flex:1;overflow:auto;padding:14px 18px;display:flex;flex-direction:column;gap:10px;font-size:13.5px;line-height:1.4}
+.ki .ich{align-self:flex-end;max-width:85%;background:var(--lime);color:#000;padding:9px 12px}
+.ki .er{align-self:flex-start;max-width:92%;background:var(--f2);padding:10px 12px;border-left:3px solid var(--blau)}
+.ki .kach{display:grid;gap:6px;margin-top:8px}
+.ki .kach div{border:1.5px solid var(--lime);padding:8px 10px;display:flex;justify-content:space-between;color:var(--lime);cursor:pointer}
+.ki .kach div:hover{background:var(--lime);color:#000}
+.eingabe{margin:0 18px 16px;display:flex;align-items:center;justify-content:space-between;border:1.5px solid var(--lime);padding:11px 12px;color:var(--lime);font-size:13.5px}
+.eingabe span{opacity:.7}
+.mik{width:30px;height:30px;border-radius:50%;background:var(--lime);display:grid;place-items:center}
+
+/* Formular */
+.form{padding:0 20px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.feld{border:1.5px solid var(--lime);padding:9px 12px;min-height:54px;display:flex;flex-direction:column;justify-content:center;position:relative;cursor:text}
+.feld.breit{grid-column:1/-1}
+.feld label{font-size:11px;color:var(--lime);opacity:.75}
+.feld .w{font-size:15px;font-weight:500;margin-top:2px}
+.feld .w.leer{color:#555;font-weight:400}
+.feld.fokus{box-shadow:0 0 0 2px rgba(227,246,84,.35)}
+.feld .re{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--lime);font-size:12px}
+.vorschlag{grid-column:1/-1;margin-top:-10px;border:1.5px solid var(--lime);border-top:0;background:#0d0d0d}
+.vorschlag div{display:grid;grid-template-columns:10px 1fr auto auto;gap:10px;align-items:center;padding:8px 12px;font-size:13.5px}
+.vorschlag div.an{background:var(--lime);color:#000}
+.vorschlag i{width:8px;height:8px;border-radius:50%}
+.vorschlag small{font-size:11.5px;opacity:.7}
+.notiz{grid-column:1/-1;background:#fff;color:#000;padding:10px 12px;min-height:84px}
+.notiz b{font-size:13px}.notiz p{margin:4px 0 0;color:#aaa;font-size:13px}
+.gaeste{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.gaeste span{background:var(--f3);padding:3px 8px;font-size:12.5px}
+
+/* Dienste planen */
+.plan{flex:1;min-width:0;display:flex;flex-direction:column;background:rgba(0,0,0,.6)}
+.plan .kopf{padding:20px 24px 10px}
+.diagramm{margin:0 24px;border:1px solid var(--linie);background:rgba(0,0,0,.5);padding:10px 14px 4px}
+.diagramm .leg{display:flex;gap:16px;font-size:11.5px;color:#ccc}
+.diagramm .leg i{display:inline-block;width:14px;height:3px;margin-right:6px;vertical-align:middle}
+.raster{flex:1;overflow:auto;margin:14px 24px 20px;border:1px solid var(--linie)}
+table{border-collapse:collapse;width:100%;font-size:12.5px;table-layout:fixed}
+th,td{border-bottom:1px solid var(--linie);border-right:1px solid var(--linie);padding:0;height:44px}
+thead th{position:sticky;top:0;background:#0d0d0d;font-weight:500;color:#ccc;height:38px;z-index:2}
+thead th.heute{color:var(--lime)}
+thead th small{color:var(--grau);font-weight:400;margin-left:4px}
+td.name,th.name{width:230px;text-align:left;padding:0 12px;position:sticky;left:0;background:#0d0d0d;z-index:1}
+td.name{display:flex;align-items:center;gap:10px;height:44px;border-right:1px solid var(--linie)}
+td.name b{font-weight:500;font-size:13.5px}
+td.name small{color:var(--grau);margin-left:auto;font-size:11px}
+.kast{width:16px;height:16px;border:1.5px solid var(--lime);flex:none;display:grid;place-items:center;font-size:11px;color:#000}
+.kast.an{background:var(--lime)}
+td.z{padding:4px;cursor:pointer;vertical-align:middle}
+td.z:hover{background:#151515}
+td.z.gew{background:rgba(227,246,84,.12);outline:1.5px solid var(--lime);outline-offset:-1.5px}
+.dienst{height:34px;padding:0 8px;display:flex;align-items:center;justify-content:space-between;font-weight:500;font-size:12px;border:1.5px solid var(--gruen);color:var(--gruen)}
+.dienst.a{border-style:dashed;border-color:var(--lime);color:var(--lime)}
+.dienst.x{border-color:var(--rot);color:var(--rot);text-decoration:line-through}
+.dienst.neu{background:var(--lime);border-color:var(--lime);color:#000}
+.summe td{position:sticky;bottom:0;background:#0d0d0d;text-align:center;color:#ccc;height:34px}
+.summe td.knapp{color:var(--rot);font-weight:700}
+.rad{display:flex;border:1.5px solid var(--lime)}
+.rad button{flex:1;padding:8px 0;font-size:13px;color:var(--lime)}
+.rad button.an{background:var(--lime);color:#000;font-weight:500}
+</style>
+</head>
+<body>
+<div class="wahl"><b>Entwurf Dispo am PC</b>
+  <button data-s="s1" class="an">1 Karte und Fahrten</button>
+  <button data-s="s2">2 Fahrt erstellen</button>
+  <button data-s="s3">3 Dienste planen</button>
+</div>
+
+<div class="app">
+  <nav class="leiste">
+    <img class="marke" src="icon/_Icon_Lime/Arrow_Trisar_Icons_01_Lime.svg" alt="">
+    <a data-n="home"><img src="icon/_Icon_Grau/House_Nav_Trisar_01_grau.svg">Home</a>
+    <a data-n="s1" class="an"><img src="icon/_Icon_Lime/Pin_Nav_Trisar_Icons_01_Lime.svg">Karte</a>
+    <a data-n="fahrer"><img src="icon/_Icon_Grau/Person_Trisar_Icons_01_grau.svg">Fahrer</a>
+    <a data-n="fzg"><img src="icon/_Icon_Grau/Vehicle_Nav_Trisar_01_grau.svg">Fahrzeuge</a>
+    <a data-n="s3"><img src="icon/_Icon_Grau/Kalender_Trisar_Icons_01_grau.svg">Dienste</a>
+    <a data-n="plan"><img src="icon/_Icon_Grau/KI_Trisar_Icons_01_grau.svg">Planung</a>
+    <a data-n="ki"><img src="icon/_Icon_Grau/KI_Assistent_Trisar_Icons_01_grau.svg">Assistent</a>
+    <div class="unten">
+      <button class="neu" id="neu" title="Fahrt erstellen">+</button>
+      <div class="bild"></div>
+    </div>
+  </nav>
+
+  <!-- 1 Karte und Fahrten -->
+  <section class="seite an" id="s1">
+    <div class="spalte" style="width:400px">
+      <div class="kopf">
+        <div class="zeile zw"><h1>Fahrten</h1>
+          <div class="tag"><button>‹</button>Sa, 21.11.<button>›</button></div></div>
+        <div class="reiter"><button class="an">Ankünfte<span>18</span></button><button>Abfahrten<span>14</span></button><button>Alle<span>32</span></button></div>
+        <div class="suche"><span>Suchen</span><kbd>/</kbd></div>
+        <div class="marken"><span class="marke2">Laufend 6</span><span class="marke2 g">Geplant 21</span><span class="marke2 r">Ohne Fahrer 3</span><span class="marke2 l">Filter</span></div>
+      </div>
+      <div class="rollen" id="liste"></div>
+    </div>
+
+    <div class="karte" id="k1">
+      <div class="oben">
+        <div class="legende"><div><i style="background:var(--rot)"></i>Aktiv <span>(40)</span></div><div><i style="background:var(--lime)"></i>Inaktiv <span>(50)</span></div><div><i style="background:var(--gruen)"></i>Frei <span>(11)</span></div></div>
+        <div class="befehl"><span>Suchen oder Assistent fragen</span><kbd>Strg K</kbd></div>
+        <div class="rund"><button><img src="icon/_Icon_Schwarz/Bereich_Kreis_Trisar_Icons_01.svg"></button><button><img src="icon/_Icon_Schwarz/Auswahl_Leer.svg"></button><button style="font-size:18px;color:#000">☰</button></div>
+      </div>
+      <div class="menue" style="left:57%;top:45%">
+        <div class="kopfz">#46 Zeynep Arslan · M-D 244C</div>
+        <div>Fahrt zuweisen<kbd>Z</kbd></div>
+        <div>Anrufen</div>
+        <div>Nachricht</div>
+        <div>Dienste planen</div>
+        <div class="weg2">Dienst beenden</div>
+      </div>
+      <div class="zoomk"><button>+</button><button>−</button></div>
+    </div>
+
+    <div class="spalte rechts" style="width:380px">
+      <div class="dkopf"><div class="reiter" style="margin:0"><button class="an" data-r="rFahrt">Fahrt</button><button data-r="rKi">Assistent</button></div></div>
+      <div id="rFahrt" style="display:flex;flex-direction:column;flex:1;min-height:0">
+        <div class="rollen" style="padding-top:16px">
+          <div class="zeile zw"><div class="gross">14:35</div><span class="status" style="background:var(--rot)">UNTERWEGS</span></div>
+          <div class="klein" style="margin:6px 0 12px">LH 2478 aus Hamburg · gelandet 14:21 · Gepäck 4</div>
+          <div class="block"><div class="klein">Fahrgäste</div><div class="wert">Dr. Katharina Brandt</div><div style="font-size:13px;color:#b7b7b7;margin-top:2px">Jonas Weber · 1 Kind</div></div>
+          <div class="block"><div class="weg3">
+            <span class="p"></span><span>Flughafen München T2</span><time>14:35</time>
+            <span class="l"></span><span></span><span></span>
+            <span class="p z"></span><span>Messe München Eingang West</span><time>15:12</time></div>
+            <div class="balken"><i style="width:38%"></i></div>
+            <div class="zeile zw klein" style="margin-top:6px"><span>23 km übrig</span><span style="color:var(--lime)">Ankunft 15:12 · 4 min früher</span></div>
+          </div>
+          <div class="block"><div class="klein">Fahrer</div>
+            <div class="fkarte" style="background:var(--rot)"><div><b>Zeynep Arslan</b><small>M-D 244C · Mercedes V-Klasse</small></div><div class="nr">#46</div></div></div>
+          <div class="block"><div class="klein">Danach</div><div class="wert">15:40 Messe → Hotel Bayerischer Hof</div></div>
+          <div class="block"><div class="klein">Notizen</div><div style="font-size:13.5px;margin-top:3px;color:#ddd">Kindersitz Gruppe 2 · Treffpunkt Ausgang C</div></div>
+        </div>
+        <div class="fuss"><button class="knopf">Bearbeiten<kbd>E</kbd></button>
+          <div class="fuss zwei" style="padding:0;border:0"><button class="knopf rot">Stornieren</button><button class="knopf leer">Fahrer wechseln<kbd>F</kbd></button></div></div>
+      </div>
+      <div id="rKi" style="display:none;flex-direction:column;flex:1;min-height:0">
+        <div class="ki">
+          <div class="ich">Fahrt morgen 9 Uhr vom Hilton zur Messe für Herrn Okafor</div>
+          <div class="er">Welches Hilton?
+            <div class="kach"><div>Hilton Munich City<span>2,1 km</span></div><div>Hilton Munich Park<span>3,4 km</span></div><div>Hilton Munich Airport<span>29 km</span></div></div></div>
+          <div class="ich">City</div>
+          <div class="er">Angelegt: So 22.11. 09:00 Hilton Munich City → Messe München, Gast Okafor. Fahrer noch offen.
+            <div class="kach"><div>Fahrer vorschlagen<span>→</span></div><div>Fahrt öffnen<span>→</span></div></div></div>
+        </div>
+        <div class="eingabe"><span>Nachricht</span><div class="mik"><img src="icon/_Icon_Schwarz/Arrow-kurz_Trisar_Icons_01.svg" height="14"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 Fahrt erstellen -->
+  <section class="seite" id="s2">
+    <div class="karte" id="k2">
+      <div class="oben"><div class="legende"><div><i style="background:var(--lime)"></i>Route 38 km · 37 min</div><div><i style="background:var(--gruen)"></i>Frei <span>(11)</span></div></div></div>
+      <div class="zoomk"><button>+</button><button>−</button></div>
+    </div>
+    <div class="spalte rechts" style="width:560px">
+      <div class="kopf" style="padding:18px 20px 14px">
+        <div class="zeile zw"><h1>Fahrt erstellen</h1><button style="width:34px;height:34px;border:1px solid #555;border-radius:50%;color:#ccc">✕</button></div>
+        <div class="reiter" style="max-width:340px"><button class="an">Fahrt</button><button>Standby</button><button>Dienstreise</button></div>
+      </div>
+      <div class="rollen" style="padding:0 0 18px"><div class="form">
+        <div class="feld"><label>Datum</label><div class="w">So, 22.11.2026</div></div>
+        <div class="feld"><label>Start Zeit</label><div class="w">09:00</div><span class="re">bis 09:15</span></div>
+        <div class="feld breit"><label>Start</label><div class="w">Hilton Munich City, Rosenheimer Str. 15</div></div>
+        <div class="feld breit"><label>Ziel</label><div class="w">Messe München Eingang West</div><span class="re">+ Stopp</span></div>
+        <div class="feld"><label>Flugnummer</label><div class="w leer">LH 2478</div></div>
+        <div class="feld"><label>Konvoi</label><div class="w leer">Kein Konvoi</div></div>
+        <div class="feld breit fokus"><label>Fahrer</label><div class="w">Ar<span style="border-left:1.5px solid var(--lime);margin-left:1px"></span></div></div>
+        <div class="vorschlag">
+          <div class="an"><i style="background:var(--gruen)"></i><span>Daniela Arnold <small>#58 · M-P 256I</small></span><small>frei</small><small>4 min</small></div>
+          <div><i style="background:var(--rot)"></i><span>Zeynep Arslan <small>#46 · M-D 244C</small></span><small>bis 08:40</small><small>12 min</small></div>
+          <div><i style="background:var(--lime)"></i><span>Marco Armbruster <small>#31 · M-T 201K</small></span><small>Dienst ab 10:00</small><small></small></div>
+        </div>
+        <div class="feld"><label>Danach</label><div class="w leer">Frei</div></div>
+        <div class="feld"><label>aktueller Status</label><div class="w">Geplant</div></div>
+        <div class="feld breit"><label>Fahrgäste</label><div class="gaeste"><span>Chidi Okafor ✕</span><span>Lena Hartmann ✕</span></div></div>
+        <div class="feld"><label>Anonyme Gäste</label><div class="w">0</div></div>
+        <div class="feld"><label>Anzahl Kinder</label><div class="w">0</div></div>
+        <div class="notiz"><b>Notizen</b><p>Schreiben...</p></div>
+      </div></div>
+      <div class="fuss zwei"><button class="knopf leer">Abbrechen<kbd>Esc</kbd></button><button class="knopf">Fahrt speichern<kbd style="opacity:.8">Strg ↵</kbd></button></div>
+    </div>
+  </section>
+
+  <!-- 3 Dienste planen -->
+  <section class="seite" id="s3">
+    <div class="plan">
+      <div class="kopf"><div class="zeile zw"><h1>Dienste planen</h1>
+        <div class="zeile" style="gap:14px"><div class="suche" style="margin:0;width:220px"><span>Fahrer Suchen</span><kbd>/</kbd></div>
+        <div class="tag"><button>‹</button>KW 47 · 16.11. bis 22.11.<button>›</button></div></div></div></div>
+      <div class="diagramm">
+        <div class="zeile zw"><div class="klein" style="color:#fff;font-size:13px;font-weight:500">Planungsübersicht · Sa, 21.11.</div>
+          <div class="leg"><span><i style="background:#45A8B6"></i>Fahrer</span><span><i style="background:var(--gruen)"></i>Fahrten</span><span><i style="background:var(--lime)"></i>Bedarf</span></div></div>
+        <svg viewBox="0 0 1000 110" preserveAspectRatio="none" style="width:100%;height:110px;display:block">
+          <g stroke="#222"><line x1="0" y1="25" x2="1000" y2="25"/><line x1="0" y1="55" x2="1000" y2="55"/><line x1="0" y1="85" x2="1000" y2="85"/></g>
+          <polyline fill="none" stroke="#45A8B6" stroke-width="2" points="0,85 110,40 220,40 330,55 440,55 550,40 660,25 770,25 880,55 1000,70"/>
+          <polyline fill="none" stroke="#59BE80" stroke-width="2" points="0,95 110,50 220,60 330,75 440,60 550,85 660,30 770,10 880,60 1000,60"/>
+          <polyline fill="none" stroke="#E3F654" stroke-width="2" stroke-dasharray="5 4" points="0,95 110,50 220,60 330,75 440,60 550,85 660,30 770,10 830,45 880,60 1000,60"/>
+        </svg>
+        <div class="zeile zw klein" style="padding:2px 0 6px"><span>06 Uhr</span><span>09 Uhr</span><span>12 Uhr</span><span>15 Uhr</span><span>18 Uhr</span><span>21 Uhr</span><span>24 Uhr</span></div>
+      </div>
+      <div class="raster"><table id="tab"></table></div>
+    </div>
+    <div class="spalte rechts" style="width:360px">
+      <div class="kopf"><h1 style="font-size:24px">Dienste planen</h1><div class="klein" style="margin-top:8px;font-size:13px;color:#ddd">3 Fahrer · Sa, 21.11.</div></div>
+      <div class="rollen"><div style="display:grid;gap:10px">
+        <div class="gaeste" style="margin:0 0 4px"><span>Aaron Adler ✕</span><span>Daniela Arnold ✕</span><span>Ivan Babić ✕</span></div>
+        <div class="form" style="padding:0">
+          <div class="feld"><label>Start</label><div class="w">16:00</div></div>
+          <div class="feld"><label>Ende</label><div class="w">23:30</div></div>
+          <div class="feld breit"><label>Pause</label><div class="w">19:30 bis 20:00</div><span class="re">+ Pause</span></div>
+          <div class="feld breit"><label>Treffpunkt</label><div class="w">Messe München Tor 1</div></div>
+          <div class="feld breit"><label>Notiz</label><div class="w leer">Schreiben...</div></div>
+        </div>
+        <div class="klein" style="margin-top:6px">Übernehmen für</div>
+        <div class="rad"><button class="an">Nur Sa</button><button>Sa und So</button><button>Ganze Woche</button></div>
+      </div></div>
+      <div class="fuss zwei"><button class="knopf leer">Abbrechen<kbd>Esc</kbd></button><button class="knopf">Senden (3)<kbd style="opacity:.8">Strg ↵</kbd></button></div>
+    </div>
+  </section>
+</div>
+
+<script>
+// Umschalten der drei Seiten
+const zeige = (id) => {
+  document.querySelectorAll('.seite').forEach((s) => s.classList.toggle('an', s.id === id));
+  document.querySelectorAll('.wahl button').forEach((b) => b.classList.toggle('an', b.dataset.s === id));
+  document.querySelectorAll('.leiste a').forEach((a) => {
+    const an = a.dataset.n === (id === 's2' ? 's1' : id);
+    a.classList.toggle('an', an);
+    const bild = a.querySelector('img');
+    bild.src = an ? bild.src.replace('_Icon_Grau', '_Icon_Lime').replace('_grau', '_Lime') : bild.src.replace('_Icon_Lime', '_Icon_Grau').replace('_Lime', '_grau');
+  });
+};
+document.querySelectorAll('.wahl button').forEach((b) => b.onclick = () => zeige(b.dataset.s));
+document.querySelectorAll('.leiste a').forEach((a) => a.onclick = () => /^s\d$/.test(a.dataset.n) && zeige(a.dataset.n));
+document.getElementById('neu').onclick = () => zeige('s2');
+document.querySelectorAll('[data-r]').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('[data-r]').forEach((x) => x.classList.toggle('an', x === b));
+  ['rFahrt', 'rKi'].forEach((id) => document.getElementById(id).style.display = id === b.dataset.r ? 'flex' : 'none');
+});
+
+// Fahrtenliste
+const R = 'var(--rot)', G = 'var(--gruen)', L = 'var(--lime)', W = '#fff';
+const fahrten = [
+  ['14 UHR'],
+  ['14:10', 'EW 7641', 'Prof. Henrik Sommer', 'MUC T1', 'Hotel Vier Jahreszeiten', 'Aaron Adler', '#36', W],
+  ['14:35', 'LH 2478', 'Dr. Katharina Brandt +2', 'MUC T2', 'Messe Eingang West', 'Zeynep Arslan', '#46', R, 1],
+  ['14:50', 'ICE 623', 'Delegation Nordwind (6)', 'Hauptbahnhof', 'ICM', 'Ivan Babić', '#50', R],
+  ['15 UHR'],
+  ['15:05', 'LH 113', 'Amira Haddad', 'MUC T2', 'Hilton Munich City', '', '', R, 0, 1],
+  ['15:20', 'BA 952', 'Oliver Grant', 'MUC T1', 'Messe Eingang Nord', 'Derya Aksoy', '#72', G],
+  ['15:40', '', 'Dr. Katharina Brandt +2', 'Messe Eingang West', 'Bayerischer Hof', 'Zeynep Arslan', '#46', G],
+  ['15:55', 'AF 1422', 'Camille Laurent', 'MUC T1', 'Sofitel Bayerpost', 'Federica Barbieri', '#95', G],
+  ['16 UHR'],
+  ['16:10', 'LH 2031', 'Team Solvik (4)', 'MUC T2', 'Messe Eingang Ost', '', '', R, 0, 1],
+  ['16:30', '', 'Jonas Reuter', 'Hotel Andaz', 'Messe Eingang West', 'Daniela Arnold', '#58', G],
+  ['16:45', 'KL 1795', 'Sanne de Vries', 'MUC T1', 'Hilton Munich Park', 'Aaron Adler', '#36', G],
+];
+document.getElementById('liste').innerHTML = fahrten.map((f) => f.length === 1
+  ? `<div class="stunde">${f[0]}</div>`
+  : `<div class="fahrt${f[8] ? ' an' : ''}" style="--st:${f[7]}"><div><div class="zeit">${f[0]}</div><div class="flug">${f[1]}</div></div>
+     <div style="min-width:0"><div class="gast">${f[2]}</div><div class="weg">${f[3]}<i>→</i>${f[4]}</div></div>
+     <div class="wer">${f[9] ? '<span class="offen">Ohne Fahrer</span>' : `<b>${f[5]}</b>${f[6]}`}</div></div>`).join('');
+
+// Kartengrund, gezeichnet
+const grund = (route) => `<svg class="grund" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice">
+  <rect width="1000" height="700" fill="#0b0b0b"/>
+  <g fill="#101410"><rect x="560" y="60" width="150" height="90"/><rect x="120" y="430" width="180" height="120"/><rect x="700" y="470" width="120" height="100"/></g>
+  <path d="M430,-10 C450,150 520,260 500,380 S560,600 540,710" fill="none" stroke="#10202e" stroke-width="16"/>
+  <g fill="none" stroke="#1c1c1c" stroke-width="2">
+    ${[60,130,200,270,340,410,480,550,620].map((y, i) => `<path d="M-10,${y + (i % 2) * 20} L1010,${y - 30 + (i % 3) * 25}"/>`).join('')}
+    ${[80,170,260,350,440,530,620,710,800,890].map((x, i) => `<path d="M${x + (i % 2) * 15},-10 L${x - 40 + (i % 3) * 30},710"/>`).join('')}
+  </g>
+  <g fill="none" stroke="#2b2b2b" stroke-width="5">
+    <path d="M-10,520 C200,480 380,300 520,330 S820,420 1010,300"/><path d="M300,-10 C330,200 420,340 520,330 S640,560 620,710"/>
+    <ellipse cx="500" cy="360" rx="170" ry="130"/><path d="M520,330 C640,240 760,150 880,60"/>
+  </g>
+  ${route ? `<path d="${route}" fill="none" stroke="#E3F654" stroke-width="5" stroke-linecap="round"/>` : ''}
+  <g font-family="Space Grotesk" font-size="11" fill="#555"><text x="470" y="372">MÜNCHEN</text><text x="850" y="52">MUC</text><text x="760" y="436">MESSE</text><text x="205" y="250">PASING</text></g>
+</svg>`;
+const pin = (x, y, n, c, gew) => `<div class="pin${gew ? ' gew' : ''}" style="left:${x}%;top:${y}%;background:${c};--c:${c}">${n}</div>`;
+const k1 = document.getElementById('k1');
+k1.insertAdjacentHTML('afterbegin', grund('M880,60 C760,150 660,225 600,270'));
+k1.insertAdjacentHTML('beforeend', [
+  [60, 40, 46, R, 1], [88, 10, 36, W], [43, 52, 50, R], [35, 44, 72, G], [52, 58, 58, G], [70, 62, 95, G], [28, 62, 29, R], [47, 38, 33, L],
+  [58, 70, 82, R], [22, 36, 20, L], [77, 58, 87, R], [40, 68, 13, R], [63, 52, 24, R], [33, 78, 96, L], [49, 47, 5, W], [53, 44, 5, W], [45, 60, 5, W], [82, 30, 90, L],
+].map((p) => pin(...p)).join('') + '<div class="schild" style="left:60%;top:32.5%"><b>#46</b> Ankunft 15:12</div>');
+const k2 = document.getElementById('k2');
+k2.insertAdjacentHTML('afterbegin', grund('M540,400 C600,410 660,440 760,440'));
+k2.insertAdjacentHTML('beforeend', pin(57, 54, 58, G, 1) + pin(35, 44, 72, G) + pin(70, 72, 95, G) + pin(43, 62, 50, R)
+  + '<div class="schild" style="left:54%;top:55%"><b>Start</b> Hilton Munich City</div><div class="schild" style="left:79%;top:60%"><b>Ziel</b> Messe West · 09:37</div>');
+
+// Dienstplan
+const tage = [['Mo', '16.11.'], ['Di', '17.11.'], ['Mi', '18.11.'], ['Do', '19.11.'], ['Fr', '20.11.'], ['Sa', '21.11.'], ['So', '22.11.']];
+const leute = [
+  ['Aaron Adler', '#36', ['07–15', '07–15', '', '07–15', '07–15', 'N', ''], 1],
+  ['Derya Aksoy', '#72', ['', '12–20', '12–20', '12–20', '', '06–14', '06–14a']],
+  ['Daniela Arnold', '#58', ['08–16', '', '08–16', '08–16', '08–16a', 'N', ''], 1],
+  ['Zeynep Arslan', '#46', ['14–22', '14–22', '14–22', '', '', '10–18', '10–18']],
+  ['Ivan Babić', '#50', ['', '', '06–14', '06–14', '06–14', 'N', '12–20x'], 1],
+  ['Federica Barbieri', '#95', ['07–15', '07–15', '07–15', '', '16–24a', '08–16', '']],
+  ['Lukas Bauer', '#12', ['', '10–18', '10–18', '10–18', '10–18', '', '']],
+  ['Miriam Becker', '#27', ['16–24', '16–24', '', '', '16–24', '16–24', '16–24a']],
+  ['Tarek Ben Ali', '#63', ['06–14', '', '06–14', '06–14', '', '14–22', '']],
+];
+document.getElementById('tab').innerHTML = `<thead><tr><th class="name">Fahrer</th>${tage.map((t, i) => `<th class="${i === 5 ? 'heute' : ''}">${t[0]}<small>${t[1]}</small></th>`).join('')}</tr></thead><tbody>`
+  + leute.map((l) => `<tr><td class="name"><span class="kast${l[3] ? ' an' : ''}">${l[3] ? '✓' : ''}</span><b>${l[0]}</b><small>${l[1]}</small></td>${l[2].map((d) => {
+    if (d === 'N') return '<td class="z gew"><div class="dienst neu">16:00–23:30</div></td>';
+    if (!d) return '<td class="z"></td>';
+    const art = d.endsWith('a') ? ' a' : d.endsWith('x') ? ' x' : '';
+    const [von, bis] = d.replace(/[ax]$/, '').split('–');
+    return `<td class="z"><div class="dienst${art}">${von}:00–${bis}:00</div></td>`;
+  }).join('')}</tr>`).join('')
+  + `<tr class="summe"><td class="name" style="position:sticky;bottom:0">Im Dienst / Bedarf</td><td>5 / 5</td><td>6 / 5</td><td>7 / 6</td><td>6 / 6</td><td>6 / 6</td><td>7 / 7</td><td class="knapp">4 / 6</td></tr></tbody>`;
+
+const start = new URLSearchParams(location.search).get('s');
+if (start) zeige(start);
+</script>
+</body>
+</html>

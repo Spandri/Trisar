@@ -14,9 +14,11 @@ REPO=${0:A:h:h}
 WAS=${1:-beide}
 
 # Geraetename hat Leerzeichen, darum die Kennung per Muster holen.
-UDID=${IPHONE_UDID:-$(xcrun devicectl list devices 2>/dev/null | grep -E 'iPhone.* (connected|available)' | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -1)}
+UDID=${IPHONE_UDID:-$(xcrun devicectl list devices 2>/dev/null | grep -E 'iPhone.* (connected|available)' | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}|[0-9A-F]{8}-[0-9A-F]{16}' | head -1)}
 [ -n "$UDID" ] || { echo "Kein iPhone verbunden."; exit 1; }
-HW_UDID=$(xcrun devicectl device info details --device "$UDID" 2>/dev/null | grep -o 'udid: [0-9A-Fa-f-]*' | head -1 | cut -d' ' -f2)
+# Neuere Xcode-Versionen zeigen in der Liste gleich die Hardware-Kennung (00008101-...) und schreiben "UDID:" gross.
+HW_UDID=$(xcrun devicectl device info details --device "$UDID" 2>/dev/null | grep -ioE 'udid: [0-9A-Fa-f-]+' | head -1 | cut -d' ' -f2)
+[ -n "$HW_UDID" ] || HW_UDID=$UDID
 
 baue() {
   local ordner=$1 projekt=$2 schema=$3 bundle=$4 dd=$5

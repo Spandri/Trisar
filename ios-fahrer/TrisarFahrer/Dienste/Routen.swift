@@ -46,6 +46,8 @@ enum Routen {
         return CLLocationCoordinate2D(latitude: lat, longitude: lng)
     }
 
+    // Die Dispo-App nutzt diese Datei mit (ios-dispo/project.yml): die drei Helfer braucht KartenDaten.swift.
+
     /// Spaltenauswahl fuer die Punkte aus den TomTom-Payloads (wie JOBS_SELECT_PUNKTE im Web).
     static let payloadSpalten = "route_von:ext_route_payload->von, route_nach:ext_route_payload->nach, "
         + "anfahrt_nach:ext_driver_to_pickup_payload->nach, zielfahrt_nach:ext_driver_to_dropoff_payload->nach, "
@@ -153,8 +155,9 @@ enum Routen {
             }
             let routes: [Route]
         }
+        // Hoechstens 8 s warten (20.11.: im Mobilfunk hing die Abfrage bis zu 60 s, dann nur Luftlinie).
         if let url = URL(string: adresse),
-           let (daten, antwort) = try? await URLSession.shared.data(from: url),
+           let (daten, antwort) = try? await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 8)),
            (antwort as? HTTPURLResponse)?.statusCode == 200,
            let route = (try? JSONDecoder().decode(Antwort.self, from: daten))?.routes.first,
            route.geometry.coordinates.count >= 2 {

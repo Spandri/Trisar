@@ -356,9 +356,9 @@ internal class FahrtAuto(ctx: CarContext, private val sitzung: TrisarAutoSitzung
             )
         }
         return listOf(
-            Action.Builder().setTitle(if (AutoText.unterwegs(f)) "Navigation zum Ziel" else "Navigation zur Abholung")
+            Action.Builder().setTitle(if (AutoText.unterwegs(f) || AutoText.beimGast(f)) "Navigation zum Ziel" else "Navigation zur Abholung")
                 .setBackgroundColor(CarColor.GREEN)
-                .setOnClickListener { AutoAktion.navigieren(carContext, f) }.build(),
+                .setOnClickListener { AutoAktion.navigieren(carContext, sitzung, f.id) }.build(),
         )
     }
 }
@@ -422,9 +422,21 @@ internal object AutoAktion {
         }
     }
 
-    /** Karten-App des Autos: unterwegs zum Ziel, sonst zur Abholung (nur ein Ziel moeglich). */
+    /**
+     * Vorher die Fahrten frisch laden: Realtime holt nach einem Abriss im Auto nichts nach, und ohne
+     * Handy im Vordergrund laedt sonst niemand neu (20.11.: Navigation zur alten Abholung).
+     */
+    fun navigieren(ctx: CarContext, sitzung: TrisarAutoSitzung, fahrtID: String) {
+        CoroutineScope(Dispatchers.Main.immediate).launch {
+            runCatching { sitzung.speicher.laden() }
+            val f = sitzung.speicher.fahrten.value.firstOrNull { it.id == fahrtID } ?: return@launch
+            navigieren(ctx, f)
+        }
+    }
+
+    /** Karten-App des Autos: ab „Beim Gast“ zum Ziel, sonst zur Abholung (nur ein Ziel moeglich). */
     fun navigieren(ctx: CarContext, f: Fahrt) {
-        val adresse = if (AutoText.unterwegs(f)) AutoText.ziel(f) else AutoText.abholung(f)
+        val adresse = if (AutoText.unterwegs(f) || AutoText.beimGast(f)) AutoText.ziel(f) else AutoText.abholung(f)
         if (adresse.isBlank()) return
         try {
             ctx.startCarApp(Intent(CarContext.ACTION_NAVIGATE, Uri.parse("geo:0,0?q=" + Uri.encode(adresse))))

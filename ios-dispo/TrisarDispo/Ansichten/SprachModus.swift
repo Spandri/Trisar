@@ -518,19 +518,9 @@ private struct SprachKugel: View {
                 SprachRinge()
             }
             Button { ablauf.kugelTippen() } label: {
-                ZStack {
-                    Color.black
-                    LinearGradient(stops: Self.verlauf(bewegung.mitte), startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 480, height: 480)
-                        .rotationEffect(.degrees(bewegung.winkel))
-                        .offset(x: bewegung.dx, y: bewegung.dy)
-                }
-                .frame(width: groesse, height: groesse)
-                .clipShape(Circle())
-                .overlay(Circle().strokeBorder(Color(hex: 0xE2F754), lineWidth: 2))
-                .grayscale(stumm ? 1 : 0)
-                .colorMultiply(stumm ? Color(white: 0.6) : .white)
-                .contentShape(Circle())
+                SprachKugelBild(groesse: groesse, winkel: bewegung.winkel, dx: bewegung.dx, dy: bewegung.dy,
+                                mitte: bewegung.mitte, stumm: stumm)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .scaleEffect(bewegung.s)
@@ -544,6 +534,35 @@ private struct SprachKugel: View {
         }
         .onChange(of: ruhig) { _, neu in bewegung.ruhig = neu }
         .onDisappear { bewegung.stoppen() }
+    }
+
+    static func verlauf(_ m: Double) -> [Gradient.Stop] { SprachKugelBild.verlauf(m) }
+}
+
+/// Die Kugel als reines Bild (ohne Bewegung), Zahlen fuer Groesse 200 wie im Web. Auch fuer CarPlay
+/// (DispoCarPlayKugel rendert daraus die Bildfolgen), damit beide gleich aussehen.
+struct SprachKugelBild: View {
+    var groesse: CGFloat = 200
+    var winkel: Double
+    var dx: Double
+    var dy: Double
+    var mitte: Double
+    var stumm = false
+
+    var body: some View {
+        let f = groesse / 200
+        ZStack {
+            Color.black
+            LinearGradient(stops: Self.verlauf(mitte), startPoint: .leading, endPoint: .trailing)
+                .frame(width: 480 * f, height: 480 * f)
+                .rotationEffect(.degrees(winkel))
+                .offset(x: dx * f, y: dy * f)
+        }
+        .frame(width: groesse, height: groesse)
+        .clipShape(Circle())
+        .overlay(Circle().strokeBorder(Color(hex: 0xE2F754), lineWidth: 2 * f))
+        .grayscale(stumm ? 1 : 0)
+        .colorMultiply(stumm ? Color(white: 0.6) : .white)
     }
 
     /// verlaufBei(m): Blau bis (m-24.5) %, Schwarz bei m %, Lime bei (m+64.5) %.
@@ -570,7 +589,7 @@ private struct SprachKugel: View {
 }
 
 /// .sprach-ring: zwei Lime-Ringe, Skala 1 bis 1.5, Deckkraft 0.6 bis 0, 1.6 s ease-out, der zweite 0.8 s spaeter.
-private struct SprachRinge: View {
+struct SprachRinge: View {
     @State private var beginn = Date()
 
     var body: some View {

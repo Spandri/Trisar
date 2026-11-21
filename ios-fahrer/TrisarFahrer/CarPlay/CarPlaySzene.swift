@@ -60,6 +60,9 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
     /// Route vom Gast zum Ziel je Fahrt (jobs.ext_route_polyline, vom Server beim Anlegen gerechnet).
     private var fahrtLinien: [String: [CLLocationCoordinate2D]] = [:]
     private var fahrtLinienLaeuft: Set<String> = []
+    /// Adressen, zu denen die Linie in fahrtLinien gehoert. Aendert die Dispo Abholung, Ziel oder Stopps,
+    /// wird die Linie neu geholt (20.11.: Apple Karten bekam sonst die alte Abholung).
+    private var fahrtLinienAdressen: [String: String] = [:]
     /// Fahrzeit vom Gast zum Ziel in Minuten (wie FahrtDetails.fahrzeitMin), fuer die ETA im Feld.
     private var fahrzeiten: [String: Int?] = [:]
     /// Knopftext im Vorschau-Feld (gilt fuer alle Fahrten, wird beim Blaettern angepasst).
@@ -438,8 +441,20 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
     /// Ab „beim Gast“ geht es zum Fahrtziel, vorher zum Abholort.
     static func zumZiel(_ f: UhrFahrt) -> Bool { f.phase == "beimGast" || f.phase == "unterwegs" }
 
+    /// Wie zumZiel, aber aus dem frischen Status im FahrtenSpeicher (der Stand fuer CarPlay kommt verzoegert).
+    private func zumZielJetzt(_ f: UhrFahrt) -> Bool {
+        guard let fahrt = fahrt(f.id) else { return Self.zumZiel(f) }
+        return Self.unterwegs(fahrt) || Self.beimGast(fahrt)
+    }
+
+    /// Adressen der Fahrt als Schluessel fuer fahrtLinien.
+    private func adressSchluessel(_ id: String) -> String {
+        guard let fahrt = fahrt(id) else { return "" }
+        return ([fahrt.abholAdresse, fahrt.zielAdresse] + fahrt.zwischenstopps).joined(separator: "\u{1F}")
+    }
+
     private func navigationsZiel(_ f: UhrFahrt) -> (titel: String, adresse: String) {
-        let zumZiel = Self.zumZiel(f)
+        let zumZiel = zumZielJetzt(f)
         return (zumZiel ? "zum Ziel" : "zur Abholung", navigationsAdresse(f, zumZiel: zumZiel))
     }
 
@@ -448,7 +463,16 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
 
     /// Vorgegebene TRISAR-Route: direkt die eigene Fuehrung. Sonst Google Maps oder Apple Karten:
     /// ist nur eine installiert, direkt diese, sind beide da, fragen.
+    /// Vorher die Fahrten frisch laden: Realtime holt nach einem Abriss im Auto (Funkloch) nichts nach,
+    /// und ohne Handy im Vordergrund laedt sonst niemand neu (20.11.: Navigation zur alten Abholung).
     private func navigationStarten(_ f: UhrFahrt) {
+        Task { @MainActor [weak self] in
+            await Geteilt.fahrten.laden()
+            self?.navigationStartenFrisch(f)
+        }
+    }
+
+    private func navigationStartenFrisch(_ f: UhrFahrt) {
         if eigeneNavigation(f) { return eigeneFuehrungStarten(f) }
         // Braucht comgooglemaps und maps in LSApplicationQueriesSchemes (project.yml).
         let google = UIApplication.shared.canOpenURL(URL(string: "comgooglemaps://")!)
@@ -503,7 +527,8 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
         guard google else {
             // Apple Karten mit Zwischenziel: maps:// kennt nur ein Ziel, openMaps mit Standort, Abholort und Ziel
             // nimmt den Abholort als Zwischenziel (im Auto getestet 19.11., Apple dokumentiert nur die ersten zwei Punkte).
-            if !Self.zumZiel(f), let linie = fahrtLinien[f.id], let abhol = linie.first, let ziel = linie.last,
+            if !zumZielJetzt(f), fahrtLinienAdressen[f.id] == adressSchluessel(f.id),
+               let linie = fahrtLinien[f.id], let abhol = linie.first, let ziel = linie.last,
                let szene, let fahrt = fahrt(f.id) {
                 let a = MKMapItem(placemark: MKPlacemark(coordinate: abhol))
                 a.name = fahrt.abholName.isEmpty ? f.von : fahrt.abholName
@@ -524,7 +549,7 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
         let ziel = Adresse.fuerNavigation(name: fahrt.zielOrtID != nil && !fahrt.zielAdresse.isEmpty ? "" : fahrt.zielName,
                                           adresse: fahrt.zielAdresse)
         let stopps = RoutenPunkt.zwischenziele(stopps: fahrt.zwischenstopps, punkte: fahrt.routenPunkte)
-        let folge = (Self.zumZiel(f) ? [] : [abhol]) + stopps + [ziel]
+        let folge = (zumZielJetzt(f) ? [] : [abhol]) + stopps + [ziel]
         navigieren(zu: folge.filter { !$0.isEmpty }.prefix(RoutenPunkt.googleZwischenziele + 1).joined(separator: " to:"), google: true)
     }
 
@@ -683,9 +708,9 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
         return Array(angenommen.prefix(5))
     }
 
-    /// Eigene Fuehrung nur mit Route von der Dispo und Gast an Bord, sonst Google Maps wie bisher.
+    /// Eigene Fuehrung nur mit Route von der Dispo, ab „Beim Gast“ (20.11.), sonst Google Maps wie bisher.
     private func eigeneNavigation(_ f: UhrFahrt) -> Bool {
-        guard f.phase == "unterwegs", let fahrt = fahrt(f.id) else { return false }
+        guard zumZielJetzt(f), let fahrt = fahrt(f.id) else { return false }
         return !fahrt.routenPunkte.isEmpty
     }
 
@@ -694,7 +719,7 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
         if NaviFuehrung.testLauf { return "Testfahrt" }
         #endif
         guard let f = stand.fahrten.first(where: { $0.id == id.uuidString }) else { return nil }
-        return f.phase == "unterwegs" ? f.nach : f.von
+        return Self.zumZiel(f) ? f.nach : f.von
     }
 
     /// Vorschau-Feld der Vorlage: alle kommenden Fahrten zum Blaettern (wie die Fahrtkarten der Fahrer-App):
@@ -851,10 +876,14 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
         let fahrtDaten = fahrt(f.id)
         let ortName = zumZiel ? (fahrtDaten?.zielName ?? f.nach) : (fahrtDaten?.abholName ?? f.von)
         let ortAdresse = zumZiel ? (fahrtDaten?.zielAdresse ?? "") : (fahrtDaten?.abholAdresse ?? "")
-        // Teile der Adresse ohne den Namen (steht schon im Titel bzw. davor) und ohne „Deutschland“.
-        let teile = Adresse.normal(ortAdresse).split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { t in !t.isEmpty && t.lowercased() != ortName.lowercased() && !["deutschland", "germany"].contains(t.lowercased()) }
-        let adressZeilen = (zumZiel || ortName.isEmpty ? [] : [ortName]) + teile
+        // Manche Ortsnamen enthalten schon die ganze Adresse („Hotel X, Strasse 1, 80333 München“).
+        // Als Name zaehlt nur das Stueck bis zum ersten Komma, sonst steht die Adresse doppelt.
+        let nameKurz = ortName.split(separator: ",").first.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+        // Teile der Adresse ohne den Namen (steht schon im Titel bzw. davor), ohne Doppelte und ohne „Deutschland“.
+        var gesehen: Set<String> = [nameKurz.lowercased()]
+        let teile = Adresse.normal(ortAdresse.isEmpty ? ortName : ortAdresse).split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { t in !t.isEmpty && !["deutschland", "germany"].contains(t.lowercased()) && gesehen.insert(t.lowercased()).inserted }
+        let adressZeilen = (zumZiel || nameKurz.isEmpty ? [] : [nameKurz]) + teile
         let titel = zumZiel ? f.nach : f.zeit
         let gast = f.gaeste?.first
         let flug = Self.flugNummer(f).map { $0 + (f.flugAnkunft.map { " · \(f.flugStatus == "Gelandet" ? "gelandet" : "Landung") \($0)" } ?? "") }
@@ -902,9 +931,12 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
 
     /// Fahrtroute (Gast -> Ziel) der Fahrten im Feld einmal vom Server holen.
     private func fahrtLinienLaden(_ ids: [String]) {
-        let fehlen = ids.filter { fahrtLinien[$0] == nil && !fahrtLinienLaeuft.contains($0) }
+        let fehlen = ids.filter {
+            (fahrtLinien[$0] == nil || fahrtLinienAdressen[$0] != adressSchluessel($0)) && !fahrtLinienLaeuft.contains($0)
+        }
         guard !fehlen.isEmpty else { return }
         fahrtLinienLaeuft.formUnion(fehlen)
+        let adressen = Dictionary(uniqueKeysWithValues: fehlen.map { ($0, adressSchluessel($0)) })
         struct Zeile: Decodable {
             let id: String
             let ext_route_polyline: String?
@@ -925,6 +957,7 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
             // Die IDs im Stand sind gross geschrieben (uuidString), die Datenbank liefert klein.
             for id in fehlen {
                 fahrtLinien[id] = fahrtLinien[id.lowercased()]
+                fahrtLinienAdressen[id] = adressen[id]
                 fahrzeiten[id] = fahrzeiten[id.lowercased()] ?? nil
                 // Keine Route vom Server: selbst rechnen (Apple-Routing Abholort -> Ziel).
                 if fahrtLinien[id]?.isEmpty != false { await fahrtSelbstRechnen(id) }
@@ -1013,7 +1046,7 @@ final class CarPlaySzene: UIResponder, CPTemplateApplicationSceneDelegate, CPMap
     private func phaseMelden() {
         guard let id = NaviFuehrung.geteilt.fahrtID,
               let f = stand.fahrten.first(where: { $0.id == id.uuidString }) else { return }
-        fuehrung?.phase(fahrtID: id, unterwegs: f.phase == "unterwegs")
+        fuehrung?.phase(fahrtID: id, unterwegs: Self.zumZiel(f))
     }
 
     // MARK: CPMapTemplateDelegate

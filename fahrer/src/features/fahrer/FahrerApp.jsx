@@ -2742,9 +2742,19 @@ const FahrerApp = () => {
           speed_mps: Number(payload?.new?.speed_mps),
         }).catch(() => {});
       })
-      .subscribe();
+      // Nach jedem (Wieder-)Verbinden neu laden: Realtime liefert verpasste Aenderungen nicht nach
+      // (20.11.: nach Funkloch blieb die alte Adresse fuer die Navigation stehen).
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') fetchProfileAndJobs();
+      });
+    // Zurueck in die App (Handy entsperrt, Tab wieder vorne): Fahrten frisch holen.
+    const beiSichtbar = () => {
+      if (document.visibilityState === 'visible') fetchProfileAndJobs();
+    };
+    document.addEventListener('visibilitychange', beiSichtbar);
 
     return () => {
+      document.removeEventListener('visibilitychange', beiSichtbar);
       supabase.removeChannel(channel);
     };
   }, [session, syncLocalDriverCoords, _applyAutoStatusForLocation, t, locale]);

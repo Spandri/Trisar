@@ -21,7 +21,7 @@ struct KartenFilterAnsicht: View {
     /// Abschnitt "Ohne Signal ausblenden nach" unter Feierabend (Web 462 + 20), feste Hoehe 180.
     /// Abschnitt "Dienststart automatisch" direkt unter Feierabend (Web 462 + 20), feste Hoehe 132.
     private var dienststartTop: CGFloat { 482 }
-    private var ohneSignalTop: CGFloat { dienststart.verfuegbar ? dienststartTop + 132 : dienststartTop }
+    private var ohneSignalTop: CGFloat { dienststart.verfuegbar ? dienststartTop + (dienststart.fehler == nil ? 80 : 112) : dienststartTop }
     /// Abschnitt "Karte" (Dunkel/Hell/Farbig/Satellit) unter "Ohne Signal", Hoehe 96 wie im Web.
     private var kartenStilTop: CGFloat { ohneSignalTop + 136 }
     private var stufeTop: CGFloat { kartenStilTop + 96 }
@@ -53,19 +53,18 @@ struct KartenFilterAnsicht: View {
                     FeierabendZeile(wert: $filter.feierabendMinuten).platz(20, 402, 362, 56)
 
                     if dienststart.verfuegbar {
-                        Text("Dienststart automatisch").grotesk(16, .medium, abstand: 0.5)
-                            .foregroundStyle(Self.lime.opacity(0.6))
-                            .platz(20, dienststartTop, 362, 24)
+                        // 20.11.: nur die Zeile, Ueberschrift und Hinweis raus. Fehler bleibt sichtbar.
                         DienststartZeile(minuten: dienststart.minuten) { neu in
                             Task { await dienststart.setzen(neu) }
                         }
-                        .platz(20, dienststartTop + 32, 362, 56)
-                        Text(dienststart.fehler.map { "Speichern fehlgeschlagen: \($0)" }
-                             ?? "Gilt für alle Fahrer. Der Fahrer bestätigt den Dienst wie gewohnt.")
-                            .grotesk(12, .medium, abstand: 0.3)
-                            .foregroundStyle(dienststart.fehler == nil ? Self.lime.opacity(0.5) : Color(hex: 0xFF6B6B))
-                            .lineLimit(2)
-                            .platz(20, dienststartTop + 96, 362, 32)
+                        .platz(20, dienststartTop, 362, 56)
+                        if let fehler = dienststart.fehler {
+                            Text("Speichern fehlgeschlagen: \(fehler)")
+                                .grotesk(12, .medium, abstand: 0.3)
+                                .foregroundStyle(Color(hex: 0xFF6B6B))
+                                .lineLimit(2)
+                                .platz(20, dienststartTop + 64, 362, 32)
+                        }
                     }
 
                     Text("Ohne Signal ausblenden nach").grotesk(16, .medium, abstand: 0.5)

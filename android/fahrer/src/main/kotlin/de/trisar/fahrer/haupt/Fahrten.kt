@@ -552,6 +552,11 @@ class FahrtenSpeicher(app: Application) : AndroidViewModel(app) {
         kanal = k
         (stroeme + treffpunkte).forEach { s -> beobachter += s.onEach { spaeterLaden() }.launchIn(viewModelScope) }
         beobachter += nachrichten.onEach { ungelesenAktualisieren() }.launchIn(viewModelScope)
+        // Nach jedem (Wieder-)Verbinden neu laden: Realtime liefert verpasste Aenderungen nicht nach.
+        // Im Auto (Android Auto, Handy aus) blieb sonst die alte Adresse stehen (20.11.).
+        beobachter += k.status.onEach {
+            if (it == io.github.jan.supabase.realtime.RealtimeChannel.Status.SUBSCRIBED) spaeterLaden()
+        }.launchIn(viewModelScope)
         runCatching { k.subscribe() }
     }
 

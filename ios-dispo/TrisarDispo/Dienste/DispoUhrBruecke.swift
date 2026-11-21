@@ -155,9 +155,9 @@ final class DispoUhrBruecke: NSObject {
             flugZielFlughafen: "", flugAnkunftGeplant: "", notiz: geladen.notiz), geladen: geladen)
     }
 
-    /// Frage von der Uhr: laeuft wie im KI-Assistenten der App ueber denselben Verlauf.
-    /// Frage und Antwort landen in KiVerlaufSpeicher, die offene Ansicht zeigt sie sofort.
-    private static func kiFrage(_ frage: String, uhrVerlauf: Data?) async -> [String: Any] {
+    /// Frage von der Uhr (und seit 20.11. aus CarPlay, DispoCarPlaySprache): laeuft wie im KI-Assistenten
+    /// der App ueber denselben Verlauf. Frage und Antwort landen in KiVerlaufSpeicher, die offene Ansicht zeigt sie sofort.
+    static func kiFrage(_ frage: String, uhrVerlauf: Data?) async -> [String: Any] {
         let gespeichert = KiVerlaufSpeicher.laden()
         // Verlauf der App ist der gemeinsame Chat. Nur wenn er leer ist, zaehlt der Verlauf der Uhr.
         var verlauf = gespeichert.filter { $0.pending != true && $0.id != "init" }.map { (rolle: $0.role, text: $0.text) }

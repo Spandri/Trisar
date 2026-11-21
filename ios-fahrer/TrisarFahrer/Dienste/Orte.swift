@@ -6,16 +6,23 @@ import Supabase
 /// grau fuer Listen und Fahrten, lime fuer gewaehlt, schwarz auf dem Lime-Kreis der Karte (Figma 2826-12363).
 enum OrtSymbol: String, CaseIterable, Identifiable {
     case pin, haus, flughafen_abflug, flughafen_landung, fahrzeug, stern
-    case hotel, bett, flughafen_tower, bahnhof_zug, u_bahn, bus, taxi, auto, shuttle_van, messe_halle, restaurant, bar, kaffee, buero, zuhause, krankenhaus, parkplatz, tankstelle, einkaufen, berge, hafen_schiff, flughafen_terminal, bahnhof_gebaeude, kongress, stadion, museum_bank, rathaus, kirche, burg_schloss, universitaet, fabrik, lager, garage_werkstatt, stadt_hochhaeuser, hochhaus, parkhaus, ladestation, geschaeft, apotheke, sicherheit_polizei, botschaft, festzelt, fernsehturm, bruecke, fitness, kino, biergarten, uhr, kalender, tag_sonne, nacht_mond, regen_schirm, ziel_flagge, route, navigation, lenkrad_fahrer, schluessel, fahrrad, rollkoffer, ticket, vip_krone, musik_band, mikrofon_kongress, international, kreditkarte, dokument, glocke, schloss, info, warnung, check, schliessen, plus
+    case hotel, hotel_fassade, bett, flughafen_tower, flughafen_tower_t1, flughafen_tower_t2, flughafen_tower_t3, flughafen_tower_t4, bahnhof_zug, hauptbahnhof, hauptbahnhof_gebaeude, u_bahn, bus, taxi, auto, shuttle_van, messe_halle, restaurant, bar, kaffee, buero, zuhause, krankenhaus, parkplatz, tankstelle, einkaufen, berge, hafen_schiff, flughafen_terminal, bahnhof_gebaeude, kongress, stadion, museum_bank, rathaus, kirche, burg_schloss, universitaet, fabrik, lager, garage_werkstatt, stadt_hochhaeuser, hochhaus, hochhaus_glas, parkhaus, ladestation, geschaeft, apotheke, sicherheit_polizei, botschaft, festzelt, fernsehturm, bruecke, fitness, kino, biergarten, uhr, kalender, tag_sonne, nacht_mond, regen_schirm, ziel_flagge, route, navigation, lenkrad_fahrer, schluessel, fahrrad, rollkoffer, ticket, vip_krone, musik_band, mikrofon_kongress, international, kreditkarte, dokument, glocke, schloss, info, warnung, check, schliessen, plus
 
     var id: String { rawValue }
 
     /// Dateiname und Beschriftung der neuen Icons.
     private static let neu: [OrtSymbol: (datei: String, titel: String)] = [
         .hotel: ("Hotel_Trisar_Icons_01", "Hotel"),
+        .hotel_fassade: ("Hotel_Fassade_Trisar_Icons_01", "Hotel Fassade"),
         .bett: ("Bett_Trisar_Icons_01", "Bett"),
         .flughafen_tower: ("Flughafen_Tower_Trisar_Icons_01", "Flughafen Tower"),
+        .flughafen_tower_t1: ("Flughafen_Tower_T1_Trisar_Icons_01", "Flughafen Tower T1"),
+        .flughafen_tower_t2: ("Flughafen_Tower_T2_Trisar_Icons_01", "Flughafen Tower T2"),
+        .flughafen_tower_t3: ("Flughafen_Tower_T3_Trisar_Icons_01", "Flughafen Tower T3"),
+        .flughafen_tower_t4: ("Flughafen_Tower_T4_Trisar_Icons_01", "Flughafen Tower T4"),
         .bahnhof_zug: ("Bahnhof_Zug_Trisar_Icons_01", "Bahnhof Zug"),
+        .hauptbahnhof: ("Hauptbahnhof_Trisar_Icons_01", "Hauptbahnhof"),
+        .hauptbahnhof_gebaeude: ("Hauptbahnhof_Gebaeude_Trisar_Icons_01", "Hauptbahnhof Gebäude"),
         .u_bahn: ("U_Bahn_Trisar_Icons_01", "U-Bahn"),
         .bus: ("Bus_Trisar_Icons_01", "Bus"),
         .taxi: ("Taxi_Trisar_Icons_01", "Taxi"),
@@ -47,6 +54,7 @@ enum OrtSymbol: String, CaseIterable, Identifiable {
         .garage_werkstatt: ("Garage_Werkstatt_Trisar_Icons_01", "Garage Werkstatt"),
         .stadt_hochhaeuser: ("Stadt_Hochhaeuser_Trisar_Icons_01", "Stadt Hochhäuser"),
         .hochhaus: ("Hochhaus_Trisar_Icons_01", "Hochhaus"),
+        .hochhaus_glas: ("Hochhaus_Glas_Trisar_Icons_01", "Hochhaus Glas"),
         .parkhaus: ("Parkhaus_Trisar_Icons_01", "Parkhaus"),
         .ladestation: ("Ladestation_Trisar_Icons_01", "Ladestation"),
         .geschaeft: ("Geschaeft_Trisar_Icons_01", "Geschäft"),
@@ -256,7 +264,7 @@ final class OrteSpeicher: ObservableObject {
         return vorne + wort
     }
 
-    // MARK: Schreiben (nur Dispo)
+    // MARK: Schreiben (nur Dispo, ios-dispo nutzt diese Datei mit)
 
     private struct Kennung: Decodable { let id: UUID }
 

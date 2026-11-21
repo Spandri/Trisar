@@ -181,7 +181,8 @@ object Routen {
         }
         val neu = withContext(Dispatchers.IO) {
             runCatching {
-                val antwort = holen(adresse, mapOf("Accept" to "application/json")) ?: return@runCatching null
+                // Hoechstens 8 s (20.11.: im Mobilfunk hing die Abfrage lange, dann nur Luftlinie).
+                val antwort = holen(adresse, mapOf("Accept" to "application/json"), 8_000) ?: return@runCatching null
                 val route = Backend.json.parseToJsonElement(antwort).jsonObject["routes"]?.jsonArray?.firstOrNull()?.jsonObject ?: return@runCatching null
                 val koords = route["geometry"]!!.jsonObject["coordinates"]!!.jsonArray
                 if (koords.size < 2) return@runCatching null
@@ -226,11 +227,11 @@ object Routen {
         return r[0].toDouble()
     }
 
-    private fun holen(adresse: String, kopf: Map<String, String>): String? {
+    private fun holen(adresse: String, kopf: Map<String, String>, frist: Int? = null): String? {
         val v = URL(adresse).openConnection() as HttpURLConnection
         return try {
-            v.connectTimeout = 15_000
-            v.readTimeout = 20_000
+            v.connectTimeout = frist ?: 15_000
+            v.readTimeout = frist ?: 20_000
             kopf.forEach { (k, w) -> v.setRequestProperty(k, w) }
             if (v.responseCode != 200) null else v.inputStream.bufferedReader().use { it.readText() }
         } finally {

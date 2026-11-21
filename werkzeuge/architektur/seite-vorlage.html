@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRISAR Architektur</title>
+<style>
+:root{
+  --bg:#f6f5f2;--fl:#ffffff;--fl2:#efede8;--rand:rgba(0,0,0,.12);--rand2:rgba(0,0,0,.28);
+  --text:#1d1d1b;--text2:#5f5e5a;--text3:#8a8984;
+  --akzent:#185fa5;--akzent-bg:#e6f1fb;--warn:#854f0b;--warn-bg:#faeeda;--gut:#3b6d11;--gut-bg:#eaf3de;--rot:#a32d2d;--rot-bg:#fcebeb;
+  --lila:#534ab7;--lila-bg:#eeedfe;--teal:#0f6e56;--teal-bg:#e1f5ee;
+  --linie:rgba(24,95,165,.16);--linie-an:#185fa5;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1a1a19;--fl:#252524;--fl2:#2e2e2c;--rand:rgba(255,255,255,.12);--rand2:rgba(255,255,255,.3);
+  --text:#ecebe6;--text2:#b4b2a9;--text3:#888780;
+  --akzent:#85b7eb;--akzent-bg:#0c2c4f;--warn:#fac775;--warn-bg:#412402;--gut:#97c459;--gut-bg:#173404;--rot:#f09595;--rot-bg:#501313;
+  --lila:#afa9ec;--lila-bg:#26215c;--teal:#5dcaa5;--teal-bg:#04342c;--linie:rgba(133,183,235,.14);--linie-an:#85b7eb;}}
+:root[data-theme="dark"]{
+  --bg:#1a1a19;--fl:#252524;--fl2:#2e2e2c;--rand:rgba(255,255,255,.12);--rand2:rgba(255,255,255,.3);
+  --text:#ecebe6;--text2:#b4b2a9;--text3:#888780;
+  --akzent:#85b7eb;--akzent-bg:#0c2c4f;--warn:#fac775;--warn-bg:#412402;--gut:#97c459;--gut-bg:#173404;--rot:#f09595;--rot-bg:#501313;
+  --lila:#afa9ec;--lila-bg:#26215c;--teal:#5dcaa5;--teal-bg:#04342c;--linie:rgba(133,183,235,.14);--linie-an:#85b7eb;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:.5px solid var(--rand);padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+header h1{font-size:15px;font-weight:600;margin:0 12px 0 0}
+header .stand{font-size:12px;color:var(--text3);margin-right:auto}
+.tab{font:inherit;font-size:13px;padding:5px 12px;border-radius:8px;border:.5px solid var(--rand);background:transparent;color:var(--text);cursor:pointer}
+.tab.an{background:var(--akzent-bg);color:var(--akzent);border-color:var(--akzent)}
+#suche{font:inherit;font-size:13px;height:32px;width:280px;max-width:100%;padding:0 10px;border-radius:8px;border:.5px solid var(--rand2);background:var(--fl);color:var(--text)}
+#trefferliste{position:absolute;top:44px;right:16px;width:360px;max-height:60vh;overflow:auto;background:var(--fl);border:.5px solid var(--rand2);border-radius:8px;display:none;z-index:9}
+#trefferliste div{padding:6px 10px;font-size:13px;cursor:pointer;border-bottom:.5px solid var(--rand)}
+#trefferliste div:hover{background:var(--fl2)}
+#trefferliste small{color:var(--text3);margin-left:6px}
+main{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;padding:16px;align-items:start}
+@media (max-width:1000px){main{grid-template-columns:minmax(0,1fr)}}
+#details{position:sticky;top:70px;max-height:calc(100vh - 86px);overflow:auto;background:var(--fl);border:.5px solid var(--rand);border-radius:12px;padding:14px 16px}
+#details:empty::before{content:"Etwas anklicken, um Details und Belege zu sehen.";color:var(--text3);font-size:13px}
+#details h2{font-size:16px;margin:0 0 2px;font-weight:600;word-break:break-word}
+#details h3{font-size:12px;font-weight:600;color:var(--text2);margin:14px 0 4px;text-transform:none}
+#details .unter{font-size:12px;color:var(--text3)}
+.zeile{font-size:12.5px;padding:3px 0;border-bottom:.5px solid var(--rand);display:flex;gap:6px;flex-wrap:wrap;align-items:baseline}
+.zeile:last-child{border-bottom:0}
+.mono{font-family:var(--mono);font-size:12px}
+.beleg{font-family:var(--mono);font-size:11px;color:var(--text3);text-decoration:none;display:block;padding-left:10px}
+.beleg:hover{color:var(--akzent);text-decoration:underline}
+.marke{font-size:11px;padding:1px 6px;border-radius:4px;background:var(--fl2);color:var(--text2);white-space:nowrap}
+.m-before{background:var(--lila-bg);color:var(--lila)}.m-after{background:var(--teal-bg);color:var(--teal)}
+.m-warn{background:var(--warn-bg);color:var(--warn)}.m-rot{background:var(--rot-bg);color:var(--rot)}.m-gut{background:var(--gut-bg);color:var(--gut)}
+.m-akzent{background:var(--akzent-bg);color:var(--akzent)}
+.link{color:var(--akzent);cursor:pointer;text-decoration:none}
+.link:hover{text-decoration:underline}
+section.ansicht{display:none}section.ansicht.an{display:block}
+
+/* Überblick */
+#ueberblick-wrap{position:relative}
+#linien{position:absolute;inset:0;pointer-events:none;overflow:visible}
+#spalten{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:28px;position:relative}
+.spalte h4{font-size:12px;font-weight:600;color:var(--text2);margin:0 0 8px}
+.knoten{position:relative;z-index:1;border:.5px solid var(--rand);border-radius:8px;padding:6px 9px;margin-bottom:7px;background:var(--fl);cursor:pointer;transition:opacity .15s}
+.knoten b{display:block;font-size:12.5px;font-weight:600}
+.knoten span{font-size:11px;color:var(--text3)}
+.knoten:hover{border-color:var(--rand2)}
+.knoten.an{border-color:var(--akzent);box-shadow:0 0 0 1px var(--akzent)}
+.knoten.nachbar{border-color:var(--akzent)}
+.knoten.aus{opacity:.3}
+.legende{font-size:12px;color:var(--text3);margin:0 0 12px;display:flex;gap:14px;flex-wrap:wrap}
+.legende i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:4px}
+
+/* Trigger */
+#trigger-grid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px}
+@media (max-width:700px){#trigger-grid{grid-template-columns:minmax(0,1fr)}}
+.liste .eintrag{font-size:13px;padding:6px 9px;border:.5px solid var(--rand);border-radius:8px;margin-bottom:6px;background:var(--fl);cursor:pointer}
+.liste .eintrag.an{border-color:var(--akzent);box-shadow:0 0 0 1px var(--akzent)}
+.liste .eintrag span{display:block;font-size:11px;color:var(--text3)}
+.kette details{margin-left:16px;border-left:2px solid var(--rand2);padding-left:10px}
+.kette>details{margin-left:0}
+.kette summary{cursor:pointer;font-size:13px;padding:4px 0;list-style:none}
+.kette summary::-webkit-details-marker{display:none}
+.kette summary::before{content:"▸";color:var(--text3);margin-right:6px;display:inline-block;width:8px}
+.kette details[open]>summary::before{content:"▾"}
+.kette details.blatt>summary::before{content:"•"}
+.wirkung{font-size:12px;color:var(--text2);margin:0 0 6px 14px}
+.wirkung div{padding:1px 0}
+.start{background:var(--fl);border:.5px solid var(--rand);border-radius:8px;padding:8px 12px;margin-bottom:10px}
+.start b{font-weight:600}
+
+/* Tabellen */
+#tab-filter{font:inherit;font-size:13px;height:30px;padding:0 10px;border-radius:8px;border:.5px solid var(--rand2);background:var(--fl);color:var(--text);margin-bottom:10px;width:280px;max-width:100%}
+table.tabellen{border-collapse:collapse;width:100%;font-size:12.5px;background:var(--fl);border-radius:12px;overflow:hidden;border:.5px solid var(--rand)}
+table.tabellen th{font-weight:600;text-align:left;color:var(--text2);padding:7px 10px;border-bottom:.5px solid var(--rand2);background:var(--fl2);cursor:pointer;white-space:nowrap}
+table.tabellen td{padding:6px 10px;border-bottom:.5px solid var(--rand);vertical-align:top}
+table.tabellen tr:hover td{background:var(--fl2);cursor:pointer}
+
+/* Szenarien + Status */
+.sz-liste{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.sz-kopf{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.sz-kopf>div:first-child{margin-right:auto}
+.schalter{font-size:12.5px;color:var(--text2);display:flex;gap:5px;align-items:center;cursor:pointer}
+#sz-svg text,#st-svg text{font:12px -apple-system,BlinkMacSystemFont,sans-serif;fill:var(--text)}
+#sz-svg .klein,#st-svg .klein{font-size:11px;fill:var(--text3)}
+#sz-svg .mono{font-family:var(--mono);font-size:11.5px}
+#sz-svg .zeile:hover rect.box,#st-svg .knopf:hover rect{stroke:var(--akzent)}
+#sz-svg .zeile,#st-svg .knopf,#st-svg .kante{cursor:pointer}
+#st-svg .kante:hover path{stroke-width:4}
+.st-tab{border-collapse:collapse;font-size:12.5px;width:100%;background:var(--fl);border:.5px solid var(--rand);border-radius:12px;overflow:hidden;margin-top:12px}
+.st-tab td,.st-tab th{padding:6px 10px;border-bottom:.5px solid var(--rand);text-align:left;vertical-align:top}
+.st-tab th{background:var(--fl2);color:var(--text2);font-weight:600}
+/* Befunde */
+.kacheln{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px}
+.kachel{background:var(--fl);border:.5px solid var(--rand);border-radius:12px;padding:12px}
+.kachel .zahl{font-size:24px;font-weight:600}
+.kachel .text{font-size:12px;color:var(--text2)}
+.befund-block{background:var(--fl);border:.5px solid var(--rand);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.befund-block h3{font-size:14px;margin:0 0 4px;font-weight:600}
+.befund-block p{font-size:12.5px;color:var(--text2);margin:0 0 8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>TRISAR Architektur</h1>
+  <span class="stand" id="stand"></span>
+  <button class="tab an" data-ansicht="ueberblick">Überblick</button>
+  <button class="tab" data-ansicht="trigger">Trigger-Ketten</button>
+  <button class="tab" data-ansicht="szenarien">Szenarien</button>
+  <button class="tab" data-ansicht="status">Status</button>
+  <button class="tab" data-ansicht="tabellen">Tabellen</button>
+  <button class="tab" data-ansicht="befunde" id="tab-befunde">Befunde</button>
+  <input id="suche" placeholder="Was hängt an jobs.status?" autocomplete="off">
+  <div id="trefferliste"></div>
+</header>
+<main>
+  <div>
+    <section class="ansicht an" id="a-ueberblick">
+      <div class="legende">
+        <span><i style="border-color:var(--akzent)"></i>Daten lesen/schreiben</span>
+        <span><i style="border-color:var(--teal);border-top-style:dashed"></i>Realtime</span>
+        <span><i style="border-color:var(--lila)"></i>Aufruf (RPC, Edge, HTTP)</span>
+        <span><i style="border-color:var(--warn)"></i>DB ruft Edge (pg_net)</span>
+      </div>
+      <div id="ueberblick-wrap"><svg id="linien"></svg><div id="spalten"></div></div>
+    </section>
+    <section class="ansicht" id="a-trigger"><div id="trigger-grid"><div class="liste" id="trigger-tabellen"></div><div class="kette" id="trigger-kette"></div></div></section>
+    <section class="ansicht" id="a-szenarien">
+      <div id="sz-liste" class="sz-liste"></div>
+      <div class="sz-kopf"><div id="sz-titel"></div>
+        <label class="schalter"><input type="checkbox" id="sz-klein"> Kleinkram zeigen (updated_at, Schutz-Trigger)</label>
+        <button class="tab" id="sz-alle">Alle aufklappen</button></div>
+      <svg id="sz-svg" width="100%"></svg>
+      <div class="legende" style="margin-top:8px">
+        <span><i style="border-color:var(--akzent)"></i>direkt (wartet)</span>
+        <span><i style="border-color:var(--warn);border-top-style:dashed"></i>asynchron (später, Reihenfolge offen)</span>
+        <span><span class="marke m-before">B</span> before ändert die Zeile</span>
+        <span><span class="marke m-after">A</span> after löst Folgen aus</span>
+        <span>▸ Klick klappt Folge-Trigger auf</span>
+      </div>
+    </section>
+    <section class="ansicht" id="a-status">
+      <div class="sz-kopf"><div><b>Status einer Fahrt</b><div class="unter" id="st-unter"></div></div>
+        <label class="schalter"><input type="checkbox" id="st-hand" checked> Handänderungen zeigen</label></div>
+      <svg id="st-svg" width="100%" viewBox="0 0 920 390"></svg>
+      <div class="legende" style="margin-top:6px">
+        <span><i style="border-color:var(--gut);border-top-width:3px"></i>DB automatisch aus Standort</span>
+        <span><i style="border-color:var(--text3);border-top-style:dashed"></i>von Hand in App oder Dispo</span>
+        <span>Zahl = echte Übergänge aus job_status_history</span>
+      </div>
+      <div id="st-regeln"></div>
+    </section>
+    <section class="ansicht" id="a-tabellen"><input id="tab-filter" placeholder="Tabelle oder Spalte filtern"><div id="tabellen-liste"></div></section>
+    <section class="ansicht" id="a-befunde"><div id="befunde"></div></section>
+  </div>
+  <aside id="details"></aside>
+</main>
+<script>
+const M = /*MODELL*/null;
+const BASIS = /*BASIS*/"";
+</script>
+<script>
+const $ = (s, e = document) => e.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const K = Object.fromEntries(M.komponenten.map(k => [k.id, k]));
+const T = Object.fromEntries(M.tabellen.map(t => [t.name, t]));
+const F = Object.fromEntries(M.funktionen.map(f => [f.name, f]));
+const TR = Object.fromEntries(M.trigger.map(t => [t.name, t]));
+const KETTE = Object.fromEntries(M.ketten.map(k => [k.trigger, k]));
+$('#stand').textContent = 'DB-Stand ' + new Date(M.stand_db).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'});
+
+// ---------- Gruppen der Tabellen ----------
+const GRUPPEN = [
+  ['g_fahrten', 'Fahrten', /^(jobs|job_|convoy|guests|flug_|fahrt_|dienstende_fahrt|import_)/],
+  ['g_ortung', 'Ortung', /^(driver_live|driver_location|driver_activity|ortung)/],
+  ['g_dienste', 'Dienste und Stunden', /^(driver_service|dienst|stunden|standby|lohn)/],
+  ['g_fahrzeuge', 'Fahrzeuge und Tracker', /^(vehicle|obd_|imei_|km_|vin_|kba|fahrzeug|tracker)/],
+  ['g_orte', 'Orte', /^(orte|dispo_standort|dispo_ankunft)/],
+  ['g_push', 'Push', /^push_/],
+  ['g_konten', 'Konten und Nachrichten', /^(profiles|konto|messages|benutzer)/],
+  ['g_ki', 'KI und Dokumente', /^(ki_|ai_|rag)/],
+  ['g_system', 'Einstellungen und Kosten', /.*/],
+];
+const gruppeVon = name => GRUPPEN.find(g => g[2].test(name))[0];
+const GRUPPE = Object.fromEntries(GRUPPEN.map(([id, name]) => [id, {id, name, tabellen: M.tabellen.filter(t => gruppeVon(t.name) === id)}]));
+
+// ---------- Kanten im Überblick (Tabellen -> Gruppen zusammengefasst) ----------
+function knotenVon(ziel) {
+  if (ziel.startsWith('tab:')) return gruppeVon(ziel.slice(4));
+  if (ziel.startsWith('fn:')) return 'g_rpc';
+  if (ziel.startsWith('aktion:')) return null;
+  return ziel;
+}
+const UK = new Map();
+for (const k of M.kanten) {
+  const nach = knotenVon(k.nach);
+  if (!nach || !document) continue;
+  const von = k.von === 'db' ? 'g_rpc' : k.von;
+  const art = k.art === 'daten' ? 'daten' : k.art === 'realtime' ? 'realtime' : k.art === 'pg_net' ? 'pg_net' : 'aufruf';
+  const key = von + '|' + nach + '|' + art;
+  if (!UK.has(key)) UK.set(key, {von, nach, art, kanten: []});
+  UK.get(key).kanten.push(k);
+}
+// Trigger-Funktionen schreiben über Gruppen hinweg: nicht als Linie, steht in Trigger-Ketten.
+
+const SPALTEN = [
+  ['Apps', M.komponenten.filter(k => k.art === 'app')],
+  ['Edge Functions', M.komponenten.filter(k => k.art === 'edge')],
+  ['Datenbank', [...GRUPPEN.map(g => ({id: g[0], name: g[1], art: 'gruppe'})), {id: 'g_rpc', name: 'Funktionen (RPC, Trigger)', art: 'gruppe'}]],
+  ['Server', M.komponenten.filter(k => k.art === 'server')],
+  ['Extern', M.komponenten.filter(k => k.art === 'extern')],
+];
+function knotenText(k) {
+  if (k.art === 'gruppe') {
+    if (k.id === 'g_rpc') return `${M.funktionen.length} Funktionen, ${M.trigger.length} Trigger`;
+    const g = GRUPPE[k.id]; const tr = g.tabellen.reduce((s, t) => s + t.trigger.length, 0);
+    return `${g.tabellen.length} Tabellen` + (tr ? `, ${tr} Trigger` : '');
+  }
+  if (k.dateien) return `${k.dateien} Dateien, ${k.zeilen.toLocaleString('de-DE')} Zeilen`;
+  if (k.host) return k.host;
+  if (k.infra) return 'eigener Dienst';
+  return '';
+}
+$('#spalten').innerHTML = SPALTEN.map(([titel, liste]) => `<div class="spalte"><h4>${titel}</h4>${
+  liste.map(k => `<div class="knoten" data-id="${k.id}"><b>${esc(k.name)}</b><span>${esc(knotenText(k))}</span></div>`).join('')}</div>`).join('');
+
+let gewaehlt = null;
+function linienZeichnen() {
+  const svg = $('#linien'), wrap = $('#ueberblick-wrap').getBoundingClientRect();
+  svg.setAttribute('width', wrap.width); svg.setAttribute('height', wrap.height);
+  const pos = {};
+  document.querySelectorAll('#spalten .knoten').forEach(n => {
+    const r = n.getBoundingClientRect();
+    pos[n.dataset.id] = {l: r.left - wrap.left, r: r.right - wrap.left, y: r.top - wrap.top + r.height / 2};
+  });
+  const farbe = {daten: 'var(--akzent)', realtime: 'var(--teal)', aufruf: 'var(--lila)', pg_net: 'var(--warn)'};
+  let html = '';
+  for (const e of UK.values()) {
+    const a = pos[e.von], b = pos[e.nach]; if (!a || !b) continue;
+    const an = gewaehlt && (e.von === gewaehlt || e.nach === gewaehlt);
+    if (gewaehlt && !an) continue;
+    const vorwaerts = a.l < b.l;
+    const x1 = vorwaerts ? a.r : a.l, x2 = vorwaerts ? b.l : b.r;
+    const dx = Math.max(30, Math.abs(x2 - x1) / 2) * (vorwaerts ? 1 : -1);
+    html += `<path d="M${x1},${a.y} C${x1 + dx},${a.y} ${x2 - dx},${b.y} ${x2},${b.y}" fill="none" stroke="${farbe[e.art]}"
+      stroke-width="${an ? Math.min(4, 1 + Math.log2(e.kanten.length + 1) / 1.5) : 1}" stroke-opacity="${an ? .85 : .13}"
+      ${e.art === 'realtime' ? 'stroke-dasharray="4 3"' : ''}/>`;
+  }
+  svg.innerHTML = html;
+}
+function waehleKnoten(id) {
+  gewaehlt = gewaehlt === id ? null : id;
+  const nachbarn = new Set();
+  if (gewaehlt) for (const e of UK.values()) { if (e.von === id) nachbarn.add(e.nach); if (e.nach === id) nachbarn.add(e.von); }
+  document.querySelectorAll('#spalten .knoten').forEach(n => {
+    n.classList.toggle('an', n.dataset.id === gewaehlt);
+    n.classList.toggle('nachbar', nachbarn.has(n.dataset.id));
+    n.classList.toggle('aus', !!gewaehlt && n.dataset.id !== gewaehlt && !nachbarn.has(n.dataset.id));
+  });
+  linienZeichnen();
+  if (!gewaehlt) return;
+  if (id.startsWith('g_') && id !== 'g_rpc') zeigeGruppe(id);
+  else if (id === 'g_rpc') zeigeFunktionsUebersicht();
+  else zeigeKomponente(id);
+}
+$('#spalten').addEventListener('click', e => { const n = e.target.closest('.knoten'); if (n) waehleKnoten(n.dataset.id); });
+window.addEventListener('resize', linienZeichnen);
+
+// ---------- Details ----------
+const D = $('#details');
+const belegLink = b => {
+  const m = /^(.+?):(\d+)$/.exec(b);
+  if (!m || !BASIS) return `<span class="beleg">${esc(b)}</span>`;
+  const kurz = m[1].split('/').slice(-2).join('/') + ':' + m[2];
+  return `<a class="beleg" title="${esc(b)}" href="vscode://file/${encodeURI(BASIS + '/' + m[1])}:${m[2]}">${esc(kurz)}</a>`;
+};
+const belege = (liste, max = 6) => {
+  const l = liste.slice(0, max).map(belegLink).join('');
+  return l + (liste.length > max ? `<span class="beleg">+${liste.length - max} weitere</span>` : '');
+};
+const kname = id => esc(K[id]?.name || (id === 'policy' ? 'RLS-Policy' : id === 'view' ? 'View' : id));
+const tabLink = t => `<a class="link mono" data-tab="${esc(t)}">${esc(t)}</a>`;
+const fnLink = f => `<a class="link mono" data-fn="${esc(f)}">${esc(f)}</a>`;
+const kLink = k => `<a class="link" data-k="${esc(k)}">${kname(k)}</a>`;
+const opsMarken = ops => ops.map(o => `<span class="marke ${o === 'realtime' ? 'm-gut' : /insert|update|upsert|delete/.test(o) ? 'm-akzent' : ''}">${esc(o)}</span>`).join(' ');
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-tab],[data-fn],[data-k],[data-trig]'); if (!a) return;
+  e.preventDefault();
+  if (a.dataset.tab) zeigeTabelle(a.dataset.tab);
+  else if (a.dataset.fn) zeigeFunktion(a.dataset.fn);
+  else if (a.dataset.k) zeigeKomponente(a.dataset.k);
+  else if (a.dataset.trig) { ansicht('trigger'); zeigeKetteTabelle(TR[a.dataset.trig].tabelle, a.dataset.trig); }
+});
+
+function zeigeKomponente(id) {
+  const k = K[id]; if (!k) return;
+  const aus = M.kanten.filter(x => x.von === id), ein = M.kanten.filter(x => x.nach === id);
+  const block = (titel, liste, fmt) => liste.length ? `<h3>${titel} (${liste.length})</h3>` + liste.map(fmt).join('') : '';
+  const daten = aus.filter(x => x.art === 'daten' || x.art === 'realtime');
+  const tabs = {};
+  for (const x of daten) { const t = x.nach.slice(4); (tabs[t] ||= {ops: new Set(), belege: []}); (x.art === 'realtime' ? ['realtime'] : x.ops.length ? x.ops : ['?']).forEach(o => tabs[t].ops.add(o)); tabs[t].belege.push(...x.belege); }
+  D.innerHTML = `<h2>${esc(k.name)}</h2><div class="unter">${esc(k.art)}${k.pfade ? ' · ' + k.pfade.map(esc).join(', ') : ''}</div>` +
+    block('Tabellen', Object.entries(tabs).sort(), ([t, v]) => `<div class="zeile">${tabLink(t)} ${opsMarken([...v.ops].sort())}<div style="width:100%">${belege(v.belege, 3)}</div></div>`) +
+    block('RPC-Funktionen', aus.filter(x => x.art === 'rpc'), x => `<div class="zeile">${fnLink(x.nach.slice(3))}<div style="width:100%">${belege(x.belege, 2)}</div></div>`) +
+    block('Ruft auf', aus.filter(x => ['edge', 'http'].includes(x.art)), x => `<div class="zeile">${kLink(x.nach)}<div style="width:100%">${belege(x.belege, 2)}</div></div>`) +
+    block('Aktionen (aktion: …)', aus.filter(x => x.art === 'aktion'), x => `<div class="zeile"><span class="mono">${esc(x.nach.slice(7))}</span><div style="width:100%">${belege(x.belege, 2)}</div></div>`) +
+    block('Wird aufgerufen von', ein, x => `<div class="zeile">${x.von === 'db' ? '<b>Datenbank</b> <span class="marke m-warn">pg_net</span>' : kLink(x.von)}<div style="width:100%">${belege(x.belege, 3)}</div></div>`);
+}
+function zeigeGruppe(id) {
+  const g = GRUPPE[id];
+  D.innerHTML = `<h2>${esc(g.name)}</h2><div class="unter">${g.tabellen.length} Tabellen</div><h3>Tabellen</h3>` +
+    g.tabellen.map(t => `<div class="zeile">${tabLink(t.name)} ${t.realtime ? '<span class="marke m-gut">realtime</span>' : ''} ${t.trigger.length ? `<span class="marke">${t.trigger.length} Trigger</span>` : ''}<span class="unter" style="margin-left:auto">${Object.keys(t.komponenten).length} Komponenten</span></div>`).join('');
+}
+function zeigeFunktionsUebersicht() {
+  const nachArt = a => M.funktionen.filter(f => f.art === a);
+  D.innerHTML = `<h2>Funktionen</h2><div class="unter">${M.funktionen.length} Funktionen in public</div>` +
+    [['rpc', 'Von Apps aufrufbar (RPC)'], ['trigger', 'Trigger-Funktionen'], ['intern', 'Intern (nur Server)']].map(([a, t]) =>
+      `<h3>${t} (${nachArt(a).length})</h3>` + nachArt(a).map(f => `<div class="zeile">${fnLink(f.name)}${f.http.length ? ' <span class="marke m-warn">pg_net</span>' : ''}</div>`).join('')).join('');
+}
+function zeigeTabelle(name) {
+  const t = T[name]; if (!t) return;
+  const nutzer = Object.entries(t.komponenten);
+  const kantenZu = id => M.kanten.filter(k => k.von === id && k.nach === 'tab:' + name).flatMap(k => k.belege);
+  const ausgeloest = M.trigger.filter(x => x.tabelle === name);
+  D.innerHTML = `<h2>${esc(name)}</h2><div class="unter">${esc(t.art)} · ca. ${Number(t.zeilen_ca).toLocaleString('de-DE')} Zeilen ${t.rls ? '· RLS' : ''} ${t.policies ? '· ' + t.policies + ' Policies' : ''} ${t.realtime ? '· <span class="marke m-gut">realtime</span>' : ''}</div>` +
+    (t.kommentar ? `<p style="font-size:12.5px">${esc(t.kommentar)}</p>` : '') +
+    (ausgeloest.length ? `<h3>Trigger auf dieser Tabelle (${ausgeloest.length})</h3>` + ausgeloest.map(x =>
+      `<div class="zeile"><span class="marke m-${x.zeitpunkt}">${x.zeitpunkt}</span> <a class="link mono" data-trig="${esc(x.name)}">${esc(x.name)}</a> <span class="unter">${x.ereignisse.join('/')}${x.spalten.length ? ' of ' + x.spalten.join(', ') : ''}</span></div>`).join('') : '') +
+    (nutzer.length ? `<h3>Komponenten (${nutzer.length})</h3>` + nutzer.map(([k, ops]) => `<div class="zeile">${kLink(k)} ${opsMarken(ops)}<div style="width:100%">${belege(kantenZu(k), 2)}</div></div>`).join('') : '') +
+    (t.geschrieben_von_fn.length ? `<h3>Geschrieben von DB-Funktionen</h3>` + t.geschrieben_von_fn.map(f => `<div class="zeile">${fnLink(f)} ${opsMarken(F[f].schreibt[name].filter(o => !o.includes(':')))} <span class="unter">${F[f].schreibt[name].filter(o => o.includes(':')).map(o => o.split(':')[1]).join(', ')}</span></div>`).join('') : '') +
+    (t.gelesen_von_fn.length ? `<h3>Gelesen von DB-Funktionen</h3><div class="zeile">${t.gelesen_von_fn.map(fnLink).join(' ')}</div>` : '') +
+    (t.fremdschluessel.length ? `<h3>Fremdschlüssel</h3>` + t.fremdschluessel.map(f => `<div class="zeile"><span class="mono">${esc(f.spalten.join(', '))}</span> → ${tabLink(f.nach)}</div>`).join('') : '') +
+    `<h3>Spalten (${t.spalten.length})</h3><div class="zeile mono" style="display:block">${t.spalten.map(s => `<span title="${esc(spaltenHinweis(name, s))}" style="${spaltenHinweis(name, s) ? 'color:var(--akzent)' : ''}">${esc(s)}</span>`).join(', ')}</div>`;
+}
+function spaltenHinweis(tab, sp) {
+  const w = M.trigger.filter(x => x.tabelle === tab && x.spalten.includes(sp)).map(x => 'beobachtet von ' + x.name);
+  const s = M.trigger.filter(x => x.tabelle === tab && (F[x.funktion]?.setzt_neu || []).includes(sp)).map(x => 'gesetzt von ' + x.name);
+  return [...s, ...w].join('\n');
+}
+function zeigeFunktion(name) {
+  const f = F[name]; if (!f) return;
+  const trig = M.trigger.filter(t => t.funktion === name);
+  const gerufenVon = M.funktionen.filter(x => x.ruft.includes(name)).map(x => x.name);
+  D.innerHTML = `<h2>${esc(name)}</h2><div class="unter">${esc(f.art)} · ${esc(f.sprache)} · ${f.zeilen} Zeilen${f.security_definer ? ' · security definer' : ''}${f.rollen.length ? ' · ausführbar für ' + f.rollen.join(', ') : ''}</div>` +
+    (f.kommentar ? `<p style="font-size:12.5px">${esc(f.kommentar)}</p>` : '') +
+    `<div class="zeile mono" style="display:block;color:var(--text3)">(${esc(f.argumente.join(' | '))}) → ${esc(f.rueckgabe)}</div>` +
+    (trig.length ? `<h3>Als Trigger auf</h3>` + trig.map(t => `<div class="zeile">${tabLink(t.tabelle)} <a class="link mono" data-trig="${esc(t.name)}">${esc(t.name)}</a> <span class="marke m-${t.zeitpunkt}">${t.zeitpunkt}</span></div>`).join('') : '') +
+    (f.setzt_neu.length ? `<h3>Setzt an der Zeile (NEW)</h3><div class="zeile mono" style="display:block">${f.setzt_neu.map(esc).join(', ')}</div>` : '') +
+    (Object.keys(f.schreibt).length ? `<h3>Schreibt</h3>` + Object.entries(f.schreibt).map(([t, o]) => `<div class="zeile">${tabLink(t)} ${opsMarken(o.filter(x => !x.includes(':')))} <span class="unter">${o.filter(x => x.includes(':')).map(x => x.split(':')[1]).join(', ')}</span></div>`).join('') : '') +
+    (f.liest.length ? `<h3>Liest</h3><div class="zeile">${f.liest.map(tabLink).join(' ')}</div>` : '') +
+    (f.ruft.length ? `<h3>Ruft</h3><div class="zeile">${f.ruft.map(fnLink).join(' ')}</div>` : '') +
+    (f.http.length ? `<h3>HTTP (pg_net)</h3>` + f.http.map(h => `<div class="zeile">${h.edge ? kLink('edge_' + h.edge.replace(/-/g, '_')) : esc(h.host)} ${h.aktion ? `<span class="marke">${esc(h.aktion)}</span>` : ''}</div>`).join('') : '') +
+    (gerufenVon.length ? `<h3>Gerufen von DB-Funktionen</h3><div class="zeile">${gerufenVon.map(fnLink).join(' ')}</div>` : '') +
+    (f.aufgerufen_von.length ? `<h3>Aufgerufen von</h3>` + Object.entries(f.aufgerufen_von.reduce((a, x) => ((a[x.komponente] ||= []).push(x.beleg), a), {})).map(([k, b]) => `<div class="zeile">${kLink(k)}<div style="width:100%">${belege(b, 3)}</div></div>`).join('') : '');
+}
+
+// ---------- Trigger-Ketten ----------
+const trigTabellen = [...new Set(M.trigger.map(t => t.tabelle))].map(t => ({t, n: M.trigger.filter(x => x.tabelle === t).length})).sort((a, b) => b.n - a.n || a.t.localeCompare(b.t));
+const BESCHREIBUNG = {
+  driver_live_locations: 'Standort kommt rein (Fahrer-App oder Tracker)', jobs: 'Fahrt wird angelegt oder geändert',
+  driver_service_requests: 'Dienst wird angelegt oder geändert', vehicle_telemetry_live: 'Tracker meldet Fahrzeugdaten',
+  vehicles: 'Fahrzeug wird angelegt oder geändert', profiles: 'Konto wird geändert', convoy_assignments: 'Fahrer wird Konvoi zugeteilt',
+  standby_fahrer: 'Standby-Fahrer ändert Zustand', dienstreise_fahrer: 'Dienstreise-Status ändert sich', orte: 'Ort wird geändert',
+  messages: 'Nachricht wird geschickt', job_notes: 'Notiz zur Fahrt', vehicle_damages: 'Schaden wird gemeldet', stundenzettel: 'Stundenzettel ändert sich',
+};
+$('#trigger-tabellen').innerHTML = trigTabellen.map(x => `<div class="eintrag" data-tt="${x.t}">${esc(x.t)}<span>${x.n} Trigger${BESCHREIBUNG[x.t] ? ' · ' + BESCHREIBUNG[x.t] : ''}</span></div>`).join('');
+$('#trigger-tabellen').addEventListener('click', e => { const n = e.target.closest('[data-tt]'); if (n) zeigeKetteTabelle(n.dataset.tt); });
+const kreisSchutz = name => (M.befunde.kreislaeufe || []).find(k => k.trigger.includes(name));
+function wirkungHtml(k) {
+  const z = [];
+  if (k.setzt?.length) z.push(`<div>setzt <span class="mono">${k.setzt.map(esc).join(', ')}</span></div>`);
+  for (const [t, ops] of Object.entries(k.schreibt || {})) {
+    const sp = ops.filter(o => o.includes(':')).map(o => o.split(':')[1]);
+    z.push(`<div>schreibt ${tabLink(t)} ${opsMarken(ops.filter(o => !o.includes(':')))}${sp.length ? ` <span class="mono" style="color:var(--text3)">${sp.map(esc).join(', ')}</span>` : ''}${t === 'push_ausgang' ? ' → Push-Dienst' : ''}</div>`);
+  }
+  for (const h of k.http || []) z.push(`<div>ruft ${h.edge ? kLink('edge_' + h.edge.replace(/-/g, '_')) : esc(h.host)} per pg_net <span class="marke m-warn">asynchron</span></div>`);
+  if (k.helfer?.length) z.push(`<div>über ${k.helfer.slice(0, 8).map(fnLink).join(', ')}${k.helfer.length > 8 ? ' …' : ''}</div>`);
+  return z.length ? `<div class="wirkung">${z.join('')}</div>` : '<div class="wirkung" style="color:var(--text3)">keine Schreibwirkung erkannt</div>';
+}
+function ketteHtml(k, tiefe = 0) {
+  if (k.kreis) {
+    const s = kreisSchutz(k.trigger);
+    return `<details class="blatt"><summary><span class="marke m-warn">Rückkopplung</span> ${esc(k.tabelle)}.<span class="mono">${esc(k.trigger)}</span> erneut ${s && s.schutz.length ? `<span class="marke m-gut">Schutz: ${esc(s.schutz.map(x => x.split(': ')[1]).filter((v, i, a) => a.indexOf(v) === i).join(', '))}</span>` : '<span class="marke m-rot">kein Schutz erkannt</span>'}</summary></details>`;
+  }
+  const tr = TR[k.trigger] || {};
+  const folgen = k.folgen || [];
+  const kopf = `<span class="marke m-${k.zeitpunkt}">${k.zeitpunkt}</span> ${tiefe ? esc(k.tabelle) + '.' : ''}<a class="link mono" data-fn="${esc(k.funktion)}">${esc(k.trigger)}</a>
+    <span class="unter" style="font-size:11.5px;color:var(--text3)">${(k.ereignisse || []).join('/')}${k.spalten?.length ? ' of ' + k.spalten.join(', ') : ''}</span>
+    ${tr.wenn ? `<span class="marke" title="${esc(tr.wenn)}">nur wenn …</span>` : ''}${folgen.length ? ` <span class="marke m-akzent">${folgen.length} Folge-Trigger</span>` : ''}${k.abgeschnitten ? ' <span class="marke">abgeschnitten</span>' : ''}`;
+  return `<details ${tiefe === 0 ? 'open' : ''} class="${folgen.length ? '' : 'blatt'}"><summary>${kopf}</summary>${wirkungHtml(k)}${folgen.map(f => ketteHtml(f, tiefe + 1)).join('')}</details>`;
+}
+function zeigeKetteTabelle(tab, fokus) {
+  document.querySelectorAll('#trigger-tabellen .eintrag').forEach(n => n.classList.toggle('an', n.dataset.tt === tab));
+  const liste = M.trigger.filter(t => t.tabelle === tab).sort((a, b) => (a.zeitpunkt === 'before' ? 0 : 1) - (b.zeitpunkt === 'before' ? 0 : 1) || a.name.localeCompare(b.name));
+  const schreiber = Object.keys(T[tab]?.komponenten || {}).filter(k => T[tab].komponenten[k].some(o => /insert|update|upsert|delete/.test(o)));
+  $('#trigger-kette').innerHTML = `<div class="start"><b>${esc(BESCHREIBUNG[tab] || 'Änderung an ' + tab)}</b><div class="unter">Schreibt in ${tabLink(tab)}: ${schreiber.map(kLink).join(', ') || 'nur DB-Funktionen'}${T[tab]?.geschrieben_von_fn.length ? ` · DB-Funktionen: ${T[tab].geschrieben_von_fn.slice(0, 6).map(fnLink).join(', ')}` : ''}</div>
+    <div class="unter" style="margin-top:4px">Reihenfolge: erst alle <span class="marke m-before">before</span> (alphabetisch, ändern die Zeile), dann <span class="marke m-after">after</span> (alphabetisch, Folgen in anderen Tabellen). Ketten zeigen, was auslösen kann. Bedingungen in „nur wenn“ und im Funktionskörper können es verhindern.</div></div>` +
+    liste.map(t => KETTE[t.name] ? ketteHtml(KETTE[t.name]) : '').join('');
+  if (fokus) {
+    const el = [...document.querySelectorAll('#trigger-kette > details > summary a')].find(a => a.textContent === fokus);
+    el?.scrollIntoView({block: 'center'}); el?.closest('details')?.setAttribute('open', '');
+  }
+  zeigeTabelle(tab);
+}
+
+// ---------- Tabellen ----------
+let sortierung = ['name', 1];
+function tabellenZeichnen() {
+  const q = $('#tab-filter').value.trim().toLowerCase();
+  let l = M.tabellen.filter(t => !q || t.name.includes(q) || t.spalten.some(s => s.includes(q)));
+  const wert = {name: t => t.name, gruppe: t => GRUPPE[gruppeVon(t.name)].name, trigger: t => t.trigger.length, komp: t => Object.keys(t.komponenten).length, fn: t => t.geschrieben_von_fn.length, zeilen: t => +t.zeilen_ca};
+  l.sort((a, b) => { const x = wert[sortierung[0]](a), y = wert[sortierung[0]](b); return (x < y ? -1 : x > y ? 1 : 0) * sortierung[1]; });
+  $('#tabellen-liste').innerHTML = `<table class="tabellen"><thead><tr>
+    <th data-s="name">Tabelle</th><th data-s="gruppe">Bereich</th><th data-s="trigger">Trigger</th><th data-s="komp">Komponenten</th><th data-s="fn">DB-Schreiber</th><th data-s="zeilen">Zeilen ca.</th><th>Merkmale</th></tr></thead><tbody>` +
+    l.map(t => `<tr data-tab="${t.name}"><td class="mono">${esc(t.name)}</td><td>${esc(GRUPPE[gruppeVon(t.name)].name)}</td><td>${t.trigger.length || ''}</td><td>${Object.keys(t.komponenten).length || ''}</td><td>${t.geschrieben_von_fn.length || ''}</td><td>${Number(t.zeilen_ca).toLocaleString('de-DE')}</td>
+      <td>${t.art !== 'tabelle' ? `<span class="marke">${t.art}</span> ` : ''}${t.realtime ? '<span class="marke m-gut">realtime</span> ' : ''}${t.rls ? '' : t.art === 'tabelle' ? '<span class="marke m-warn">ohne RLS</span>' : ''}</td></tr>`).join('') + '</tbody></table>';
+}
+$('#tab-filter').addEventListener('input', tabellenZeichnen);
+$('#tabellen-liste').addEventListener('click', e => { const th = e.target.closest('th[data-s]'); if (th) { sortierung = [th.dataset.s, sortierung[0] === th.dataset.s ? -sortierung[1] : (th.dataset.s === 'name' || th.dataset.s === 'gruppe' ? 1 : -1)]; tabellenZeichnen(); } });
+tabellenZeichnen();
+
+// ---------- Befunde ----------
+function befundeZeichnen() {
+  const b = M.befunde;
+  const rt = b.unbekannt_im_code.filter(x => x.art === 'realtime_nicht_freigegeben');
+  const fehlt = b.unbekannt_im_code.filter(x => x.art !== 'realtime_nicht_freigegeben');
+  const ohneRls = M.tabellen.filter(t => t.art === 'tabelle' && !t.rls);
+  const ohneSchutz = b.kreislaeufe.filter(k => !k.schutz.length);
+  const gesamt = rt.length + fehlt.length + b.tabellen_ohne_nutzung.length + b.funktionen_ohne_aufrufer.length + ohneSchutz.length;
+  $('#tab-befunde').textContent = `Befunde ${gesamt}`;
+  const gruppiert = (liste) => Object.entries(liste.reduce((a, x) => ((a[x.name] ||= []).push(x), a), {}));
+  $('#befunde').innerHTML = `<div class="kacheln">
+    <div class="kachel"><div class="zahl">${rt.length}</div><div class="text">Realtime abonniert, Tabelle nicht freigegeben</div></div>
+    <div class="kachel"><div class="zahl">${fehlt.length}</div><div class="text">Code nutzt Tabelle/RPC, die es nicht gibt</div></div>
+    <div class="kachel"><div class="zahl">${b.tabellen_ohne_nutzung.length}</div><div class="text">Tabellen/Views ohne erkannte Nutzung</div></div>
+    <div class="kachel"><div class="zahl">${b.funktionen_ohne_aufrufer.length}</div><div class="text">Funktionen ohne erkannten Aufrufer</div></div>
+    <div class="kachel"><div class="zahl">${b.kreislaeufe.length}</div><div class="text">Trigger-Rückkopplungen, ${ohneSchutz.length} ohne erkannten Schutz</div></div>
+    <div class="kachel"><div class="zahl">${ohneRls.length}</div><div class="text">Tabellen ohne RLS</div></div></div>` +
+    (rt.length ? `<div class="befund-block"><h3>Realtime-Abo ohne Freigabe</h3><p>App abonniert Änderungen, Tabelle steht aber nicht in der Publikation supabase_realtime. Das Abo bekommt dann keine Änderungen.</p>${gruppiert(rt).map(([n, l]) => `<div class="zeile">${tabLink(n)}<div style="width:100%">${l.map(x => `<span class="unter">${kname(x.komponente)}</span>${belegLink(x.beleg)}`).join('')}</div></div>`).join('')}</div>` : '') +
+    (fehlt.length ? `<div class="befund-block"><h3>Im Code, aber nicht in der DB</h3><p>Name passt zu keiner Tabelle, Funktion oder Edge Function. Oft Tippfehler, alter Name oder nur Demo-Pfad.</p>${fehlt.map(x => `<div class="zeile"><span class="mono">${esc(x.name)}</span> <span class="marke">${esc(x.art)}</span> <span class="unter">${kname(x.komponente)}</span><div style="width:100%">${belegLink(x.beleg)}</div></div>`).join('')}</div>` : '') +
+    `<div class="befund-block"><h3>Trigger-Rückkopplungen</h3><p>Trigger schreibt in eine Tabelle, die ihn selbst wieder auslöst. Mit Schutz meist gewollt.</p>${b.kreislaeufe.map(k => `<div class="zeile">${k.trigger.map(t => `<a class="link mono" data-trig="${esc(t)}">${esc(t)}</a>`).join(' → ')} ${k.schutz.length ? `<span class="marke m-gut">${esc(k.schutz.join(', '))}</span>` : '<span class="marke m-rot">kein Schutz erkannt</span>'}</div>`).join('')}</div>` +
+    `<div class="befund-block"><h3>Ohne erkannte Nutzung</h3><p>Weder im Code noch in Triggern, Funktionen, Policies oder Views gefunden. Kann trotzdem von Hand oder per SQL genutzt werden.</p><div class="zeile">${b.tabellen_ohne_nutzung.map(tabLink).join(' ')}</div><div class="zeile">${b.funktionen_ohne_aufrufer.map(fnLink).join(' ')}</div></div>` +
+    (ohneRls.length ? `<div class="befund-block"><h3>Tabellen ohne RLS</h3><p>Ohne Row Level Security sieht jeder angemeldete Nutzer alles, falls Rechte auf die Tabelle bestehen.</p><div class="zeile">${ohneRls.map(t => tabLink(t.name)).join(' ')}</div></div>` : '');
+}
+befundeZeichnen();
+
+// ---------- Suche ----------
+const INDEX = [
+  ...M.komponenten.map(k => ({t: k.name, art: 'Komponente', go: () => { ansicht('ueberblick'); waehleKnoten(k.id); if (!K[k.id]) zeigeKomponente(k.id); }})),
+  ...M.tabellen.map(t => ({t: t.name, art: 'Tabelle', go: () => zeigeTabelle(t.name)})),
+  ...M.tabellen.flatMap(t => t.spalten.map(s => ({t: t.name + '.' + s, art: 'Spalte', go: () => zeigeSpalte(t.name, s)}))),
+  ...M.funktionen.map(f => ({t: f.name, art: 'Funktion', go: () => zeigeFunktion(f.name)})),
+  ...M.trigger.map(t => ({t: t.name, art: 'Trigger auf ' + t.tabelle, go: () => { ansicht('trigger'); zeigeKetteTabelle(t.tabelle, t.name); }})),
+];
+function zeigeSpalte(tab, sp) {
+  const beobachtet = M.trigger.filter(x => x.tabelle === tab && x.spalten.includes(sp));
+  const alleUpdate = M.trigger.filter(x => x.tabelle === tab && x.ereignisse.includes('update') && !x.spalten.length);
+  const gesetzt = M.trigger.filter(x => x.tabelle === tab && (F[x.funktion]?.setzt_neu || []).includes(sp));
+  const fnSchreibt = M.funktionen.filter(f => (f.schreibt[tab] || []).includes('update:' + sp));
+  D.innerHTML = `<h2>${esc(tab)}.${esc(sp)}</h2><div class="unter">Spalte · ${tabLink(tab)}</div>` +
+    `<h3>Wer setzt sie in der DB</h3>` + ([...gesetzt.map(x => `<div class="zeile"><span class="marke m-before">before</span> <a class="link mono" data-trig="${esc(x.name)}">${esc(x.name)}</a></div>`), ...fnSchreibt.map(f => `<div class="zeile">${fnLink(f.name)} <span class="marke m-akzent">update</span></div>`)].join('') || '<div class="zeile unter">keine DB-Funktion erkannt, nur Apps</div>') +
+    `<h3>Was reagiert, wenn sie sich ändert</h3>` + (beobachtet.map(x => `<div class="zeile"><span class="marke m-${x.zeitpunkt}">${x.zeitpunkt}</span> <a class="link mono" data-trig="${esc(x.name)}">${esc(x.name)}</a> <span class="unter">gezielt auf diese Spalte</span></div>`).join('') || '<div class="zeile unter">kein Trigger gezielt auf diese Spalte</div>') +
+    (alleUpdate.length ? `<div class="unter" style="margin-top:6px">Dazu ${alleUpdate.length} Trigger auf jedes Update von ${esc(tab)}: ${alleUpdate.map(x => `<a class="link mono" data-trig="${esc(x.name)}">${esc(x.name)}</a>`).join(', ')}</div>` : '') +
+    `<h3>Apps und Server mit Zugriff auf ${esc(tab)}</h3>` + Object.entries(T[tab].komponenten).map(([k, ops]) => `<div class="zeile">${kLink(k)} ${opsMarken(ops)}</div>`).join('');
+}
+const TL = $('#trefferliste');
+$('#suche').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  if (q.length < 2) { TL.style.display = 'none'; return; }
+  const r = INDEX.filter(x => x.t.toLowerCase().includes(q)).sort((a, b) => (a.t.toLowerCase().startsWith(q) ? 0 : 1) - (b.t.toLowerCase().startsWith(q) ? 0 : 1) || a.t.length - b.t.length).slice(0, 30);
+  TL.innerHTML = r.map((x, i) => `<div data-i="${INDEX.indexOf(x)}">${esc(x.t)}<small>${esc(x.art)}</small></div>`).join('') || '<div>nichts gefunden</div>';
+  TL.style.display = 'block';
+});
+$('#suche').addEventListener('keydown', e => { if (e.key === 'Enter') TL.querySelector('[data-i]')?.click(); if (e.key === 'Escape') TL.style.display = 'none'; });
+TL.addEventListener('click', e => { const d = e.target.closest('[data-i]'); if (!d) return; INDEX[d.dataset.i].go(); TL.style.display = 'none'; });
+document.addEventListener('click', e => { if (!e.target.closest('#trefferliste,#suche')) TL.style.display = 'none'; });
+
+// ---------- Szenarien ----------
+const SVGNS = 'http://www.w3.org/2000/svg';
+const HAUSMEISTER = /(updated_at|_touch$|^flagge_schutz$|^stundenlohn_schutz$|^orte_geaendert_setzen$)/;
+const SPUREN = [['start', 150], ['db', 340], ['server', 165], ['extern', 145], ['apps', 170]];
+const SPUR_X = {}; { let x = 0; for (const [id, w] of SPUREN) { SPUR_X[id] = {l: x, w, m: x + w / 2}; x += w; } }
+const SZ_BREITE = SPUREN.reduce((s, x) => s + x[1], 0);
+let szAktiv = null; const szOffen = new Set();
+const kurzName = id => K[id]?.name || id;
+const abk = (t, n) => (t.length > n ? t.slice(0, n - 1) + '…' : t);
+$('#sz-liste').innerHTML = M.szenarien.map(s => `<button class="tab" data-sz="${s.id}">${esc(s.titel)}</button>`).join('');
+$('#sz-liste').addEventListener('click', e => { const b = e.target.closest('[data-sz]'); if (b) zeigeSzenario(b.dataset.sz); });
+$('#sz-klein').addEventListener('change', () => zeigeSzenario(szAktiv, true));
+$('#sz-alle').addEventListener('click', () => {
+  const s = M.szenarien.find(x => x.id === szAktiv); const alle = szOffen.size === 0;
+  szOffen.clear(); if (alle) s.schritte.forEach((x, i) => x.art === 'trigger' && szOffen.add(i));
+  $('#sz-alle').textContent = alle ? 'Alle zuklappen' : 'Alle aufklappen'; zeigeSzenario(szAktiv, true);
+});
+function sichtbareSchritte(s) {
+  const klein = $('#sz-klein').checked, raus = [], stapel = [];
+  s.schritte.forEach((x, i) => {
+    const t = x.tiefe ?? 0;
+    if (x.art === 'trigger' || x.art === 'kreis') {
+      while (stapel.length > t) stapel.pop();
+      const eltern = stapel.slice(0, t);
+      const zu = eltern.some(j => !szOffen.has(j));
+      const kinder = s.schritte.slice(i + 1).findIndex(y => !(y.art === 'trigger' || y.art === 'kreis') || (y.tiefe ?? 0) <= t);
+      const n = kinder === -1 ? s.schritte.slice(i + 1).filter(y => y.art === 'trigger' || y.art === 'kreis').length : kinder;
+      stapel[t] = i;
+      if (zu) return;
+      if (!klein && x.art === 'trigger' && HAUSMEISTER.test(x.funktion || '')) return;
+      raus.push({x, i, kinder: n});
+    } else { stapel.length = 0; raus.push({x, i, kinder: 0}); }
+  });
+  return raus;
+}
+function el(tag, attr, text) { const e = document.createElementNS(SVGNS, tag); for (const k in attr) e.setAttribute(k, attr[k]); if (text != null) e.textContent = text; return e; }
+function zeigeSzenario(id, ohneDetails) {
+  const s = M.szenarien.find(x => x.id === id) || M.szenarien[0];
+  if (szAktiv !== s.id) { szOffen.clear(); $('#sz-alle').textContent = 'Alle aufklappen'; }
+  szAktiv = s.id;
+  document.querySelectorAll('#sz-liste [data-sz]').forEach(b => b.classList.toggle('an', b.dataset.sz === s.id));
+  const z = s.zusammenfassung;
+  $('#sz-titel').innerHTML = `<b>${esc(s.titel)}</b><div class="unter">${z.trigger} Trigger können laufen · ${z.tabellen} Tabellen geschrieben${z.pg_net ? ` · ${z.pg_net}× pg_net` : ''}${z.push ? ' · Push' : ''} · ${z.realtime_apps.length} Apps sehen es per Realtime</div>`;
+  const svg = $('#sz-svg'); svg.innerHTML = '';
+  const kopf = 30; let y = kopf + 10;
+  const zeilen = sichtbareSchritte(s);
+  const hoehe = r => (r.x.art === 'trigger' || r.x.art === 'kreis') ? 26 : (['realtime', 'mitteilung'].includes(r.x.art) ? 40 : 38);
+  const gesamt = kopf + 20 + zeilen.reduce((a, r) => a + hoehe(r), 0);
+  svg.setAttribute('viewBox', `0 0 ${SZ_BREITE} ${gesamt}`);
+  svg.appendChild(el('defs', {})).innerHTML = `<marker id="pf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>`;
+  const namen = {start: kurzName(s.start), db: 'Datenbank', server: 'Edge / Server', extern: 'Extern', apps: 'Andere Apps'};
+  for (const [sp] of SPUREN) {
+    const p = SPUR_X[sp];
+    svg.appendChild(el('rect', {x: p.l + 3, y: 0, width: p.w - 6, height: 24, rx: 5, fill: 'var(--fl2)', stroke: 'var(--rand)'}));
+    svg.appendChild(el('text', {x: p.m, y: 16, 'text-anchor': 'middle', 'font-weight': 600}, namen[sp]));
+    svg.appendChild(el('line', {x1: p.m, y1: 24, x2: p.m, y2: gesamt, stroke: 'var(--rand)', 'stroke-dasharray': '3 4'}));
+  }
+  let nr = 0;
+  for (const r of zeilen) {
+    const x = r.x, h = hoehe(r), g = el('g', {class: 'zeile', 'data-i': r.i});
+    if (x.art === 'trigger' || x.art === 'kreis') {
+      const p = SPUR_X.db, t = x.tiefe ?? 0, x0 = p.l + 6 + t * 14, w = p.w - 12 - t * 14;
+      const bg = x.art === 'kreis' ? 'var(--warn-bg)' : t === 0 ? 'var(--fl)' : 'var(--bg)';
+      g.appendChild(el('rect', {class: 'box', x: x0, y: y + 2, width: w, height: h - 4, rx: 5, fill: bg, stroke: 'var(--rand)'}));
+      if (x.art === 'kreis') {
+        g.appendChild(el('text', {x: x0 + 8, y: y + 17, class: 'mono', fill: 'var(--warn)'}, abk('↻ ' + x.trigger + ' erneut', 44)));
+      } else {
+        const b = x.zeitpunkt === 'before';
+        g.appendChild(el('rect', {x: x0 + 5, y: y + 6, width: 16, height: 14, rx: 3, fill: b ? 'var(--lila-bg)' : 'var(--teal-bg)'}));
+        g.appendChild(el('text', {x: x0 + 13, y: y + 17, 'text-anchor': 'middle', 'font-size': 10, fill: b ? 'var(--lila)' : 'var(--teal)'}, b ? 'B' : 'A'));
+        const pfeil = r.kinder ? (szOffen.has(r.i) ? '▾ ' : '▸ ') : '';
+        const name = pfeil + abk((t ? x.ziel + '.' : '') + x.trigger, 42 - t);
+        g.appendChild(el('text', {x: x0 + 26, y: y + 17, class: 'mono'}, name));
+        const wirk = [...(x.setzt?.length ? ['setzt ' + x.setzt.length] : []), ...Object.keys(x.schreibt || {}), ...(x.http || []).map(h => '⇢ ' + h)];
+        if (r.kinder && !szOffen.has(r.i)) wirk.unshift('+' + r.kinder + ' Folge');
+        const platz = Math.floor((w - 40 - name.length * 7) / 6);
+        if (platz > 6 && wirk.length) g.appendChild(el('text', {x: x0 + w - 6, y: y + 17, 'text-anchor': 'end', class: 'klein'}, abk(wirk.join(', '), platz)));
+      }
+    } else {
+      nr++;
+      const a = SPUR_X[x.von], b = SPUR_X[x.nach], async = !!x.async;
+      const farbe = async ? 'var(--warn)' : 'var(--akzent)';
+      const x1 = a.m + (b.m > a.m ? 4 : -4), x2 = b.m + (b.m > a.m ? -6 : 6);
+      g.appendChild(el('rect', {x: 0, y, width: SZ_BREITE, height: h, fill: 'transparent'}));
+      g.appendChild(el('line', {x1, y1: y + h - 10, x2, y2: y + h - 10, stroke: farbe, 'stroke-width': 1.8, 'stroke-dasharray': async ? '6 4' : '', 'marker-end': 'url(#pf)'}));
+      const label = `${nr}  ${abk(x.text, 120)}`;
+      const lx = Math.max(4, Math.min(Math.min(a.m, b.m) + 8, SZ_BREITE - label.length * 6.4 - 4));
+      g.appendChild(el('text', {x: lx, y: y + h - 16}, label));
+    }
+    svg.appendChild(g); y += h;
+  }
+  if (!ohneDetails) zeigeSchritt(s, s.schritte.findIndex(x => x.art === 'schreiben'));
+}
+$('#sz-svg').addEventListener('click', e => {
+  const g = e.target.closest('.zeile'); if (!g) return;
+  const s = M.szenarien.find(x => x.id === szAktiv), i = +g.dataset.i, x = s.schritte[i];
+  if (x.art === 'trigger' && s.schritte[i + 1] && (s.schritte[i + 1].tiefe ?? 0) > (x.tiefe ?? 0)) {
+    szOffen.has(i) ? szOffen.delete(i) : szOffen.add(i); zeigeSzenario(szAktiv, true);
+  }
+  zeigeSchritt(s, i);
+});
+function zeigeSchritt(s, i) {
+  const x = s.schritte[i]; if (!x) return;
+  if (x.art === 'trigger') { zeigeFunktion(x.funktion); D.insertAdjacentHTML('afterbegin', `<div class="unter" style="margin-bottom:6px">Szenario ${esc(s.titel)} · Trigger <span class="mono">${esc(x.trigger)}</span> auf ${tabLink(x.ziel)}${x.wenn ? `<div class="mono" style="margin-top:4px">nur wenn ${esc(x.wenn)}</div>` : ''}</div>`); return; }
+  if (x.art === 'kreis') { D.innerHTML = `<h2>Rückkopplung</h2><p style="font-size:13px">${esc(x.trigger)} wird durch eine eigene Folge erneut ausgelöst. Schutz siehe Befunde.</p>`; return; }
+  const ziele = Array.isArray(x.ziel) ? x.ziel : [x.ziel];
+  D.innerHTML = `<h2>${esc(x.text)}</h2><div class="unter">${esc(s.titel)} · ${x.async ? '<span class="marke m-warn">asynchron</span>' : '<span class="marke m-akzent">direkt</span>'}</div>` +
+    (x.beleg ? `<h3>Stelle im Code</h3>${belegLink(x.beleg)}` : '') +
+    (x.spalten?.length ? `<h3>Geschriebene Spalten</h3><div class="zeile mono" style="display:block">${x.spalten.map(esc).join(', ')}</div>` : '') +
+    (x.funktion ? `<h3>Ausgelöst von</h3><div class="zeile">${fnLink(x.funktion)}</div>` : '') +
+    (x.hinweis ? `<p class="unter">${esc(x.hinweis)}</p>` : '') +
+    `<h3>Ziel</h3>` + ziele.map(z => T[z] ? `<div class="zeile">${tabLink(z)}</div>` : `<div class="zeile">${kLink(z)}</div>`).join('') +
+    (x.art === 'schreiben' ? `<h3>Am Ende geschrieben (alle Ebenen)</h3>` + Object.entries(s.geschrieben).map(([t, o]) => `<div class="zeile">${tabLink(t)} ${opsMarken(o)}${T[t]?.realtime ? ' <span class="marke m-gut">realtime</span>' : ''}</div>`).join('') : '');
+}
+
+// ---------- Status-Automat ----------
+const ST = M.status;
+const ST_POS = {pending: [95, 95], assigned: [95, 265], at_pickup: [345, 180], in_progress: [590, 180], done: [830, 180], cancelled: [830, 335], refused: [590, 335]};
+function zeigeStatus() {
+  const svg = $('#st-svg'); svg.innerHTML = '';
+  svg.appendChild(el('defs', {})).innerHTML = `<marker id="spf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker>`;
+  const hand = $('#st-hand').checked, BW = 120, BH = 48;
+  const rand = (id, zx, zy) => { const [x, y] = ST_POS[id]; const dx = zx - x, dy = zy - y; const f = Math.min(Math.abs((BW / 2 + 4) / (dx || 1e-9)), Math.abs((BH / 2 + 4) / (dy || 1e-9))); return [x + dx * f, y + dy * f]; };
+  const paare = new Set(ST.uebergaenge.map(u => u.von + '>' + u.nach));
+  const zeichnen = (v, n, art, zahl, idx) => {
+    if (!ST_POS[v] || !ST_POS[n]) return;
+    const [ax, ay] = ST_POS[v], [bx, by] = ST_POS[n];
+    const zurueck = paare.has(n + '>' + v);
+    const bog = art === 'auto' ? 0 : (zurueck ? 38 : 22) * (art === 'hand' ? 1 : 1);
+    const mx = (ax + bx) / 2, my = (ay + by) / 2, len = Math.hypot(bx - ax, by - ay) || 1;
+    const nx = -(by - ay) / len, ny = (bx - ax) / len;
+    const cx = mx + nx * (art === 'auto' ? 0 : bog + (idx % 3) * 10), cy = my + ny * (art === 'auto' ? 0 : bog + (idx % 3) * 10);
+    const [x1, y1] = rand(v, cx, cy), [x2, y2] = rand(n, cx, cy);
+    const g = el('g', {class: 'kante', 'data-v': v, 'data-n': n});
+    g.appendChild(el('path', {d: `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`, fill: 'none', stroke: art === 'auto' ? 'var(--gut)' : 'var(--text3)', 'stroke-width': art === 'auto' ? 3 : 1.4, 'stroke-dasharray': art === 'auto' ? '' : '5 4', 'marker-end': 'url(#spf)'}));
+    g.appendChild(el('path', {d: `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`, fill: 'none', stroke: 'transparent', 'stroke-width': 14}));
+    const lx = 0.25 * x1 + 0.5 * cx + 0.25 * x2, ly = 0.25 * y1 + 0.5 * cy + 0.25 * y2;
+    const regel = art === 'auto' ? (ST.regeln.find(r => r.nach === n && r.von.includes(v))?.kurz || 'automatisch') : '';
+    const text = art === 'auto' ? `${regel} · ${zahl}` : String(zahl);
+    const tw = text.length * 6.4 + 10;
+    g.appendChild(el('rect', {x: lx - tw / 2, y: ly - 10, width: tw, height: 18, rx: 4, fill: 'var(--bg)', stroke: art === 'auto' ? 'var(--gut)' : 'var(--rand)'}));
+    g.appendChild(el('text', {x: lx, y: ly + 3, 'text-anchor': 'middle', class: art === 'auto' ? '' : 'klein'}, text));
+    svg.appendChild(g);
+  };
+  // Regeln auch ohne echte Übergänge zeigen
+  const autoPaare = new Map();
+  for (const r of ST.regeln) for (const v of r.von) autoPaare.set(v + '>' + r.nach, 0);
+  ST.uebergaenge.forEach(u => { if (u.auto) autoPaare.set(u.von + '>' + u.nach, u.auto); });
+  if (hand) ST.uebergaenge.filter(u => u.hand).forEach((u, i) => zeichnen(u.von, u.nach, 'hand', u.hand, i));
+  [...autoPaare].forEach(([k, z], i) => { const [v, n] = k.split('>'); zeichnen(v, n, 'auto', z, i); });
+  for (const z of ST.zustaende) {
+    const [x, y] = ST_POS[z.id], g = el('g', {class: 'knopf', 'data-z': z.id});
+    const farbe = z.id === 'done' ? ['var(--gut-bg)', 'var(--gut)'] : ['cancelled', 'refused'].includes(z.id) ? ['var(--rot-bg)', 'var(--rot)'] : ['var(--fl)', 'var(--rand2)'];
+    g.appendChild(el('rect', {x: x - BW / 2, y: y - BH / 2, width: BW, height: BH, rx: 8, fill: farbe[0], stroke: farbe[1]}));
+    g.appendChild(el('text', {x, y: y - 3, 'text-anchor': 'middle', 'font-weight': 600}, z.name));
+    g.appendChild(el('text', {x, y: y + 14, 'text-anchor': 'middle', class: 'klein'}, `${z.id}${z.bestand ? ' · ' + z.bestand + ' jetzt' : ''}`));
+    svg.appendChild(g);
+  }
+  const sum = ST.uebergaenge.reduce((a, u) => [a[0] + u.auto, a[1] + u.hand], [0, 0]);
+  $('#st-unter').textContent = `${sum[0] + sum[1]} protokollierte Wechsel: ${sum[0]} automatisch, ${sum[1]} von Hand`;
+  const E = ST.einstellungen, R = ST.radien;
+  $('#st-regeln').innerHTML = `<table class="st-tab"><tr><th>Regel (DB, ${fnLink('trisar_evaluate_job_status')})</th><th>Bedingungen</th></tr>` +
+    ST.regeln.map(r => `<tr><td><b>${r.von.map(v => esc(ST.zustaende.find(z => z.id === v)?.name || v)).join(' / ')} → ${esc(ST.zustaende.find(z => z.id === r.nach).name)}</b><br>${esc(r.regel)}</td><td>${r.bedingungen.map(esc).join('<br>')}</td></tr>`).join('') +
+    `</table><table class="st-tab"><tr><th>Radien</th><th>rein</th><th>raus</th></tr><tr><td>Standard (orte_standard)</td><td>${R.standard?.rein ?? '–'} m</td><td>${R.standard?.raus ?? '–'} m</td></tr>` +
+    (R.orte || []).map(o => `<tr><td>${esc(o.name)}</td><td>${o.rein} m</td><td>${o.raus} m</td></tr>`).join('') +
+    `<tr><td class="unter" colspan="3">Rückfall ohne orte_standard: integration_settings ${esc(Object.entries(E).map(([k, v]) => k.replace('status_', '') + ' = ' + v).join(', '))}</td></tr></table>`;
+}
+$('#st-hand').addEventListener('change', zeigeStatus);
+$('#st-svg').addEventListener('click', e => {
+  const k = e.target.closest('.kante'), z = e.target.closest('.knopf');
+  const zn = id => esc(ST.zustaende.find(x => x.id === id)?.name || id);
+  if (k) {
+    const v = k.dataset.v, n = k.dataset.n, u = ST.uebergaenge.find(x => x.von === v && x.nach === n);
+    const r = ST.regeln.find(x => x.nach === n && x.von.includes(v));
+    D.innerHTML = `<h2>${zn(v)} → ${zn(n)}</h2><div class="unter">${esc(v)} → ${esc(n)}</div>` +
+      (r ? `<h3>Automatische Regel</h3><p style="font-size:13px;margin:0">${esc(r.regel)}</p><div class="zeile" style="display:block">${r.bedingungen.map(esc).join('<br>')}</div>
+        <div class="zeile">${fnLink(r.funktion)} ruft ${fnLink(r.schreibt_ueber)}</div><div class="zeile">läuft bei: ${r.ausloeser.map(t => `<a class="link mono" data-trig="${esc(t)}">${esc(t)}</a>`).join(', ')}</div>` : '<h3>Keine automatische Regel</h3><p class="unter">Nur von Hand (App, Dispo, KI) möglich.</p>') +
+      (u ? `<h3>Echte Wechsel</h3>` + Object.entries(u.quellen).map(([q, c]) => `<div class="zeile"><span class="mono">${esc(q)}</span><span style="margin-left:auto">${c}</span></div>`).join('') + `<div class="unter">zuletzt ${new Date(u.zuletzt).toLocaleString('de-DE')}</div>` : '<h3>Echte Wechsel</h3><div class="unter">noch keiner protokolliert</div>') +
+      `<p class="unter">Quelle app = jemand hat den Status direkt gesetzt (protokolliert durch ${fnLink('jobs_status_protokoll')}).</p>`;
+  } else if (z) {
+    const id = z.dataset.z, zz = ST.zustaende.find(x => x.id === id);
+    const rein = ST.uebergaenge.filter(u => u.nach === id), raus = ST.uebergaenge.filter(u => u.von === id);
+    const liste = (l, f) => l.map(u => `<div class="zeile">${f(u)}<span style="margin-left:auto">${u.auto ? `<span class="marke m-gut">auto ${u.auto}</span> ` : ''}${u.hand ? `<span class="marke">Hand ${u.hand}</span>` : ''}</span></div>`).join('') || '<div class="unter">keine</div>';
+    D.innerHTML = `<h2>${esc(zz.name)}</h2><div class="unter">${esc(zz.id)} · ${zz.bestand} Fahrten jetzt · gilt auch für: ${zz.alias.map(esc).join(', ')}</div>` +
+      `<h3>Kommt von</h3>` + liste(rein, u => zn(u.von)) + `<h3>Geht nach</h3>` + liste(raus, u => zn(u.nach));
+  }
+});
+
+// ---------- Ansichten ----------
+function ansicht(name) {
+  document.querySelectorAll('.tab[data-ansicht]').forEach(b => b.classList.toggle('an', b.dataset.ansicht === name));
+  document.querySelectorAll('.ansicht').forEach(s => s.classList.toggle('an', s.id === 'a-' + name));
+  if (name === 'ueberblick') requestAnimationFrame(linienZeichnen);
+  if (name === 'trigger' && !$('#trigger-kette').innerHTML) zeigeKetteTabelle(trigTabellen[0].t);
+  if (name === 'szenarien' && !szAktiv) zeigeSzenario(M.szenarien[0].id);
+  if (name === 'status' && !$('#st-svg').innerHTML) zeigeStatus();
+  try { localStorage.setItem('trisar-arch-ansicht', name); } catch (e) {}
+}
+document.querySelectorAll('.tab[data-ansicht]').forEach(b => b.addEventListener('click', () => ansicht(b.dataset.ansicht)));
+let start = 'ueberblick'; try { start = localStorage.getItem('trisar-arch-ansicht') || start; } catch (e) {}
+ansicht(start);
+requestAnimationFrame(linienZeichnen);
+</script>
+</body>
+</html>
