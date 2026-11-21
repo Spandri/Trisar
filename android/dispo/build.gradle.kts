@@ -39,8 +39,8 @@ android {
         }
         minSdk = 26
         targetSdk = 35
-        versionCode = 70
-        versionName = "0.1.69"
+        versionCode = 71
+        versionName = "0.1.70"
     }
     // Eigener Release-Schluessel in android/signatur/ (nicht im Git, sicher aufbewahren).
     // Fehlt er, wird mit dem Debug-Schluessel signiert.
