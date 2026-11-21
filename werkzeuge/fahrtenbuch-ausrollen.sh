@@ -26,7 +26,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 echo "1/3 Datenbank"
-bash "$HIER/werkzeuge/migration-ausrollen.sh" 20261121100000_fahrtenbuch 20261121110000_fahrtenbuch_vin
+bash "$HIER/werkzeuge/migration-ausrollen.sh" 20261121100000_fahrtenbuch 20261121110000_fahrtenbuch_vin 20261121120000_fahrtenbuch_erster_tag
 
 echo "2/3 Edge Function"
 for d in dispo-admin/fahrtenbuch.ts dispo-admin/index.ts; do

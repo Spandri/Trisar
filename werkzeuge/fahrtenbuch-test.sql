@@ -111,9 +111,17 @@ select pg_temp.pruef('Anderer Wagen: nur eigene Fahrt',
 select pg_temp.pruef('Erster Wagen ohne fremde Fahrt',
   (select count(*) from jsonb_array_elements(fahrtenbuch_lesen('00000000-0000-0000-0000-0000000000a1') -> 'zeilen') z where z ->> 'job_id' = '00000000-0000-0000-0000-0000000000f5'), 0::bigint);
 select pg_temp.pruef('Lesen: Summe erster Wagen', (fahrtenbuch_lesen('00000000-0000-0000-0000-0000000000a1') ->> 'km_gesamt'), '20.1');
+-- Standard-Zeitraum: vom ersten Eintrag bis heute, ohne Eintraege heute bis heute
+select pg_temp.pruef('Zeitraum ab erstem Eintrag',
+  (select (d ->> 'von') || ' ' || (d ->> 'bis') || ' ' || (d ->> 'erster_tag') from (select fahrtenbuch_lesen('00000000-0000-0000-0000-0000000000a1') d) x),
+  (select min((coalesce(ende, beginn) at time zone 'Europe/Berlin')::date)::text from fahrtenbuch_gueltig where vin = 'WBATEST0000000001')
+    || ' ' || (now() at time zone 'Europe/Berlin')::date::text
+    || ' ' || (select min((coalesce(ende, beginn) at time zone 'Europe/Berlin')::date)::text from fahrtenbuch_gueltig where vin = 'WBATEST0000000001'));
+select pg_temp.pruef('Zeitraum mit Angabe bleibt', (fahrtenbuch_lesen('00000000-0000-0000-0000-0000000000a1', '2026-01-01', '2026-01-31') ->> 'von'), '2026-01-01');
 -- VIN im Datensatz getauscht (Kennzeichen wandert auf neuen Wagen): alte Zeilen gehoeren nicht dazu
 update public.vehicles set vin = 'WBANEU00000000009' where id = '00000000-0000-0000-0000-0000000000a1';
 select pg_temp.pruef('VIN getauscht: Buch beginnt neu', (fahrtenbuch_lesen('00000000-0000-0000-0000-0000000000a1') ->> 'anzahl'), '0');
+select pg_temp.pruef('Leeres Buch: heute bis heute', (select (d ->> 'von') || ' ' || coalesce(d ->> 'erster_tag', 'leer') from (select fahrtenbuch_lesen('00000000-0000-0000-0000-0000000000a1') d) x), (now() at time zone 'Europe/Berlin')::date::text || ' leer');
 select set_config('test.uid', '00000000-0000-0000-0000-0000000000d1', true);
 do $$ begin
   begin

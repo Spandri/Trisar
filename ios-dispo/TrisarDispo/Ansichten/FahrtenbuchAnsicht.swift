@@ -25,6 +25,8 @@ struct Fahrtenbuch: Decodable {
 
     let vin: String?
     let kennzeichen: String?
+    /// Beginn des gelieferten Zeitraums. Ohne Angabe der Tag des ersten Eintrags, sonst heute.
+    let von: String?
     let km_stand: Double?
     let km_heute: Double?
     let km_monat: Double?
@@ -59,7 +61,7 @@ struct Fahrtenbuch: Decodable {
     /// Beispieldaten fuer den Start mit -fahrtenbuchTest (ohne Anmeldung, ohne Datenbank).
     static var beispiel: Fahrtenbuch? {
         let json = """
-        {"vin":"WBA21EN0309582583","kennzeichen":"M-X7247","km_stand":48212,"km_heute":83.4,"km_monat":1284.4,
+        {"vin":"WBA21EN0309582583","kennzeichen":"M-X7247","von":"2026-11-16","km_stand":48212,"km_heute":83.4,"km_monat":1284.4,
          "km_gesamt":1284.4,"km_gast":842.1,"km_leer":442.3,"anzahl":5,"zeilen":[
          {"id":5,"tag":"2026-11-17","art":"leer","beginn":"2026-11-17T21:12:00+00:00","ende":"2026-11-17T21:40:00+00:00","km_start":48203,"km_ende":48212,"km":9.3,"genau":true,"von":"Bayerischer Hof","nach":"Depot","fahrer":null},
          {"id":4,"tag":"2026-11-17","art":"gast","beginn":"2026-11-17T20:13:00+00:00","ende":"2026-11-17T21:12:00+00:00","km_start":48165,"km_ende":48203,"km":38.1,"genau":true,"von":"MUC T2","nach":"Hotel Bayerischer Hof, Promenadeplatz","fahrer":"Joris Müller"},
@@ -202,7 +204,9 @@ struct FahrtenbuchSeite: View {
 
     private struct Tag: Identifiable { let id: String; var zeilen: [Fahrtenbuch.Zeile]; var km: Double }
 
-    @State private var von: Date
+    /// Standard: vom ersten Eintrag bis heute. Den ersten Tag liefert die Datenbank (Anfrage ohne von).
+    @State private var von = Date()
+    @State private var vonGesetzt = false
     @State private var bis = Date()
     @State private var daten: Fahrtenbuch?
     @State private var busy = ""
@@ -215,8 +219,6 @@ struct FahrtenbuchSeite: View {
     init(fahrzeugID: UUID, schliessen: @escaping () -> Void) {
         self.fahrzeugID = fahrzeugID
         self.schliessen = schliessen
-        var k = Calendar(identifier: .gregorian); k.timeZone = Stunden.berlin
-        _von = State(initialValue: k.date(from: k.dateComponents([.year, .month], from: Date())) ?? Date())
     }
 
     private var gueltig: Bool { StundenExport.isoTag(von) <= StundenExport.isoTag(bis) }
@@ -298,7 +300,15 @@ struct FahrtenbuchSeite: View {
         }
         .onPreferenceChange(FahrtenbuchHoehe.self) { inhaltHoehe = $0 }
         .overlay { FussleisteUnten() }
-        .task(id: "\(StundenExport.isoTag(von))|\(StundenExport.isoTag(bis))") {
+        .task(id: "\(vonGesetzt)|\(StundenExport.isoTag(von))|\(StundenExport.isoTag(bis))") {
+            guard vonGesetzt else {
+                let erste = await Fahrtenbuch.lesen(fahrzeugID, von: nil, bis: StundenExport.isoTag(bis))
+                daten = erste
+                let lesen = DateFormatter(); lesen.locale = Locale(identifier: "en_US_POSIX"); lesen.timeZone = Stunden.berlin; lesen.dateFormat = "yyyy-MM-dd"
+                if let tag = erste?.von.flatMap({ lesen.date(from: String($0.prefix(10))) }) { von = tag }
+                vonGesetzt = true
+                return
+            }
             guard gueltig else { return }
             daten = await Fahrtenbuch.lesen(fahrzeugID, von: StundenExport.isoTag(von), bis: StundenExport.isoTag(bis))
         }

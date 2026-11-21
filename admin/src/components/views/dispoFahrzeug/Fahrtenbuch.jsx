@@ -157,11 +157,12 @@ const Datum = ({ label, value, onChange }) => (
 
 export function FahrtenbuchSeite({ vehicleId, schliessen }) {
   const { t, locale } = useI18n();
-  const heute = new Date();
-  const [von, setVon] = useState(isoTag(new Date(heute.getFullYear(), heute.getMonth(), 1)));
-  const [bis, setBis] = useState(isoTag(heute));
+  // Standard: vom ersten Eintrag bis heute. Den ersten Tag liefert die Datenbank (Anfrage ohne "von").
+  const [vonEigen, setVon] = useState('');
+  const [bis, setBis] = useState(isoTag(new Date()));
+  const daten = useFahrtenbuch(vehicleId, vonEigen || null, bis || null);
+  const von = vonEigen || String(daten?.von || '').slice(0, 10);
   const gueltig = Boolean(von && bis && von <= bis);
-  const daten = useFahrtenbuch(vehicleId, gueltig ? von : null, gueltig ? bis : null);
   const [busy, setBusy] = useState('');
   const [fehler, setFehler] = useState(false);
 

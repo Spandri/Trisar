@@ -91,7 +91,7 @@ private val BERLIN: ZoneId = ZoneId.of("Europe/Berlin")
 internal class FahrtenbuchZeile(val id: String, val tag: String, val art: String, val beginn: String, val ende: String,
     val kmStart: Double?, val kmEnde: Double?, val km: Double?, val genau: Boolean, val von: String, val nach: String, val fahrer: String)
 
-internal class FahrtenbuchStand(val vin: String, val kennzeichen: String, val kmStand: Double?, val kmHeute: Double?, val kmMonat: Double?,
+internal class FahrtenbuchStand(val vin: String, val kennzeichen: String, val von: String, val kmStand: Double?, val kmHeute: Double?, val kmMonat: Double?,
     val kmGesamt: Double?, val kmGast: Double?, val kmLeer: Double?, val anzahl: Int, val zeilen: List<FahrtenbuchZeile>)
 
 private fun fbTxt(o: JsonObject, k: String): String = (o[k] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content ?: ""
@@ -105,7 +105,7 @@ internal suspend fun fahrtenbuchLesen(fahrzeugID: String, von: String? = null, b
     }).data
     val o = Backend.json.parseToJsonElement(text) as? JsonObject
     if (o == null) null else FahrtenbuchStand(
-        vin = fbTxt(o, "vin"), kennzeichen = fbTxt(o, "kennzeichen"),
+        vin = fbTxt(o, "vin"), kennzeichen = fbTxt(o, "kennzeichen"), von = fbTxt(o, "von").take(10),
         kmStand = fbZahl(o, "km_stand"), kmHeute = fbZahl(o, "km_heute"), kmMonat = fbZahl(o, "km_monat"),
         kmGesamt = fbZahl(o, "km_gesamt"), kmGast = fbZahl(o, "km_gast"), kmLeer = fbZahl(o, "km_leer"),
         anzahl = fbTxt(o, "anzahl").toIntOrNull() ?: 0,
@@ -244,15 +244,22 @@ internal fun FahrtenbuchSeite(fahrzeugID: String, schliessen: () -> Unit) {
     val scope = rememberCoroutineScope()
     val dichte = LocalDensity.current
     val heute = LocalDate.now(BERLIN)
-    var von by remember { mutableStateOf(heute.withDayOfMonth(1).toString()) }
+    // Standard: vom ersten Eintrag bis heute. Den ersten Tag liefert die Datenbank (Anfrage ohne von).
+    var von by remember { mutableStateOf("") }
     var bis by remember { mutableStateOf(heute.toString()) }
     var daten by remember { mutableStateOf<FahrtenbuchStand?>(null) }
     var busy by remember { mutableStateOf("") }
     var fehler by remember { mutableStateOf(false) }
     var inhaltHoehe by remember { mutableFloatStateOf(0f) }
-    val gueltig = von <= bis
+    val gueltig = von.isNotEmpty() && von <= bis
 
-    LaunchedEffect(fahrzeugID, von, bis) { if (gueltig) daten = fahrtenbuchLesen(fahrzeugID, von, bis) }
+    LaunchedEffect(fahrzeugID, von, bis) {
+        if (von.isEmpty()) {
+            val erste = fahrtenbuchLesen(fahrzeugID, null, bis)
+            daten = erste
+            von = erste?.von?.ifEmpty { null } ?: bis
+        } else if (gueltig) daten = fahrtenbuchLesen(fahrzeugID, von, bis)
+    }
 
     // Zeilen nach Tagen, neuester Tag oben.
     val tage = remember(daten) {
