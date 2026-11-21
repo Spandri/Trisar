@@ -18,6 +18,8 @@ struct FahrtZeiten: Equatable {
     var ankunftZeit = ""
     /// Start Zeitraum (13.11.): Ende des Zeitraums, nur bei Abfahrtszeiten gezeigt ("14:00–14:30").
     var bis = ""
+    /// Gefahrene km einer beendeten Fahrt (Fahrtenbuch, 21.11.), fertig als Text ("38,1 km", "ca. 15 km").
+    var km = ""
 }
 
 /// Eine Fahrt fuer die Listen, Felder wie das Mapping in loadRidesFromDb.
@@ -187,6 +189,8 @@ final class DispoFahrtenSpeicher: ObservableObject {
 
     private static let spaltenBasis = "id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins"
     private static let spaltenVarianten = [
+        // Gefahrene km je Fahrt (Fahrtenbuch, 21.11.), ohne die Spalten weiter mit den naechsten.
+        "\(spaltenBasis), ai_booked, flight_number, train_number, etd_bis, abfahrt_echt, ankunft_echt, ankunft_erwartet, km_gefahren, km_quelle",
         // Echte Abfahrt/Ankunft (18.11.), ohne die Spalten weiter mit den naechsten.
         "\(spaltenBasis), ai_booked, flight_number, train_number, etd_bis, abfahrt_echt, ankunft_echt, ankunft_erwartet",
         // Start Zeitraum (13.11.): etd_bis = Ende des Zeitraums.
@@ -217,7 +221,7 @@ final class DispoFahrtenSpeicher: ObservableObject {
                     letzterFehler = error
                     let text = Self.text(error)
                     let fehlendeSpalte = Self.passt(text, #"column .*etd_bis|could not find the ['"]?etd_bis['"]? column"#)
-                        || Self.passt(text, #"column .*(abfahrt_echt|ankunft_echt|ankunft_erwartet)|could not find the ['"]?(abfahrt_echt|ankunft_echt|ankunft_erwartet)['"]? column"#)
+                        || Self.passt(text, #"column .*(abfahrt_echt|ankunft_echt|ankunft_erwartet|km_gefahren|km_quelle)|could not find the ['"]?(abfahrt_echt|ankunft_echt|ankunft_erwartet|km_gefahren|km_quelle)['"]? column"#)
                         || Self.passt(text, #"column .*flight_number|could not find the ['"]?flight_number['"]? column"#)
                         || Self.passt(text, #"column .*ai_booked|could not find the ['"]?ai_booked['"]? column"#)
                         || Self.passt(text, #"column .*train_planned_time|column .*train_predicted_time|could not find the ['"]?train_planned_time['"]? column|could not find the ['"]?train_predicted_time['"]? column"#)
@@ -515,6 +519,13 @@ final class DispoFahrtenSpeicher: ObservableObject {
                 zeiten.ankunftOriginal = ankunftOriginal
                 zeiten.ankunftNeu = ankunft
                 zeiten.ankunftZeit = ankunft
+            }
+            // Gefahrene km: Tacho und GPS-Zaehler genau, GPS-Spur und Route mit "ca.".
+            if fertig, let km = W.zahl(job["km_gefahren"]) {
+                let de = Locale(identifier: "de_DE")
+                zeiten.km = ["tacho", "gps_zaehler"].contains(W.t(job["km_quelle"]))
+                    ? "\(km.formatted(.number.locale(de).precision(.fractionLength(1)))) km"
+                    : "ca. \(km.rounded().formatted(.number.locale(de).precision(.fractionLength(0)))) km"
             }
 
             return DispoFahrt(

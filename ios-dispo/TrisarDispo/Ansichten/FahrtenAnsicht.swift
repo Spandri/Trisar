@@ -747,9 +747,11 @@ struct DispoFahrtKarte: View {
         let ankunft = (W.erste(zeiten.ankunftNeu, zeiten.ankunftZeit) ?? "").trimmingCharacters(in: .whitespaces)
         let abfahrt = fahrt.startZeit.trimmingCharacters(in: .whitespaces)
         func gueltig(_ z: String) -> Bool { W.passt(z, #"^\d{1,2}:\d{2}$"#) }
-        if gueltig(ankunft) && ankunft != gezeigt { return "Ankunft \(ankunft)" }
-        if gueltig(abfahrt) && abfahrt != gezeigt { return "Abfahrt \(abfahrt)" }
-        return nil
+        // Beendete Fahrt: gefahrene km dahinter.
+        let km = zeiten.km.isEmpty ? "" : " · \(zeiten.km)"
+        if gueltig(ankunft) && ankunft != gezeigt { return "Ankunft \(ankunft)\(km)" }
+        if gueltig(abfahrt) && abfahrt != gezeigt { return "Abfahrt \(abfahrt)\(km)" }
+        return zeiten.km.isEmpty ? nil : zeiten.km
     }
 }
 

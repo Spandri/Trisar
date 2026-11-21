@@ -59,7 +59,7 @@ import kotlin.math.max
 
 /**
  * Fahrzeugseite der Dispo fuer einen Fahrer, kopiert aus FahrzeugSeite der Fahrer-App
- * ohne Karte oben und ohne „Tracker scannen“: Fahrzeugblock, Fahrzeugdaten (OBD), Schadensbericht.
+ * ohne Karte oben und ohne „Tracker scannen“: Fahrzeugblock, Fahrzeugdaten (OBD), Fahrtenbuch, Schadensbericht.
  */
 @Composable
 internal fun DispoFahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zurueck: () -> Unit) {
@@ -68,6 +68,7 @@ internal fun DispoFahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zuru
     val daten = remember(fahrzeug?.id) { DispoFahrzeugDaten(fahrzeug?.id) }
     val telemetrie = remember(fahrerID) { DispoTelemetrie(fahrerID) }
     var meldenOffen by remember { mutableStateOf(false) }
+    var fahrtenbuchOffen by remember { mutableStateOf(false) }
     var unterHoehe by remember { mutableFloatStateOf(0f) }
     val dichte = LocalDensity.current
 
@@ -104,10 +105,13 @@ internal fun DispoFahrzeugSeite(fahrerID: String, fahrzeug: FahrzeugZeile?, zuru
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (telemetrie.zeilen.isNotEmpty() && !FahrzeugTest.nurKennzeichen) TelemetrieBlock(telemetrie.zeilen, telemetrie.ereignisse, telemetrie.stand)
+                fahrzeug?.id?.let { id -> FahrtenbuchBlock(id) { fahrtenbuchOffen = true } }
                 SchadensBericht(daten.schaeden, dreh) { meldenOffen = true }
             }
         }
         FussleisteUnten()
+
+        if (fahrtenbuchOffen) fahrzeug?.id?.let { id -> FahrtenbuchSeite(id) { fahrtenbuchOffen = false } }
 
         if (meldenOffen) {
             Box(Modifier.fillMaxSize().background(Color.Black).pointerInput(Unit) {

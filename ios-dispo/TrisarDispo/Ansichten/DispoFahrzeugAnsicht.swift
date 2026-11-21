@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Fahrzeugseite der Dispo fuer den angetippten Fahrer: Kopie von FahrzeugAnsicht.swift der Fahrer-App
-/// (Fahrzeugblock, Fahrzeugdaten (OBD), Schadensbericht mit "Schaden melden"), ohne Karte und ohne
+/// (Fahrzeugblock, Fahrzeugdaten (OBD), Fahrtenbuch, Schadensbericht mit "Schaden melden"), ohne Karte und ohne
 /// "Tracker scannen". Schaeden gehen mit reported_by_driver false an das Fahrzeug des Fahrers.
 struct DispoFahrzeugAnsicht: View {
     let fahrerID: UUID
@@ -11,6 +11,8 @@ struct DispoFahrzeugAnsicht: View {
     @StateObject private var daten: FahrzeugDaten
     @State private var fahrzeug: FahrzeugZeile?
     @State private var meldenOffen = false
+    @State private var fahrtenbuchOffen = false
+    @State private var fahrtenbuch: Fahrtenbuch?
     /// Neu zeichnen, wenn ein Fahrzeugbild nicht laedt (Block wird kuerzer).
     @ObservedObject private var bilder = FahrzeugBildSpeicher.shared
     /// Neu zeichnen, wenn der Fahrzeugkatalog (360-Grad-Bilder) vom Server nachlaedt.
@@ -43,6 +45,7 @@ struct DispoFahrzeugAnsicht: View {
 
                 VStack(spacing: 10) {
                     if !daten.telemetrie.isEmpty { telemetrieBlock(daten) }
+                    if let f = fahrtenbuch, (f.anzahl ?? 0) > 0 { FahrtenbuchBlock(daten: f) { fahrtenbuchOffen = true } }
                     schadensBericht
                 }
                 .frame(width: 353)
@@ -56,9 +59,13 @@ struct DispoFahrzeugAnsicht: View {
         .overlay { FussleisteUnten() }
         .task {
             await fahrzeugLaden()
+            if let id = fahrzeugID { fahrtenbuch = await Fahrtenbuch.lesen(id) }
             await daten.starten(fahrzeugID: fahrzeugID)
         }
         .onDisappear { Task { await daten.beenden() } }
+        .webVollbild(isPresented: $fahrtenbuchOffen) {
+            if let id = fahrzeugID { FahrtenbuchSeite(fahrzeugID: id) { fahrtenbuchOffen = false } }
+        }
         .webVollbild(isPresented: $meldenOffen) {
             SchadenMeldenAnsicht(satz: FahrzeugAngaben(fahrzeug).dreh, schliessen: { meldenOffen = false }) { stelle, beschreibung, fotos, genau in
                 let ok = await daten.melden(stelle: stelle, beschreibung: beschreibung, fotos: fotos, genau: genau)

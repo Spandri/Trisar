@@ -31,6 +31,9 @@ struct TrisarDispoApp: App {
                 } else if ProcessInfo.processInfo.arguments.contains("-fahrtTest") {
                     // Fahrt erstellen ohne Anmeldung ansehen (Vorschau Pin am Ziel).
                     FahrtFormularAnsicht(fahrtID: nil, zurueck: {})
+                } else if ProcessInfo.processInfo.arguments.contains("-fahrtenbuchTest") {
+                    // Fahrtenbuch mit Beispieldaten ohne Anmeldung ansehen.
+                    FahrtenbuchTest()
                 } else if ProcessInfo.processInfo.arguments.contains("-kiTest") {
                     // Verlauf des KI-Assistenten ohne Anmeldung ansehen (Fragen von der Apple Watch).
                     KiAssistentAnsicht(zeigen: { _ in })

@@ -600,8 +600,10 @@ private fun RechteSpalte(fahrt: DispoFahrt, zeiten: FahrtZeiten, strichFarbe: Co
         val ankunft = (W.erste(zeiten.ankunftNeu, zeiten.ankunftZeit) ?: "").trim()
         val abfahrt = fahrt.startZeit.trim()
         fun gueltig(z: String) = W.passt(z, """^\d{1,2}:\d{2}$""")
-        val zusatz = if (gueltig(ankunft) && ankunft != gezeigt) "Ankunft $ankunft"
-        else if (gueltig(abfahrt) && abfahrt != gezeigt) "Abfahrt $abfahrt" else null
+        // Beendete Fahrt: gefahrene km dahinter.
+        val kmDahinter = if (zeiten.km.isEmpty()) "" else " · ${zeiten.km}"
+        val zusatz = if (gueltig(ankunft) && ankunft != gezeigt) "Ankunft $ankunft$kmDahinter"
+        else if (gueltig(abfahrt) && abfahrt != gezeigt) "Abfahrt $abfahrt$kmDahinter" else zeiten.km.ifEmpty { null }
         if (zusatz != null) Text(zusatz, style = css(12f, 500, 16f, farbe = textFarbe.copy(alpha = 0.6f)), modifier = Modifier.padding(top = 4.dp))
         if (restEintrag != null) AnkunftPlakette(restEintrag, textFarbe)
     }

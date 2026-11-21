@@ -8,6 +8,7 @@ import { kiFrage } from './ki.ts';
 import { anlegenAusKarte } from './anlegen.ts';
 import { dienstSenden } from './dienst.ts';
 import { stundenExport } from './stunden.ts';
+import { fahrtenbuchExport } from './fahrtenbuch.ts';
 import { ticketLesen } from './ticket.ts';
 import { walletPass } from './wallet.ts';
 import { abschnittLinien } from './linie.ts';
@@ -77,6 +78,12 @@ Deno.serve(async (req) => {
     // Stundenerfassung: Excel-Export (siehe stunden.ts).
     if (body?.aktion === 'stunden_export') {
       const { status, daten } = await stundenExport(admin, body);
+      return jsonResponse(status, daten);
+    }
+
+    // Fahrtenbuch je Fahrzeug: Excel, PDF oder CSV (siehe fahrtenbuch.ts).
+    if (body?.aktion === 'fahrtenbuch_export') {
+      const { status, daten } = await fahrtenbuchExport(admin, body);
       return jsonResponse(status, daten);
     }
 

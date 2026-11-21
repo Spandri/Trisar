@@ -149,6 +149,7 @@ const RideCard = ({
   notizen = [],
   time,
   startZeit = '',
+  kmText = '',
   status = 'default',
   variant = 'default',
   aiBooked = false,
@@ -447,6 +448,8 @@ const RideCard = ({
               let zeile = null;
               if (gueltig(ankunft) && ankunft !== gezeigt) zeile = t('board.arrivalAt', { zeit: ankunft });
               else if (gueltig(abfahrt) && abfahrt !== gezeigt) zeile = t('board.departureAt', { zeit: abfahrt });
+              // Beendete Fahrt: gefahrene km dahinter.
+              if (kmText) zeile = zeile ? `${zeile} · ${kmText}` : kmText;
               return zeile ? (
                 <div className={`${textColor} opacity-60 text-xs font-medium font-['Space_Grotesk'] leading-4 mt-1`} data-tutorial={id ? `fahrt-ankunft-${id}` : undefined}>{zeile}</div>
               ) : null;

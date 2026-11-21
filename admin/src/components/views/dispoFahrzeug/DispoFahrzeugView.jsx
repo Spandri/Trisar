@@ -5,6 +5,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import SchadenMelden, { WagenAufsicht, StelleAnsicht } from './SchadenMelden';
 import { passtZuSatz } from '../../../shared/fahrzeugForm';
 import FahrzeugTelemetrie from './FahrzeugTelemetrieHell';
+import { FahrtenbuchBlock, FahrtenbuchSeite } from './Fahrtenbuch';
 import TrisarFooter from '../../ui/TrisarFooter';
 import { supabase } from '../../../services/supabase';
 import { fahrzeugAngaben, blockRaster } from '../../../shared/fahrzeugAngaben';
@@ -298,7 +299,19 @@ export default function DispoFahrzeugView({ vehicleId, driverId = null, onBack }
   const [blockHoehe, setBlockHoehe] = useState(332);
   const blockOben = 99;
   const unterBlock = blockOben + blockHoehe - 1;
-  const berichtOben = unterBlock + telemetrieHoehe;
+  // Fahrtenbuch liegt zwischen Fahrzeugdaten und Schadensbericht und misst sich ebenso selbst.
+  const fahrtenbuchRef = useRef(null);
+  const [fahrtenbuchHoehe, setFahrtenbuchHoehe] = useState(0);
+  const [fahrtenbuchOffen, setFahrtenbuchOffen] = useState(false);
+  useEffect(() => {
+    const messen = () => setFahrtenbuchHoehe(fahrtenbuchRef.current ? fahrtenbuchRef.current.offsetHeight + 10 : 0);
+    messen();
+    if (typeof ResizeObserver === 'undefined' || !fahrtenbuchRef.current) return undefined;
+    const beobachter = new ResizeObserver(messen);
+    beobachter.observe(fahrtenbuchRef.current);
+    return () => beobachter.disconnect();
+  });
+  const berichtOben = unterBlock + telemetrieHoehe + fahrtenbuchHoehe;
   useEffect(() => {
     const el = berichtRef.current;
     if (!el) return undefined;
@@ -308,7 +321,7 @@ export default function DispoFahrzeugView({ vehicleId, driverId = null, onBack }
     const beobachter = new ResizeObserver(messen);
     beobachter.observe(el);
     return () => beobachter.disconnect();
-  }, [damages, telemetrieHoehe, berichtOben]);
+  }, [damages, telemetrieHoehe, fahrtenbuchHoehe, berichtOben]);
   const inhaltHoehe = Math.max(BASE_HEIGHT, berichtUnterkante);
   const canvasHeight = inhaltHoehe + PAGE_CONTENT_OFFSET_Y + EXTRA_BOTTOM_SPACE;
 
@@ -347,6 +360,16 @@ export default function DispoFahrzeugView({ vehicleId, driverId = null, onBack }
             {/* Fahrzeugdaten aus dem OBD-Tracker, nur live und nur mit Daten */}
             {!DEMO_MODE && driverId ? <FahrzeugTelemetrie driverId={driverId} blockRef={telemetrieRef} top={unterBlock} /> : null}
 
+            {/* Fahrtenbuch, nur live und nur mit Eintraegen */}
+            {!DEMO_MODE && vehicleId ? (
+              <FahrtenbuchBlock
+                vehicleId={vehicleId}
+                blockRef={fahrtenbuchRef}
+                top={unterBlock + telemetrieHoehe}
+                onOeffnen={() => setFahrtenbuchOffen(true)}
+              />
+            ) : null}
+
             {/* Schadensbericht */}
             <SchadensBericht
               damages={damages}
@@ -363,6 +386,7 @@ export default function DispoFahrzeugView({ vehicleId, driverId = null, onBack }
         ausserhalb des scrollenden und skalierten Inhalts, weil position: fixed
         sich sonst am transform-Elternteil ausrichten wuerde statt am Fenster. */}
     <TrisarFooter className="fixed left-0 right-0 bottom-0 h-10 bg-black z-30" />
+    {fahrtenbuchOffen ? <FahrtenbuchSeite vehicleId={vehicleId} schliessen={() => setFahrtenbuchOffen(false)} /> : null}
     {meldenOffen ? (
       <SchadenMelden
         satz={drehSatz}

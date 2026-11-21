@@ -1,0 +1,40 @@
+diff --git a/admin/src/i18n/de.js b/admin/src/i18n/de.js
+index 0349d8b..b089685 100644
+--- a/admin/src/i18n/de.js
++++ b/admin/src/i18n/de.js
+@@ -864,6 +864,15 @@ export default {
+   "planer.dayMapWaiting": "wartet",
+   "planer.dayMapClock": "{zeit} Uhr",
+   // Fahrzeugdaten aus dem OBD-Tracker
++  "fahrtenbuch.title": "Fahrtenbuch",
++  "fahrtenbuch.today": "Heute",
++  "fahrtenbuch.guest": "Gast",
++  "fahrtenbuch.empty": "Leer",
++  "fahrtenbuch.total": "Gesamt",
++  "fahrtenbuch.from": "Von",
++  "fahrtenbuch.to": "Bis",
++  "fahrtenbuch.none": "Keine Einträge im Zeitraum",
++  "fahrtenbuch.exportFailed": "Export fehlgeschlagen.",
+   "telemetrie.title": "Fahrzeugdaten (OBD)",
+   "telemetrie.none": "Noch keine Fahrzeugdaten vom Tracker.",
+   "telemetrie.ignition": "Zündung",
+diff --git a/admin/src/i18n/en.js b/admin/src/i18n/en.js
+index 31e846e..3bb1969 100644
+--- a/admin/src/i18n/en.js
++++ b/admin/src/i18n/en.js
+@@ -863,6 +863,15 @@ export default {
+   "planer.dayMapWaiting": "waiting",
+   "planer.dayMapClock": "{zeit}",
+   // Fahrzeugdaten aus dem OBD-Tracker
++  "fahrtenbuch.title": "Logbook",
++  "fahrtenbuch.today": "Today",
++  "fahrtenbuch.guest": "Guest",
++  "fahrtenbuch.empty": "Empty",
++  "fahrtenbuch.total": "Total",
++  "fahrtenbuch.from": "From",
++  "fahrtenbuch.to": "To",
++  "fahrtenbuch.none": "No entries in this period",
++  "fahrtenbuch.exportFailed": "Export failed.",
+   "telemetrie.title": "Vehicle data (OBD)",
+   "telemetrie.none": "No vehicle data from the tracker yet.",
+   "telemetrie.ignition": "Ignition",

@@ -1331,6 +1331,8 @@ export default function App() {
         const fallbackReadClient = hasSupabaseAdminConfig ? supabase : supabaseAdmin;
         const jobSelectBase = 'id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins';
         const jobSelectCandidates = [
+          // Gefahrene km je Fahrt (Fahrtenbuch, 21.11.), ohne die Spalten weiter mit den naechsten.
+          `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis, routen_punkte, route_fest, abfahrt_echt, ankunft_echt, ankunft_erwartet, danach_dienstende, km_gefahren, km_quelle`,
           // Danach Dienstende (19.11.), ohne die Spalte weiter mit den naechsten.
           `${jobSelectBase}, ai_booked, flight_number, train_number, pickup_ort_id, dropoff_ort_id, zwischenstopps, etd_bis, routen_punkte, route_fest, abfahrt_echt, ankunft_echt, ankunft_erwartet, danach_dienstende`,
           // Echte Abfahrt/Ankunft (18.11.), ohne die Spalten weiter mit den naechsten.
@@ -1373,7 +1375,7 @@ export default function App() {
             || MISSING_TRAIN_TIMES_COLUMNS_RE.test(jobsResult.error.message || '')
             || MISSING_JOBS_EXT_COLUMN_RE.test(jobsResult.error.message || '')
             || MISSING_ORT_COLUMN_RE.test(jobsResult.error.message || '')
-            || /abfahrt_echt|ankunft_echt|ankunft_erwartet/.test(jobsResult.error.message || '');
+            || /abfahrt_echt|ankunft_echt|ankunft_erwartet|km_gefahren|km_quelle/.test(jobsResult.error.message || '');
           if (!isMissingKnownColumn) break;
         }
         console.log('✅ Jobs-Ergebnis:', jobsResult);
@@ -1860,6 +1862,14 @@ export default function App() {
             startZeitBis: normalizeClockValue(job.etd_bis, ''),
             abfahrtEcht,
             ankunftEcht,
+            // Gefahrene km einer beendeten Fahrt: Tacho und GPS-Zaehler genau, GPS-Spur und Route mit "ca.".
+            kmText: (() => {
+              const km = Number(job.km_gefahren);
+              if (!DONE_LIKE_JOB_STATUSES_FOR_TIMES.has(normalizedJobStatusFromRow) || job.km_gefahren == null || !Number.isFinite(km)) return '';
+              return ['tacho', 'gps_zaehler'].includes(job.km_quelle)
+                ? `${km.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`
+                : `ca. ${Math.round(km).toLocaleString('de-DE')} km`;
+            })(),
             zwischenstopps: Array.isArray(job.zwischenstopps) ? job.zwischenstopps : [],
             routenPunkte: Array.isArray(job.routen_punkte) ? job.routen_punkte : [],
             routeFest: job.route_fest || null,

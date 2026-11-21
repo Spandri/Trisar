@@ -11,9 +11,15 @@
 
 ## NFC-Tags am Tracker
 
-- [ ] **Fahrtenbuch.** Tracker-Fahrten mit Fahrer aus `nfc_scan` und Kunde und Zweck aus der Fahrt zusammenführen. Vor dem Einsatz mit der Steuerberatung klären, ob es den Vorgaben genügt.
+- [x] **Fahrtenbuch.** (21.11., je Fahrzeug über Fahrgestellnummer, km je Fahrt und Leerfahrten, Export Excel/PDF/CSV, siehe Abschnitt Fahrtenbuch.) Autos laufen nur dienstlich, ein steuerliches Fahrtenbuch ist damit keine Pflicht.
 - [ ] **Nähe prüfen.** Beim Antippen vergleichen, ob das Handy wirklich beim Tracker ist.
 - [ ] **Datenschutzinformation** für die Fahrer um das Antippen ergänzen.
+
+## Fahrtenbuch
+
+- [ ] **Fahrer-Dashboard bei Konto.** Fahrer sieht km nicht je Fahrt, sondern die gesamten km je Einsatz. Dafür müssen erst die Einsätze gebaut werden. Im selben Dashboard sind Liter, Fahrten und Stunden heute Platzhalter und noch nicht mit echten Daten verbunden, das wird dabei mit angeschlossen (km aus `fahrtenbuch`, Stunden aus `stundenzettel`, Liter aus dem Tankstand vom Tracker).
+- [ ] **Rohpositionen löschen.** Regel vom 21.11.: nach 90 Tagen. Am 21.11. zurückgestellt, vorerst wird nichts gelöscht. Erst auf Ansage bauen.
+- [ ] **Konvoi.** Bei mehreren Fahrern bekommt nur das Auto des Hauptfahrers eine Zeile.
 
 ## Apple Watch
 

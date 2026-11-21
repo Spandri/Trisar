@@ -41,6 +41,8 @@ data class FahrtZeiten(
     val ankunftZeit: String = "",
     /** Start Zeitraum (13.11.): Ende (jobs.etd_bis), angezeigt als "14:00–14:30". Leer = feste Startzeit. */
     val bis: String = "",
+    /** Gefahrene km einer beendeten Fahrt (Fahrtenbuch, 21.11.), fertig als Text ("38,1 km", "ca. 15 km"). */
+    val km: String = "",
 )
 
 /** Eine Fahrt fuer die Listen, Felder wie das Mapping in loadRidesFromDb. */
@@ -192,6 +194,8 @@ object DispoFahrtenSpeicher {
 
     private const val SPALTEN_BASIS = "id, driver_id, pickup_name, pickup_address, dropoff_name, dropoff_address, ride_date, etd, original_etd, status, convoy_id, passengers, anonymous_guests, created_at, ext_flight_payload, ext_flight_last_sync_at, train_planned_time, train_predicted_time, ext_route_duration_mins, ext_route_duration_in_traffic_mins"
     private val spaltenVarianten = listOf(
+        // Gefahrene km je Fahrt (Fahrtenbuch, 21.11.), ohne die Spalten weiter mit den naechsten.
+        "$SPALTEN_BASIS, ai_booked, flight_number, train_number, etd_bis, abfahrt_echt, ankunft_echt, ankunft_erwartet, km_gefahren, km_quelle",
         // Echte Abfahrt/Ankunft (18.11.), ohne die Spalten weiter mit den naechsten.
         "$SPALTEN_BASIS, ai_booked, flight_number, train_number, etd_bis, abfahrt_echt, ankunft_echt, ankunft_erwartet",
         // Start Zeitraum (13.11.): etd_bis = Ende des Zeitraums.
@@ -223,7 +227,7 @@ object DispoFahrtenSpeicher {
                     letzterFehler = e
                     val text = fehlerText(e)
                     val fehlendeSpalte = passt(text, """column .*etd_bis|could not find the ['"]?etd_bis['"]? column""")
-                        || passt(text, """column .*(abfahrt_echt|ankunft_echt|ankunft_erwartet)|could not find the ['"]?(abfahrt_echt|ankunft_echt|ankunft_erwartet)['"]? column""")
+                        || passt(text, """column .*(abfahrt_echt|ankunft_echt|ankunft_erwartet|km_gefahren|km_quelle)|could not find the ['"]?(abfahrt_echt|ankunft_echt|ankunft_erwartet|km_gefahren|km_quelle)['"]? column""")
                         || passt(text, """column .*flight_number|could not find the ['"]?flight_number['"]? column""")
                         || passt(text, """column .*ai_booked|could not find the ['"]?ai_booked['"]? column""")
                         || passt(text, """column .*train_planned_time|column .*train_predicted_time|could not find the ['"]?train_planned_time['"]? column|could not find the ['"]?train_predicted_time['"]? column""")
@@ -511,6 +515,14 @@ object DispoFahrtenSpeicher {
                 zeiten = if (verspaetet) FahrtZeiten(original = if (plan.isEmpty()) "--:--" else plan + (if (etdBis.isEmpty()) "" else "–$etdBis"), neu = abfahrtEcht)
                 else FahrtZeiten(zeit = abfahrtEcht)
                 zeiten = zeiten.copy(ankunftOriginal = ankunftOriginal, ankunftNeu = ankunft, ankunftZeit = ankunft)
+            }
+            // Gefahrene km: Tacho und GPS-Zaehler genau, GPS-Spur und Route mit "ca.".
+            val kmWert = if (fertig) W.zahl(job["km_gefahren"]) else null
+            if (kmWert != null) {
+                val de = java.util.Locale.GERMANY
+                zeiten = zeiten.copy(km = if (W.t(job["km_quelle"]) in setOf("tacho", "gps_zaehler"))
+                    java.text.NumberFormat.getNumberInstance(de).apply { minimumFractionDigits = 1; maximumFractionDigits = 1 }.format(kmWert) + " km"
+                else "ca. " + java.text.NumberFormat.getIntegerInstance(de).format(Math.round(kmWert)) + " km")
             }
 
             DispoFahrt(
