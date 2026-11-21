@@ -76,7 +76,7 @@ import kotlin.math.roundToLong
 /*
  * Fahrtenbuch auf der Fahrzeugseite der Dispo (wie Fahrtenbuch.jsx und FahrtenbuchAnsicht.swift).
  * - FahrtenbuchBlock: heller Block zwischen Fahrzeugdaten und Schadensbericht (Kilometerstand, heute,
- *   Monat, letzte drei Eintraege). Ohne Eintraege bleibt er weg. Tipp oeffnet die Seite.
+ *   Monat, letzte drei Eintraege). Steht immer da, auch ohne Eintraege. Tipp oeffnet die Seite.
  * - FahrtenbuchSeite: alle Eintraege im Zeitraum, nach Tagen, mit Export (Excel, PDF, CSV).
  * Daten: Datenbank-Funktion fahrtenbuch_lesen (haengt an der Fahrgestellnummer, nicht am Kennzeichen).
  * Export: dispo-admin, Aktion fahrtenbuch_export.
@@ -180,7 +180,6 @@ internal fun FahrtenbuchBlock(fahrzeugID: String, oeffnen: () -> Unit) {
     var daten by remember(fahrzeugID) { mutableStateOf<FahrtenbuchStand?>(null) }
     LaunchedEffect(fahrzeugID) { daten = fahrtenbuchLesen(fahrzeugID) }
     val d = daten ?: return
-    if (d.anzahl <= 0) return
     val monat = remember { DateTimeFormatter.ofPattern("LLLL", Locale.GERMANY).format(LocalDate.now(BERLIN)) }
     Column(Modifier.width(353.dp).background(Color.White).tippen(oeffnen).padding(29.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

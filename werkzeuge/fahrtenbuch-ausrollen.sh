@@ -85,4 +85,4 @@ fi
 for f in $SPRACHE admin/src/components/views/dispoFahrzeug/Fahrtenbuch.jsx admin/src/components/views/dispoFahrzeug/DispoFahrzeugView.jsx; do
   ssh "$SERVER" "$DOCKER exec fahrer-app-lokal-admin-1 touch /app/${f#*/}" 2>/dev/null || true
 done
-echo "Fertig. Dispo neu laden. Der Block erscheint am Fahrzeug, sobald es den ersten Eintrag hat."
+echo "Fertig. Dispo neu laden. Der Block Fahrtenbuch steht auf der Fahrzeug-Seite (Karte, Fahrer, Kennzeichen)."

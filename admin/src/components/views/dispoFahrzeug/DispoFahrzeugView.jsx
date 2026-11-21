@@ -360,7 +360,7 @@ export default function DispoFahrzeugView({ vehicleId, driverId = null, onBack }
             {/* Fahrzeugdaten aus dem OBD-Tracker, nur live und nur mit Daten */}
             {!DEMO_MODE && driverId ? <FahrzeugTelemetrie driverId={driverId} blockRef={telemetrieRef} top={unterBlock} /> : null}
 
-            {/* Fahrtenbuch, nur live und nur mit Eintraegen */}
+            {/* Fahrtenbuch, nur live */}
             {!DEMO_MODE && vehicleId ? (
               <FahrtenbuchBlock
                 vehicleId={vehicleId}

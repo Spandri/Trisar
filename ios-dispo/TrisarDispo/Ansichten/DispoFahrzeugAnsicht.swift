@@ -45,7 +45,7 @@ struct DispoFahrzeugAnsicht: View {
 
                 VStack(spacing: 10) {
                     if !daten.telemetrie.isEmpty { telemetrieBlock(daten) }
-                    if let f = fahrtenbuch, (f.anzahl ?? 0) > 0 { FahrtenbuchBlock(daten: f) { fahrtenbuchOffen = true } }
+                    if let f = fahrtenbuch { FahrtenbuchBlock(daten: f) { fahrtenbuchOffen = true } }
                     schadensBericht
                 }
                 .frame(width: 353)

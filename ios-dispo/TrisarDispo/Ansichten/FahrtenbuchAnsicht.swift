@@ -3,7 +3,7 @@ import Supabase
 
 /// Fahrtenbuch auf der Fahrzeugseite der Dispo (wie Fahrtenbuch.jsx der Web-Dispo).
 /// - FahrtenbuchBlock: heller Block zwischen Fahrzeugdaten und Schadensbericht (Kilometerstand, heute,
-///   Monat, letzte drei Eintraege). Ohne Eintraege bleibt er weg. Tipp oeffnet die Seite.
+///   Monat, letzte drei Eintraege). Steht immer da, auch ohne Eintraege. Tipp oeffnet die Seite.
 /// - FahrtenbuchSeite: alle Eintraege im Zeitraum, nach Tagen, mit Export (Excel, PDF, CSV).
 /// Daten: Datenbank-Funktion fahrtenbuch_lesen (haengt an der Fahrgestellnummer, nicht am Kennzeichen).
 /// Export: dispo-admin, Aktion fahrtenbuch_export.

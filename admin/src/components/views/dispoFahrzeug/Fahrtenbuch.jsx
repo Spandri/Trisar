@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- Block, Seite und Export gehoeren zusammen. */
 // Fahrtenbuch auf der Fahrzeug-Seite der Dispo.
 // - FahrtenbuchBlock: heller Block zwischen Fahrzeugdaten und Schadensbericht (Kilometerstand, heute,
-//   Monat, letzte drei Eintraege). Ohne Eintraege bleibt er weg. Tipp oeffnet die Seite.
+//   Monat, letzte drei Eintraege). Steht immer da, auch ohne Eintraege. Tipp oeffnet die Seite.
 // - FahrtenbuchSeite: alle Eintraege im Zeitraum, nach Tagen, mit Export (Excel, PDF, CSV).
 // Daten: Datenbank-Funktion fahrtenbuch_lesen (haengt an der Fahrgestellnummer, nicht am Kennzeichen).
 // Export: dispo-admin, Aktion fahrtenbuch_export.
@@ -115,7 +115,7 @@ const Wert = ({ label, wert }) => (
 export function FahrtenbuchBlock({ vehicleId, blockRef, top, onOeffnen }) {
   const { t, locale } = useI18n();
   const daten = useFahrtenbuch(vehicleId);
-  if (!daten || !(daten.anzahl > 0)) return null;
+  if (!daten) return null;
   const monat = new Date().toLocaleDateString(locale || 'de-DE', { month: 'long' });
 
   return (
